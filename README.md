@@ -1,14 +1,14 @@
 # <img src="https://github.com/CodeShayk/SourceFlow.Net/blob/master/ninja-icon-16.png" alt="ninja" style="width:30px;"/> SourceFlow.Net
 
-<p align="center">
-  <img src="https://img.shields.io/badge/.NET-9.0+-blue?style=flat-square&logo=dotnet" alt=".NET Version" />
-  <img src="https://img.shields.io/badge/.NETStandrad-2.1+-green?style=flat-square&logo=dotnet" alt=".NET Standard Version" />
-  <img src="https://img.shields.io/github/license/username/sourceflow.net?style=flat-square" alt=" MIT License" />
-  <img src="https://img.shields.io/nuget/v/SourceFlow.Net?style=flat-square&logo=nuget" alt="NuGet Version" />
-  <img src="https://img.shields.io/github/stars/username/sourceflow.net?style=flat-square&logo=github" alt="GitHub Stars" />
-  <img src="https://img.shields.io/github/workflow/status/username/sourceflow.net/CI?style=flat-square&logo=github-actions" alt="Build Status" />
-</p>
+[![.Net 9.0](https://img.shields.io/badge/.Net-9.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
+[![.Net Standard 2.1](https://img.shields.io/badge/.NetStandard-2.1-blue)](https://github.com/dotnet/standard/blob/v2.1.0/docs/versions/netstandard2.1.md)
+[![NuGet version](https://badge.fury.io/nu/SourceFlow.Net.svg)](https://badge.fury.io/nu/SourceFlow.Net) 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/CodeShayk/SourceFlow.Net/blob/master/LICENSE.md) 
+[![GitHub Release](https://img.shields.io/github/v/release/CodeShayk/SourceFlow.Net?logo=github&sort=semver)](https://github.com/CodeShayk/SourceFlow.Net/releases/latest)
+[![master-build](https://github.com/CodeShayk/SourceFlow.Net/actions/workflows/Master-Build.yml/badge.svg)](https://github.com/CodeShayk/SourceFlow.Net/actions/workflows/Master-Build.yml)
+[![master-codeql](https://github.com/CodeShayk/SourceFlow.Net/actions/workflows/Master-CodeQL.yml/badge.svg)](https://github.com/CodeShayk/SourceFlow.Net/actions/workflows/Master-CodeQL.yml)
 
+<p align="center"> </p>
 <p align="center">
   <strong>A modern, lightweight, and extensible .NET framework for building event-sourced applications using Domain-Driven Design (DDD) principles and Command Query Responsibility Segregation (CQRS) patterns.</strong>
 </p>
