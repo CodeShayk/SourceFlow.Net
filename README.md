@@ -92,3 +92,82 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 | **🌐 IoT** | Device state management, sensor data processing |
 | **👥 Collaboration** | Document versioning, user activity tracking |
 | **📋 Compliance** | Audit trails, regulatory re
+
+## 🏁 Getting Started
+### Installation
+nuget add package SourceFlow.Net
+> dotnet add package SourceFlow.Net.SqlServer  # or your preferred storage
+
+### Quick Setup
+``` csharp
+// Program.cs
+builder.Services.AddSourceFlow()
+    .UseSqlServerEventStore(connectionString)
+    .AddAggregate<OrderAggregate>()
+    .AddProjection<OrderSummaryProjection>();
+
+// Domain Aggregate
+public class OrderAggregate : AggregateRoot
+{
+    public void PlaceOrder(OrderId orderId, CustomerId customerId, OrderItems items)
+    {
+        // Business logic validation
+        RaiseEvent(new OrderPlacedEvent(orderId, customerId, items, DateTime.UtcNow));
+    }
+}
+
+// Command Handler
+public class PlaceOrderHandler : ICommandHandler<PlaceOrderCommand>
+{
+    public async Task HandleAsync(PlaceOrderCommand command)
+    {
+        var aggregate = await _repository.GetAsync<OrderAggregate>(command.OrderId);
+        aggregate.PlaceOrder(command.OrderId, command.CustomerId, command.Items);
+        await _repository.SaveAsync(aggregate);
+    }
+}
+```
+## 🌟 Why SourceFlow.Net?
+Features
+- 🚀 Production Ready, Battle-tested patterns with enterprise-grade reliability
+- 💫 Developer Friendly Intuitive APIs with excellent documentation and samples
+- ⚡ Performance Focused, Optimized for high-throughput, low-latency scenarios
+- 🔧 ExtensiblePlugin architecture for custom storage, serialization, and messaging
+- 👥 Community DrivenOpen source with active community and contributor support
+- 🆕 Modern .NETTakes advantage of latest C# and .NET platform features
+
+## 🎯 Target Audience
+
+- 👨‍💼 Senior Developers building complex business applications
+- 🏗️ Architects designing scalable, event-driven systems
+- 👨‍👩‍👧‍👦 Teams transitioning from CRUD to event-sourcing patterns
+- 🏢 Organizations requiring audit trails and temporal data queries
+- 🔬 Microservice Teams implementing distributed system patterns
+
+## 📚 Documentation
+- 📖 Documentation - Complete guides and API reference
+- 🚀 Quick Start - Get up and running in minutes
+- 💡 Examples - Sample applications and use cases
+- ❓ FAQ - Common questions and troubleshooting
+
+## 🤝 Contributing
+We welcome contributions! Please see our Contributing Guide for details.
+
+🐛 Bug Reports - Create an issue
+💡 Feature Requests - Start a discussion
+📝 Documentation - Help improve our docs
+💻 Code - Submit pull requests
+
+## 📄 License
+MIT License - Free for commercial and open source use
+
+<div align="center">
+  <h3>🚀 Build better software with events as your foundation</h3>
+  <p><strong>Start your journey with SourceFlow.Net today!</strong></p>
+  <a href="https://sourceflow.net/quick-start">
+    <img src="https://img.shields.io/badge/Get%20Started-blue?style=for-the-badge&logo=rocket" alt="Get Started" />
+  </a>
+  <a href="https://github.com/CodeShayk/sourceflow.net">
+    <img src="https://img.shields.io/badge/View%20on%20GitHub-black?style=for-the-badge&logo=github" alt="View on GitHub" />
+  </a>
+</div>
