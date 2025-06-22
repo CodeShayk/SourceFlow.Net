@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "SourceFlow.ConsoleApp": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}
