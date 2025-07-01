@@ -1,31 +1,35 @@
+using System;
 using System.Threading.Tasks;
 
 namespace SourceFlow
 {
-    public class BaseCommandService
+    public abstract class BaseCommandService : ICommandService
     {
-        protected readonly IAggregateRootRepository aggregateRootRepository;
-        protected readonly IAggregateRootFactory aggregateRootFactory;
+        protected readonly IAggregateRepository aggregateRepository;
+        protected readonly IAggregateFactory aggregateFactory;
 
-        public BaseCommandService(IAggregateRootRepository aggregateRootRepository, IAggregateRootFactory aggregateRootFactory)
+        public BaseCommandService(IAggregateRepository aggregateRepository, IAggregateFactory aggregateRootFactory)
         {
-            this.aggregateRootRepository = aggregateRootRepository;
-            this.aggregateRootFactory = aggregateRootFactory;
+            this.aggregateRepository = aggregateRepository;
+            this.aggregateFactory = aggregateRootFactory;
         }
 
-        protected Task<IAggregateRoot> GetAggregateRoot<TAggregateRoot>(int id) where TAggregateRoot : IAggregateRoot
+        public async Task<TAggregateRoot> GetAggregate<TAggregateRoot>(Guid id) where TAggregateRoot : IAggregateRoot
         {
-            return aggregateRootRepository.GetByIdAsync(new AggregateReference(id, typeof(TAggregateRoot)));
+            var aggregateRoot = await aggregateRepository.GetByIdAsync(new AggregateReference(id, typeof(TAggregateRoot)));
+            return (TAggregateRoot)aggregateRoot;
         }
 
-        protected Task SaveAggregateRoot<TAggregateRoot>(TAggregateRoot aggregateRoot) where TAggregateRoot : IAggregateRoot
+        public Task SaveAggregate<TAggregateRoot>(TAggregateRoot aggregateRoot) where TAggregateRoot : IAggregateRoot
         {
-            return aggregateRootRepository.SaveAsync(aggregateRoot);
+            return aggregateRepository.SaveAsync(aggregateRoot);
         }
 
-        protected async Task<TAggregateRoot> CreateAggregateRootAsync<TAggregateRoot>(IIdentity state = null) where TAggregateRoot : IAggregateRoot
+        public async Task<TAggregateRoot> InitializeAggregate<TAggregateRoot>(IIdentity state = null) where TAggregateRoot : IAggregateRoot
         {
-            return await aggregateRootFactory.CreateAsync<TAggregateRoot>(state);
+            var aggregate = await aggregateFactory.CreateAsync<TAggregateRoot>(state);
+            aggregate.State = state;
+            return aggregate;
         }
     }
 }

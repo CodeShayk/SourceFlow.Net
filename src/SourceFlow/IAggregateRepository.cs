@@ -1,9 +1,8 @@
-using System;
 using System.Threading.Tasks;
 
 namespace SourceFlow
 {
-    public interface IAggregateRootRepository
+    public interface IAggregateRepository
     {
         Task<IAggregateRoot> GetByIdAsync(AggregateReference aggregateRoot);
 

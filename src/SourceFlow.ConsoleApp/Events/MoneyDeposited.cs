@@ -1,12 +1,11 @@
-using SourceFlow.Core;
-
 namespace SourceFlow.ConsoleApp.Events
 {
-    public class MoneyDeposited : BaseEvent
-
+    public class MoneyDeposited : AccountEvent
     {
-        public override string EventType => nameof(MoneyDeposited);
-        public string AccountId { get; set; } = string.Empty;
+        public MoneyDeposited(Guid aggregateId) : base(aggregateId)
+        {
+        }
+
         public decimal Amount { get; set; }
         public decimal NewBalance { get; set; }
     }

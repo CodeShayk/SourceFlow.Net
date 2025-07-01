@@ -1,34 +1,35 @@
+using System;
 using System.Threading.Tasks;
 
 namespace SourceFlow
 {
-    public abstract class BaseAggregateRoot : IAggregateRoot
+    public abstract class BaseAggregateRoot<TAggregate> : IAggregateRoot
+        where TAggregate : class, IIdentity, new()
     {
-        public IIdentity State { get; protected set; }
-        protected ISagaBus sagaBus { get; }
+        public TAggregate State { get; protected set; }
+        IIdentity IAggregateRoot.State { get { return State; } set { State = (TAggregate)value; } }
 
-        protected BaseAggregateRoot(ISagaBus sagaBus, IIdentity state)
+        protected ICommandBus MessageBus { get; }
+
+        protected BaseAggregateRoot(ICommandBus messageBus)
         {
-            State = state;
-            this.sagaBus = sagaBus;
+            State = new TAggregate();
+            this.MessageBus = messageBus;
         }
 
-        public int SequenceNo { get; set; }
-
-        public abstract Task ApplyAsync(IDomainEvent @event);
+        public abstract Task ApplyAsync(IEvent @event);
 
         public Task ReplayAllEvents()
         {
-            return sagaBus.Replay(this);
+            return MessageBus.Replay(State.Id);
         }
 
-        protected Task PublishAsync(IDomainEvent @event)
+        protected Task PublishAsync(IEvent @event)
         {
             if (@event == null)
-                return Task.CompletedTask;
+                throw new ArgumentNullException(nameof(@event));
 
-            @event.Source = this;
-            return sagaBus.PublishAsync(@event);
+            return MessageBus.PublishAsync(@event);
         }
     }
 }

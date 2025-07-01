@@ -1,11 +1,11 @@
-using SourceFlow.Core;
-
 namespace SourceFlow.ConsoleApp.Events
 {
-    public class AccountClosed : BaseEvent
+    public class AccountClosed : AccountEvent
     {
-        public override string EventType => nameof(AccountClosed);
-        public string AccountId { get; set; } = string.Empty;
+        public AccountClosed(Guid aggregateId) : base(aggregateId)
+        {
+        }
+
         public string Reason { get; set; } = string.Empty;
     }
 }

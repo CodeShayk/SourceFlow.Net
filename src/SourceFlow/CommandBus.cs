@@ -1,0 +1,81 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using System.Linq;
+using System;
+
+namespace SourceFlow
+{
+    public class CommandBus : ICommandBus
+    {
+        private readonly IEventStore eventStore;
+        protected IAggregateFactory aggregateFactory;
+        private readonly IEnumerable<ISagaHandler> sagas;
+
+        public CommandBus(IEventStore eventStore, IAggregateFactory aggregateFactory, IEnumerable<ISagaHandler> sagas)
+        {
+            this.eventStore = eventStore;
+            this.aggregateFactory = aggregateFactory;
+            this.sagas = sagas ?? Enumerable.Empty<ISagaHandler>();
+        }
+
+        async Task IBusPublisher.PublishAsync<TEvent>(TEvent @event)
+        {
+            if (@event == null)
+                throw new ArgumentNullException(nameof(@event));
+
+            if (!sagas.Any())
+                return;
+
+            await HandleEvent<TEvent>(@event);
+        }
+
+        private async Task HandleEvent<TEvent>(TEvent @event) where TEvent : IEvent
+        {
+            var tasks = new List<Task>();
+            foreach (var saga in sagas)
+            {
+                if (!await saga.CanHandleEvent(@event))
+                    continue;
+
+                tasks.Add(SagaHandle(saga, @event));
+            }
+
+            await Task.WhenAll(tasks);
+        }
+
+        private async Task SagaHandle<TEvent>(ISagaHandler saga, TEvent @event) where TEvent : IEvent
+        {
+            // 1. handle event by Saga?
+            await saga.HandleAsync(@event);
+
+            // 2. Set event sequence no.
+            if (!@event.IsReplay)
+            {
+                @event.SequenceNo = await eventStore.GetNextSequenceNo(@event.AggregateId);
+
+                // 3. Append event to event store.
+                await eventStore.AppendAsync(@event);
+            }
+        }
+
+        async Task ICommandBus.Replay(Guid aggregateId)
+        {
+            var events = await eventStore.LoadAsync(aggregateId);
+            if (events == null || !events.Any())
+                return;
+
+            var tasks = new List<Task>();
+            foreach (var @event in events)
+                foreach (var saga in sagas)
+                {
+                    @event.IsReplay = true;
+                    if (!await saga.CanHandleEvent(@event))
+                        continue;
+
+                    tasks.Add(SagaHandle(saga, @event));
+                }
+
+            await Task.WhenAll(tasks);
+        }
+    }
+}

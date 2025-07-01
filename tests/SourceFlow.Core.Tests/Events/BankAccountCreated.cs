@@ -1,5 +1,3 @@
-using SourceFlow.Core;
-
 namespace SourceFlow.Core.Tests.Events
 {
     public class BankAccountCreated : BaseEvent

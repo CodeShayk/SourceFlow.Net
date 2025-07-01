@@ -2,7 +2,6 @@
 // CORE EVENT SOURCING ABSTRACTIONS
 // ====================================================================================
 
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 

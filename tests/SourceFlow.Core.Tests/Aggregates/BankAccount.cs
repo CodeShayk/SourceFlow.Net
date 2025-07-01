@@ -1,4 +1,3 @@
-using SourceFlow.Core;
 using SourceFlow.Core.Tests.Events;
 
 namespace SourceFlow.Core.Tests.Aggregates

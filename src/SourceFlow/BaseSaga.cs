@@ -8,64 +8,61 @@ namespace SourceFlow
     public abstract class BaseSaga<TAggregateRoot> : ISaga<TAggregateRoot>
         where TAggregateRoot : IAggregateRoot
     {
-        protected ISagaBus sagaBus;
-        protected List<IEventHandler> eventHandlers;
-        private IEventStore eventStore;
+        protected ICollection<Tuple<Type, IEventHandler>> eventHandlers;
 
-        protected BaseSaga(ISagaBus sagaBus, IEventStore eventStore)
+        protected BaseSaga()
         {
-            this.sagaBus = sagaBus;
-            this.eventStore = eventStore;
-            eventHandlers = new List<IEventHandler>();
-            sagaBus.RegisterSaga(this);
+            eventHandlers = new List<Tuple<Type, IEventHandler>>();
         }
 
-        async Task ISaga.HandleAsync(IDomainEvent @event)
+        public static bool IsGenericEventHandler(IEventHandler instance, Type eventType)
         {
-            if (!await CanHandleEvent(@event))
-                return;
+            if (instance == null || eventType == null)
+                return false;
 
+            var handlerType = typeof(IEventHandler<>).MakeGenericType(eventType);
+            return handlerType.IsAssignableFrom(instance.GetType());
+        }
+
+        async Task ISagaHandler.HandleAsync<TEvent>(TEvent @event)
+        {
             var tasks = new List<Task>();
 
-            foreach (var handler in eventHandlers.Where(handler => handler is IEventHandler<IDomainEvent> eventHandler)
-                .Cast<IEventHandler<IDomainEvent>>()
-                .ToList())
-                tasks.Add(handler.HandleAsync(@event));
+            foreach (var ehandler in eventHandlers)
+            {
+                if (!ehandler.Item1.Equals(@event.GetType()) ||
+                        !IsGenericEventHandler(ehandler.Item2, @event.GetType()))
+                    continue;
 
-            await Task.WhenAll(tasks);
+                var method = typeof(IEventHandler<>)
+                            .MakeGenericType(@event.GetType())
+                            .GetMethod(nameof(IEventHandler<TEvent>.HandleAsync));
 
-            var aggregateRoot = @event.Source;
+                var task = (Task)method.Invoke(ehandler.Item2, new object[] { @event });
+                tasks.Add(task);
+            }
 
-            aggregateRoot.SequenceNo = @event.SequenceNo;
-            await aggregateRoot.ApplyAsync(@event);
-
-            await eventStore.AppendAsync(@event);
-        }
-
-        public abstract Task<bool> CanHandleEvent(IDomainEvent @event);
-
-        protected void RegisterEventHandler<TEvent>(Func<ISagaBus, IEventHandler<TEvent>> eventHandler)
-            where TEvent : IDomainEvent
-        {
-            var handler = eventHandler(sagaBus);
-
-            if (handler != null)
-                eventHandlers.Add(handler);
-        }
-
-        async Task ISaga<TAggregateRoot>.Replay(TAggregateRoot aggregateRoot)
-        {
-            var events = await eventStore.LoadAsync(aggregateRoot.State.Id);
-            if (events == null)
+            if (!tasks.Any())
                 return;
 
-            foreach (var @event in events)
-            {
-                @event.Source = aggregateRoot;
+            await Task.WhenAll(tasks);
+        }
 
-                aggregateRoot.SequenceNo = @event.SequenceNo;
-                await aggregateRoot.ApplyAsync(@event);
-            }
+        Task<bool> ISagaHandler.CanHandleEvent<TEvent>(TEvent @event)
+        {
+            if (@event == null)
+                throw new ArgumentNullException(nameof(@event));
+
+            var result = eventHandlers.Any(x => x.Item1.IsAssignableFrom(@event.GetType()));
+
+            return Task.FromResult(result);
+        }
+
+        protected void RegisterEventHandler<TEvent>(IEventHandler<TEvent> handler)
+            where TEvent : IEvent
+        {
+            if (handler != null)
+                eventHandlers.Add(new Tuple<Type, IEventHandler>(typeof(TEvent), handler));
         }
     }
 }

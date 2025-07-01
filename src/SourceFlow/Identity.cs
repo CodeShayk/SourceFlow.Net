@@ -1,7 +1,9 @@
+using System;
+
 namespace SourceFlow
 {
     public interface IIdentity
     {
-        int Id { get; }
+        Guid Id { get; }
     }
 }

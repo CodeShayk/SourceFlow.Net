@@ -1,6 +1,3 @@
-using NUnit.Framework;
-using System;
-
 namespace SourceFlow.Core.Tests
 {
     [TestFixture]

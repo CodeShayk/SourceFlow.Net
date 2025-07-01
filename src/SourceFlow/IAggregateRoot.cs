@@ -4,9 +4,8 @@ namespace SourceFlow
 {
     public interface IAggregateRoot
     {
-        Task ApplyAsync(IDomainEvent @event);
+        Task ApplyAsync(IEvent @event);
 
-        IIdentity State { get; }
-        int SequenceNo { get; set; }
+        IIdentity State { get; set; }
     }
 }

@@ -1,17 +1,24 @@
-// Setup
+using Microsoft.Extensions.DependencyInjection;
+using SourceFlow;
 using SourceFlow.ConsoleApp.Aggregates;
-using SourceFlow.ConsoleApp.Events;
 using SourceFlow.ConsoleApp.Impl;
-using SourceFlow.ConsoleApp.Projections;
-using SourceFlow.ConsoleApp.Services;
-using SourceFlow.Core.Impl;
+using SourceFlow.ConsoleApp.Sagas;
+using SourceFlow.ConsoleApp.Services; // Ensure this using is present
 
-var eventStore = new InMemoryEventStore();
-var repository = new EventSourcedRepository<BankAccount>(eventStore);
-var accountService = new BankAccountService(repository);
-var projectionHandler = new AccountSummaryProjectionHandler();
+var services = new ServiceCollection();
+
+services.UseSourceFlow();
+services.WithSaga<AccountAggregate, AccountSaga>(c => new AccountSaga());
+services.AddSingleton<IAggregateRoot, AccountAggregate>(c => new AccountAggregate(c.GetService<ICommandBus>()));
+
+//var commandbus = new CommandBus(new InMemoryEventStore());
+services.AddSingleton<IAccountService, AccountService>();
+
+var serviceProvider = services.BuildServiceProvider();
 
 Console.WriteLine("=== Event Sourcing Demo ===\n");
+
+var accountService = serviceProvider.GetRequiredService<IAccountService>();
 
 // Create account
 var accountId = await accountService.CreateAccountAsync("John Doe", 1000m);
@@ -33,44 +40,45 @@ Console.WriteLine($"\nCurrent Account State:");
 Console.WriteLine($"- ID: {account?.Id}");
 Console.WriteLine($"- Holder: {account?.AccountHolderName}");
 Console.WriteLine($"- Balance: ${account?.Balance}");
-Console.WriteLine($"- Version: {account?.Version}");
+//Console.WriteLine($"- Version: {account?.Version}");
 
+var eventStore = serviceProvider.GetRequiredService<IEventStore>();
 // Show event history
-var events = await eventStore.GetEventsAsync(accountId);
+var events = await eventStore.LoadAsync(accountId);
 Console.WriteLine($"\nEvent History ({events.Count()} events):");
 
-foreach (var @event in events)
-{
-    Console.WriteLine($"- [{@event.Timestamp:HH:mm:ss}] {@event.EventType}");
+//foreach (var @event in events)
+//{
+//    Console.WriteLine($"- [{@event.Timestamp:HH:mm:ss}] {@event.EventType}");
 
-    // Update projection
-    switch (@event)
-    {
-        case BankAccountCreated created:
-            await projectionHandler.HandleAsync(created);
-            break;
+//    // Update projection
+//    switch (@event)
+//    {
+//        case AccountCreated created:
+//            await projectionHandler.HandleAsync(created);
+//            break;
 
-        case MoneyDeposited deposited:
-            await projectionHandler.HandleAsync(deposited);
-            break;
+//        case MoneyDeposited deposited:
+//            await projectionHandler.HandleAsync(deposited);
+//            break;
 
-        case MoneyWithdrawn withdrawn:
-            await projectionHandler.HandleAsync(withdrawn);
-            break;
+//        case MoneyWithdrawn withdrawn:
+//            await projectionHandler.HandleAsync(withdrawn);
+//            break;
 
-        case AccountClosed closed:
-            await projectionHandler.HandleAsync(closed);
-            break;
-    }
-}
+//        case AccountClosed closed:
+//            await projectionHandler.HandleAsync(closed);
+//            break;
+//    }
+//}
 
-// Show projection
-var projection = projectionHandler.GetProjection(accountId);
-Console.WriteLine($"\nProjection State:");
-Console.WriteLine($"- Balance: ${projection?.CurrentBalance}");
-Console.WriteLine($"- Transactions: {projection?.TransactionCount}");
-Console.WriteLine($"- Last Updated: {projection?.LastUpdated:HH:mm:ss}");
-Console.WriteLine($"- Account Closed: {projection?.IsClosed}");
+//// Show projection
+//var projection = projectionHandler.GetProjection(accountId);
+//Console.WriteLine($"\nProjection State:");
+//Console.WriteLine($"- Balance: ${projection?.CurrentBalance}");
+//Console.WriteLine($"- Transactions: {projection?.TransactionCount}");
+//Console.WriteLine($"- Last Updated: {projection?.LastUpdated:HH:mm:ss}");
+//Console.WriteLine($"- Account Closed: {projection?.IsClosed}");
 
 // Close account
 await accountService.CloseAccountAsync(accountId, "Customer account close request");
@@ -80,10 +88,11 @@ Console.WriteLine($"\nAccount closed");
 account = await accountService.GetAccountAsync(accountId);
 Console.WriteLine($"Final State - Closed: {account?.IsClosed}");
 
-// Show projection
-var closed_projection = projectionHandler.GetProjection(accountId);
-Console.WriteLine($"\nProjection State:");
-Console.WriteLine($"- Balance: ${closed_projection?.CurrentBalance}");
-Console.WriteLine($"- Transactions: {closed_projection?.TransactionCount}");
-Console.WriteLine($"- Last Updated: {closed_projection?.LastUpdated:HH:mm:ss}");
-Console.WriteLine($"- Account Closed: {closed_projection?.IsClosed}");
+//// Show projection
+//var closed_projection = projectionHandler.GetProjection(accountId);
+//Console.WriteLine($"\nProjection State:");
+//Console.WriteLine($"- Balance: ${closed_projection?.CurrentBalance}");
+//Console.WriteLine($"- Transactions: {closed_projection?.TransactionCount}");
+//Console.WriteLine($"- Last Updated: {closed_projection?.LastUpdated:HH:mm:ss}");
+//Console.WriteLine($"- Account Closed: {closed_projection?.IsClosed}");
+Console.WriteLine("\nPress any key to exit...");
