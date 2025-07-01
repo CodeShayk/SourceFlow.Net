@@ -8,8 +8,10 @@ namespace SourceFlow
 {
     public static class IocExtensions
     {
-        public static IServiceCollection UseSourceFlow(this IServiceCollection services)
+        public static void UseSourceFlow(this IServiceCollection services, Action<SourceFlowConfig> configuration)
         {
+            configuration(new SourceFlowConfig { Services = services });
+
             services.AddAsImplementationsOfInterface<IAggregateFactory>(ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IAggregateRepository>(ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IEventStore>(ServiceLifetime.Singleton);
@@ -20,12 +22,9 @@ namespace SourceFlow
 
             services.AddSingleton<IBusSubscriber, BusSubscriber>(c => new BusSubscriber(c.GetService<ICommandBus>()));
             services.AddSingleton<IBusPublisher, BusPublisher>(c => new BusPublisher(c.GetService<ICommandBus>()));
-
-            // return new SourceFlowConfig { Services = services };
-            return services;
         }
 
-        public static IServiceCollection WithService<TService>(this IServiceCollection services, Func<IServiceProvider, TService> service)
+        public static SourceFlowConfig WithService<TService>(this SourceFlowConfig config, Func<IServiceProvider, TService> service)
         where TService : class, ICommandService
         {
             if (service == null)
@@ -35,7 +34,7 @@ namespace SourceFlow
 
             foreach (var intrface in interfaces)
             {
-                services.AddSingleton(intrface, c =>
+                config.Services.AddSingleton(intrface, c =>
                 {
                     var serviceInstance = service(c);
 
@@ -51,16 +50,16 @@ namespace SourceFlow
                 });
             }
 
-            return services;
+            return config;
         }
 
-        public static IServiceCollection WithAggregate<TAggregate>(this IServiceCollection services, Func<IServiceProvider, TAggregate> aggregate)
+        public static SourceFlowConfig WithAggregate<TAggregate>(this SourceFlowConfig config, Func<IServiceProvider, TAggregate> aggregate)
         where TAggregate : class, IAggregateRoot
         {
             if (aggregate == null)
                 throw new ArgumentNullException(nameof(aggregate));
 
-            services.AddTransient<IAggregateRoot, TAggregate>(c =>
+            config.Services.AddTransient<IAggregateRoot, TAggregate>(c =>
             {
                 var aggrgateInstance = aggregate(c);
 
@@ -71,17 +70,17 @@ namespace SourceFlow
                 return aggrgateInstance;
             });
 
-            return services;
+            return config;
         }
 
-        public static IServiceCollection WithSaga<T, TSaga>(this IServiceCollection services, Func<IServiceProvider, ISaga<T>> sagaRegister)
+        public static SourceFlowConfig WithSaga<T, TSaga>(this SourceFlowConfig config, Func<IServiceProvider, ISaga<T>> sagaRegister)
         where T : IAggregateRoot
         where TSaga : class, ISaga<T>
         {
             if (sagaRegister == null)
                 throw new ArgumentNullException(nameof(sagaRegister));
 
-            services.AddSingleton<ISagaHandler, TSaga>(c =>
+            config.Services.AddSingleton<ISagaHandler, TSaga>(c =>
             {
                 var saga = sagaRegister(c);
 
@@ -102,10 +101,10 @@ namespace SourceFlow
                 return (TSaga)saga;
             });
 
-            return services;
+            return config;
         }
 
-        public static IServiceCollection AddAsImplementationsOfInterface<TInterface>(this IServiceCollection services, ServiceLifetime lifetime = ServiceLifetime.Scoped)
+        private static IServiceCollection AddAsImplementationsOfInterface<TInterface>(this IServiceCollection services, ServiceLifetime lifetime = ServiceLifetime.Scoped)
         {
             var interfaceType = typeof(TInterface);
 

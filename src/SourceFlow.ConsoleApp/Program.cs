@@ -6,18 +6,20 @@ using SourceFlow.ConsoleApp.Services; // Ensure this using is present
 
 var services = new ServiceCollection();
 
-services.UseSourceFlow();
-services.WithSaga<AccountAggregate, AccountSaga>(c =>
+services.UseSourceFlow(config =>
 {
-    return new AccountSaga();
-});
+    config.WithAggregate<AccountAggregate>(c =>
+    {
+        return new AccountAggregate();
+    });
 
-services.WithAggregate<AccountAggregate>(c =>
-{
-    return new AccountAggregate();
-});
+    config.WithSaga<AccountAggregate, AccountSaga>(c =>
+    {
+        return new AccountSaga();
+    });
 
-services.WithService<AccountService>(c => new AccountService());
+    config.WithService<AccountService>(c => new AccountService());
+});
 
 var serviceProvider = services.BuildServiceProvider();
 
