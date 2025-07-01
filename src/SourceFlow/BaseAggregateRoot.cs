@@ -9,19 +9,19 @@ namespace SourceFlow
         public TAggregate State { get; protected set; }
         IIdentity IAggregateRoot.State { get { return State; } set { State = (TAggregate)value; } }
 
-        protected ICommandBus MessageBus { get; }
+        protected IBusPublisher busPublisher;
 
-        protected BaseAggregateRoot(ICommandBus messageBus)
+        protected BaseAggregateRoot()
         {
             State = new TAggregate();
-            this.MessageBus = messageBus;
         }
 
         public abstract Task ApplyAsync(IEvent @event);
 
         public Task ReplayAllEvents()
         {
-            return MessageBus.Replay(State.Id);
+            return Task.CompletedTask;
+            //busPublisher.ReplayEvents(State.Id);
         }
 
         protected Task PublishAsync(IEvent @event)
@@ -29,7 +29,7 @@ namespace SourceFlow
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
 
-            return MessageBus.PublishAsync(@event);
+            return busPublisher.PublishAsync(@event);
         }
     }
 }

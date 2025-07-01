@@ -20,12 +20,7 @@ namespace SourceFlow.ConsoleApp.Sagas
 
         public Task HandleAsync(AccountCreated @event)
         {
-            //return PublishAsync(new AccountCreated
-            //{
-            //    AggregateId = @event.AggregateId,
-            //    InitialBalance = @event.InitialBalance
-            //});
-            throw new NotImplementedException();
+            return PublishAsync(new AccountActive(@event.AggregateId) { });
         }
 
         public Task HandleAsync(MoneyDeposited @event)

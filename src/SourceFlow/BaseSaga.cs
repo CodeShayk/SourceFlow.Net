@@ -9,6 +9,8 @@ namespace SourceFlow
         where TAggregateRoot : IAggregateRoot
     {
         protected ICollection<Tuple<Type, IEventHandler>> eventHandlers;
+        protected IBusPublisher busPublisher;
+        protected IBusSubscriber busSubscriber;
 
         protected BaseSaga()
         {
@@ -63,6 +65,15 @@ namespace SourceFlow
         {
             if (handler != null)
                 eventHandlers.Add(new Tuple<Type, IEventHandler>(typeof(TEvent), handler));
+        }
+
+        protected Task PublishAsync<TEvent>(TEvent @event)
+            where TEvent : IEvent
+        {
+            if (@event == null)
+                throw new ArgumentNullException(nameof(@event));
+
+            return busPublisher.PublishAsync(@event);
         }
     }
 }

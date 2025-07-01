@@ -8,7 +8,7 @@ namespace SourceFlow.ConsoleApp.Aggregates
 
     public class AccountAggregate : BaseAggregateRoot<BankAccount>
     {
-        public AccountAggregate(ICommandBus sagaBus) : base(sagaBus)
+        public AccountAggregate()
         {
         }
 

@@ -22,8 +22,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceFlow.ConsoleApp", "sr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceFlow", "src\SourceFlow\SourceFlow.csproj", "{C0724CCD-8965-4BE3-B66C-458973D5EFA1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microsoft.DependencyInjection.Extensions", "src\Microsoft.DependencyInjection.Extensions\Microsoft.DependencyInjection.Extensions.csproj", "{B8C157EE-0628-4C9D-BBAA-3B085DD7EE8C}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -46,10 +44,6 @@ Global
 		{C0724CCD-8965-4BE3-B66C-458973D5EFA1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C0724CCD-8965-4BE3-B66C-458973D5EFA1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C0724CCD-8965-4BE3-B66C-458973D5EFA1}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B8C157EE-0628-4C9D-BBAA-3B085DD7EE8C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B8C157EE-0628-4C9D-BBAA-3B085DD7EE8C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B8C157EE-0628-4C9D-BBAA-3B085DD7EE8C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B8C157EE-0628-4C9D-BBAA-3B085DD7EE8C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -59,7 +53,6 @@ Global
 		{60461B85-D00F-4A09-9AA6-A9D566FA6EA4} = {653DCB25-EC82-421B-86F7-1DD8879B3926}
 		{43C0A7B4-6682-4A49-B932-010F0383942A} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{C0724CCD-8965-4BE3-B66C-458973D5EFA1} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
-		{B8C157EE-0628-4C9D-BBAA-3B085DD7EE8C} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D02B8992-CC81-4194-BBF7-5EC40A96C698}

@@ -9,16 +9,16 @@ namespace SourceFlow
     {
         private readonly IEventStore eventStore;
         protected IAggregateFactory aggregateFactory;
-        private readonly IEnumerable<ISagaHandler> sagas;
+        private readonly ICollection<ISagaHandler> sagas;
 
-        public CommandBus(IEventStore eventStore, IAggregateFactory aggregateFactory, IEnumerable<ISagaHandler> sagas)
+        public CommandBus(IEventStore eventStore, IAggregateFactory aggregateFactory)
         {
             this.eventStore = eventStore;
             this.aggregateFactory = aggregateFactory;
-            this.sagas = sagas ?? Enumerable.Empty<ISagaHandler>();
+            this.sagas = new List<ISagaHandler>();
         }
 
-        async Task IBusPublisher.PublishAsync<TEvent>(TEvent @event)
+        async Task ICommandBus.PublishAsync<TEvent>(TEvent @event)
         {
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
@@ -58,7 +58,7 @@ namespace SourceFlow
             }
         }
 
-        async Task ICommandBus.Replay(Guid aggregateId)
+        async Task ICommandBus.ReplayEvents(Guid aggregateId)
         {
             var events = await eventStore.LoadAsync(aggregateId);
             if (events == null || !events.Any())
@@ -76,6 +76,11 @@ namespace SourceFlow
                 }
 
             await Task.WhenAll(tasks);
+        }
+
+        void ICommandBus.RegisterSaga(ISagaHandler saga)
+        {
+            sagas.Add(saga);
         }
     }
 }

@@ -3,8 +3,13 @@ using System.Threading.Tasks;
 
 namespace SourceFlow
 {
-    public interface ICommandBus : IBusPublisher
+    public interface ICommandBus
     {
-        Task Replay(Guid aggregateId);
+        Task ReplayEvents(Guid aggregateId);
+
+        Task PublishAsync<TEvent>(TEvent @event)
+             where TEvent : IEvent;
+
+        void RegisterSaga(ISagaHandler saga);
     }
 }

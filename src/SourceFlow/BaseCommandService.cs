@@ -5,13 +5,11 @@ namespace SourceFlow
 {
     public abstract class BaseCommandService : ICommandService
     {
-        protected readonly IAggregateRepository aggregateRepository;
-        protected readonly IAggregateFactory aggregateFactory;
+        protected IAggregateRepository aggregateRepository;
+        protected IAggregateFactory aggregateFactory;
 
-        public BaseCommandService(IAggregateRepository aggregateRepository, IAggregateFactory aggregateRootFactory)
+        public BaseCommandService()
         {
-            this.aggregateRepository = aggregateRepository;
-            this.aggregateFactory = aggregateRootFactory;
         }
 
         public async Task<TAggregateRoot> GetAggregate<TAggregateRoot>(Guid id) where TAggregateRoot : IAggregateRoot

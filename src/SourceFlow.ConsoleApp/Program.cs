@@ -1,24 +1,30 @@
 using Microsoft.Extensions.DependencyInjection;
 using SourceFlow;
 using SourceFlow.ConsoleApp.Aggregates;
-using SourceFlow.ConsoleApp.Impl;
 using SourceFlow.ConsoleApp.Sagas;
 using SourceFlow.ConsoleApp.Services; // Ensure this using is present
 
 var services = new ServiceCollection();
 
 services.UseSourceFlow();
-services.WithSaga<AccountAggregate, AccountSaga>(c => new AccountSaga());
-services.AddSingleton<IAggregateRoot, AccountAggregate>(c => new AccountAggregate(c.GetService<ICommandBus>()));
+services.WithSaga<AccountAggregate, AccountSaga>(c =>
+{
+    return new AccountSaga();
+});
 
-//var commandbus = new CommandBus(new InMemoryEventStore());
-services.AddSingleton<IAccountService, AccountService>();
+services.WithAggregate<AccountAggregate>(c =>
+{
+    return new AccountAggregate();
+});
+
+services.WithService<AccountService>(c => new AccountService());
 
 var serviceProvider = services.BuildServiceProvider();
 
 Console.WriteLine("=== Event Sourcing Demo ===\n");
 
 var accountService = serviceProvider.GetRequiredService<IAccountService>();
+var saga = serviceProvider.GetRequiredService<ISagaHandler>();
 
 // Create account
 var accountId = await accountService.CreateAccountAsync("John Doe", 1000m);

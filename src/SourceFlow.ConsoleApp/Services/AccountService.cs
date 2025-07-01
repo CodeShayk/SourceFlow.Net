@@ -7,8 +7,7 @@ namespace SourceFlow.ConsoleApp.Services
     // ====================================================================================
     public class AccountService : BaseCommandService, IAccountService
     {
-        public AccountService(IAggregateRepository aggregateRepository, IAggregateFactory aggregateFactory) :
-            base(aggregateRepository, aggregateFactory)
+        public AccountService()
         {
         }
 
