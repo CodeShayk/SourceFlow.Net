@@ -3,16 +3,16 @@ using System.Threading.Tasks;
 
 namespace SourceFlow
 {
-    public class BusReplayer : IBusReplayer
+    public class EventReplayer : IEventReplayer
     {
         private readonly ICommandBus commandBus;
 
-        public BusReplayer(ICommandBus commandBus)
+        public EventReplayer(ICommandBus commandBus)
         {
             this.commandBus = commandBus;
         }
 
-        async Task IBusReplayer.ReplayEventsAsync(Guid aggregateId)
+        async Task IEventReplayer.ReplayEventsAsync(Guid aggregateId)
         {
             await commandBus.ReplayEvents(aggregateId);
         }

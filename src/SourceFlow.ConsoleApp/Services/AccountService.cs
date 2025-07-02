@@ -2,9 +2,6 @@ using SourceFlow.ConsoleApp.Aggregates;
 
 namespace SourceFlow.ConsoleApp.Services
 {
-    // ====================================================================================
-    // APPLICATION SERVICE / COMMAND HANDLERS
-    // ====================================================================================
     public class AccountService : BaseService, IAccountService
     {
         public AccountService()

@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace SourceFlow
 {
-    public interface IBusReplayer
+    public interface IEventReplayer
     {
         Task ReplayEventsAsync(Guid aggregateId);
     }

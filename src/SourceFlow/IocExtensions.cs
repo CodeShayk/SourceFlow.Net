@@ -57,8 +57,8 @@ namespace SourceFlow
                   ?.SetValue(aggrgateInstance, c.GetRequiredService<IBusPublisher>());
 
                 typeof(TAggregate)
-                  .GetField("busReplayer", BindingFlags.Instance | BindingFlags.NonPublic)
-                  ?.SetValue(aggrgateInstance, c.GetRequiredService<IBusReplayer>());
+                  .GetField("eventReplayer", BindingFlags.Instance | BindingFlags.NonPublic)
+                  ?.SetValue(aggrgateInstance, c.GetRequiredService<IEventReplayer>());
 
                 return aggrgateInstance;
             });
@@ -156,9 +156,10 @@ namespace SourceFlow
 
             services.AddSingleton<IBusSubscriber, BusSubscriber>(c => new BusSubscriber(c.GetService<ICommandBus>()));
             services.AddSingleton<IBusPublisher, BusPublisher>(c => new BusPublisher(c.GetService<ICommandBus>()));
+            services.AddSingleton<IEventReplayer, EventReplayer>(c => new EventReplayer(c.GetService<ICommandBus>()));
         }
 
-        public static ISourceFlowConfig WithServices(this ISourceFlowConfig config)
+        public static ISourceFlowConfig WithServices(this ISourceFlowConfig config, Func<Type, IService> serviceFactory = null)
         {
             var interfaceType = typeof(IService);
             var implementationTypes = GetTypesFromAssemblies(interfaceType);
@@ -170,7 +171,9 @@ namespace SourceFlow
                 foreach (var intrface in interfaces)
                     ((SourceFlowConfig)config).Services.AddSingleton(intrface, c =>
                     {
-                        var serviceInstance = (IService)Activator.CreateInstance(implType);
+                        var serviceInstance = serviceFactory != null
+                            ? serviceFactory(implType)
+                            : (IService)Activator.CreateInstance(implType);
 
                         if (serviceInstance == null)
                             throw new InvalidOperationException($"Service registration for {implType.Name} returned null.");
@@ -190,7 +193,7 @@ namespace SourceFlow
             return config;
         }
 
-        public static ISourceFlowConfig WithAggregates(this ISourceFlowConfig config)
+        public static ISourceFlowConfig WithAggregates(this ISourceFlowConfig config, Func<Type, IAggregateRoot> aggregateFactory = null)
         {
             var interfaceType = typeof(IAggregateRoot);
             var implementationTypes = GetTypesFromAssemblies(interfaceType);
@@ -202,7 +205,9 @@ namespace SourceFlow
                 foreach (var intrface in interfaces)
                     ((SourceFlowConfig)config).Services.AddSingleton(intrface, c =>
                     {
-                        var aggrgateInstance = (IAggregateRoot)Activator.CreateInstance(implType);
+                        var aggrgateInstance = aggregateFactory != null
+                            ? aggregateFactory(implType)
+                            : (IAggregateRoot)Activator.CreateInstance(implType);
 
                         if (aggrgateInstance == null)
                             throw new InvalidOperationException($"Aggregate registration for {implType.Name} returned null.");
@@ -212,8 +217,8 @@ namespace SourceFlow
                             ?.SetValue(aggrgateInstance, c.GetRequiredService<IBusPublisher>());
 
                         implType
-                          .GetField("busReplayer", BindingFlags.Instance | BindingFlags.NonPublic)
-                          ?.SetValue(aggrgateInstance, c.GetRequiredService<IBusReplayer>());
+                          .GetField("eventReplayer", BindingFlags.Instance | BindingFlags.NonPublic)
+                          ?.SetValue(aggrgateInstance, c.GetRequiredService<IEventReplayer>());
 
                         return aggrgateInstance;
                     });
@@ -222,7 +227,7 @@ namespace SourceFlow
             return config;
         }
 
-        public static ISourceFlowConfig WithSagas(this ISourceFlowConfig config)
+        public static ISourceFlowConfig WithSagas(this ISourceFlowConfig config, Func<Type, ISagaHandler> sagaFactory = null)
         {
             var interfaceType = typeof(ISagaHandler);
             var implementationTypes = GetTypesFromAssemblies(interfaceType);
@@ -234,7 +239,9 @@ namespace SourceFlow
                 foreach (var intrface in interfaces)
                     ((SourceFlowConfig)config).Services.AddSingleton(intrface, c =>
                     {
-                        var sagaInstance = (ISagaHandler)Activator.CreateInstance(implType);
+                        var sagaInstance = sagaFactory != null
+                            ? sagaFactory(implType)
+                            : (ISagaHandler)Activator.CreateInstance(implType);
 
                         if (sagaInstance == null)
                             throw new InvalidOperationException($"Saga registration for {implType.Name} returned null.");

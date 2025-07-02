@@ -6,7 +6,7 @@ namespace SourceFlow.ConsoleApp.Aggregates
     // DOMAIN AGGREGATE
     // ====================================================================================
 
-    public class AccountAggregate : BaseAggregateRoot<BankAccount>
+    public class AccountAggregate : BaseAggregate<BankAccount>
     {
         public AccountAggregate()
         {
