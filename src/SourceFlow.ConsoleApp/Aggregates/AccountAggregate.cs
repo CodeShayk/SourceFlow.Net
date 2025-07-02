@@ -12,7 +12,7 @@ namespace SourceFlow.ConsoleApp.Aggregates
         {
         }
 
-        public void AccountCreated()
+        public void ActivateAccount()
         {
             PublishAsync(new AccountCreated(State.Id)
             {

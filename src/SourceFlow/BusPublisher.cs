@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 
 namespace SourceFlow
 {
@@ -11,7 +11,7 @@ namespace SourceFlow
             this.commandBus = commandBus;
         }
 
-        public async Task PublishAsync<TEvent>(TEvent @event) where TEvent : IEvent
+        async Task IBusPublisher.PublishAsync<TEvent>(TEvent @event)
         {
             await commandBus.PublishAsync(@event);
         }

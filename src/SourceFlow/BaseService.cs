@@ -3,12 +3,12 @@ using System.Threading.Tasks;
 
 namespace SourceFlow
 {
-    public abstract class BaseCommandService : ICommandService
+    public abstract class BaseService : IService
     {
         protected IAggregateRepository aggregateRepository;
         protected IAggregateFactory aggregateFactory;
 
-        public BaseCommandService()
+        public BaseService()
         {
         }
 
@@ -23,7 +23,7 @@ namespace SourceFlow
             return aggregateRepository.SaveAsync(aggregateRoot);
         }
 
-        public async Task<TAggregateRoot> InitializeAggregate<TAggregateRoot>(IIdentity state = null) where TAggregateRoot : IAggregateRoot
+        public async Task<TAggregateRoot> CreateAggregate<TAggregateRoot>(IIdentity state = null) where TAggregateRoot : IAggregateRoot
         {
             var aggregate = await aggregateFactory.CreateAsync<TAggregateRoot>(state);
             aggregate.State = state;

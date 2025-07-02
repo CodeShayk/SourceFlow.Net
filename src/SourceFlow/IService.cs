@@ -3,9 +3,9 @@ using System.Threading.Tasks;
 
 namespace SourceFlow
 {
-    public interface ICommandService
+    public interface IService
     {
-        Task<TAggregateRoot> InitializeAggregate<TAggregateRoot>(IIdentity state = null) where TAggregateRoot : IAggregateRoot;
+        Task<TAggregateRoot> CreateAggregate<TAggregateRoot>(IIdentity state = null) where TAggregateRoot : IAggregateRoot;
 
         Task<TAggregateRoot> GetAggregate<TAggregateRoot>(Guid id) where TAggregateRoot : IAggregateRoot;
 

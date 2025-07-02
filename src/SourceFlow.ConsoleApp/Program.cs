@@ -1,25 +1,17 @@
 using Microsoft.Extensions.DependencyInjection;
 using SourceFlow;
-using SourceFlow.ConsoleApp.Aggregates;
-using SourceFlow.ConsoleApp.Sagas;
 using SourceFlow.ConsoleApp.Services; // Ensure this using is present
 
 var services = new ServiceCollection();
 
-services.UseSourceFlow(config =>
-{
-    config.WithAggregate<AccountAggregate>(c =>
-    {
-        return new AccountAggregate();
-    });
+//services.UseSourceFlow(config =>
+//{
+//    config.WithAggregate<AccountAggregate>();
+//    config.WithSaga<AccountAggregate, AccountSaga>();
+//    config.WithService<AccountService>();
+//});
 
-    config.WithSaga<AccountAggregate, AccountSaga>(c =>
-    {
-        return new AccountSaga();
-    });
-
-    config.WithService<AccountService>(c => new AccountService());
-});
+services.UseSourceFlow();
 
 var serviceProvider = services.BuildServiceProvider();
 
@@ -62,7 +54,7 @@ Console.WriteLine($"\nEvent History ({events.Count()} events):");
 //    // Update projection
 //    switch (@event)
 //    {
-//        case AccountCreated created:
+//        case ActivateAccount created:
 //            await projectionHandler.HandleAsync(created);
 //            break;
 

@@ -10,6 +10,7 @@ namespace SourceFlow
         IIdentity IAggregateRoot.State { get { return State; } set { State = (TAggregate)value; } }
 
         protected IBusPublisher busPublisher;
+        protected IBusReplayer busReplayer;
 
         protected BaseAggregateRoot()
         {
@@ -20,8 +21,7 @@ namespace SourceFlow
 
         public Task ReplayAllEvents()
         {
-            return Task.CompletedTask;
-            //busPublisher.ReplayEvents(State.Id);
+            return busReplayer.ReplayEventsAsync(State.Id);
         }
 
         protected Task PublishAsync(IEvent @event)

@@ -9,7 +9,7 @@ namespace SourceFlow
             this.commandBus = commandBus;
         }
 
-        public void Subscribe(ISagaHandler saga)
+        void IBusSubscriber.Subscribe(ISagaHandler saga)
         {
             commandBus.RegisterSaga(saga);
         }

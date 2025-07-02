@@ -1,5 +1,3 @@
-using System;
-
 namespace SourceFlow
 {
     public static class EventExtensions

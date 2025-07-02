@@ -3,14 +3,14 @@
 //namespace SourceFlow.ConsoleApp.Projections
 //{
 //    public class AccountSummaryProjectionHandler :
-//        IProjectionHandler<AccountCreated>,
+//        IProjectionHandler<ActivateAccount>,
 //        IProjectionHandler<MoneyDeposited>,
 //        IProjectionHandler<MoneyWithdrawn>,
 //        IProjectionHandler<AccountClosed>
 //    {
 //        private readonly Dictionary<string, AccountSummaryProjection> _projections = new Dictionary<string, AccountSummaryProjection>();
 
-//        public Task HandleAsync(AccountCreated @event)
+//        public Task HandleAsync(ActivateAccount @event)
 //        {
 //            _projections[@event.AggregateId] = new AccountSummaryProjection
 //            {

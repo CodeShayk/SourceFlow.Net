@@ -5,7 +5,7 @@ namespace SourceFlow.ConsoleApp.Services
     // ====================================================================================
     // APPLICATION SERVICE / COMMAND HANDLERS
     // ====================================================================================
-    public class AccountService : BaseCommandService, IAccountService
+    public class AccountService : BaseService, IAccountService
     {
         public AccountService()
         {
@@ -15,7 +15,7 @@ namespace SourceFlow.ConsoleApp.Services
         {
             var accountId = Guid.NewGuid(); // Simulating a unique account ID generation
 
-            var account = await InitializeAggregate<AccountAggregate>(new BankAccount
+            var account = await CreateAggregate<AccountAggregate>(new BankAccount
             {
                 Id = accountId,
                 AccountHolderName = accountHolderName,
@@ -23,7 +23,7 @@ namespace SourceFlow.ConsoleApp.Services
                 IsClosed = false
             });
 
-            account.AccountCreated();
+            account.ActivateAccount();
 
             await SaveAggregate(account);
 
