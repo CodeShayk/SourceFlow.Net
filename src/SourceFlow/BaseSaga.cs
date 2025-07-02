@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace SourceFlow
 {
@@ -28,6 +29,11 @@ namespace SourceFlow
         protected IBusSubscriber busSubscriber;
 
         /// <summary>
+        /// Logger for the saga to log events and errors.
+        /// </summary>
+        protected ILogger logger;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="BaseSaga{TAggregateRoot}"/> class.
         /// </summary>
         protected BaseSaga()
@@ -41,7 +47,7 @@ namespace SourceFlow
         /// <param name="instance"></param>
         /// <param name="eventType"></param>
         /// <returns></returns>
-        public static bool IsGenericEventHandler(IEventHandler instance, Type eventType)
+        private static bool IsGenericEventHandler(IEventHandler instance, Type eventType)
         {
             if (instance == null || eventType == null)
                 return false;

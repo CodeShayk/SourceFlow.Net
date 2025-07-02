@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace SourceFlow
 {
@@ -22,6 +23,11 @@ namespace SourceFlow
         /// The events replayer used to replay event stream for given aggregate.
         /// </summary>
         protected IEventReplayer eventReplayer;
+
+        /// <summary>
+        /// Logger for the aggregate root to log events and errors.
+        /// </summary>
+        protected ILogger logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="BaseAggregate{TAggregate}"/> class.

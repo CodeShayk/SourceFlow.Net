@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace SourceFlow
 {
@@ -43,7 +44,8 @@ namespace SourceFlow
 
             services.AddSingleton<ICommandBus, CommandBus>(c => new CommandBus(
                 c.GetService<IEventStore>(),
-                c.GetService<IAggregateFactory>()));
+                c.GetService<IAggregateFactory>(),
+                c.GetService<ILogger<ICommandBus>>()));
 
             services.AddSingleton<IBusSubscriber, BusSubscriber>(c => new BusSubscriber(c.GetService<ICommandBus>()));
             services.AddSingleton<IBusPublisher, BusPublisher>(c => new BusPublisher(c.GetService<ICommandBus>()));
@@ -52,12 +54,13 @@ namespace SourceFlow
 
         /// <summary>
         /// Registers a service with the SourceFlow configuration.
+        /// When factory is not provided, uses default constructor to create service instance.
         /// </summary>
-        /// <typeparam name="TService"></typeparam>
+        /// <typeparam name="TService">Service Type that implements IService.</typeparam>
         /// <param name="config"></param>
-        /// <param name="service"></param>
+        /// <param name="factory">Factory to return service instance using service provider.</param>
         /// <returns></returns>
-        public static ISourceFlowConfig WithService<TService>(this ISourceFlowConfig config, Func<IServiceProvider, TService> service = null)
+        public static ISourceFlowConfig WithService<TService>(this ISourceFlowConfig config, Func<IServiceProvider, TService> factory = null)
         where TService : class, IService, new()
         {
             var interfaces = typeof(TService).GetInterfaces();
@@ -66,7 +69,7 @@ namespace SourceFlow
             {
                 ((SourceFlowConfig)config).Services.AddSingleton(intrface, c =>
                 {
-                    var serviceInstance = service != null ? service(c) : new TService();
+                    var serviceInstance = factory != null ? factory(c) : new TService();
 
                     typeof(TService)
                      .GetField("aggregateRepository", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -75,6 +78,10 @@ namespace SourceFlow
                     typeof(TService)
                       .GetField("aggregateFactory", BindingFlags.Instance | BindingFlags.NonPublic)
                       ?.SetValue(serviceInstance, c.GetRequiredService<IAggregateFactory>());
+
+                    typeof(TService)
+                      .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
+                      ?.SetValue(serviceInstance, c.GetService<ILogger<TService>>());
 
                     return serviceInstance;
                 });
@@ -85,17 +92,18 @@ namespace SourceFlow
 
         /// <summary>
         /// Registers an aggregate with the SourceFlow configuration.
+        /// When no factory is provided, uses default constructor to create aggregate instance.
         /// </summary>
-        /// <typeparam name="TAggregate"></typeparam>
+        /// <typeparam name="TAggregate">Aggregate Type that implements IAggregateRoot.</typeparam>
         /// <param name="config"></param>
-        /// <param name="aggregate"></param>
+        /// <param name="factory">Factory to return aggrgate instance using service provider.</param>
         /// <returns></returns>
-        public static ISourceFlowConfig WithAggregate<TAggregate>(this ISourceFlowConfig config, Func<IServiceProvider, TAggregate> aggregate = null)
+        public static ISourceFlowConfig WithAggregate<TAggregate>(this ISourceFlowConfig config, Func<IServiceProvider, TAggregate> factory = null)
         where TAggregate : class, IAggregateRoot, new()
         {
             ((SourceFlowConfig)config).Services.AddTransient<IAggregateRoot, TAggregate>(c =>
             {
-                var aggrgateInstance = aggregate != null ? aggregate(c) : new TAggregate();
+                var aggrgateInstance = factory != null ? factory(c) : new TAggregate();
 
                 typeof(TAggregate)
                   .GetField("busPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -105,6 +113,10 @@ namespace SourceFlow
                   .GetField("eventReplayer", BindingFlags.Instance | BindingFlags.NonPublic)
                   ?.SetValue(aggrgateInstance, c.GetRequiredService<IEventReplayer>());
 
+                typeof(TAggregate)
+                  .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
+                  ?.SetValue(aggrgateInstance, c.GetService<ILogger<TAggregate>>());
+
                 return aggrgateInstance;
             });
 
@@ -113,23 +125,24 @@ namespace SourceFlow
 
         /// <summary>
         /// Registers a saga with the SourceFlow configuration.
+        /// When no factory is provided, uses default constructor to create saga instance.
         /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <typeparam name="TSaga"></typeparam>
+        /// <typeparam name="TAggregate">Aggregate Type supported by TSaga. Implementation of IAggregateRoot.</typeparam>
+        /// <typeparam name="TSaga">Saga Type that implements saga for a given Aggregate. Implementation of ISaga<TAggregate>.</typeparam>
         /// <param name="config"></param>
-        /// <param name="sagaRegister"></param>
+        /// <param name="factory">Factory to return aggrgate instance using service provider.</param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
-        public static ISourceFlowConfig WithSaga<T, TSaga>(this ISourceFlowConfig config, Func<IServiceProvider, ISaga<T>> sagaRegister = null)
-        where T : IAggregateRoot
-        where TSaga : class, ISaga<T>, new()
+        public static ISourceFlowConfig WithSaga<TAggregate, TSaga>(this ISourceFlowConfig config, Func<IServiceProvider, ISaga<TAggregate>> factory = null)
+        where TAggregate : IAggregateRoot
+        where TSaga : class, ISaga<TAggregate>, new()
         {
             ((SourceFlowConfig)config).Services.AddSingleton<ISagaHandler, TSaga>(c =>
             {
-                var saga = sagaRegister != null ? sagaRegister(c) : new TSaga();
+                var saga = factory != null ? factory(c) : new TSaga();
 
                 if (saga == null)
-                    throw new InvalidOperationException($"Saga registration for {typeof(T).Name} returned null.");
+                    throw new InvalidOperationException($"Saga registration for {typeof(TAggregate).Name} returned null.");
 
                 var subscriber = c.GetRequiredService<IBusSubscriber>();
                 subscriber.Subscribe(saga);
@@ -141,6 +154,10 @@ namespace SourceFlow
                 typeof(TSaga)
                     .GetField("busPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
                     ?.SetValue(saga, c.GetRequiredService<IBusPublisher>());
+
+                typeof(TSaga)
+                    .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(saga, c.GetService<ILogger<TSaga>>());
 
                 return (TSaga)saga;
             });
@@ -210,9 +227,10 @@ namespace SourceFlow
 
         /// <summary>
         /// Registers all services that implement the IService interface in the IoC container.
+        /// When factory is not provided, uses default constructor to create service instances.
         /// </summary>
         /// <param name="config"></param>
-        /// <param name="serviceFactory">Factory to return service instances for given type.</param>
+        /// <param name="serviceFactory">Factory to return service instances by given type.</param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
         public static ISourceFlowConfig WithServices(this ISourceFlowConfig config, Func<Type, IService> serviceFactory = null)
@@ -222,18 +240,20 @@ namespace SourceFlow
 
             foreach (var implType in implementationTypes)
             {
+                var serviceInstance = serviceFactory != null
+                            ? serviceFactory(implType)
+                            : (IService)Activator.CreateInstance(implType);
+
+                if (serviceInstance == null)
+                    throw new InvalidOperationException($"Service registration for {implType.Name} returned null.");
+
+                var loggerType = typeof(ILogger<>).MakeGenericType(implType);
+
                 var interfaces = implType.GetInterfaces();
 
                 foreach (var intrface in interfaces)
                     ((SourceFlowConfig)config).Services.AddSingleton(intrface, c =>
                     {
-                        var serviceInstance = serviceFactory != null
-                            ? serviceFactory(implType)
-                            : (IService)Activator.CreateInstance(implType);
-
-                        if (serviceInstance == null)
-                            throw new InvalidOperationException($"Service registration for {implType.Name} returned null.");
-
                         implType
                             .GetField("aggregateRepository", BindingFlags.Instance | BindingFlags.NonPublic)
                             ?.SetValue(serviceInstance, c.GetRequiredService<IAggregateRepository>());
@@ -241,6 +261,10 @@ namespace SourceFlow
                         implType
                             .GetField("aggregateFactory", BindingFlags.Instance | BindingFlags.NonPublic)
                             ?.SetValue(serviceInstance, c.GetRequiredService<IAggregateFactory>());
+
+                        implType
+                            .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
+                            ?.SetValue(serviceInstance, (ILogger)c.GetService(loggerType));
 
                         return serviceInstance;
                     });
@@ -251,9 +275,10 @@ namespace SourceFlow
 
         /// <summary>
         /// Registers all aggregates that implement the IAggregateRoot interface in the IoC container.
+        /// When factory is not provided, uses default constructor to create aggrgate instances.
         /// </summary>
         /// <param name="config"></param>
-        /// <param name="aggregateFactory">Factory to return aggregate instances for given type.</param>
+        /// <param name="aggregateFactory">Factory to return aggregate instances by given type.</param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
         public static ISourceFlowConfig WithAggregates(this ISourceFlowConfig config, Func<Type, IAggregateRoot> aggregateFactory = null)
@@ -263,25 +288,31 @@ namespace SourceFlow
 
             foreach (var implType in implementationTypes)
             {
+                var aggrgateInstance = aggregateFactory != null
+                           ? aggregateFactory(implType)
+                           : (IAggregateRoot)Activator.CreateInstance(implType);
+
+                if (aggrgateInstance == null)
+                    throw new InvalidOperationException($"Aggregate registration for {implType.Name} returned null.");
+
+                var loggerType = typeof(ILogger<>).MakeGenericType(implType);
+
                 var interfaces = implType.GetInterfaces();
 
                 foreach (var intrface in interfaces)
                     ((SourceFlowConfig)config).Services.AddSingleton(intrface, c =>
                     {
-                        var aggrgateInstance = aggregateFactory != null
-                            ? aggregateFactory(implType)
-                            : (IAggregateRoot)Activator.CreateInstance(implType);
-
-                        if (aggrgateInstance == null)
-                            throw new InvalidOperationException($"Aggregate registration for {implType.Name} returned null.");
-
                         implType
                             .GetField("busPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
                             ?.SetValue(aggrgateInstance, c.GetRequiredService<IBusPublisher>());
 
                         implType
-                          .GetField("eventReplayer", BindingFlags.Instance | BindingFlags.NonPublic)
-                          ?.SetValue(aggrgateInstance, c.GetRequiredService<IEventReplayer>());
+                            .GetField("eventReplayer", BindingFlags.Instance | BindingFlags.NonPublic)
+                            ?.SetValue(aggrgateInstance, c.GetRequiredService<IEventReplayer>());
+
+                        implType
+                            .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
+                            ?.SetValue(aggrgateInstance, (ILogger)c.GetService(loggerType));
 
                         return aggrgateInstance;
                     });
@@ -292,9 +323,10 @@ namespace SourceFlow
 
         /// <summary>
         /// Registers all sagas that implement the ISagaHandler interface in the IoC container.
+        /// When factory is not provided, uses default constructor to create saga instances.
         /// </summary>
         /// <param name="config"></param>
-        /// <param name="sagaFactory">Factory to return saga instances for given type.</param>
+        /// <param name="sagaFactory">Factory to return saga instances by given type.</param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
         public static ISourceFlowConfig WithSagas(this ISourceFlowConfig config, Func<Type, ISagaHandler> sagaFactory = null)
@@ -304,18 +336,20 @@ namespace SourceFlow
 
             foreach (var implType in implementationTypes)
             {
+                var sagaInstance = sagaFactory != null
+                        ? sagaFactory(implType)
+                        : (ISagaHandler)Activator.CreateInstance(implType);
+
+                if (sagaInstance == null)
+                    throw new InvalidOperationException($"Saga registration for {implType.Name} returned null.");
+
+                var loggerType = typeof(ILogger<>).MakeGenericType(implType);
+
                 var interfaces = implType.GetInterfaces();
 
                 foreach (var intrface in interfaces)
                     ((SourceFlowConfig)config).Services.AddSingleton(intrface, c =>
                     {
-                        var sagaInstance = sagaFactory != null
-                            ? sagaFactory(implType)
-                            : (ISagaHandler)Activator.CreateInstance(implType);
-
-                        if (sagaInstance == null)
-                            throw new InvalidOperationException($"Saga registration for {implType.Name} returned null.");
-
                         var subscriber = c.GetRequiredService<IBusSubscriber>();
                         subscriber.Subscribe(sagaInstance);
 
@@ -326,6 +360,10 @@ namespace SourceFlow
                         implType
                             .GetField("busPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
                             ?.SetValue(sagaInstance, c.GetRequiredService<IBusPublisher>());
+
+                        implType
+                            .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
+                            ?.SetValue(sagaInstance, (ILogger)c.GetService(loggerType));
 
                         return sagaInstance;
                     });

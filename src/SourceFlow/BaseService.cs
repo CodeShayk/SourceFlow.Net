@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace SourceFlow
 {
@@ -17,6 +18,11 @@ namespace SourceFlow
         /// Factory for creating aggregate roots.
         /// </summary>
         protected IAggregateFactory aggregateFactory;
+
+        /// <summary>
+        /// Logger for the service to log events and errors.
+        /// </summary>
+        protected ILogger logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="BaseService"/> class.

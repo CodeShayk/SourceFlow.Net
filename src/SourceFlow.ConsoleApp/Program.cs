@@ -1,8 +1,16 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using SourceFlow;
 using SourceFlow.ConsoleApp.Services; // Ensure this using is present
 
 var services = new ServiceCollection();
+
+// Register logging with console provider
+services.AddLogging(builder =>
+{
+    builder.AddConsole();
+    builder.SetMinimumLevel(LogLevel.Information);
+});
 
 //services.UseSourceFlow(config =>
 //{

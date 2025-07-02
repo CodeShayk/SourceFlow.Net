@@ -2,19 +2,45 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
 using System;
+using Microsoft.Extensions.Logging;
 
 namespace SourceFlow
 {
+    /// <summary>
+    /// Command bus implementation that handles commands and events in an event-driven architecture.
+    /// </summary>
     public class CommandBus : ICommandBus
     {
+        /// <summary>
+        /// The event store used to persist events.
+        /// </summary>
         private readonly IEventStore eventStore;
+
+        /// <summary>
+        /// The aggregate factory used to create aggregates.
+        /// </summary>
         protected IAggregateFactory aggregateFactory;
+
+        /// <summary>
+        /// Logger for the command bus to log events and errors.
+        /// </summary>
+        private readonly ILogger<ICommandBus> logger;
+
+        /// <summary>
+        /// Collection of sagas registered with the command bus.
+        /// </summary>
         private readonly ICollection<ISagaHandler> sagas;
 
-        public CommandBus(IEventStore eventStore, IAggregateFactory aggregateFactory)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="CommandBus"/> class.
+        /// </summary>
+        /// <param name="eventStore"></param>
+        /// <param name="aggregateFactory"></param>
+        public CommandBus(IEventStore eventStore, IAggregateFactory aggregateFactory, ILogger<ICommandBus> logger)
         {
             this.eventStore = eventStore;
             this.aggregateFactory = aggregateFactory;
+            this.logger = logger;
             this.sagas = new List<ISagaHandler>();
         }
 
@@ -33,11 +59,6 @@ namespace SourceFlow
             if (!sagas.Any())
                 return;
 
-            await HandleEvent<TEvent>(@event);
-        }
-
-        private async Task HandleEvent<TEvent>(TEvent @event) where TEvent : IEvent
-        {
             var tasks = new List<Task>();
             foreach (var saga in sagas)
             {
