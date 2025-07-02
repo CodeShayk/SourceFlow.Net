@@ -18,6 +18,13 @@ namespace SourceFlow
             this.sagas = new List<ISagaHandler>();
         }
 
+        /// <summary>
+        /// Publishes an event to all subscribed sagas.
+        /// </summary>
+        /// <typeparam name="TEvent"></typeparam>
+        /// <param name="event"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
         async Task ICommandBus.PublishAsync<TEvent>(TEvent @event)
         {
             if (@event == null)
@@ -58,6 +65,11 @@ namespace SourceFlow
             }
         }
 
+        /// <summary>
+        /// Replays events for a given aggregate.
+        /// </summary>
+        /// <param name="aggregateId"></param>
+        /// <returns></returns>
         async Task ICommandBus.ReplayEvents(Guid aggregateId)
         {
             var events = await eventStore.LoadAsync(aggregateId);
@@ -78,6 +90,10 @@ namespace SourceFlow
             await Task.WhenAll(tasks);
         }
 
+        /// <summary>
+        /// Registers a saga with the command bus.
+        /// </summary>
+        /// <param name="saga"></param>
         void ICommandBus.RegisterSaga(ISagaHandler saga)
         {
             sagas.Add(saga);

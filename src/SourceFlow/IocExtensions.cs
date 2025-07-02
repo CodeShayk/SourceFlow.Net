@@ -7,8 +7,16 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace SourceFlow
 {
+    /// <summary>
+    /// Extension methods for setting up SourceFlow using ioc container.
+    /// </summary>
     public static class IocExtensions
     {
+        /// <summary>
+        /// Configures the SourceFlow with aggregates, sagas and services with IoC Container.
+        /// Only supports when aggregates, sagas and services can be initialized with default constructor.
+        /// </summary>
+        /// <param name="services"></param>
         public static void UseSourceFlow(this IServiceCollection services)
         {
             UseSourceFlow(services, config =>
@@ -19,6 +27,36 @@ namespace SourceFlow
             });
         }
 
+        /// <summary>
+        /// Configures the SourceFlow with aggregates, sagas and services with IoC Container.
+        /// Supports custom configuration for aggregates, sagas and services.
+        /// </summary>
+        /// <param name="services"></param>
+        /// <param name="configuration"></param>
+        public static void UseSourceFlow(this IServiceCollection services, Action<ISourceFlowConfig> configuration)
+        {
+            configuration(new SourceFlowConfig { Services = services });
+
+            services.AddAsImplementationsOfInterface<IAggregateFactory>(ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IAggregateRepository>(ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IEventStore>(ServiceLifetime.Singleton);
+
+            services.AddSingleton<ICommandBus, CommandBus>(c => new CommandBus(
+                c.GetService<IEventStore>(),
+                c.GetService<IAggregateFactory>()));
+
+            services.AddSingleton<IBusSubscriber, BusSubscriber>(c => new BusSubscriber(c.GetService<ICommandBus>()));
+            services.AddSingleton<IBusPublisher, BusPublisher>(c => new BusPublisher(c.GetService<ICommandBus>()));
+            services.AddSingleton<IEventReplayer, EventReplayer>(c => new EventReplayer(c.GetService<ICommandBus>()));
+        }
+
+        /// <summary>
+        /// Registers a service with the SourceFlow configuration.
+        /// </summary>
+        /// <typeparam name="TService"></typeparam>
+        /// <param name="config"></param>
+        /// <param name="service"></param>
+        /// <returns></returns>
         public static ISourceFlowConfig WithService<TService>(this ISourceFlowConfig config, Func<IServiceProvider, TService> service = null)
         where TService : class, IService, new()
         {
@@ -45,6 +83,13 @@ namespace SourceFlow
             return config;
         }
 
+        /// <summary>
+        /// Registers an aggregate with the SourceFlow configuration.
+        /// </summary>
+        /// <typeparam name="TAggregate"></typeparam>
+        /// <param name="config"></param>
+        /// <param name="aggregate"></param>
+        /// <returns></returns>
         public static ISourceFlowConfig WithAggregate<TAggregate>(this ISourceFlowConfig config, Func<IServiceProvider, TAggregate> aggregate = null)
         where TAggregate : class, IAggregateRoot, new()
         {
@@ -66,6 +111,15 @@ namespace SourceFlow
             return config;
         }
 
+        /// <summary>
+        /// Registers a saga with the SourceFlow configuration.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <typeparam name="TSaga"></typeparam>
+        /// <param name="config"></param>
+        /// <param name="sagaRegister"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
         public static ISourceFlowConfig WithSaga<T, TSaga>(this ISourceFlowConfig config, Func<IServiceProvider, ISaga<T>> sagaRegister = null)
         where T : IAggregateRoot
         where TSaga : class, ISaga<T>, new()
@@ -94,6 +148,13 @@ namespace SourceFlow
             return config;
         }
 
+        /// <summary>
+        /// Registers all implementations of a given interface in the IoC container.
+        /// </summary>
+        /// <typeparam name="TInterface"></typeparam>
+        /// <param name="services"></param>
+        /// <param name="lifetime"></param>
+        /// <returns></returns>
         private static IServiceCollection AddAsImplementationsOfInterface<TInterface>(this IServiceCollection services, ServiceLifetime lifetime = ServiceLifetime.Scoped)
         {
             var interfaceType = typeof(TInterface);
@@ -122,6 +183,11 @@ namespace SourceFlow
             return services;
         }
 
+        /// <summary>
+        /// Gets all types that implement a given interface from all loaded assemblies.
+        /// </summary>
+        /// <param name="interfaceType"></param>
+        /// <returns></returns>
         private static IEnumerable<Type> GetTypesFromAssemblies(Type interfaceType)
         {
             var assemblies = AppDomain.CurrentDomain
@@ -142,23 +208,13 @@ namespace SourceFlow
             return implementationTypes;
         }
 
-        public static void UseSourceFlow(this IServiceCollection services, Action<ISourceFlowConfig> configuration)
-        {
-            configuration(new SourceFlowConfig { Services = services });
-
-            services.AddAsImplementationsOfInterface<IAggregateFactory>(ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IAggregateRepository>(ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IEventStore>(ServiceLifetime.Singleton);
-
-            services.AddSingleton<ICommandBus, CommandBus>(c => new CommandBus(
-                c.GetService<IEventStore>(),
-                c.GetService<IAggregateFactory>()));
-
-            services.AddSingleton<IBusSubscriber, BusSubscriber>(c => new BusSubscriber(c.GetService<ICommandBus>()));
-            services.AddSingleton<IBusPublisher, BusPublisher>(c => new BusPublisher(c.GetService<ICommandBus>()));
-            services.AddSingleton<IEventReplayer, EventReplayer>(c => new EventReplayer(c.GetService<ICommandBus>()));
-        }
-
+        /// <summary>
+        /// Registers all services that implement the IService interface in the IoC container.
+        /// </summary>
+        /// <param name="config"></param>
+        /// <param name="serviceFactory">Factory to return service instances for given type.</param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
         public static ISourceFlowConfig WithServices(this ISourceFlowConfig config, Func<Type, IService> serviceFactory = null)
         {
             var interfaceType = typeof(IService);
@@ -193,6 +249,13 @@ namespace SourceFlow
             return config;
         }
 
+        /// <summary>
+        /// Registers all aggregates that implement the IAggregateRoot interface in the IoC container.
+        /// </summary>
+        /// <param name="config"></param>
+        /// <param name="aggregateFactory">Factory to return aggregate instances for given type.</param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
         public static ISourceFlowConfig WithAggregates(this ISourceFlowConfig config, Func<Type, IAggregateRoot> aggregateFactory = null)
         {
             var interfaceType = typeof(IAggregateRoot);
@@ -227,6 +290,13 @@ namespace SourceFlow
             return config;
         }
 
+        /// <summary>
+        /// Registers all sagas that implement the ISagaHandler interface in the IoC container.
+        /// </summary>
+        /// <param name="config"></param>
+        /// <param name="sagaFactory">Factory to return saga instances for given type.</param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
         public static ISourceFlowConfig WithSagas(this ISourceFlowConfig config, Func<Type, ISagaHandler> sagaFactory = null)
         {
             var interfaceType = typeof(ISagaHandler);
@@ -263,14 +333,5 @@ namespace SourceFlow
 
             return config;
         }
-    }
-
-    public class SourceFlowConfig : ISourceFlowConfig
-    {
-        public IServiceCollection Services { get; set; }
-    }
-
-    public interface ISourceFlowConfig
-    {
     }
 }
