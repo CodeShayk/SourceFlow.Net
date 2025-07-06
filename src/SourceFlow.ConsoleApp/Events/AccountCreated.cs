@@ -2,11 +2,11 @@ namespace SourceFlow.ConsoleApp.Events
 {
     public class AccountCreated : AccountEvent
     {
-        public AccountCreated(Guid aggregateId) : base(aggregateId)
+        public AccountCreated(Source source) : base(source)
         {
         }
 
-        public string AccountHolderName { get; set; } = string.Empty;
+        public string AccountName { get; set; } = string.Empty;
         public decimal InitialBalance { get; set; }
     }
 }

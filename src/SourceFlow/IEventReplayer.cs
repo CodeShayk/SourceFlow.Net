@@ -11,8 +11,8 @@ namespace SourceFlow
         /// <summary>
         /// Replays all events for a given aggregate.
         /// </summary>
-        /// <param name="aggregateId"></param>
+        /// <param name="aggregateId">Unique aggregate entity id.</param>
         /// <returns></returns>
-        Task ReplayEventsAsync(Guid aggregateId);
+        Task ReplayEventsAsync(int aggregateId);
     }
 }

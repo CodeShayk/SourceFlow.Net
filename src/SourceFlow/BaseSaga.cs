@@ -10,8 +10,8 @@ namespace SourceFlow
     /// Base class for sagas in the event-driven architecture.
     /// </summary>
     /// <typeparam name="TAggregateRoot"></typeparam>
-    public abstract class BaseSaga<TAggregateRoot> : ISaga<TAggregateRoot>
-        where TAggregateRoot : IAggregateRoot
+    public abstract class BaseSaga<TAggregateEntity> : ISaga<TAggregateEntity>
+        where TAggregateEntity : class, IEntity
     {
         /// <summary>
         /// Collection of event handlers registered for this saga.
@@ -29,6 +29,11 @@ namespace SourceFlow
         protected IBusSubscriber busSubscriber;
 
         /// <summary>
+        /// The repository used to access and persist aggregate entity.
+        /// </summary>
+        protected IRepository repository;
+
+        /// <summary>
         /// Logger for the saga to log events and errors.
         /// </summary>
         protected ILogger logger;
@@ -39,6 +44,24 @@ namespace SourceFlow
         protected BaseSaga()
         {
             eventHandlers = new List<Tuple<Type, IEventHandler>>();
+
+            RegisterHandlers();
+        }
+
+        /// <summary>
+        /// Registers all event handlers for the event types that this saga handles.
+        /// </summary>
+        private void RegisterHandlers()
+        {
+            var interfaces = this.GetType().GetInterfaces();
+            foreach (var iface in interfaces)
+            {
+                if (iface.IsGenericType &&
+                    iface.GetGenericTypeDefinition() == typeof(IEventHandler<>))
+                {
+                    eventHandlers.Add(new Tuple<Type, IEventHandler>(iface.GetGenericArguments()[0], (IEventHandler)this));
+                }
+            }
         }
 
         /// <summary>
@@ -62,7 +85,7 @@ namespace SourceFlow
         /// <typeparam name="TEvent"></typeparam>
         /// <param name="event"></param>
         /// <returns></returns>
-        async Task ISagaHandler.HandleAsync<TEvent>(TEvent @event)
+        async Task ISaga.HandleAsync<TEvent>(TEvent @event)
         {
             var tasks = new List<Task>();
 
@@ -93,7 +116,7 @@ namespace SourceFlow
         /// <param name="event"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
-        Task<bool> ISagaHandler.CanHandleEvent<TEvent>(TEvent @event)
+        Task<bool> ISaga.CanHandleEvent<TEvent>(TEvent @event)
         {
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
@@ -101,18 +124,6 @@ namespace SourceFlow
             var result = eventHandlers.Any(x => x.Item1.IsAssignableFrom(@event.GetType()));
 
             return Task.FromResult(result);
-        }
-
-        /// <summary>
-        /// Registers an event handler for the specified event type.
-        /// </summary>
-        /// <typeparam name="TEvent"></typeparam>
-        /// <param name="handler"></param>
-        protected void RegisterEventHandler<TEvent>(IEventHandler<TEvent> handler)
-            where TEvent : IEvent
-        {
-            if (handler != null)
-                eventHandlers.Add(new Tuple<Type, IEventHandler>(typeof(TEvent), handler));
         }
 
         /// <summary>
@@ -129,6 +140,36 @@ namespace SourceFlow
                 throw new ArgumentNullException(nameof(@event));
 
             return busPublisher.PublishAsync(@event);
+        }
+
+        /// <summary>
+        /// Get aggregate associated with saga by Identifier.
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        protected Task<TAggregateEntity> GetAggregate(int id)
+        {
+            return repository.GetByIdAsync<TAggregateEntity>(id);
+        }
+
+        /// <summary>
+        /// Persist aggregate associated with saga.
+        /// </summary>
+        /// <param name="entity"></param>
+        /// <returns></returns>
+        protected Task PersistAggregate(TAggregateEntity entity)
+        {
+            return repository.PersistAsync(entity);
+        }
+
+        /// <summary>
+        /// Delete aggregate associated with saga.
+        /// </summary>
+        /// <param name="entity"></param>
+        /// <returns></returns>
+        protected Task DeleteAggregate(TAggregateEntity entity)
+        {
+            return repository.DeleteAsync(entity);
         }
     }
 }

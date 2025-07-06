@@ -1,10 +1,11 @@
 namespace SourceFlow.ConsoleApp.Aggregates
 {
-    public class BankAccount : IIdentity
+    public class BankAccount : IEntity
     {
-        public Guid Id { get; set; }
-        public string AccountHolderName { get; set; } = string.Empty;
+        public int Id { get; set; }
+        public string AccountName { get; set; } = string.Empty;
         public decimal Balance { get; set; }
         public bool IsClosed { get; set; }
+        public string ClosureReason { get; internal set; }
     }
 }

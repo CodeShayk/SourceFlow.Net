@@ -2,7 +2,7 @@ namespace SourceFlow.ConsoleApp.Events
 {
     public class AccountActive : AccountEvent
     {
-        public AccountActive(Guid aggregateId) : base(aggregateId)
+        public AccountActive(Source source) : base(source)
         {
         }
 

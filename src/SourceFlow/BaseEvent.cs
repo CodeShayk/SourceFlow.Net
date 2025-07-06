@@ -11,11 +11,11 @@ namespace SourceFlow
         /// Initializes a new instance of the <see cref="BaseEvent"/> class with a specified aggregate id.
         /// </summary>
         /// <param name="aggregateId"></param>
-        public BaseEvent(Guid aggregateId)
+        public BaseEvent(Source source)
         {
             EventId = Guid.NewGuid();
             OccurredOn = DateTime.UtcNow;
-            AggregateId = aggregateId;
+            Source = source;
         }
 
         /// <summary>
@@ -23,10 +23,7 @@ namespace SourceFlow
         /// </summary>
         public Guid EventId { get; }
 
-        /// <summary>
-        /// Unique identifier for the aggregate that this event belongs to.
-        /// </summary>
-        public Guid AggregateId { get; }
+        public Source Source { get; set; }
 
         /// <summary>
         /// Indicates whether the event is a replay of an existing event.

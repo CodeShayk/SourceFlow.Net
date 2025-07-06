@@ -15,7 +15,7 @@
 //            _projections[@event.AggregateId] = new AccountSummaryProjection
 //            {
 //                AggregateId = @event.AggregateId,
-//                AccountHolderName = @event.AccountHolderName,
+//                AccountName = @event.AccountName,
 //                CurrentBalance = @event.InitialBalance,
 //                CreatedDate = @event.Timestamp,
 //                LastUpdated = @event.Timestamp,

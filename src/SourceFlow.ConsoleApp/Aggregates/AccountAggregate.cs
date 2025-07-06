@@ -2,100 +2,39 @@ using SourceFlow.ConsoleApp.Events;
 
 namespace SourceFlow.ConsoleApp.Aggregates
 {
-    // ====================================================================================
-    // DOMAIN AGGREGATE
-    // ====================================================================================
-
     public class AccountAggregate : BaseAggregate<BankAccount>
     {
-        public AccountAggregate()
+        public void CreateAccount(int accountId, string holder, decimal amount)
         {
-        }
-
-        public void ActivateAccount()
-        {
-            PublishAsync(new AccountCreated(State.Id)
+            PublishAsync(new AccountCreated(new Source(accountId, typeof(BankAccount)))
             {
-                AccountHolderName = State.AccountHolderName,
-                InitialBalance = State.Balance
+                AccountName = holder,
+                InitialBalance = amount
             });
         }
 
-        public void Deposit(decimal amount)
+        public void Deposit(int accountId, decimal amount)
         {
-            if (State.IsClosed)
-                throw new InvalidOperationException("Cannot deposit to a closed account");
-
-            if (amount <= 0)
-                throw new ArgumentException("Deposit amount must be positive", nameof(amount));
-
-            var newBalance = State.Balance + amount;
-
-            base.PublishAsync(new MoneyDeposited(State.Id)
+            PublishAsync(new MoneyDeposited(new Source(accountId, typeof(BankAccount)))
             {
                 Amount = amount,
-                NewBalance = newBalance
             });
         }
 
-        public void Withdraw(decimal amount)
+        public void Withdraw(int accountId, decimal amount)
         {
-            if (State.IsClosed)
-                throw new InvalidOperationException("Cannot withdraw from a closed account");
-
-            if (amount <= 0)
-                throw new ArgumentException("Withdrawal amount must be positive", nameof(amount));
-
-            if (amount > State.Balance)
-                throw new InvalidOperationException("Insufficient funds");
-
-            var newBalance = State.Balance - amount;
-
-            PublishAsync(new MoneyWithdrawn(State.Id)
+            PublishAsync(new MoneyWithdrawn(new Source(accountId, typeof(BankAccount)))
             {
-                Amount = amount,
-                NewBalance = newBalance
+                Amount = amount
             });
         }
 
-        public void Close(string reason)
+        public void Close(int accountId, string reason)
         {
-            if (State.IsClosed)
-                throw new InvalidOperationException("Account is already closed");
-
-            if (string.IsNullOrWhiteSpace(reason))
-                throw new ArgumentException("Reason for closing cannot be empty", nameof(reason));
-
-            PublishAsync(new AccountClosed(State.Id)
+            PublishAsync(new AccountClosed(new Source(accountId, typeof(BankAccount)))
             {
                 Reason = reason
             });
-        }
-
-        public override Task ApplyAsync(IEvent @event)
-        {
-            switch (@event)
-            {
-                case AccountCreated created:
-                    State.Id = created.AggregateId;
-                    State.AccountHolderName = created.AccountHolderName;
-                    State.Balance = created.InitialBalance;
-                    break;
-
-                case MoneyDeposited deposited:
-                    State.Balance = deposited.NewBalance;
-                    break;
-
-                case MoneyWithdrawn withdrawn:
-                    State.Balance = withdrawn.NewBalance;
-                    break;
-
-                case AccountClosed closed:
-                    State.IsClosed = true;
-                    break;
-            }
-
-            return Task.CompletedTask;
         }
     }
 }

@@ -9,11 +9,8 @@ namespace SourceFlow
     /// </summary>
     /// <typeparam name="TAggregate"></typeparam>
     public abstract class BaseAggregate<TAggregate> : IAggregateRoot
-        where TAggregate : class, IIdentity, new()
+        where TAggregate : class, IEntity
     {
-        public TAggregate State { get; protected set; }
-        IIdentity IAggregateRoot.State { get { return State; } set { State = (TAggregate)value; } }
-
         /// <summary>
         /// The bus publisher used to publish events.
         /// </summary>
@@ -30,27 +27,13 @@ namespace SourceFlow
         protected ILogger logger;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="BaseAggregate{TAggregate}"/> class.
-        /// </summary>
-        protected BaseAggregate()
-        {
-            State = new TAggregate();
-        }
-
-        /// <summary>
-        /// Applies an event to the aggregate root, updating its state accordingly.
-        /// </summary>
-        /// <param name="event"></param>
-        /// <returns></returns>
-        public abstract Task ApplyAsync(IEvent @event);
-
-        /// <summary>
         /// Replays the event stream for the aggregate root, restoring its state from past events.
         /// </summary>
+        /// <param name="AggregateId">Unique Aggregate entity identifier.</param>
         /// <returns></returns>
-        public Task ReplayEvents()
+        public Task ReplayEvents(int AggregateId)
         {
-            return eventReplayer.ReplayEventsAsync(State.Id);
+            return eventReplayer.ReplayEventsAsync(AggregateId);
         }
 
         /// <summary>

@@ -13,9 +13,9 @@ namespace SourceFlow
         Guid EventId { get; }
 
         /// <summary>
-        /// Unique identifier for the aggregate that this event belongs to.
+        /// Source of the event, indicating where it originated from.
         /// </summary>
-        Guid AggregateId { get; }
+        Source Source { get; set; }
 
         /// <summary>
         /// Indicates whether the event is a replay of an existing event.

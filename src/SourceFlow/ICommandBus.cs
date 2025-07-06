@@ -20,14 +20,14 @@ namespace SourceFlow
         /// <summary>
         /// Replays all events for a given aggregate.
         /// </summary>
-        /// <param name="aggregateId"></param>
+        /// <param name="aggregateId">Unique aggregate entity id.</param>
         /// <returns></returns>
-        Task ReplayEvents(Guid aggregateId);
+        Task ReplayEvents(int aggregateId);
 
         /// <summary>
         /// Registers a saga with the command bus.
         /// </summary>
         /// <param name="saga"></param>
-        void RegisterSaga(ISagaHandler saga);
+        void RegisterSaga(ISaga saga);
     }
 }

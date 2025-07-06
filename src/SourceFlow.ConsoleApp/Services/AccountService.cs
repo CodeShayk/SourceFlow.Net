@@ -4,73 +4,64 @@ namespace SourceFlow.ConsoleApp.Services
 {
     public class AccountService : BaseService, IAccountService
     {
-        public AccountService()
+        public async Task<int> CreateAccountAsync(string accountHolderName, decimal initialBalance)
         {
-        }
+            if (string.IsNullOrEmpty(accountHolderName))
+                throw new ArgumentException("Account create requires account holder name.", nameof(accountHolderName));
 
-        public async Task<Guid> CreateAccountAsync(string accountHolderName, decimal initialBalance)
-        {
-            var accountId = Guid.NewGuid(); // Simulating a unique account ID generation
+            if (initialBalance <= 0)
+                throw new ArgumentException("Account create requires initial amount.", nameof(initialBalance));
 
-            var account = await CreateAggregate<AccountAggregate>(new BankAccount
-            {
-                Id = accountId,
-                AccountHolderName = accountHolderName,
-                Balance = initialBalance,
-                IsClosed = false
-            });
+            var account = await CreateAggregate<AccountAggregate>();
+            if (account == null)
+                throw new InvalidOperationException("Failed to create account aggregate");
 
-            account.ActivateAccount();
+            var accountId = new Random().Next(); // Simulating a unique account ID generation
 
-            await SaveAggregate(account);
+            account.CreateAccount(accountId, accountHolderName, initialBalance);
 
             return accountId;
         }
 
-        public async Task DepositAsync(Guid accountId, decimal amount)
+        public async Task DepositAsync(int accountId, decimal amount)
         {
-            var account = await GetAggregate<AccountAggregate>(accountId);
+            if (accountId <= 0)
+                throw new ArgumentException("Deposit amount must need account id", nameof(amount));
 
-            if (account == null)
-                throw new InvalidOperationException($"Account {accountId} not found");
+            if (amount <= 0)
+                throw new ArgumentException("Deposit amount must be positive", nameof(amount));
 
-            account.Deposit(amount);
+            var account = await CreateAggregate<AccountAggregate>();
 
-            await SaveAggregate(account);
+            account.Deposit(accountId, amount);
         }
 
-        public async Task WithdrawAsync(Guid accountId, decimal amount)
+        public async Task WithdrawAsync(int accountId, decimal amount)
         {
-            var account = await GetAggregate<AccountAggregate>(accountId);
+            if (accountId <= 0)
+                throw new ArgumentException("Withdraw amount must need account id", nameof(amount));
 
+            if (amount <= 0)
+                throw new ArgumentException("Withdraw amount must be positive", nameof(amount));
+
+            var account = await CreateAggregate<AccountAggregate>();
             if (account == null)
-                throw new InvalidOperationException($"Account {accountId} not found");
+                throw new InvalidOperationException("Failed to create account aggregate");
 
-            account.Withdraw(amount);
-
-            await SaveAggregate(account);
+            account.Withdraw(accountId, amount);
         }
 
-        public async Task CloseAccountAsync(Guid accountId, string reason)
+        public async Task CloseAccountAsync(int accountId, string reason)
         {
-            var account = await GetAggregate<AccountAggregate>(accountId);
+            if (accountId <= 0)
+                throw new ArgumentException("Close account requires valid account id", nameof(accountId));
 
-            if (account == null)
-                throw new InvalidOperationException($"Account {accountId} not found");
+            if (string.IsNullOrEmpty(reason))
+                throw new ArgumentException("Close account requires reason", nameof(reason));
 
-            account.Close(reason);
+            var account = await CreateAggregate<AccountAggregate>();
 
-            await SaveAggregate(account);
-        }
-
-        public async Task<BankAccount> GetAccountAsync(Guid accountId)
-        {
-            var account = await GetAggregate<AccountAggregate>(accountId);
-
-            if (account == null)
-                throw new InvalidOperationException($"Account {accountId} not found");
-
-            return account.State;
+            account.Close(accountId, reason);
         }
     }
 }

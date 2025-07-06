@@ -29,7 +29,9 @@ namespace SourceFlow
         /// <summary>
         /// Collection of sagas registered with the command bus.
         /// </summary>
-        private readonly ICollection<ISagaHandler> sagas;
+        private readonly ICollection<ISaga> sagas;
+
+        private readonly ICollection<IDataProjection> dataProjections;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CommandBus"/> class.
@@ -41,7 +43,7 @@ namespace SourceFlow
             this.eventStore = eventStore;
             this.aggregateFactory = aggregateFactory;
             this.logger = logger;
-            this.sagas = new List<ISagaHandler>();
+            this.sagas = new List<ISaga>();
         }
 
         /// <summary>
@@ -71,27 +73,34 @@ namespace SourceFlow
             await Task.WhenAll(tasks);
         }
 
-        private async Task SagaHandle<TEvent>(ISagaHandler saga, TEvent @event) where TEvent : IEvent
+        private async Task SagaHandle<TEvent>(ISaga saga, TEvent @event) where TEvent : IEvent
         {
             // 1. handle event by Saga?
             await saga.HandleAsync(@event);
 
-            // 2. Set event sequence no.
+            // 2. When event is not replayed
             if (!@event.IsReplay)
             {
-                @event.SequenceNo = await eventStore.GetNextSequenceNo(@event.AggregateId);
+                // 2.1 Set event sequence no.
+                @event.SequenceNo = await eventStore.GetNextSequenceNo(@event.Source.Id);
 
-                // 3. Append event to event store.
+                // 2.2. Append event to event store.
                 await eventStore.AppendAsync(@event);
             }
+
+            // 0. Log event.
+            logger.LogInformation(string.Format($"Event published: {0} for Aggregate {1} with SequenceNo {2}",
+                @event.GetType().Name, @event.Source.Id, @event.SequenceNo));
+
+            // 3. Project data view from Event.
         }
 
         /// <summary>
         /// Replays events for a given aggregate.
         /// </summary>
-        /// <param name="aggregateId"></param>
+        /// <param name="aggregateId">Unique aggregate entity id.</param>
         /// <returns></returns>
-        async Task ICommandBus.ReplayEvents(Guid aggregateId)
+        async Task ICommandBus.ReplayEvents(int aggregateId)
         {
             var events = await eventStore.LoadAsync(aggregateId);
             if (events == null || !events.Any())
@@ -115,7 +124,7 @@ namespace SourceFlow
         /// Registers a saga with the command bus.
         /// </summary>
         /// <param name="saga"></param>
-        void ICommandBus.RegisterSaga(ISagaHandler saga)
+        void ICommandBus.RegisterSaga(ISaga saga)
         {
             sagas.Add(saga);
         }

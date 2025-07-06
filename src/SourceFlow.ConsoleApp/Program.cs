@@ -26,7 +26,7 @@ var serviceProvider = services.BuildServiceProvider();
 Console.WriteLine("=== Event Sourcing Demo ===\n");
 
 var accountService = serviceProvider.GetRequiredService<IAccountService>();
-var saga = serviceProvider.GetRequiredService<ISagaHandler>();
+var saga = serviceProvider.GetRequiredService<ISaga>();
 
 // Create account
 var accountId = await accountService.CreateAccountAsync("John Doe", 1000m);
@@ -42,13 +42,13 @@ Console.WriteLine("Withdrew $200");
 await accountService.DepositAsync(accountId, 100m);
 Console.WriteLine("Deposited $100");
 
-// Get current state
-var account = await accountService.GetAccountAsync(accountId);
-Console.WriteLine($"\nCurrent Account State:");
-Console.WriteLine($"- ID: {account?.Id}");
-Console.WriteLine($"- Holder: {account?.AccountHolderName}");
-Console.WriteLine($"- Balance: ${account?.Balance}");
-//Console.WriteLine($"- Version: {account?.Version}");
+//// Get current state
+//var account = await accountService.GetAccountAsync(accountId);
+//Console.WriteLine($"\nCurrent Account State:");
+//Console.WriteLine($"- ID: {account?.Id}");
+//Console.WriteLine($"- Holder: {account?.AccountName}");
+//Console.WriteLine($"- Balance: ${account?.Balance}");
+////Console.WriteLine($"- Version: {account?.Version}");
 
 var eventStore = serviceProvider.GetRequiredService<IEventStore>();
 // Show event history
@@ -92,9 +92,9 @@ Console.WriteLine($"\nEvent History ({events.Count()} events):");
 await accountService.CloseAccountAsync(accountId, "Customer account close request");
 Console.WriteLine($"\nAccount closed");
 
-// Final state
-account = await accountService.GetAccountAsync(accountId);
-Console.WriteLine($"Final State - Closed: {account?.IsClosed}");
+//// Final state
+//account = await accountService.GetAccountAsync(accountId);
+//Console.WriteLine($"Final State - Closed: {account?.IsClosed}");
 
 //// Show projection
 //var closed_projection = projectionHandler.GetProjection(accountId);

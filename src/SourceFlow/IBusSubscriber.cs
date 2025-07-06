@@ -9,6 +9,6 @@ namespace SourceFlow
         /// Subscribes a saga to the bus.
         /// </summary>
         /// <param name="saga"></param>
-        void Subscribe(ISagaHandler saga);
+        void Subscribe(ISaga saga);
     }
 }

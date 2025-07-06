@@ -19,15 +19,15 @@ namespace SourceFlow
         /// <summary>
         /// Loads all events for a given aggregate from the event store.
         /// </summary>
-        /// <param name="aggregateId"></param>
+        /// <param name="aggregateId">Unique aggregate entity id.</param>
         /// <returns></returns>
-        Task<IEnumerable<IEvent>> LoadAsync(Guid aggregateId);
+        Task<IEnumerable<IEvent>> LoadAsync(int aggregateId);
 
         /// <summary>
         /// Gets the next sequence number for an event.
         /// </summary>
-        /// <param name="aggregateId"></param>
+        /// <param name="aggregateId">Unique aggregate entity id.</param>
         /// <returns></returns>
-        Task<int> GetNextSequenceNo(Guid aggregateId);
+        Task<int> GetNextSequenceNo(int aggregateId);
     }
 }

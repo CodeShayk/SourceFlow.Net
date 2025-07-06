@@ -2,7 +2,7 @@ namespace SourceFlow.ConsoleApp.Events
 {
     public class AccountClosed : AccountEvent
     {
-        public AccountClosed(Guid aggregateId) : base(aggregateId)
+        public AccountClosed(Source source) : base(source)
         {
         }
 

@@ -23,7 +23,7 @@ namespace SourceFlow
         /// Subscribes a saga to the command bus.
         /// </summary>
         /// <param name="saga"></param>
-        void IBusSubscriber.Subscribe(ISagaHandler saga)
+        void IBusSubscriber.Subscribe(ISaga saga)
         {
             commandBus.RegisterSaga(saga);
         }

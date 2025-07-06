@@ -25,9 +25,9 @@ namespace SourceFlow
         /// <summary>
         /// Replays event stream for a given aggregate.
         /// </summary>
-        /// <param name="aggregateId"></param>
+        /// <param name="aggregateId">Unique aggregate entity id.</param>
         /// <returns></returns>
-        async Task IEventReplayer.ReplayEventsAsync(Guid aggregateId)
+        async Task IEventReplayer.ReplayEventsAsync(int aggregateId)
         {
             await commandBus.ReplayEvents(aggregateId);
         }

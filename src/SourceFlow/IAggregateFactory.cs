@@ -13,7 +13,7 @@ namespace SourceFlow
         /// <typeparam name="TAggregateRoot"></typeparam>
         /// <param name="state"></param>
         /// <returns></returns>
-        Task<TAggregateRoot> CreateAsync<TAggregateRoot>(IIdentity state = null)
+        Task<TAggregateRoot> CreateAsync<TAggregateRoot>()
             where TAggregateRoot : IAggregateRoot;
     }
 }
