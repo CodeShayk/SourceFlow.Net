@@ -30,19 +30,19 @@ var saga = serviceProvider.GetRequiredService<ISaga>();
 
 // Create account
 var accountId = await accountService.CreateAccountAsync("John Doe", 1000m);
-Console.WriteLine($"Created account: {accountId}");
+//Console.WriteLine($"Created account: {accountId}");
 
 // Perform operations
 await accountService.DepositAsync(accountId, 500m);
-Console.WriteLine("Deposited $500");
+//Console.WriteLine("Deposited $500");
 
 await accountService.WithdrawAsync(accountId, 200m);
-Console.WriteLine("Withdrew $200");
+//Console.WriteLine("Withdrew $200");
 
 await accountService.DepositAsync(accountId, 100m);
-Console.WriteLine("Deposited $100");
+//Console.WriteLine("Deposited $100");
 
-//// Get current state
+// Get current state
 //var account = await accountService.GetAccountAsync(accountId);
 //Console.WriteLine($"\nCurrent Account State:");
 //Console.WriteLine($"- ID: {account?.Id}");

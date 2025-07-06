@@ -100,6 +100,10 @@ namespace SourceFlow
                             .GetMethod(nameof(IEventHandler<TEvent>.HandleAsync));
 
                 var task = (Task)method.Invoke(ehandler.Item2, new object[] { @event });
+
+                logger?.LogInformation("Action=Saga_Handled, Event={Event}, Aggregate={Aggregate}, SequenceNo={No}, Saga={Saga}, Handler:{Handler}",
+                        @event.GetType().Name, @event.Entity.Type.Name, @event.SequenceNo, this.GetType().Name, method.Name);
+
                 tasks.Add(task);
             }
 

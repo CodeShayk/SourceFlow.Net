@@ -7,7 +7,7 @@ namespace SourceFlow.ConsoleApp.Aggregates
         public void CreateAccount(int accountId, string holder, decimal amount)
         {
             PublishAsync(Event.For<BankAccount>(accountId)
-                              .Create<AccountCreated>(new AccountPayload
+                              .Create<AccountCreated, AccountPayload>(new AccountPayload
                               {
                                   AccountName = holder,
                                   InitialAmount = amount
@@ -17,7 +17,7 @@ namespace SourceFlow.ConsoleApp.Aggregates
         public void Deposit(int accountId, decimal amount)
         {
             PublishAsync(Event.For<BankAccount>(accountId)
-                              .Create<MoneyDeposited>(new TransactPayload
+                              .Create<MoneyDeposited, TransactPayload>(new TransactPayload
                               {
                                   Amount = amount
                               }));
@@ -26,7 +26,7 @@ namespace SourceFlow.ConsoleApp.Aggregates
         public void Withdraw(int accountId, decimal amount)
         {
             PublishAsync(Event.For<BankAccount>(accountId)
-                              .Create<MoneyWithdrawn>(new TransactPayload
+                              .Create<MoneyWithdrawn, TransactPayload>(new TransactPayload
                               {
                                   Amount = amount
                               }));
@@ -35,8 +35,7 @@ namespace SourceFlow.ConsoleApp.Aggregates
         public void Close(int accountId, string reason)
         {
             PublishAsync(Event.For<BankAccount>(accountId)
-                              .Create<AccountClosed>()
-                              .With(new ClosurePayload
+                              .Create<AccountClosed, ClosurePayload>(new ClosurePayload
                               {
                                   IsClosed = true,
                                   ClosureReason = reason

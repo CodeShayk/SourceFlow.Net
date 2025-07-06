@@ -73,24 +73,22 @@ namespace SourceFlow
 
         private async Task SagaHandle<TEvent>(ISaga saga, TEvent @event) where TEvent : IEvent
         {
-            // 1. handle event by Saga?
+            // 1. Set event sequence no.
+            @event.SequenceNo = await eventStore.GetNextSequenceNo(@event.Entity.Id);
+
+            // 4. Log event.
+            logger?.LogInformation("Action=Command_Dispatched, Event={Event}, Aggregate={Aggregate}, SequenceNo={No}, Saga={Saga}",
+                @event.GetType().Name, @event.Entity.Type.Name, @event.SequenceNo, saga.GetType().Name);
+
+            // 2. handle event by Saga?
             await saga.HandleAsync(@event);
 
-            // 2. When event is not replayed
+            // 3. When event is not replayed
             if (!@event.IsReplay)
             {
-                // 2.1 Set event sequence no.
-                @event.SequenceNo = await eventStore.GetNextSequenceNo(@event.Entity.Id);
-
-                // 2.2. Append event to event store.
+                // 3.1. Append event to event store.
                 await eventStore.AppendAsync(@event);
             }
-
-            // 0. Log event.
-            logger.LogInformation(string.Format($"Event published: {0} for Aggregate {1} with SequenceNo {2}",
-                @event.GetType().Name, @event.Entity.Id, @event.SequenceNo));
-
-            // 3. Project data view from Event.
         }
 
         /// <summary>

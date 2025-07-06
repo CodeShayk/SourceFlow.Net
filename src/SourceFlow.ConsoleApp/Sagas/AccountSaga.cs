@@ -12,7 +12,7 @@ namespace SourceFlow.ConsoleApp.Sagas
     {
         public async Task HandleAsync(AccountCreated @event)
         {
-            logger.LogInformation("Account created: {AccountId} for {AccountName} with initial balance: {InitialBalance}",
+            logger.LogInformation("Action=Account_Created, Account={AccountId}, Holder={AccountName}, Initial_Balance={InitialBalance}",
                 @event.Entity.Id, @event.Payload.AccountName, @event.Payload.InitialAmount);
 
             if (string.IsNullOrEmpty(@event.Payload.AccountName))
@@ -33,7 +33,7 @@ namespace SourceFlow.ConsoleApp.Sagas
 
         public async Task HandleAsync(MoneyDeposited @event)
         {
-            logger.LogInformation("Money deposited: {Amount} to account: {AccountId}", @event.Payload.Amount, @event.Entity.Id);
+            logger.LogInformation("Action=Money_Deposited, Amount={Amount}, Account={AccountId}", @event.Payload.Amount, @event.Entity.Id);
 
             var account = await GetAggregate(@event.Entity.Id);
 
@@ -51,7 +51,7 @@ namespace SourceFlow.ConsoleApp.Sagas
 
         public async Task HandleAsync(MoneyWithdrawn @event)
         {
-            logger.LogInformation("Money withdrawn: {Amount} from account: {AccountId}", @event.Payload.Amount, @event.Entity.Id);
+            logger.LogInformation("Action=Money_Withdrawn, Amount={Amount}, Account={AccountId}", @event.Payload.Amount, @event.Entity.Id);
 
             var account = await GetAggregate(@event.Entity.Id);
 
@@ -69,7 +69,7 @@ namespace SourceFlow.ConsoleApp.Sagas
 
         public async Task HandleAsync(AccountClosed @event)
         {
-            logger.LogInformation("Account closed: {AccountId} for reason: {Reason}", @event.Entity.Id, @event.Payload.ClosureReason);
+            logger.LogInformation("Action=Account_Closed, Account={AccountId}, Reason={Reason}", @event.Entity.Id, @event.Payload.ClosureReason);
 
             if (string.IsNullOrWhiteSpace(@event.Payload.ClosureReason))
                 throw new ArgumentException("Reason for closing cannot be empty", nameof(@event.Payload.ClosureReason));
