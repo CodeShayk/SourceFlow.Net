@@ -6,35 +6,41 @@ namespace SourceFlow.ConsoleApp.Aggregates
     {
         public void CreateAccount(int accountId, string holder, decimal amount)
         {
-            PublishAsync(new AccountCreated(new Source(accountId, typeof(BankAccount)))
-            {
-                AccountName = holder,
-                InitialBalance = amount
-            });
+            PublishAsync(Event.For<BankAccount>(accountId)
+                              .Create<AccountCreated>(new AccountPayload
+                              {
+                                  AccountName = holder,
+                                  InitialAmount = amount
+                              }));
         }
 
         public void Deposit(int accountId, decimal amount)
         {
-            PublishAsync(new MoneyDeposited(new Source(accountId, typeof(BankAccount)))
-            {
-                Amount = amount,
-            });
+            PublishAsync(Event.For<BankAccount>(accountId)
+                              .Create<MoneyDeposited>(new TransactPayload
+                              {
+                                  Amount = amount
+                              }));
         }
 
         public void Withdraw(int accountId, decimal amount)
         {
-            PublishAsync(new MoneyWithdrawn(new Source(accountId, typeof(BankAccount)))
-            {
-                Amount = amount
-            });
+            PublishAsync(Event.For<BankAccount>(accountId)
+                              .Create<MoneyWithdrawn>(new TransactPayload
+                              {
+                                  Amount = amount
+                              }));
         }
 
         public void Close(int accountId, string reason)
         {
-            PublishAsync(new AccountClosed(new Source(accountId, typeof(BankAccount)))
-            {
-                Reason = reason
-            });
+            PublishAsync(Event.For<BankAccount>(accountId)
+                              .Create<AccountClosed>()
+                              .With(new ClosurePayload
+                              {
+                                  IsClosed = true,
+                                  ClosureReason = reason
+                              }));
         }
     }
 }

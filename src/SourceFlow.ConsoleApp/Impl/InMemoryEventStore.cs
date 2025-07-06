@@ -8,10 +8,10 @@ namespace SourceFlow.ConsoleApp.Impl
 
         public Task AppendAsync(IEvent @event)
         {
-            if (!_store.ContainsKey(@event.Source.Id))
-                _store[@event.Source.Id] = new List<IEvent>();
+            if (!_store.ContainsKey(@event.Entity.Id))
+                _store[@event.Entity.Id] = new List<IEvent>();
 
-            _store[@event.Source.Id].Add(@event);
+            _store[@event.Entity.Id].Add(@event);
 
             return Task.CompletedTask;
         }

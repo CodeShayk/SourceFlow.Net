@@ -1,12 +1,6 @@
 namespace SourceFlow.ConsoleApp.Events
 {
-    public class AccountCreated : AccountEvent
+    public class AccountCreated : AccountEvent<AccountPayload>
     {
-        public AccountCreated(Source source) : base(source)
-        {
-        }
-
-        public string AccountName { get; set; } = string.Empty;
-        public decimal InitialBalance { get; set; }
     }
 }

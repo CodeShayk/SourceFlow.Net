@@ -1,12 +1,6 @@
 namespace SourceFlow.ConsoleApp.Events
 {
-    public class MoneyWithdrawn : AccountEvent
+    public class MoneyWithdrawn : AccountEvent<TransactPayload>
     {
-        public MoneyWithdrawn(Source source) : base(source)
-        {
-        }
-
-        public decimal Amount { get; set; }
-        public decimal NewBalance { get; set; }
     }
 }

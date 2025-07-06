@@ -1,11 +1,6 @@
 namespace SourceFlow.ConsoleApp.Events
 {
-    public class AccountClosed : AccountEvent
+    public class AccountClosed : AccountEvent<ClosurePayload>
     {
-        public AccountClosed(Source source) : base(source)
-        {
-        }
-
-        public string Reason { get; set; } = string.Empty;
     }
 }

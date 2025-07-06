@@ -5,17 +5,16 @@ namespace SourceFlow
     /// <summary>
     /// Base class for events in the event-driven architecture.
     /// </summary>
-    public class BaseEvent : IEvent
+    public class BaseEvent<TPayload> : IEvent<TPayload> where TPayload : class, IEventPayload, new()
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="BaseEvent"/> class with a specified aggregate id.
         /// </summary>
-        /// <param name="aggregateId"></param>
-        public BaseEvent(Source source)
+        public BaseEvent()
         {
             EventId = Guid.NewGuid();
             OccurredOn = DateTime.UtcNow;
-            Source = source;
+            Payload = new TPayload();
         }
 
         /// <summary>
@@ -23,7 +22,10 @@ namespace SourceFlow
         /// </summary>
         public Guid EventId { get; }
 
-        public Source Source { get; set; }
+        /// <summary>
+        /// Entity entity of the event, indicating where it originated from.
+        /// </summary>
+        public Source Entity { get; set; }
 
         /// <summary>
         /// Indicates whether the event is a replay of an existing event.
@@ -39,5 +41,10 @@ namespace SourceFlow
         /// Sequence number of the event within the aggregate's event stream.
         /// </summary>
         int IEvent.SequenceNo { get; set; }
+
+        /// <summary>
+        /// Payload of the event, containing the data associated with the event.
+        /// </summary>
+        public TPayload Payload { get; set; }
     }
 }

@@ -2,6 +2,14 @@ using System;
 
 namespace SourceFlow
 {
+    public interface IEvent<TPayload> : IEvent where TPayload : class, IEventPayload, new()
+    {
+        /// <summary>
+        /// The payload of the event, containing additional data.
+        /// </summary>
+        TPayload Payload { get; set; }
+    }
+
     /// <summary>
     /// Interface for events in the event-driven architecture.
     /// </summary>
@@ -13,9 +21,9 @@ namespace SourceFlow
         Guid EventId { get; }
 
         /// <summary>
-        /// Source of the event, indicating where it originated from.
+        /// Source entity of the event, indicating where it originated from.
         /// </summary>
-        Source Source { get; set; }
+        Source Entity { get; set; }
 
         /// <summary>
         /// Indicates whether the event is a replay of an existing event.

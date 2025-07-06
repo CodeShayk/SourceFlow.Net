@@ -31,8 +31,6 @@ namespace SourceFlow
         /// </summary>
         private readonly ICollection<ISaga> sagas;
 
-        private readonly ICollection<IDataProjection> dataProjections;
-
         /// <summary>
         /// Initializes a new instance of the <see cref="CommandBus"/> class.
         /// </summary>
@@ -82,7 +80,7 @@ namespace SourceFlow
             if (!@event.IsReplay)
             {
                 // 2.1 Set event sequence no.
-                @event.SequenceNo = await eventStore.GetNextSequenceNo(@event.Source.Id);
+                @event.SequenceNo = await eventStore.GetNextSequenceNo(@event.Entity.Id);
 
                 // 2.2. Append event to event store.
                 await eventStore.AppendAsync(@event);
@@ -90,7 +88,7 @@ namespace SourceFlow
 
             // 0. Log event.
             logger.LogInformation(string.Format($"Event published: {0} for Aggregate {1} with SequenceNo {2}",
-                @event.GetType().Name, @event.Source.Id, @event.SequenceNo));
+                @event.GetType().Name, @event.Entity.Id, @event.SequenceNo));
 
             // 3. Project data view from Event.
         }
