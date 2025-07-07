@@ -1,0 +1,17 @@
+﻿using SourceFlow.ConsoleApp.Projections;
+
+namespace SourceFlow.ConsoleApp.Services
+{
+    public class AccountViewFinder : BaseViewModelFinder, IAccountFinder
+    {
+        public async Task<AccountViewModel> GetAccountSummaryAsync(int accountId)
+        {
+            if (accountId <= 0)
+                throw new ArgumentException("Account summary requires valid account id", nameof(accountId));
+            var summary = await FindProjection<AccountViewModel>(accountId);
+            if (summary == null)
+                throw new InvalidOperationException($"No account found with ID {accountId}");
+            return summary;
+        }
+    }
+}
