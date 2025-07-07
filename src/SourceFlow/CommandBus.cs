@@ -31,6 +31,8 @@ namespace SourceFlow
         /// </summary>
         private readonly ICollection<ISaga> sagas;
 
+        private readonly ICollection<IDataView> dataViews;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="CommandBus"/> class.
         /// </summary>
@@ -42,6 +44,7 @@ namespace SourceFlow
             this.aggregateFactory = aggregateFactory;
             this.logger = logger;
             this.sagas = new List<ISaga>();
+            this.dataViews = new List<IDataView>();
         }
 
         /// <summary>
@@ -56,13 +59,28 @@ namespace SourceFlow
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
 
+            await PublishToSagas(@event);
+            await PublishToDataViews(@event);
+        }
+
+        /// <summary>
+        /// Publishes an event to all sagas that are registered with the command bus.
+        /// </summary>
+        /// <typeparam name="TEvent"></typeparam>
+        /// <param name="event"></param>
+        /// <returns></returns>
+        private async Task PublishToSagas<TEvent>(TEvent @event) where TEvent : IEvent
+        {
             if (!sagas.Any())
                 return;
 
             var tasks = new List<Task>();
             foreach (var saga in sagas)
             {
-                if (!await saga.CanHandleEvent(@event))
+                if (saga == null || saga.Handlers == null || !saga.Handlers.Any())
+                    continue;
+
+                if (!saga.Handlers.Any(x => x.Item1.IsAssignableFrom(@event.GetType())))
                     continue;
 
                 tasks.Add(SagaHandle(saga, @event));
@@ -71,10 +89,18 @@ namespace SourceFlow
             await Task.WhenAll(tasks);
         }
 
+        /// <summary>
+        /// Handles the event in the saga and appends it to the event store if not replayed.
+        /// </summary>
+        /// <typeparam name="TEvent"></typeparam>
+        /// <param name="saga"></param>
+        /// <param name="event"></param>
+        /// <returns></returns>
         private async Task SagaHandle<TEvent>(ISaga saga, TEvent @event) where TEvent : IEvent
         {
             // 1. Set event sequence no.
-            @event.SequenceNo = await eventStore.GetNextSequenceNo(@event.Entity.Id);
+            if (!@event.IsReplay)
+                @event.SequenceNo = await eventStore.GetNextSequenceNo(@event.Entity.Id);
 
             // 4. Log event.
             logger?.LogInformation("Action=Command_Dispatched, Event={Event}, Aggregate={Aggregate}, SequenceNo={No}, Saga={Saga}",
@@ -92,6 +118,35 @@ namespace SourceFlow
         }
 
         /// <summary>
+        /// Publishes an event to all data views that are registered with the command bus.
+        /// </summary>
+        /// <typeparam name="TEvent"></typeparam>
+        /// <param name="event"></param>
+        /// <returns></returns>
+        private async Task PublishToDataViews<TEvent>(TEvent @event) where TEvent : IEvent
+        {
+            if (!dataViews.Any())
+                return;
+
+            var tasks = new List<Task>();
+            foreach (var dataView in dataViews)
+            {
+                if (dataView == null || dataView.Projections == null || !dataView.Projections.Any())
+                    continue;
+
+                if (!dataView.Projections.Any(x => x.Item1.IsAssignableFrom(@event.GetType())))
+                    continue;
+
+                logger?.LogInformation("Action=Projection_Dispatched, Event={Event}, Aggregate={Aggregate}, SequenceNo={No}, DataView={DataView}",
+                    @event.GetType().Name, @event.Entity.Type.Name, @event.SequenceNo, dataView.GetType().Name);
+
+                tasks.Add(dataView.TransformAsync(@event));
+            }
+
+            await Task.WhenAll(tasks);
+        }
+
+        /// <summary>
         /// Replays events for a given aggregate.
         /// </summary>
         /// <param name="aggregateId">Unique aggregate entity id.</param>
@@ -99,21 +154,16 @@ namespace SourceFlow
         async Task ICommandBus.ReplayEvents(int aggregateId)
         {
             var events = await eventStore.LoadAsync(aggregateId);
+
             if (events == null || !events.Any())
                 return;
 
-            var tasks = new List<Task>();
-            foreach (var @event in events)
-                foreach (var saga in sagas)
-                {
-                    @event.IsReplay = true;
-                    if (!await saga.CanHandleEvent(@event))
-                        continue;
-
-                    tasks.Add(SagaHandle(saga, @event));
-                }
-
-            await Task.WhenAll(tasks);
+            foreach (var @event in events.ToList())
+            {
+                @event.IsReplay = true;
+                await PublishToSagas(@event);
+                await PublishToDataViews(@event);
+            }
         }
 
         /// <summary>
@@ -123,6 +173,15 @@ namespace SourceFlow
         void ICommandBus.RegisterSaga(ISaga saga)
         {
             sagas.Add(saga);
+        }
+
+        /// <summary>
+        /// Registers a data view with the command bus.
+        /// </summary>
+        /// <param name="view"></param>
+        void ICommandBus.RegisterView(IDataView view)
+        {
+            dataViews.Add(view);
         }
     }
 }

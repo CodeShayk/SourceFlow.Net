@@ -43,8 +43,8 @@ namespace SourceFlow.ConsoleApp.Sagas
             if (@event.Payload.Amount <= 0)
                 throw new ArgumentException("Deposit amount must be positive", nameof(@event.Payload.Amount));
 
-            var newBalance = account.Balance + @event.Payload.Amount;
-            account.Balance = newBalance;
+            @event.Payload.CurrentBalance = account.Balance + @event.Payload.Amount;
+            account.Balance = @event.Payload.CurrentBalance;
 
             await PersistAggregate(account);
         }
@@ -61,8 +61,8 @@ namespace SourceFlow.ConsoleApp.Sagas
             if (@event.Payload.Amount <= 0)
                 throw new ArgumentException("Deposit amount must be positive", nameof(@event.Payload.Amount));
 
-            var newBalance = account.Balance - @event.Payload.Amount;
-            account.Balance = newBalance;
+            @event.Payload.CurrentBalance = account.Balance - @event.Payload.Amount;
+            account.Balance = @event.Payload.CurrentBalance;
 
             await PersistAggregate(account);
         }
@@ -80,6 +80,7 @@ namespace SourceFlow.ConsoleApp.Sagas
                 throw new InvalidOperationException("Cannot close account on a closed account");
 
             account.ClosureReason = @event.Payload.ClosureReason;
+            account.IsClosed = @event.Payload.IsClosed = true;
 
             await PersistAggregate(account);
         }

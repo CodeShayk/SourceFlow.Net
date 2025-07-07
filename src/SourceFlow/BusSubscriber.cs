@@ -27,5 +27,14 @@ namespace SourceFlow
         {
             commandBus.RegisterSaga(saga);
         }
+
+        /// <summary>
+        /// Subscribes a data view to the command bus.
+        /// </summary>
+        /// <param name="saga"></param>
+        void IBusSubscriber.Subscribe(IDataView view)
+        {
+            commandBus.RegisterView(view);
+        }
     }
 }

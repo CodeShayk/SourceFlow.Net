@@ -8,11 +8,11 @@
 //        IProjectionHandler<MoneyWithdrawn>,
 //        IProjectionHandler<AccountClosed>
 //    {
-//        private readonly Dictionary<string, AccountSummaryProjection> _projections = new Dictionary<string, AccountSummaryProjection>();
+//        private readonly Dictionary<string, AccountViewModel> _projections = new Dictionary<string, AccountViewModel>();
 
 //        public Task HandleAsync(ActivateAccount @event)
 //        {
-//            _projections[@event.AggregateId] = new AccountSummaryProjection
+//            _projections[@event.AggregateId] = new AccountViewModel
 //            {
 //                AggregateId = @event.AggregateId,
 //                AccountName = @event.AccountName,
@@ -61,12 +61,12 @@
 //            return Task.CompletedTask;
 //        }
 
-//        public AccountSummaryProjection GetProjection(string accountId)
+//        public AccountViewModel GetProjection(string accountId)
 //        {
 //            return _projections.TryGetValue(accountId, out var projection) ? projection : null;
 //        }
 
-//        public IEnumerable<AccountSummaryProjection> GetAllProjections()
+//        public IEnumerable<AccountViewModel> GetAllProjections()
 //        {
 //            return _projections.Values;
 //        }

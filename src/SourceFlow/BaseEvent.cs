@@ -40,7 +40,7 @@ namespace SourceFlow
         /// <summary>
         /// Sequence number of the event within the aggregate's event stream.
         /// </summary>
-        int IEvent.SequenceNo { get; set; }
+        public int SequenceNo { get; set; }
 
         /// <summary>
         /// Payload of the event, containing the data associated with the event.

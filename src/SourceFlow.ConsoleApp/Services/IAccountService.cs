@@ -11,5 +11,7 @@ namespace SourceFlow.ConsoleApp.Services
         Task DepositAsync(int accountId, decimal amount);
 
         Task WithdrawAsync(int accountId, decimal amount);
+
+        Task ReplayHistoryAsync(int accountId);
     }
 }

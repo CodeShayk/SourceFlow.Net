@@ -13,7 +13,7 @@ namespace SourceFlow
     /// Interface for data projections from given events to a specific data view.
     /// </summary>
     /// <typeparam name="TDataView"></typeparam>
-    public interface IDataProjection<TDataView> : IDataProjection where TDataView : IDataView
+    public interface IDataProjection<TDataView> : IDataProjection where TDataView : IViewModel
     {
         /// <summary>
         /// Applies the specified event to the data projection, updating the data view accordingly.

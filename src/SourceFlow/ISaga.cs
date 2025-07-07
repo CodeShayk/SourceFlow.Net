@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System;
 using System.Threading.Tasks;
 
 namespace SourceFlow
@@ -17,13 +19,9 @@ namespace SourceFlow
     public interface ISaga
     {
         /// <summary>
-        /// Checks if the saga can handle the specified event.
+        /// List of Saga Handlers.
         /// </summary>
-        /// <typeparam name="TEvent"></typeparam>
-        /// <param name="event"></param>
-        /// <returns></returns>
-        Task<bool> CanHandleEvent<TEvent>(TEvent @event)
-            where TEvent : IEvent;
+        ICollection<Tuple<Type, IEventHandler>> Handlers { get; }
 
         /// <summary>
         /// Handles the specified event asynchronously in the saga.

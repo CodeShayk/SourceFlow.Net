@@ -63,5 +63,15 @@ namespace SourceFlow.ConsoleApp.Services
 
             account.Close(accountId, reason);
         }
+
+        public async Task ReplayHistoryAsync(int accountId)
+        {
+            if (accountId <= 0)
+                throw new ArgumentException("Account history requires valid account id", nameof(accountId));
+
+            var account = await CreateAggregate<AccountAggregate>();
+
+            await account.ReplayEvents(accountId);
+        }
     }
 }

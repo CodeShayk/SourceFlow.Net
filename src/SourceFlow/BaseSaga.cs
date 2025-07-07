@@ -14,19 +14,14 @@ namespace SourceFlow
         where TAggregateEntity : class, IEntity
     {
         /// <summary>
-        /// Collection of event handlers registered for this saga.
+        /// Collection of event handlers registered with this saga.
         /// </summary>
-        protected ICollection<Tuple<Type, IEventHandler>> eventHandlers;
+        public ICollection<Tuple<Type, IEventHandler>> Handlers { get; } = new List<Tuple<Type, IEventHandler>>();
 
         /// <summary>
         /// The bus publisher used to publish events.
         /// </summary>
         protected IBusPublisher busPublisher;
-
-        /// <summary>
-        /// The bus subscriber used to subscribe saga to events.
-        /// </summary>
-        protected IBusSubscriber busSubscriber;
 
         /// <summary>
         /// The repository used to access and persist aggregate entity.
@@ -43,8 +38,6 @@ namespace SourceFlow
         /// </summary>
         protected BaseSaga()
         {
-            eventHandlers = new List<Tuple<Type, IEventHandler>>();
-
             RegisterHandlers();
         }
 
@@ -59,7 +52,7 @@ namespace SourceFlow
                 if (iface.IsGenericType &&
                     iface.GetGenericTypeDefinition() == typeof(IEventHandler<>))
                 {
-                    eventHandlers.Add(new Tuple<Type, IEventHandler>(iface.GetGenericArguments()[0], (IEventHandler)this));
+                    Handlers.Add(new Tuple<Type, IEventHandler>(iface.GetGenericArguments()[0], (IEventHandler)this));
                 }
             }
         }
@@ -89,17 +82,17 @@ namespace SourceFlow
         {
             var tasks = new List<Task>();
 
-            foreach (var ehandler in eventHandlers)
+            foreach (var handler in Handlers)
             {
-                if (!ehandler.Item1.Equals(@event.GetType()) ||
-                        !IsGenericEventHandler(ehandler.Item2, @event.GetType()))
+                if (!handler.Item1.Equals(@event.GetType()) ||
+                        !IsGenericEventHandler(handler.Item2, @event.GetType()))
                     continue;
 
                 var method = typeof(IEventHandler<>)
                             .MakeGenericType(@event.GetType())
                             .GetMethod(nameof(IEventHandler<TEvent>.HandleAsync));
 
-                var task = (Task)method.Invoke(ehandler.Item2, new object[] { @event });
+                var task = (Task)method.Invoke(handler.Item2, new object[] { @event });
 
                 logger?.LogInformation("Action=Saga_Handled, Event={Event}, Aggregate={Aggregate}, SequenceNo={No}, Saga={Saga}, Handler:{Handler}",
                         @event.GetType().Name, @event.Entity.Type.Name, @event.SequenceNo, this.GetType().Name, method.Name);
@@ -111,23 +104,6 @@ namespace SourceFlow
                 return;
 
             await Task.WhenAll(tasks);
-        }
-
-        /// <summary>
-        /// Checks if the saga can handle the specified event.
-        /// </summary>
-        /// <typeparam name="TEvent"></typeparam>
-        /// <param name="event"></param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentNullException"></exception>
-        Task<bool> ISaga.CanHandleEvent<TEvent>(TEvent @event)
-        {
-            if (@event == null)
-                throw new ArgumentNullException(nameof(@event));
-
-            var result = eventHandlers.Any(x => x.Item1.IsAssignableFrom(@event.GetType()));
-
-            return Task.FromResult(result);
         }
 
         /// <summary>

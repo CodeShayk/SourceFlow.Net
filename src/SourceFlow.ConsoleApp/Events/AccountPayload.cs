@@ -1,3 +1,5 @@
+using SourceFlow.ConsoleApp.Aggregates;
+
 namespace SourceFlow.ConsoleApp.Events
 {
     public class AccountPayload : IEventPayload
@@ -8,7 +10,9 @@ namespace SourceFlow.ConsoleApp.Events
 
     public class TransactPayload : IEventPayload
     {
+        public TransactionType Type { get; set; }
         public decimal Amount { get; set; }
+        public decimal CurrentBalance { get; set; }
     }
 
     public class ClosurePayload : IEventPayload

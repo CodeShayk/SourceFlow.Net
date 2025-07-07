@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SourceFlow;
+using SourceFlow.ConsoleApp.Projections;
 using SourceFlow.ConsoleApp.Services; // Ensure this using is present
 
 var services = new ServiceCollection();
@@ -27,80 +28,70 @@ Console.WriteLine("=== Event Sourcing Demo ===\n");
 
 var accountService = serviceProvider.GetRequiredService<IAccountService>();
 var saga = serviceProvider.GetRequiredService<ISaga>();
+var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
+var dataView = serviceProvider.GetRequiredService<IDataView>();
 
 // Create account
 var accountId = await accountService.CreateAccountAsync("John Doe", 1000m);
-//Console.WriteLine($"Created account: {accountId}");
+logger.LogInformation("Action=Program_Create_Account, Account: {accountId}", accountId);
 
 // Perform operations
-await accountService.DepositAsync(accountId, 500m);
-//Console.WriteLine("Deposited $500");
+var amount = 500m;
+logger.LogInformation("Action=Program_Deposit, Amount={Amount}", amount);
+await accountService.DepositAsync(accountId, amount);
 
-await accountService.WithdrawAsync(accountId, 200m);
-//Console.WriteLine("Withdrew $200");
+amount = 200m;
+logger.LogInformation("Action=Program_Withdraw, Amount={Amount}", amount);
+await accountService.WithdrawAsync(accountId, amount);
 
-await accountService.DepositAsync(accountId, 100m);
-//Console.WriteLine("Deposited $100");
+amount = 100m;
+logger.LogInformation("Action=Program_Deposit, Amount={Amount}", amount);
+await accountService.DepositAsync(accountId, amount);
 
 // Get current state
-//var account = await accountService.GetAccountAsync(accountId);
-//Console.WriteLine($"\nCurrent Account State:");
-//Console.WriteLine($"- ID: {account?.Id}");
-//Console.WriteLine($"- Holder: {account?.AccountName}");
-//Console.WriteLine($"- Balance: ${account?.Balance}");
-////Console.WriteLine($"- Version: {account?.Version}");
+var viewRepository = serviceProvider.GetRequiredService<IViewRepository>();
 
-var eventStore = serviceProvider.GetRequiredService<IEventStore>();
+var account = await viewRepository.GetByIdAsync<AccountViewModel>(accountId);
+Console.WriteLine($"\nCurrent Account State:");
+Console.WriteLine($"- Account Id: {account?.Id}");
+Console.WriteLine($"- Holder: {account?.AccountName}");
+Console.WriteLine($"- Created On: {account?.CreatedDate}");
+Console.WriteLine($"- Current Balance: ${account?.CurrentBalance}");
+Console.WriteLine($"- Transaction Count: {account?.TransactionCount}");
+Console.WriteLine($"- Is A/C Closed: {account?.IsClosed}");
+Console.WriteLine($"- Last updated: {account?.LastUpdated}");
+Console.WriteLine($"- Version: {account?.Version}");
+
 // Show event history
-var events = await eventStore.LoadAsync(accountId);
-Console.WriteLine($"\nEvent History ({events.Count()} events):");
+Console.WriteLine($"\nReplay Account History:");
+await accountService.ReplayHistoryAsync(accountId);
 
-//foreach (var @event in events)
-//{
-//    Console.WriteLine($"- [{@event.Timestamp:HH:mm:ss}] {@event.EventType}");
-
-//    // Update projection
-//    switch (@event)
-//    {
-//        case ActivateAccount created:
-//            await projectionHandler.HandleAsync(created);
-//            break;
-
-//        case MoneyDeposited deposited:
-//            await projectionHandler.HandleAsync(deposited);
-//            break;
-
-//        case MoneyWithdrawn withdrawn:
-//            await projectionHandler.HandleAsync(withdrawn);
-//            break;
-
-//        case AccountClosed closed:
-//            await projectionHandler.HandleAsync(closed);
-//            break;
-//    }
-//}
-
-//// Show projection
-//var projection = projectionHandler.GetProjection(accountId);
-//Console.WriteLine($"\nProjection State:");
-//Console.WriteLine($"- Balance: ${projection?.CurrentBalance}");
-//Console.WriteLine($"- Transactions: {projection?.TransactionCount}");
-//Console.WriteLine($"- Last Updated: {projection?.LastUpdated:HH:mm:ss}");
-//Console.WriteLine($"- Account Closed: {projection?.IsClosed}");
+// Show account summary by replaying history.
+account = await viewRepository.GetByIdAsync<AccountViewModel>(accountId);
+Console.WriteLine($"\nCurrent Account State:");
+Console.WriteLine($"- Account Id: {account?.Id}");
+Console.WriteLine($"- Holder: {account?.AccountName}");
+Console.WriteLine($"- Created On: {account?.CreatedDate}");
+Console.WriteLine($"- Current Balance: ${account?.CurrentBalance}");
+Console.WriteLine($"- Transaction Count: {account?.TransactionCount}");
+Console.WriteLine($"- Is A/C Closed: {account?.IsClosed}");
+Console.WriteLine($"- Last updated: {account?.LastUpdated}");
+Console.WriteLine($"- Version: {account?.Version}");
 
 // Close account
 await accountService.CloseAccountAsync(accountId, "Customer account close request");
-Console.WriteLine($"\nAccount closed");
+Console.WriteLine($"\nClose Account");
 
 //// Final state
-//account = await accountService.GetAccountAsync(accountId);
-//Console.WriteLine($"Final State - Closed: {account?.IsClosed}");
+account = await viewRepository.GetByIdAsync<AccountViewModel>(accountId);
+Console.WriteLine($"\nCurrent Account State:");
+Console.WriteLine($"- Account Id: {account?.Id}");
+Console.WriteLine($"- Holder: {account?.AccountName}");
+Console.WriteLine($"- Created On: {account?.CreatedDate}");
+Console.WriteLine($"- Current Balance: ${account?.CurrentBalance}");
+Console.WriteLine($"- Transaction Count: {account?.TransactionCount}");
+Console.WriteLine($"- Is A/C Closed: {account?.IsClosed}");
+Console.WriteLine($"- Last updated: {account?.LastUpdated}");
+Console.WriteLine($"- Version: {account?.Version}");
 
-//// Show projection
-//var closed_projection = projectionHandler.GetProjection(accountId);
-//Console.WriteLine($"\nProjection State:");
-//Console.WriteLine($"- Balance: ${closed_projection?.CurrentBalance}");
-//Console.WriteLine($"- Transactions: {closed_projection?.TransactionCount}");
-//Console.WriteLine($"- Last Updated: {closed_projection?.LastUpdated:HH:mm:ss}");
-//Console.WriteLine($"- Account Closed: {closed_projection?.IsClosed}");
 Console.WriteLine("\nPress any key to exit...");
