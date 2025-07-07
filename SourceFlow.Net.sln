@@ -22,6 +22,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceFlow.ConsoleApp", "sr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceFlow", "src\SourceFlow\SourceFlow.csproj", "{C0724CCD-8965-4BE3-B66C-458973D5EFA1}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "github", "github", "{F81A2C7A-08CF-4E53-B064-5C5190F8A22B}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\Master-Build.yml = .github\workflows\Master-Build.yml
+		.github\workflows\Master-CodeQL.yml = .github\workflows\Master-CodeQL.yml
+		.github\workflows\PR-CI.yml = .github\workflows\PR-CI.yml
+		.github\workflows\PR-CodeQL.yml = .github\workflows\PR-CodeQL.yml
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
