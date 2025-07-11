@@ -3,18 +3,35 @@ using System.Threading.Tasks;
 
 namespace SourceFlow
 {
+    /// <summary>
+    /// Base class for implementing finders to retrieve view models by fetch criteria.
+    /// </summary>
     public abstract class BaseViewModelFinder : IViewModelFinder
     {
-        protected IViewRepository viewRepository;
+        /// <summary>
+        /// Repository for managing view models.
+        /// </summary>
+        protected readonly IViewModelRepository repository;
 
-        public async Task<TViewModel> FindProjection<TViewModel>(int id) where TViewModel : class, IViewModel
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BaseViewModelFinder"/> class.
+        /// </summary>
+        /// <param name="repository"></param>
+        /// <exception cref="ArgumentNullException"></exception>
+        protected BaseViewModelFinder(IViewModelRepository repository)
         {
-            var viewModel = await viewRepository.GetByIdAsync<TViewModel>(id);
+            this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
+        }
 
-            if (viewModel == null)
-                throw new InvalidOperationException($"No projection found for ID {id}");
-
-            return viewModel;
+        /// <summary>
+        /// Retrieves an view model by unique identifier.
+        /// </summary>
+        /// <typeparam name="TViewModel"></typeparam>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public Task<TViewModel> Find<TViewModel>(int id) where TViewModel : class, IViewModel
+        {
+            return repository.GetByIdAsync<TViewModel>(id);
         }
     }
 }

@@ -29,7 +29,7 @@ Console.WriteLine("=== Event Sourcing Demo ===\n");
 var accountService = serviceProvider.GetRequiredService<IAccountService>();
 var saga = serviceProvider.GetRequiredService<ISaga>();
 var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
-var dataView = serviceProvider.GetRequiredService<IDataView>();
+var accountFinder = serviceProvider.GetRequiredService<IViewModelFinder>();
 
 // Create account
 var accountId = await accountService.CreateAccountAsync("John Doe", 1000m);
@@ -49,9 +49,7 @@ logger.LogInformation("Action=Program_Deposit, Amount={Amount}", amount);
 await accountService.DepositAsync(accountId, amount);
 
 // Get current state
-var viewRepository = serviceProvider.GetRequiredService<IViewRepository>();
-
-var account = await viewRepository.GetByIdAsync<AccountViewModel>(accountId);
+var account = await accountFinder.Find<AccountViewModel>(accountId);
 Console.WriteLine($"\nCurrent Account State:");
 Console.WriteLine($"- Account Id: {account?.Id}");
 Console.WriteLine($"- Holder: {account?.AccountName}");
@@ -67,7 +65,7 @@ Console.WriteLine($"\nReplay Account History:");
 await accountService.ReplayHistoryAsync(accountId);
 
 // Show account summary by replaying history.
-account = await viewRepository.GetByIdAsync<AccountViewModel>(accountId);
+account = await accountFinder.Find<AccountViewModel>(accountId);
 Console.WriteLine($"\nCurrent Account State:");
 Console.WriteLine($"- Account Id: {account?.Id}");
 Console.WriteLine($"- Holder: {account?.AccountName}");
@@ -83,7 +81,7 @@ await accountService.CloseAccountAsync(accountId, "Customer account close reques
 Console.WriteLine($"\nClose Account");
 
 //// Final state
-account = await viewRepository.GetByIdAsync<AccountViewModel>(accountId);
+account = await accountFinder.Find<AccountViewModel>(accountId);
 Console.WriteLine($"\nCurrent Account State:");
 Console.WriteLine($"- Account Id: {account?.Id}");
 Console.WriteLine($"- Holder: {account?.AccountName}");

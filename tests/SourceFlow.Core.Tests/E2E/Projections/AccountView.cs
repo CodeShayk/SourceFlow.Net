@@ -1,6 +1,6 @@
-//using SourceFlow.ConsoleApp.Events;
+//using SourceFlow.Core.Tests.E2E.Events;
 
-//namespace SourceFlow.ConsoleApp.Projections
+//namespace SourceFlow.Core.Tests.E2E.Projections
 //{
 //    public class AccountView : BaseDataView<AccountViewModel>,
 //                               IProjection<AccountCreated>,

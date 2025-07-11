@@ -21,7 +21,7 @@ namespace SourceFlow
         /// <summary>
         /// List of Saga Handlers.
         /// </summary>
-        ICollection<Tuple<Type, IEventHandler>> Handlers { get; }
+        ICollection<SagaHandler> Handlers { get; }
 
         /// <summary>
         /// Handles the specified event asynchronously in the saga.

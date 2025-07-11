@@ -29,11 +29,5 @@ namespace SourceFlow
         /// </summary>
         /// <param name="saga"></param>
         void RegisterSaga(ISaga saga);
-
-        /// <summary>
-        /// Registers a data view with the command bus.
-        /// </summary>
-        /// <param name="view"></param>
-        void RegisterView(IDataView view);
     }
 }

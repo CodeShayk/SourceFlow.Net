@@ -5,6 +5,6 @@ namespace SourceFlow
 {
     public interface IViewModelFinder
     {
-        Task<TViewModel> FindProjection<TViewModel>(int id) where TViewModel : class, IViewModel;
+        Task<TViewModel> Find<TViewModel>(int id) where TViewModel : class, IViewModel;
     }
 }

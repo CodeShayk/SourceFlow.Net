@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace SourceFlow.ConsoleApp.Impl
+namespace SourceFlow.Core.Tests.E2E.Impl
 {
     public class InMemoryViewRepository : IViewModelRepository
     {
@@ -23,7 +23,7 @@ namespace SourceFlow.ConsoleApp.Impl
 
             var success = _cache.TryGetValue(id, out var model);
 
-            return Task.FromResult<TViewModel>(success ? (TViewModel)model : null);
+            return Task.FromResult(success ? (TViewModel)model : null);
         }
 
         public Task PersistAsync<TViewModel>(TViewModel model) where TViewModel : IViewModel

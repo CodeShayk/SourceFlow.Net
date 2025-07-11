@@ -16,7 +16,7 @@ namespace SourceFlow
         /// <summary>
         /// Collection of event handlers registered with this saga.
         /// </summary>
-        public ICollection<Tuple<Type, IEventHandler>> Handlers { get; } = new List<Tuple<Type, IEventHandler>>();
+        public ICollection<SagaHandler> Handlers { get; } = new List<SagaHandler>();
 
         /// <summary>
         /// The bus publisher used to publish events.
@@ -26,7 +26,7 @@ namespace SourceFlow
         /// <summary>
         /// The repository used to access and persist aggregate entity.
         /// </summary>
-        protected IRepository repository;
+        protected IDomainRepository repository;
 
         /// <summary>
         /// Logger for the saga to log events and errors.
@@ -52,7 +52,7 @@ namespace SourceFlow
                 if (iface.IsGenericType &&
                     iface.GetGenericTypeDefinition() == typeof(IEventHandler<>))
                 {
-                    Handlers.Add(new Tuple<Type, IEventHandler>(iface.GetGenericArguments()[0], (IEventHandler)this));
+                    Handlers.Add(new SagaHandler(iface.GetGenericArguments()[0], (IEventHandler)this));
                 }
             }
         }
@@ -84,15 +84,15 @@ namespace SourceFlow
 
             foreach (var handler in Handlers)
             {
-                if (!handler.Item1.Equals(@event.GetType()) ||
-                        !IsGenericEventHandler(handler.Item2, @event.GetType()))
+                if (!handler.EventType.Equals(@event.GetType()) ||
+                        !IsGenericEventHandler(handler.Handler, @event.GetType()))
                     continue;
 
                 var method = typeof(IEventHandler<>)
                             .MakeGenericType(@event.GetType())
                             .GetMethod(nameof(IEventHandler<TEvent>.HandleAsync));
 
-                var task = (Task)method.Invoke(handler.Item2, new object[] { @event });
+                var task = (Task)method.Invoke(handler.Handler, new object[] { @event });
 
                 logger?.LogInformation("Action=Saga_Handled, Event={Event}, Aggregate={Aggregate}, SequenceNo={No}, Saga={Saga}, Handler:{Handler}",
                         @event.GetType().Name, @event.Entity.Type.Name, @event.SequenceNo, this.GetType().Name, method.Name);

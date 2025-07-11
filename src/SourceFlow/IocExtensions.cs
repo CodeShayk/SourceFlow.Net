@@ -25,7 +25,6 @@ namespace SourceFlow
                 config.WithAggregates();
                 config.WithSagas();
                 config.WithServices();
-                config.WithDataViews();
             });
         }
 
@@ -37,19 +36,22 @@ namespace SourceFlow
         /// <param name="configuration"></param>
         public static void UseSourceFlow(this IServiceCollection services, Action<ISourceFlowConfig> configuration)
         {
-            services.AddAsImplementationsOfInterface<IAggregateFactory>(ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IRepository>(ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IViewRepository>(ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IDomainRepository>(ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IViewModelRepository>(ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IEventStore>(ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IViewModelFinder>(ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IViewModelTransform>(ServiceLifetime.Singleton);
 
             services.AddSingleton<ICommandBus, CommandBus>(c => new CommandBus(
                 c.GetService<IEventStore>(),
-                c.GetService<IAggregateFactory>(),
+                c.GetService<IETLPublisher>(),
                 c.GetService<ILogger<ICommandBus>>()));
 
+            services.AddSingleton<IAggregateFactory, AggregateFactory>();
             services.AddSingleton<IBusPublisher, BusPublisher>(c => new BusPublisher(c.GetService<ICommandBus>()));
             services.AddSingleton<IEventReplayer, EventReplayer>(c => new EventReplayer(c.GetService<ICommandBus>()));
             services.AddSingleton<IBusSubscriber, BusSubscriber>(c => new BusSubscriber(c.GetService<ICommandBus>()));
+            services.AddSingleton<IETLPublisher, ETLPublisher>(c => new ETLPublisher(c.GetServices<IViewModelTransform>()));
 
             configuration(new SourceFlowConfig { Services = services });
 
@@ -158,50 +160,12 @@ namespace SourceFlow
 
                 typeof(TSaga)
                     .GetField("repository", BindingFlags.Instance | BindingFlags.NonPublic)
-                    ?.SetValue(saga, c.GetRequiredService<IRepository>());
+                    ?.SetValue(saga, c.GetRequiredService<IDomainRepository>());
 
                 var subscriber = c.GetRequiredService<IBusSubscriber>();
                 subscriber.Subscribe(saga);
 
                 return (TSaga)saga;
-            });
-
-            return config;
-        }
-
-        /// <summary>
-        /// Registers a data view with the SourceFlow configuration.
-        /// When no factory is provided, uses default constructor to create view instance.
-        /// </summary>
-        /// <typeparam name="TViewModel">View model implementation supported by TDataView. Implementation of IViewModel.</typeparam>
-        /// <typeparam name="TDataView">Data View implementation for a given view model. Implementation of IDataView<TDataView>.</typeparam>
-        /// <param name="config"></param>
-        /// <param name="factory">Factory to return data view instance using service provider.</param>
-        /// <returns></returns>
-        /// <exception cref="InvalidOperationException"></exception>
-        public static ISourceFlowConfig WithDataView<TViewModel, TDataView>(this ISourceFlowConfig config, Func<IServiceProvider, IDataView<TViewModel>> factory = null)
-        where TViewModel : class, IViewModel, new()
-        where TDataView : class, IDataView<TViewModel>, new()
-        {
-            ((SourceFlowConfig)config).Services.AddSingleton<IDataView, TDataView>(c =>
-            {
-                var view = factory != null ? factory(c) : new TDataView();
-
-                if (view == null)
-                    throw new InvalidOperationException($"Data view registration for {typeof(TViewModel).Name} returned null.");
-
-                typeof(TDataView)
-                    .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
-                    ?.SetValue(view, c.GetService<ILogger<TDataView>>());
-
-                typeof(TDataView)
-                    .GetField("repository", BindingFlags.Instance | BindingFlags.NonPublic)
-                    ?.SetValue(view, c.GetRequiredService<IViewRepository>());
-
-                var subscriber = c.GetRequiredService<IBusSubscriber>();
-                subscriber.Subscribe(view);
-
-                return (TDataView)view;
             });
 
             return config;
@@ -235,8 +199,12 @@ namespace SourceFlow
 
             foreach (var implType in implementationTypes)
             {
-                // Use TryAddEnumerable to allow multiple implementations (IEnumerable<TInterface>)
-                services.TryAddEnumerable(ServiceDescriptor.Describe(interfaceType, implType, lifetime));
+                var interfaces = implType.GetInterfaces();
+
+                foreach (var intrface in interfaces)
+                {
+                    services.TryAddEnumerable(ServiceDescriptor.Describe(intrface, implType, lifetime));
+                }
             }
 
             return services;
@@ -400,7 +368,7 @@ namespace SourceFlow
 
                         implType
                             .GetField("repository", BindingFlags.Instance | BindingFlags.NonPublic)
-                            ?.SetValue(sagaInstance, c.GetRequiredService<IRepository>());
+                            ?.SetValue(sagaInstance, c.GetRequiredService<IDomainRepository>());
 
                         if (index == 1)
                         {
@@ -411,60 +379,6 @@ namespace SourceFlow
                         index++;
 
                         return sagaInstance;
-                    });
-            }
-
-            return config;
-        }
-
-        /// <summary>
-        /// Registers all data views that implement the IDataView interface in the IoC container.
-        /// When factory is not provided, uses default constructor to create data view instances.
-        /// </summary>
-        /// <param name="config"></param>
-        /// <param name="sagaFactory">Factory to return data view instances by given type.</param>
-        /// <returns></returns>
-        /// <exception cref="InvalidOperationException"></exception>
-        public static ISourceFlowConfig WithDataViews(this ISourceFlowConfig config, Func<Type, IDataView> sagaFactory = null)
-        {
-            var interfaceType = typeof(IDataView);
-            var implementationTypes = GetTypesFromAssemblies(interfaceType);
-
-            foreach (var implType in implementationTypes)
-            {
-                var viewInstance = sagaFactory != null
-                        ? sagaFactory(implType)
-                        : (IDataView)Activator.CreateInstance(implType);
-
-                if (viewInstance == null)
-                    throw new InvalidOperationException($"Data view registration for {implType.Name} returned null.");
-
-                var loggerType = typeof(ILogger<>).MakeGenericType(implType);
-
-                var interfaces = implType.GetInterfaces();
-
-                var index = 1;
-
-                foreach (var intrface in interfaces)
-                    ((SourceFlowConfig)config).Services.AddSingleton(intrface, c =>
-                    {
-                        implType
-                            .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
-                            ?.SetValue(viewInstance, (ILogger)c.GetService(loggerType));
-
-                        implType
-                            .GetField("repository", BindingFlags.Instance | BindingFlags.NonPublic)
-                            ?.SetValue(viewInstance, c.GetRequiredService<IViewRepository>());
-
-                        if ((index == 1))
-                        {
-                            var subscriber = c.GetRequiredService<IBusSubscriber>();
-                            subscriber.Subscribe(viewInstance);
-                        }
-
-                        index++;
-
-                        return viewInstance;
                     });
             }
 

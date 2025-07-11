@@ -1,6 +1,6 @@
-using SourceFlow.ConsoleApp.Projections;
+using SourceFlow.Core.Tests.E2E.Projections;
 
-namespace SourceFlow.ConsoleApp.Services
+namespace SourceFlow.Core.Tests.E2E.Services
 {
     public class AccountViewFinder : BaseViewModelFinder, IAccountFinder
     {

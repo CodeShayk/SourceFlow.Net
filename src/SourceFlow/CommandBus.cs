@@ -17,11 +17,6 @@ namespace SourceFlow
         private readonly IEventStore eventStore;
 
         /// <summary>
-        /// The aggregate factory used to create aggregates.
-        /// </summary>
-        protected IAggregateFactory aggregateFactory;
-
-        /// <summary>
         /// Logger for the command bus to log events and errors.
         /// </summary>
         private readonly ILogger<ICommandBus> logger;
@@ -31,20 +26,18 @@ namespace SourceFlow
         /// </summary>
         private readonly ICollection<ISaga> sagas;
 
-        private readonly ICollection<IDataView> dataViews;
+        private readonly IETLPublisher etlPublisher;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CommandBus"/> class.
         /// </summary>
         /// <param name="eventStore"></param>
-        /// <param name="aggregateFactory"></param>
-        public CommandBus(IEventStore eventStore, IAggregateFactory aggregateFactory, ILogger<ICommandBus> logger)
+        public CommandBus(IEventStore eventStore, IETLPublisher etlPublisher, ILogger<ICommandBus> logger)
         {
             this.eventStore = eventStore;
-            this.aggregateFactory = aggregateFactory;
             this.logger = logger;
             this.sagas = new List<ISaga>();
-            this.dataViews = new List<IDataView>();
+            this.etlPublisher = etlPublisher;
         }
 
         /// <summary>
@@ -60,7 +53,7 @@ namespace SourceFlow
                 throw new ArgumentNullException(nameof(@event));
 
             await PublishToSagas(@event);
-            await PublishToDataViews(@event);
+            await etlPublisher.PublishAsync(@event);
         }
 
         /// <summary>
@@ -80,7 +73,7 @@ namespace SourceFlow
                 if (saga == null || saga.Handlers == null || !saga.Handlers.Any())
                     continue;
 
-                if (!saga.Handlers.Any(x => x.Item1.IsAssignableFrom(@event.GetType())))
+                if (!saga.Handlers.Any(x => x.EventType.IsAssignableFrom(@event.GetType())))
                     continue;
 
                 tasks.Add(SagaHandle(saga, @event));
@@ -118,35 +111,6 @@ namespace SourceFlow
         }
 
         /// <summary>
-        /// Publishes an event to all data views that are registered with the command bus.
-        /// </summary>
-        /// <typeparam name="TEvent"></typeparam>
-        /// <param name="event"></param>
-        /// <returns></returns>
-        private async Task PublishToDataViews<TEvent>(TEvent @event) where TEvent : IEvent
-        {
-            if (!dataViews.Any())
-                return;
-
-            var tasks = new List<Task>();
-            foreach (var dataView in dataViews)
-            {
-                if (dataView == null || dataView.Projections == null || !dataView.Projections.Any())
-                    continue;
-
-                if (!dataView.Projections.Any(x => x.Item1.IsAssignableFrom(@event.GetType())))
-                    continue;
-
-                logger?.LogInformation("Action=Projection_Dispatched, Event={Event}, Aggregate={Aggregate}, SequenceNo={No}, DataView={DataView}",
-                    @event.GetType().Name, @event.Entity.Type.Name, @event.SequenceNo, dataView.GetType().Name);
-
-                tasks.Add(dataView.TransformAsync(@event));
-            }
-
-            await Task.WhenAll(tasks);
-        }
-
-        /// <summary>
         /// Replays events for a given aggregate.
         /// </summary>
         /// <param name="aggregateId">Unique aggregate entity id.</param>
@@ -162,7 +126,7 @@ namespace SourceFlow
             {
                 @event.IsReplay = true;
                 await PublishToSagas(@event);
-                await PublishToDataViews(@event);
+                await etlPublisher.PublishAsync(@event);
             }
         }
 
@@ -173,15 +137,6 @@ namespace SourceFlow
         void ICommandBus.RegisterSaga(ISaga saga)
         {
             sagas.Add(saga);
-        }
-
-        /// <summary>
-        /// Registers a data view with the command bus.
-        /// </summary>
-        /// <param name="view"></param>
-        void ICommandBus.RegisterView(IDataView view)
-        {
-            dataViews.Add(view);
         }
     }
 }
