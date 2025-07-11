@@ -13,6 +13,6 @@ namespace SourceFlow
         /// </summary>
         /// <param name="aggregateId">Unique aggregate entity id.</param>
         /// <returns></returns>
-        Task ReplayEventsAsync(int aggregateId);
+        Task ReplayEvents(int aggregateId);
     }
 }

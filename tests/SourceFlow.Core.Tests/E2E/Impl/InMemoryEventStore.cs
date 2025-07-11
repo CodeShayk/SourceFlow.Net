@@ -6,7 +6,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
     {
         private readonly ConcurrentDictionary<int, List<IEvent>> _store = new();
 
-        public Task AppendAsync(IEvent @event)
+        public Task Append(IEvent @event)
         {
             if (!_store.ContainsKey(@event.Entity.Id))
                 _store[@event.Entity.Id] = new List<IEvent>();
@@ -16,7 +16,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
             return Task.CompletedTask;
         }
 
-        public async Task<IEnumerable<IEvent>> LoadAsync(int aggregateId)
+        public async Task<IEnumerable<IEvent>> Load(int aggregateId)
         {
             return await Task.FromResult(_store.TryGetValue(aggregateId, out var events)
                ? events

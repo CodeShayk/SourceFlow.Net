@@ -11,7 +11,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
             this.serviceProvider = serviceProvider;
         }
 
-        public async Task<TAggregateRoot> CreateAsync<TAggregateRoot>()
+        public async Task<TAggregateRoot> Create<TAggregateRoot>()
             where TAggregateRoot : IAggregateRoot
         {
             // Resolve the aggregate root from the container

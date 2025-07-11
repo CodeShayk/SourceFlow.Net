@@ -29,7 +29,7 @@ namespace SourceFlow
         /// <typeparam name="TEvent"></typeparam>
         /// <param name="event"></param>
         /// <returns></returns>
-        Task HandleAsync<TEvent>(TEvent @event)
+        Task Handle<TEvent>(TEvent @event)
             where TEvent : IEvent;
     }
 }

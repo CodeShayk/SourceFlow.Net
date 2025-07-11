@@ -20,28 +20,28 @@ namespace SourceFlow.Tests
         public async Task HandleAsync_CallsRegisteredHandler()
         {
             var handlerMock = new Mock<IEventHandler<DummyEvent>>();
-            handlerMock.Setup(h => h.HandleAsync(It.IsAny<DummyEvent>())).Returns(Task.CompletedTask);
+            handlerMock.Setup(h => h.Handle(It.IsAny<DummyEvent>())).Returns(Task.CompletedTask);
 
             var saga = new SampleSaga();
             saga.Handlers.Add(new SagaHandler(typeof(DummyEvent), (IEventHandler)handlerMock.Object));
 
             var dummyEvent = new DummyEvent();
-            await saga.HandleAsync(dummyEvent);
+            await saga.Handle(dummyEvent);
 
-            handlerMock.Verify(h => h.HandleAsync(dummyEvent), Times.Once);
+            handlerMock.Verify(h => h.Handle(dummyEvent), Times.Once);
         }
 
         public class SampleSaga : ISaga
         {
             public ICollection<SagaHandler> Handlers { get; } = new List<SagaHandler>();
 
-            public Task HandleAsync<TEvent>(TEvent @event) where TEvent : IEvent
+            public Task Handle<TEvent>(TEvent @event) where TEvent : IEvent
             {
                 // Example: just call all handlers for the event type
                 foreach (var handler in Handlers)
                 {
                     if (handler.EventType == typeof(TEvent))
-                        ((IEventHandler<TEvent>)handler.Handler).HandleAsync(@event);
+                        ((IEventHandler<TEvent>)handler.Handler).Handle(@event);
                 }
                 return Task.CompletedTask;
             }

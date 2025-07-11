@@ -36,11 +36,11 @@ namespace SourceFlow
         /// <param name="configuration"></param>
         public static void UseSourceFlow(this IServiceCollection services, Action<ISourceFlowConfig> configuration)
         {
-            services.AddAsImplementationsOfInterface<IDomainRepository>(ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IViewModelRepository>(ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IEventStore>(ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IViewModelFinder>(ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IViewModelTransform>(ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IDomainRepository>(lifetime: ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IViewModelRepository>(lifetime: ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IEventStore>(lifetime: ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IViewModelFinder>(lifetime: ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IViewModelTransform>(lifetime: ServiceLifetime.Singleton);
 
             services.AddSingleton<ICommandBus, CommandBus>(c => new CommandBus(
                 c.GetService<IEventStore>(),
@@ -51,7 +51,7 @@ namespace SourceFlow
             services.AddSingleton<IBusPublisher, BusPublisher>(c => new BusPublisher(c.GetService<ICommandBus>()));
             services.AddSingleton<IEventReplayer, EventReplayer>(c => new EventReplayer(c.GetService<ICommandBus>()));
             services.AddSingleton<IBusSubscriber, BusSubscriber>(c => new BusSubscriber(c.GetService<ICommandBus>()));
-            services.AddSingleton<IETLPublisher, ETLPublisher>(c => new ETLPublisher(c.GetServices<IViewModelTransform>()));
+            services.AddSingleton<IETLPublisher, ETLPublisher>(c => new ETLPublisher(c.GetServices<IViewModelTransform>(), c.GetService<ILogger<ETLPublisher>>()));
 
             configuration(new SourceFlowConfig { Services = services });
 
@@ -199,7 +199,9 @@ namespace SourceFlow
 
             foreach (var implType in implementationTypes)
             {
-                var interfaces = implType.GetInterfaces();
+                services.TryAddEnumerable(ServiceDescriptor.Describe(interfaceType, implType, lifetime));
+
+                var interfaces = implType.GetInterfaces().Where(t => !t.AssemblyQualifiedName.Equals(interfaceType.AssemblyQualifiedName));
 
                 foreach (var intrface in interfaces)
                 {

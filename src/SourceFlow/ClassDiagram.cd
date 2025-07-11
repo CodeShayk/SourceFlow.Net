@@ -16,14 +16,15 @@
     <Position X="12.5" Y="3.25" Width="2.25" />
     <AssociationLine Name="busPublisher" Type="SourceFlow.IBusPublisher" ManuallyRouted="true" FixedFromPoint="true" FixedToPoint="true">
       <Path>
-        <Point X="13.062" Y="3.25" />
-        <Point X="13.062" Y="2.539" />
-        <Point X="1.5" Y="2.539" />
+        <Point X="12.5" Y="5.125" />
+        <Point X="9.72" Y="5.125" />
+        <Point X="9.72" Y="2.875" />
+        <Point X="1.5" Y="2.875" />
         <Point X="1.5" Y="3.25" />
       </Path>
     </AssociationLine>
     <TypeIdentifier>
-      <HashCode>AAQABAAAAAAHCAACBQAAAAAAgEAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>AAQAAAAAAAAHCAACBQAAAAACgEAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>BaseSaga.cs</FileName>
     </TypeIdentifier>
     <ShowAsAssociation>
@@ -32,7 +33,7 @@
     <Lollipop Position="0.7" />
   </Class>
   <Class Name="SourceFlow.BaseEvent&lt;TPayload&gt;">
-    <Position X="10" Y="3.25" Width="1.75" />
+    <Position X="10" Y="2.25" Width="1.75" />
     <TypeIdentifier>
       <HashCode>EAAAAAAgAgAAAAAAAAAQAQAAAAAAAAAQAAAAAAAAAAA=</HashCode>
       <FileName>BaseEvent.cs</FileName>
@@ -42,7 +43,7 @@
   <Class Name="SourceFlow.CommandBus">
     <Position X="3.5" Y="7.5" Width="2.75" />
     <TypeIdentifier>
-      <HashCode>AAAAABEAAAAEAEACAAAAAAAAAgCAAABAAEAAABQAAAA=</HashCode>
+      <HashCode>AAAAABEAAAAEAEACAAAAAAAABgCAAAAAAAAAABAAAAA=</HashCode>
       <FileName>CommandBus.cs</FileName>
     </TypeIdentifier>
     <ShowAsAssociation>
@@ -54,7 +55,7 @@
   <Class Name="SourceFlow.BusPublisher">
     <Position X="0.75" Y="5" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>AAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAg=</HashCode>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAEAACAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>BusPublisher.cs</FileName>
     </TypeIdentifier>
     <ShowAsAssociation>
@@ -74,9 +75,9 @@
     <Lollipop Position="0.2" />
   </Class>
   <Class Name="SourceFlow.EventReplayer">
-    <Position X="7.25" Y="5" Width="2.25" />
+    <Position X="7.25" Y="5" Width="2" />
     <TypeIdentifier>
-      <HashCode>AEAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>AAAAAAAAAAAIAAAAAAAAAAACAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>EventReplayer.cs</FileName>
     </TypeIdentifier>
     <ShowAsAssociation>
@@ -87,7 +88,7 @@
   <Class Name="SourceFlow.ETLPublisher">
     <Position X="0.75" Y="9.25" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>AAQAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAA=</HashCode>
+      <HashCode>AAAAAAAAAAAACAACAEAAAAAAAAAAAAIAAAAAAAAAAAA=</HashCode>
       <FileName>ETLPublisher.cs</FileName>
     </TypeIdentifier>
     <Lollipop Position="0.2" />
@@ -105,7 +106,7 @@
       </MemberNameLabel>
     </AssociationLine>
     <TypeIdentifier>
-      <HashCode>AAAAAAIAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>AAAAAAIAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>BaseViewModelTransform.cs</FileName>
     </TypeIdentifier>
     <ShowAsAssociation>
@@ -137,7 +138,7 @@
   <Class Name="SourceFlow.AggregateFactory">
     <Position X="4" Y="0.5" Width="2.5" />
     <TypeIdentifier>
-      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAIAAAAA=</HashCode>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAABAEAAAAAAAAAAAAA=</HashCode>
       <FileName>AggregateFactory.cs</FileName>
     </TypeIdentifier>
     <Lollipop Position="0.2" />
@@ -145,65 +146,73 @@
   <Interface Name="SourceFlow.IEventStore">
     <Position X="7.25" Y="7.5" Width="2.25" />
     <TypeIdentifier>
-      <HashCode>ABAAAAAgAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>ABAAgAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAA=</HashCode>
       <FileName>IEventStore.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IBusPublisher">
     <Position X="0.75" Y="3.25" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>AAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>AAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IBusPublisher.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IEventReplayer">
-    <Position X="7.25" Y="3.25" Width="2.25" />
+    <Position X="7.25" Y="3.25" Width="2" />
     <TypeIdentifier>
-      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEA=</HashCode>
+      <HashCode>AgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IEventReplayer.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IDomainRepository">
     <Position X="15.5" Y="3.25" Width="2" />
     <TypeIdentifier>
-      <HashCode>AAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIIA=</HashCode>
+      <HashCode>AAAAAAAAAAAAAABAAAAAAAIAAAEAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IDomainRepository.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.ICommandBus">
     <Position X="4" Y="5.25" Width="2" />
     <TypeIdentifier>
-      <HashCode>AgQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAQ=</HashCode>
+      <HashCode>AgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAQAAAAA=</HashCode>
       <FileName>ICommandBus.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IAggregateFactory">
     <Position X="0.5" Y="0.5" Width="2.25" />
     <TypeIdentifier>
-      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAA=</HashCode>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAA=</HashCode>
       <FileName>IAggregateFactory.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IETLPublisher">
     <Position X="0.75" Y="7.75" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>AAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>AAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IETLPublisher.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IViewModelRepository">
     <Position X="7.25" Y="13" Width="2.25" />
     <TypeIdentifier>
-      <HashCode>AAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIIA=</HashCode>
+      <HashCode>AAAAAAAAAAAAAABAAAAAAAIAAAEAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IViewRepository.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.ISaga">
     <Position X="12.5" Y="7" Width="2.25" />
+    <AssociationLine Name="Handlers" Type="SourceFlow.SagaHandler">
+      <MemberNameLabel ManuallyPlaced="true">
+        <Position X="0.839" Y="0.511" />
+      </MemberNameLabel>
+    </AssociationLine>
     <TypeIdentifier>
-      <HashCode>AAAAAAAAAAAAAABAAAAAAAAAAEAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAEAAAAIAAAAAAAAAAAA=</HashCode>
       <FileName>ISaga.cs</FileName>
     </TypeIdentifier>
+    <ShowAsCollectionAssociation>
+      <Property Name="Handlers" />
+    </ShowAsCollectionAssociation>
   </Interface>
   <Interface Name="SourceFlow.IEventHandler">
     <Position X="18.5" Y="5.25" Width="2.25" />
@@ -215,14 +224,14 @@
   <Interface Name="SourceFlow.IEventHandler&lt;TEvent&gt;">
     <Position X="18.5" Y="6.75" Width="2.25" />
     <TypeIdentifier>
-      <HashCode>AAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAA=</HashCode>
       <FileName>IEventHandler.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IViewModelTransform&lt;TEvent&gt;">
     <Position X="0.75" Y="12.5" Width="2.5" />
     <TypeIdentifier>
-      <HashCode>AAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IViewModelTransform.cs</FileName>
     </TypeIdentifier>
   </Interface>
@@ -266,6 +275,13 @@
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IViewModelTransform.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Interface Name="SourceFlow.IEventPayload">
+    <Position X="12.25" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>IEventPayload.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Font Name="Segoe UI" Size="9" />

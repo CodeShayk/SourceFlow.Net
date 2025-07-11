@@ -21,6 +21,6 @@ namespace SourceFlow
         /// </summary>
         /// <param name="event"></param>
         /// <returns></returns>
-        Task TransformAsync(TEvent @event);
+        Task Transform(TEvent @event);
     }
 }

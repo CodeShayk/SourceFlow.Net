@@ -28,7 +28,7 @@ namespace SourceFlow
         /// </summary>
         /// <typeparam name="TAggregateRoot"></typeparam>
         /// <returns></returns>
-        public async Task<TAggregateRoot> CreateAsync<TAggregateRoot>()
+        public async Task<TAggregateRoot> Create<TAggregateRoot>()
             where TAggregateRoot : IAggregateRoot
         {
             // Resolve the aggregate root from the container

@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 
 namespace SourceFlow
 {
@@ -19,6 +19,6 @@ namespace SourceFlow
         /// </summary>
         /// <param name="event"></param>
         /// <returns></returns>
-        public abstract Task TransformAsync(TEvent @event);
+        public abstract Task Transform(TEvent @event);
     }
 }

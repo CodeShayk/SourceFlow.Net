@@ -1,4 +1,4 @@
-namespace SourceFlow.ConsoleApp.Projections
+namespace SourceFlow.ConsoleApp.ViewModels
 {
     public class AccountViewModel : IViewModel
     {

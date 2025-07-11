@@ -26,7 +26,7 @@ namespace SourceFlow
         /// <returns>Implementation of IAggregateRoot</returns>
         public async Task<TAggregateRoot> CreateAggregate<TAggregateRoot>() where TAggregateRoot : IAggregateRoot
         {
-            var aggregate = await aggregateFactory.CreateAsync<TAggregateRoot>();
+            var aggregate = await aggregateFactory.Create<TAggregateRoot>();
             return aggregate;
         }
     }

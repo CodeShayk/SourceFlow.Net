@@ -13,6 +13,7 @@ namespace SourceFlow
         /// </summary>
         /// <param name="event"></param>
         /// <returns></returns>
-        Task PublishAsync(IEvent @event);
+        Task Publish<TEvent>(TEvent @event)
+            where TEvent : IEvent;
     }
 }

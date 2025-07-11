@@ -33,7 +33,7 @@ namespace SourceFlow
         /// <returns></returns>
         public Task ReplayEvents(int AggregateId)
         {
-            return eventReplayer.ReplayEventsAsync(AggregateId);
+            return eventReplayer.ReplayEvents(AggregateId);
         }
 
         /// <summary>
@@ -47,7 +47,7 @@ namespace SourceFlow
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
 
-            return busPublisher.PublishAsync(@event);
+            return busPublisher.Publish(@event);
         }
     }
 }

@@ -27,9 +27,9 @@ namespace SourceFlow
         /// <typeparam name="TEvent"></typeparam>
         /// <param name="event"></param>
         /// <returns></returns>
-        async Task IBusPublisher.PublishAsync<TEvent>(TEvent @event)
+        async Task IBusPublisher.Publish<TEvent>(TEvent @event)
         {
-            await commandBus.PublishAsync(@event);
+            await commandBus.Publish(@event);
         }
     }
 }

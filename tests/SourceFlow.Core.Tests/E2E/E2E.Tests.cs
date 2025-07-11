@@ -67,7 +67,7 @@ namespace SourceFlow.Core.Tests.E2E
             await _accountService.DepositAsync(accountId, amount);
 
             // Get current state and assertions
-            var account = await _viewRepository.GetByIdAsync<AccountViewModel>(accountId);
+            var account = await _viewRepository.Get<AccountViewModel>(accountId);
             Assert.That(account, Is.Not.Null);
             Assert.That(accountId, Is.EqualTo(account.Id));
             Assert.That("John Doe", Is.EqualTo(account.AccountName));
@@ -79,7 +79,7 @@ namespace SourceFlow.Core.Tests.E2E
             Assert.DoesNotThrowAsync(async () => await _accountService.ReplayHistoryAsync(accountId));
 
             // Fetch state again, should be the same
-            var replayedAccount = await _viewRepository.GetByIdAsync<AccountViewModel>(accountId);
+            var replayedAccount = await _viewRepository.Get<AccountViewModel>(accountId);
             Assert.That(account.CurrentBalance, Is.EqualTo(replayedAccount.CurrentBalance));
             Assert.That(account.TransactionCount, Is.EqualTo(replayedAccount.TransactionCount));
 
@@ -87,7 +87,7 @@ namespace SourceFlow.Core.Tests.E2E
             Assert.DoesNotThrowAsync(async () => await _accountService.CloseAccountAsync(accountId, "Customer account close request"));
 
             // Final state
-            var closedAccount = await _viewRepository.GetByIdAsync<AccountViewModel>(accountId);
+            var closedAccount = await _viewRepository.Get<AccountViewModel>(accountId);
             Assert.That(closedAccount.IsClosed, Is.True);
         }
     }

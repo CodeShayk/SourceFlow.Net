@@ -1,4 +1,4 @@
-﻿namespace SourceFlow.Tests
+namespace SourceFlow.Tests
 {
     using System;
     using System.Threading.Tasks;
@@ -19,6 +19,7 @@
             {
                 public int Id { get; set; }
             }
+
             public class DummyEvent : IEvent
             {
                 public Guid EventId { get; set; } = Guid.NewGuid();
@@ -56,11 +57,11 @@
             [Test]
             public async Task ReplayEvents_DelegatesToEventReplayer()
             {
-                _eventReplayerMock.Setup(r => r.ReplayEventsAsync(It.IsAny<int>())).Returns(Task.CompletedTask);
+                _eventReplayerMock.Setup(r => r.ReplayEvents(It.IsAny<int>())).Returns(Task.CompletedTask);
 
                 await _aggregate.ReplayEvents(42);
 
-                _eventReplayerMock.Verify(r => r.ReplayEventsAsync(42), Times.Once);
+                _eventReplayerMock.Verify(r => r.ReplayEvents(42), Times.Once);
             }
 
             [Test]
@@ -73,11 +74,11 @@
             public async Task PublishAsync_CallsBusPublisher()
             {
                 var dummyEvent = new DummyEvent();
-                _busPublisherMock.Setup(b => b.PublishAsync(It.IsAny<IEvent>())).Returns(Task.CompletedTask);
+                _busPublisherMock.Setup(b => b.Publish(It.IsAny<IEvent>())).Returns(Task.CompletedTask);
 
                 await _aggregate.TestPublishAsync(dummyEvent);
 
-                _busPublisherMock.Verify(b => b.PublishAsync(dummyEvent), Times.Once);
+                _busPublisherMock.Verify(b => b.Publish(dummyEvent), Times.Once);
             }
         }
     }

@@ -14,7 +14,7 @@ namespace SourceFlow
         /// <typeparam name="TEvent"></typeparam>
         /// <param name="event"></param>
         /// <returns></returns>
-        Task PublishAsync<TEvent>(TEvent @event)
+        Task Publish<TEvent>(TEvent @event)
              where TEvent : IEvent;
 
         /// <summary>

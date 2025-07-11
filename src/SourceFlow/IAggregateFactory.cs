@@ -14,7 +14,7 @@ namespace SourceFlow
         /// <typeparam name="TAggregateRoot"></typeparam>
         /// <param name="state"></param>
         /// <returns></returns>
-        Task<TAggregateRoot> CreateAsync<TAggregateRoot>()
+        Task<TAggregateRoot> Create<TAggregateRoot>()
             where TAggregateRoot : IAggregateRoot;
     }
 }

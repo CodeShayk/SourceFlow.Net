@@ -10,7 +10,7 @@ namespace SourceFlow.ConsoleApp.Sagas
                                IEventHandler<MoneyWithdrawn>,
                                IEventHandler<AccountClosed>
     {
-        public async Task HandleAsync(AccountCreated @event)
+        public async Task Handle(AccountCreated @event)
         {
             logger.LogInformation("Action=Account_Created, Account={AccountId}, Holder={AccountName}, Initial_Balance={InitialBalance}",
                 @event.Entity.Id, @event.Payload.AccountName, @event.Payload.InitialAmount);
@@ -31,7 +31,7 @@ namespace SourceFlow.ConsoleApp.Sagas
             await PersistAggregate(account);
         }
 
-        public async Task HandleAsync(MoneyDeposited @event)
+        public async Task Handle(MoneyDeposited @event)
         {
             logger.LogInformation("Action=Money_Deposited, Amount={Amount}, Account={AccountId}", @event.Payload.Amount, @event.Entity.Id);
 
@@ -49,7 +49,7 @@ namespace SourceFlow.ConsoleApp.Sagas
             await PersistAggregate(account);
         }
 
-        public async Task HandleAsync(MoneyWithdrawn @event)
+        public async Task Handle(MoneyWithdrawn @event)
         {
             logger.LogInformation("Action=Money_Withdrawn, Amount={Amount}, Account={AccountId}", @event.Payload.Amount, @event.Entity.Id);
 
@@ -67,7 +67,7 @@ namespace SourceFlow.ConsoleApp.Sagas
             await PersistAggregate(account);
         }
 
-        public async Task HandleAsync(AccountClosed @event)
+        public async Task Handle(AccountClosed @event)
         {
             logger.LogInformation("Action=Account_Closed, Account={AccountId}, Reason={Reason}", @event.Entity.Id, @event.Payload.ClosureReason);
 

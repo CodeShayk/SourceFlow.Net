@@ -31,7 +31,7 @@ namespace SourceFlow
         /// <returns></returns>
         public Task<TViewModel> Find<TViewModel>(int id) where TViewModel : class, IViewModel
         {
-            return repository.GetByIdAsync<TViewModel>(id);
+            return repository.Get<TViewModel>(id);
         }
     }
 }

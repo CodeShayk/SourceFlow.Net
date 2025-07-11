@@ -10,7 +10,7 @@
 //    {
 //        private readonly Dictionary<string, AccountViewModel> _projections = new Dictionary<string, AccountViewModel>();
 
-//        public Task HandleAsync(ActivateAccount @event)
+//        public Task Handle(ActivateAccount @event)
 //        {
 //            _projections[@event.AggregateId] = new AccountViewModel
 //            {
@@ -25,7 +25,7 @@
 //            return Task.CompletedTask;
 //        }
 
-//        public Task HandleAsync(MoneyDeposited @event)
+//        public Task Handle(MoneyDeposited @event)
 //        {
 //            if (_projections.TryGetValue(@event.AggregateId, out var projection))
 //            {
@@ -37,7 +37,7 @@
 //            return Task.CompletedTask;
 //        }
 
-//        public Task HandleAsync(MoneyWithdrawn @event)
+//        public Task Handle(MoneyWithdrawn @event)
 //        {
 //            if (_projections.TryGetValue(@event.AggregateId, out var projection))
 //            {
@@ -49,7 +49,7 @@
 //            return Task.CompletedTask;
 //        }
 
-//        public Task HandleAsync(AccountClosed @event)
+//        public Task Handle(AccountClosed @event)
 //        {
 //            if (_projections.TryGetValue(@event.AggregateId, out var projection))
 //            {

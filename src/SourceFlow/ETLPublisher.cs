@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace SourceFlow
 {
@@ -14,12 +17,18 @@ namespace SourceFlow
         private IEnumerable<IViewModelTransform> transforms;
 
         /// <summary>
+        /// Logger for the ETL publisher to log events and errors.
+        /// </summary>
+        private ILogger logger;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="ETLPublisher"/> class.
         /// </summary>
         /// <param name="eventTransforms"></param>
-        public ETLPublisher(IEnumerable<IViewModelTransform> transforms)
+        public ETLPublisher(IEnumerable<IViewModelTransform> transforms, ILogger<ETLPublisher> logger)
         {
             this.transforms = transforms;
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         /// <summary>
@@ -27,15 +36,47 @@ namespace SourceFlow
         /// </summary>
         /// <param name="event"></param>
         /// <returns></returns>
-        public async Task PublishAsync(IEvent @event)
+        public async Task Publish<TEvent>(TEvent @event)
+            where TEvent : IEvent
         {
+            var tasks = new List<Task>();
+
             foreach (var transform in transforms)
             {
-                if (typeof(IViewModelTransform<IEvent>).IsAssignableFrom(transform.GetType()))
+                if (IsGenericEventHandler(transform, @event.GetType()))
                 {
-                    await ((IViewModelTransform<IEvent>)transform).TransformAsync(@event);
+                    var method = typeof(IViewModelTransform<>)
+                           .MakeGenericType(@event.GetType())
+                           .GetMethod(nameof(IViewModelTransform<TEvent>.Transform));
+
+                    var task = (Task)method.Invoke(transform, new object[] { @event });
+
+                    logger?.LogInformation("Action=View_Transforms, Event={Event}, Aggregate={Aggregate}, SequenceNo={No}, Transform:{Transform}",
+                            @event.GetType().Name, @event.Entity.Type.Name, @event.SequenceNo, transform.GetType().Name);
+
+                    tasks.Add(task);
                 }
             }
+
+            if (!tasks.Any())
+                return;
+
+            await Task.WhenAll(tasks);
+        }
+
+        /// <summary>
+        /// Checks if the given event handler is a generic event handler for the specified event type.
+        /// </summary>
+        /// <param name="instance"></param>
+        /// <param name="eventType"></param>
+        /// <returns></returns>
+        private static bool IsGenericEventHandler(IViewModelTransform instance, Type eventType)
+        {
+            if (instance == null || eventType == null)
+                return false;
+
+            var handlerType = typeof(IViewModelTransform<>).MakeGenericType(eventType);
+            return handlerType.IsAssignableFrom(instance.GetType());
         }
     }
 }

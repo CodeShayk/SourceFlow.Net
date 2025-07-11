@@ -21,6 +21,6 @@ namespace SourceFlow
         /// </summary>
         /// <param name="event"></param>
         /// <returns></returns>
-        Task HandleAsync(TEvent @event);
+        Task Handle(TEvent @event);
     }
 }

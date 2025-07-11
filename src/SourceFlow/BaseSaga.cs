@@ -78,7 +78,7 @@ namespace SourceFlow
         /// <typeparam name="TEvent"></typeparam>
         /// <param name="event"></param>
         /// <returns></returns>
-        async Task ISaga.HandleAsync<TEvent>(TEvent @event)
+        async Task ISaga.Handle<TEvent>(TEvent @event)
         {
             var tasks = new List<Task>();
 
@@ -90,7 +90,7 @@ namespace SourceFlow
 
                 var method = typeof(IEventHandler<>)
                             .MakeGenericType(@event.GetType())
-                            .GetMethod(nameof(IEventHandler<TEvent>.HandleAsync));
+                            .GetMethod(nameof(IEventHandler<TEvent>.Handle));
 
                 var task = (Task)method.Invoke(handler.Handler, new object[] { @event });
 
@@ -119,7 +119,7 @@ namespace SourceFlow
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
 
-            return busPublisher.PublishAsync(@event);
+            return busPublisher.Publish(@event);
         }
 
         /// <summary>
@@ -129,7 +129,7 @@ namespace SourceFlow
         /// <returns></returns>
         protected Task<TAggregateEntity> GetAggregate(int id)
         {
-            return repository.GetByIdAsync<TAggregateEntity>(id);
+            return repository.Get<TAggregateEntity>(id);
         }
 
         /// <summary>
@@ -139,7 +139,7 @@ namespace SourceFlow
         /// <returns></returns>
         protected Task PersistAggregate(TAggregateEntity entity)
         {
-            return repository.PersistAsync(entity);
+            return repository.Persist(entity);
         }
 
         /// <summary>
@@ -149,7 +149,7 @@ namespace SourceFlow
         /// <returns></returns>
         protected Task DeleteAggregate(TAggregateEntity entity)
         {
-            return repository.DeleteAsync(entity);
+            return repository.Delete(entity);
         }
     }
 }

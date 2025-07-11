@@ -47,13 +47,13 @@ namespace SourceFlow
         /// <param name="event"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
-        async Task ICommandBus.PublishAsync<TEvent>(TEvent @event)
+        async Task ICommandBus.Publish<TEvent>(TEvent @event)
         {
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
 
             await PublishToSagas(@event);
-            await etlPublisher.PublishAsync(@event);
+            await etlPublisher.Publish(@event);
         }
 
         /// <summary>
@@ -100,13 +100,13 @@ namespace SourceFlow
                 @event.GetType().Name, @event.Entity.Type.Name, @event.SequenceNo, saga.GetType().Name);
 
             // 2. handle event by Saga?
-            await saga.HandleAsync(@event);
+            await saga.Handle(@event);
 
             // 3. When event is not replayed
             if (!@event.IsReplay)
             {
                 // 3.1. Append event to event store.
-                await eventStore.AppendAsync(@event);
+                await eventStore.Append(@event);
             }
         }
 
@@ -117,7 +117,7 @@ namespace SourceFlow
         /// <returns></returns>
         async Task ICommandBus.ReplayEvents(int aggregateId)
         {
-            var events = await eventStore.LoadAsync(aggregateId);
+            var events = await eventStore.Load(aggregateId);
 
             if (events == null || !events.Any())
                 return;
@@ -126,7 +126,7 @@ namespace SourceFlow
             {
                 @event.IsReplay = true;
                 await PublishToSagas(@event);
-                await etlPublisher.PublishAsync(@event);
+                await etlPublisher.Publish(@event);
             }
         }
 

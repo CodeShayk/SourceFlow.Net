@@ -9,20 +9,20 @@ namespace SourceFlow
         /// </summary>
         /// <param name="id">Unique Identifier.</param>
         /// <returns></returns>
-        Task<TViewModel> GetByIdAsync<TViewModel>(int id) where TViewModel : class, IViewModel;
+        Task<TViewModel> Get<TViewModel>(int id) where TViewModel : class, IViewModel;
 
         /// <summary>
         /// Creates or updates an view model to the repository, persisting its state.
         /// </summary>
         /// <param name="entity">ViewModel Instance.</param>
         /// <returns></returns>
-        Task PersistAsync<TViewModel>(TViewModel model) where TViewModel : IViewModel;
+        Task Persist<TViewModel>(TViewModel model) where TViewModel : IViewModel;
 
         /// <summary>
         /// Deletes an view model from the repository.
         /// </summary>
         /// <param name="model">ViewModel Instance.</param>
         /// <returns></returns>
-        Task DeleteAsync<TViewModel>(TViewModel model) where TViewModel : IViewModel;
+        Task Delete<TViewModel>(TViewModel model) where TViewModel : IViewModel;
     }
 }

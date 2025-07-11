@@ -6,7 +6,7 @@ namespace SourceFlow.ConsoleApp.Impl
     {
         private readonly ConcurrentDictionary<int, IEntity> _cache = new();
 
-        public Task DeleteAsync<TEntity>(TEntity entity) where TEntity : IEntity
+        public Task Delete<TEntity>(TEntity entity) where TEntity : IEntity
         {
             if (entity?.Id == null)
                 throw new ArgumentNullException(nameof(entity));
@@ -16,7 +16,7 @@ namespace SourceFlow.ConsoleApp.Impl
             return Task.CompletedTask;
         }
 
-        public Task<TEntity> GetByIdAsync<TEntity>(int id) where TEntity : class, IEntity
+        public Task<TEntity> Get<TEntity>(int id) where TEntity : class, IEntity
         {
             if (id == 0)
                 throw new ArgumentNullException(nameof(id));
@@ -26,7 +26,7 @@ namespace SourceFlow.ConsoleApp.Impl
             return Task.FromResult<TEntity>(success ? (TEntity)entity : null);
         }
 
-        public Task PersistAsync<TEntity>(TEntity entity) where TEntity : IEntity
+        public Task Persist<TEntity>(TEntity entity) where TEntity : IEntity
         {
             if (entity?.Id == null)
                 throw new ArgumentNullException(nameof(entity));

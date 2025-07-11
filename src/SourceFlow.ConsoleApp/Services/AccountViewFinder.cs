@@ -1,4 +1,4 @@
-using SourceFlow.ConsoleApp.Projections;
+using SourceFlow.ConsoleApp.ViewModels;
 
 namespace SourceFlow.ConsoleApp.Services
 {
