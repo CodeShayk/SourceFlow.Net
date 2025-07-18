@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <ClassDiagram MajorVersion="1" MinorVersion="1">
-  <Class Name="SourceFlow.BaseAggregate&lt;TAggregate&gt;">
+  <Class Name="SourceFlow.BaseAggregate&lt;TAggregateEntity&gt;">
     <Position X="4" Y="3.25" Width="2" />
     <TypeIdentifier>
       <HashCode>AgQAAAAAAAABAAACAAAAAAAAAAAAAAAAAAAAAAAAAEA=</HashCode>
@@ -101,11 +101,11 @@
   <Class Name="SourceFlow.Impl.CommandBus">
     <Position X="4" Y="7.5" Width="2.5" />
     <TypeIdentifier>
-      <HashCode>AAAAABEAAAAEAEACAAAAAAAABgCAAAAAAAAAABAAAAA=</HashCode>
+      <HashCode>AAAAABEAAAAGAEACAAAAAAAABgCAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>Impl\CommandBus.cs</FileName>
     </TypeIdentifier>
     <ShowAsAssociation>
-      <Field Name="etlPublisher" />
+      <Field Name="viewPublisher" />
       <Field Name="eventStore" />
     </ShowAsAssociation>
     <ShowAsCollectionAssociation>
@@ -113,11 +113,11 @@
     </ShowAsCollectionAssociation>
     <Lollipop Position="0.2" />
   </Class>
-  <Class Name="SourceFlow.Impl.ETLPublisher">
-    <Position X="0.75" Y="8.75" Width="1.5" />
+  <Class Name="SourceFlow.Impl.ViewPublisher">
+    <Position X="0.5" Y="8.75" Width="2" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAACAEAAAAACAAAAAAIAAAAAAAAAAAA=</HashCode>
-      <FileName>Impl\ETLPublisher.cs</FileName>
+      <FileName>Impl\ViewPublisher.cs</FileName>
     </TypeIdentifier>
     <ShowAsCollectionAssociation>
       <Field Name="transforms" />
@@ -125,7 +125,7 @@
     <Lollipop Position="0.2" />
   </Class>
   <Class Name="SourceFlow.Impl.BusPublisher">
-    <Position X="0.75" Y="5" Width="1.5" />
+    <Position X="0.5" Y="5" Width="2" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAEAACAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>Impl\BusPublisher.cs</FileName>
@@ -151,14 +151,14 @@
     </TypeIdentifier>
   </Class>
   <Interface Name="SourceFlow.IEventStore">
-    <Position X="9.75" Y="7.75" Width="2.25" />
+    <Position X="9.75" Y="8.25" Width="2.25" />
     <TypeIdentifier>
       <HashCode>ABAAgAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAA=</HashCode>
       <FileName>IEventStore.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IBusPublisher">
-    <Position X="0.75" Y="3.25" Width="1.5" />
+    <Position X="0.5" Y="3.25" Width="2" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IBusPublisher.cs</FileName>
@@ -192,11 +192,11 @@
       <FileName>IAggregateFactory.cs</FileName>
     </TypeIdentifier>
   </Interface>
-  <Interface Name="SourceFlow.IETLPublisher">
-    <Position X="0.75" Y="7" Width="1.5" />
+  <Interface Name="SourceFlow.IViewPublisher">
+    <Position X="0.5" Y="7" Width="2" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
-      <FileName>IETLPublisher.cs</FileName>
+      <FileName>IViewPublisher.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IViewModelRepository">
@@ -221,14 +221,14 @@
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IViewTransform&lt;TEvent&gt;">
-    <Position X="0.75" Y="13" Width="2.5" />
+    <Position X="0.5" Y="13" Width="2" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IViewTransform.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IViewModel">
-    <Position X="9.75" Y="9.5" Width="2.25" />
+    <Position X="9.75" Y="10.25" Width="2.25" />
     <TypeIdentifier>
       <HashCode>AAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IViewModel.cs</FileName>
@@ -266,7 +266,7 @@
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IViewTransform">
-    <Position X="0.75" Y="11.25" Width="2.5" />
+    <Position X="0.5" Y="11.25" Width="2" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IViewTransform.cs</FileName>

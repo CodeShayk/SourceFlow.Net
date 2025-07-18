@@ -7,9 +7,9 @@ using Microsoft.Extensions.Logging;
 namespace SourceFlow.Impl
 {
     /// <summary>
-    /// Implementation of the IETLPublisher interface for publishing events to an ETL process.
+    /// Implementation of the IViewPublisher interface for publishing events to an View model transformations.
     /// </summary>
-    internal class ETLPublisher : IETLPublisher
+    internal class ViewPublisher : IViewPublisher
     {
         /// <summary>
         /// Collection of view model transforms that will be applied to the events to transform to view models upon publishing.
@@ -22,10 +22,10 @@ namespace SourceFlow.Impl
         private ILogger logger;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ETLPublisher"/> class.
+        /// Initializes a new instance of the <see cref="ViewPublisher"/> class.
         /// </summary>
         /// <param name="eventTransforms"></param>
-        public ETLPublisher(IEnumerable<IViewTransform> transforms, ILogger<ETLPublisher> logger)
+        public ViewPublisher(IEnumerable<IViewTransform> transforms, ILogger<ViewPublisher> logger)
         {
             this.transforms = transforms;
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));

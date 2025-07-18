@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 
 namespace SourceFlow.Impl
@@ -29,6 +30,15 @@ namespace SourceFlow.Impl
         /// <returns></returns>
         async Task IBusPublisher.Publish<TEvent>(TEvent @event)
         {
+            if (@event == null)
+                throw new ArgumentNullException(nameof(@event));
+
+            if (@event.Entity?.Id == null)
+                throw new InvalidOperationException(nameof(@event) + "requires source entity id");
+
+            if (@event.Entity.Type == null)
+                throw new InvalidOperationException(nameof(@event) + "requires source entity Type");
+
             await commandBus.Publish(@event);
         }
     }

@@ -7,9 +7,9 @@ namespace SourceFlow
     /// <summary>
     /// Base class for aggregate roots in the event-driven architecture.
     /// </summary>
-    /// <typeparam name="TAggregate"></typeparam>
-    public abstract class BaseAggregate<TAggregate> : IAggregateRoot
-        where TAggregate : class, IEntity
+    /// <typeparam name="TAggregateEntity"></typeparam>
+    public abstract class BaseAggregate<TAggregateEntity> : IAggregateRoot
+        where TAggregateEntity : class, IEntity
     {
         /// <summary>
         /// The bus publisher used to publish events.
@@ -51,7 +51,7 @@ namespace SourceFlow
                 throw new InvalidOperationException(nameof(@event) + "requires source entity id");
 
             if (@event.Entity.Type == null)
-                @event.Entity.Type = typeof(TAggregate);
+                @event.Entity.Type = typeof(TAggregateEntity);
 
             return busPublisher.Publish(@event);
         }

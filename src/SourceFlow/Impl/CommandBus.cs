@@ -26,18 +26,23 @@ namespace SourceFlow.Impl
         /// </summary>
         private readonly ICollection<ISaga> sagas;
 
-        private readonly IETLPublisher etlPublisher;
+        /// <summary>
+        /// Transform publisher used to publish events to view transforms.
+        /// </summary>
+        private readonly IViewPublisher viewPublisher;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CommandBus"/> class.
         /// </summary>
         /// <param name="eventStore"></param>
-        public CommandBus(IEventStore eventStore, IETLPublisher etlPublisher, ILogger<ICommandBus> logger)
+        /// <param name="viewPublisher"></param>
+        /// <param name="logger"></param>
+        public CommandBus(IEventStore eventStore, IViewPublisher viewPublisher, ILogger<ICommandBus> logger)
         {
             this.eventStore = eventStore;
             this.logger = logger;
             sagas = new List<ISaga>();
-            this.etlPublisher = etlPublisher;
+            this.viewPublisher = viewPublisher;
         }
 
         /// <summary>
@@ -53,7 +58,7 @@ namespace SourceFlow.Impl
                 throw new ArgumentNullException(nameof(@event));
 
             await PublishToSagas(@event);
-            await etlPublisher.Publish(@event);
+            await viewPublisher.Publish(@event);
         }
 
         /// <summary>
@@ -121,7 +126,7 @@ namespace SourceFlow.Impl
             {
                 @event.IsReplay = true;
                 await PublishToSagas(@event);
-                await etlPublisher.Publish(@event);
+                await viewPublisher.Publish(@event);
             }
         }
 

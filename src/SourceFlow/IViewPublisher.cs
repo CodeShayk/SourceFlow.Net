@@ -4,12 +4,12 @@ using System.Threading.Tasks;
 namespace SourceFlow
 {
     /// <summary>
-    /// Interface for publishing events to an ETL (Extract, Transform, Load) process.
+    /// Interface for publishing events to an View Model Transforms.
     /// </summary>
-    internal interface IETLPublisher
+    internal interface IViewPublisher
     {
         /// <summary>
-        /// Publishes an event to the ETL process asynchronously.
+        /// Publishes an event to the View ETL process asynchronously.
         /// </summary>
         /// <param name="event"></param>
         /// <returns></returns>

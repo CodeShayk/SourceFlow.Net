@@ -45,14 +45,14 @@ namespace SourceFlow
 
             services.AddSingleton<ICommandBus, CommandBus>(c => new CommandBus(
                 c.GetService<IEventStore>(),
-                c.GetService<IETLPublisher>(),
+                c.GetService<IViewPublisher>(),
                 c.GetService<ILogger<ICommandBus>>()));
 
             services.AddSingleton<IAggregateFactory, AggregateFactory>();
             services.AddSingleton<IBusPublisher, BusPublisher>(c => new BusPublisher(c.GetService<ICommandBus>()));
             services.AddSingleton<IEventReplayer, EventReplayer>(c => new EventReplayer(c.GetService<ICommandBus>()));
             services.AddSingleton<IBusSubscriber, BusSubscriber>(c => new BusSubscriber(c.GetService<ICommandBus>()));
-            services.AddSingleton<IETLPublisher, ETLPublisher>(c => new ETLPublisher(c.GetServices<IViewTransform>(), c.GetService<ILogger<ETLPublisher>>()));
+            services.AddSingleton<IViewPublisher, ViewPublisher>(c => new ViewPublisher(c.GetServices<IViewTransform>(), c.GetService<ILogger<ViewPublisher>>()));
 
             configuration(new SourceFlowConfig { Services = services });
 
