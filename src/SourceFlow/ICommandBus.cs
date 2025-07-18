@@ -6,7 +6,7 @@ namespace SourceFlow
     /// <summary>
     /// Interface for the command bus in the event-driven architecture.
     /// </summary>
-    public interface ICommandBus
+    internal interface ICommandBus
     {
         /// <summary>
         /// Publishes an event to all subscribed sagas.

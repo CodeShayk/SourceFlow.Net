@@ -5,7 +5,7 @@ namespace SourceFlow
     /// <summary>
     /// Implementation of the IBusPublisher interface for publishing events to subscribers.
     /// </summary>
-    public class BusPublisher : IBusPublisher
+    internal class BusPublisher : IBusPublisher
     {
         /// <summary>
         /// The command bus used to publish events.

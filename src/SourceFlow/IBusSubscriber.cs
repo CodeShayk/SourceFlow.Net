@@ -3,7 +3,7 @@ namespace SourceFlow
     /// <summary>
     /// Interface for subscribing sagas to the event bus.
     /// </summary>
-    public interface IBusSubscriber
+    internal interface IBusSubscriber
     {
         /// <summary>
         /// Subscribes a saga to the bus.

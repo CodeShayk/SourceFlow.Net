@@ -6,7 +6,7 @@ namespace SourceFlow
     /// <summary>
     /// Interface for replaying events in the event-driven architecture.
     /// </summary>
-    public class EventReplayer : IEventReplayer
+    internal class EventReplayer : IEventReplayer
     {
         /// <summary>
         /// The command bus used to replay events for a given aggregate.

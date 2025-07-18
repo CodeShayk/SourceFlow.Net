@@ -1,4 +1,4 @@
-﻿namespace SourceFlow
+namespace SourceFlow
 {
     /// <summary>
     /// Interface for SourceFlow configuration.

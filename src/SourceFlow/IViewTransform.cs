@@ -5,7 +5,7 @@ namespace SourceFlow
     /// <summary>
     /// Interface for transforming an event to view model in the ETL processing.
     /// </summary>
-    public interface IViewModelTransform
+    public interface IViewTransform
     {
     }
 
@@ -13,7 +13,7 @@ namespace SourceFlow
     /// Interface for transforming an event to view model in the ETL processing.
     /// </summary>
     /// <typeparam name="TEvent"></typeparam>
-    public interface IViewModelTransform<TEvent> : IViewModelTransform
+    public interface IViewTransform<TEvent> : IViewTransform
         where TEvent : IEvent
     {
         /// <summary>

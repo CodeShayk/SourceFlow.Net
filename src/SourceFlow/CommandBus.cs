@@ -9,7 +9,7 @@ namespace SourceFlow
     /// <summary>
     /// Command bus implementation that handles commands and events in an event-driven architecture.
     /// </summary>
-    public class CommandBus : ICommandBus
+    internal class CommandBus : ICommandBus
     {
         /// <summary>
         /// The event store used to persist events.

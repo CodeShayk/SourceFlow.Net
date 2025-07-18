@@ -2,7 +2,7 @@ using SourceFlow.ConsoleApp.ViewModels;
 
 namespace SourceFlow.ConsoleApp.Services
 {
-    public class AccountViewFinder : BaseViewModelFinder, IAccountFinder
+    public class AccountViewFinder : BaseViewFinder, IAccountFinder
     {
         public AccountViewFinder(IViewModelRepository repository) : base(repository)
         {

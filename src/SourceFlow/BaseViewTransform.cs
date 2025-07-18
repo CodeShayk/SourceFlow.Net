@@ -6,7 +6,7 @@ namespace SourceFlow
     /// Base class for implementing event transform for ETL processing.
     /// </summary>
     /// <typeparam name="TEvent"></typeparam>
-    public abstract class BaseViewModelTransform<TEvent> : IViewModelTransform<TEvent>
+    public abstract class BaseViewTransform<TEvent> : IViewTransform<TEvent>
         where TEvent : IEvent
     {
         /// <summary>

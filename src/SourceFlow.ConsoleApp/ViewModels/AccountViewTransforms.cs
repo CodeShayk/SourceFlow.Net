@@ -2,10 +2,10 @@ using SourceFlow.ConsoleApp.Events;
 
 namespace SourceFlow.ConsoleApp.ViewModels
 {
-    public class AccountViewTransforms : IViewModelTransform<AccountCreated>
-                                       , IViewModelTransform<MoneyDeposited>
-                                       , IViewModelTransform<MoneyWithdrawn>
-                                       , IViewModelTransform<AccountClosed>
+    public class AccountViewTransforms : IViewTransform<AccountCreated>
+                                       , IViewTransform<MoneyDeposited>
+                                       , IViewTransform<MoneyWithdrawn>
+                                       , IViewTransform<AccountClosed>
     {
         private readonly IViewModelRepository repository;
 

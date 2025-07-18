@@ -7,7 +7,7 @@ namespace SourceFlow
     /// <summary>
     /// Factory for creating aggregate roots in the event-driven architecture.
     /// </summary>
-    public class AggregateFactory : IAggregateFactory
+    internal class AggregateFactory : IAggregateFactory
     {
         /// <summary>
         /// Service provider for resolving dependencies.

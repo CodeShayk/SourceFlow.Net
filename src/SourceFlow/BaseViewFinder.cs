@@ -6,7 +6,7 @@ namespace SourceFlow
     /// <summary>
     /// Base class for implementing finders to retrieve view models by fetch criteria.
     /// </summary>
-    public abstract class BaseViewModelFinder : IViewModelFinder
+    public abstract class BaseViewFinder : IViewFinder
     {
         /// <summary>
         /// Repository for managing view models.
@@ -14,11 +14,11 @@ namespace SourceFlow
         protected readonly IViewModelRepository repository;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="BaseViewModelFinder"/> class.
+        /// Initializes a new instance of the <see cref="BaseViewFinder"/> class.
         /// </summary>
         /// <param name="repository"></param>
         /// <exception cref="ArgumentNullException"></exception>
-        protected BaseViewModelFinder(IViewModelRepository repository)
+        protected BaseViewFinder(IViewModelRepository repository)
         {
             this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
         }

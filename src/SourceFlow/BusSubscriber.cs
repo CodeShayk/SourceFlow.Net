@@ -3,7 +3,7 @@ namespace SourceFlow
     /// <summary>
     /// Implementation of the IBusSubscriber interface for subscribing sagas to the command bus.
     /// </summary>
-    public class BusSubscriber : IBusSubscriber
+    internal class BusSubscriber : IBusSubscriber
     {
         /// <summary>
         /// The command bus used to register sagas.

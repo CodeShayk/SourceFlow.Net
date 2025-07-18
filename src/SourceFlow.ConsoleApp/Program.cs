@@ -29,7 +29,7 @@ Console.WriteLine("=== Event Sourcing Demo ===\n");
 var accountService = serviceProvider.GetRequiredService<IAccountService>();
 var saga = serviceProvider.GetRequiredService<ISaga>();
 var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
-var accountFinder = serviceProvider.GetRequiredService<IViewModelFinder>();
+var accountFinder = serviceProvider.GetRequiredService<IViewFinder>();
 
 // Create account
 var accountId = await accountService.CreateAccountAsync("John Doe", 1000m);

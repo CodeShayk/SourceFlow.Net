@@ -93,7 +93,7 @@
     </TypeIdentifier>
     <Lollipop Position="0.2" />
   </Class>
-  <Class Name="SourceFlow.BaseViewModelTransform&lt;TEvent&gt;">
+  <Class Name="SourceFlow.BaseViewTransform&lt;TEvent&gt;">
     <Position X="3.75" Y="11.25" Width="2.5" />
     <AssociationLine Name="ViewModelRepository" Type="SourceFlow.IViewModelRepository" ManuallyRouted="true" FixedFromPoint="true" FixedToPoint="true">
       <Path>
@@ -107,7 +107,7 @@
     </AssociationLine>
     <TypeIdentifier>
       <HashCode>AAAAAAIAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAA=</HashCode>
-      <FileName>BaseViewModelTransform.cs</FileName>
+      <FileName>BaseViewTransform.cs</FileName>
     </TypeIdentifier>
     <ShowAsAssociation>
       <Property Name="ViewModelRepository" />
@@ -124,11 +124,11 @@
       <Property Name="Handler" />
     </ShowAsAssociation>
   </Class>
-  <Class Name="SourceFlow.BaseViewModelFinder">
+  <Class Name="SourceFlow.BaseViewFinder">
     <Position X="7.25" Y="11" Width="2.25" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAACAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAA=</HashCode>
-      <FileName>BaseViewModelFinder.cs</FileName>
+      <FileName>BaseViewFinder.cs</FileName>
     </TypeIdentifier>
     <ShowAsAssociation>
       <Field Name="repository" />
@@ -228,11 +228,11 @@
       <FileName>IEventHandler.cs</FileName>
     </TypeIdentifier>
   </Interface>
-  <Interface Name="SourceFlow.IViewModelTransform&lt;TEvent&gt;">
+  <Interface Name="SourceFlow.IViewTransform&lt;TEvent&gt;">
     <Position X="0.75" Y="12.5" Width="2.5" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAA=</HashCode>
-      <FileName>IViewModelTransform.cs</FileName>
+      <FileName>IViewTransform.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IViewModel">
@@ -263,18 +263,18 @@
       <FileName>IEntity.cs</FileName>
     </TypeIdentifier>
   </Interface>
-  <Interface Name="SourceFlow.IViewModelFinder">
+  <Interface Name="SourceFlow.IViewFinder">
     <Position X="7.25" Y="9.5" Width="2.25" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAA=</HashCode>
-      <FileName>IViewModelFinder.cs</FileName>
+      <FileName>IViewFinder.cs</FileName>
     </TypeIdentifier>
   </Interface>
-  <Interface Name="SourceFlow.IViewModelTransform">
+  <Interface Name="SourceFlow.IViewTransform">
     <Position X="0.75" Y="11.25" Width="2.5" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
-      <FileName>IViewModelTransform.cs</FileName>
+      <FileName>IViewTransform.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IEventPayload">

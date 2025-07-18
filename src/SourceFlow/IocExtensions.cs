@@ -39,8 +39,8 @@ namespace SourceFlow
             services.AddAsImplementationsOfInterface<IDomainRepository>(lifetime: ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IViewModelRepository>(lifetime: ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IEventStore>(lifetime: ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IViewModelFinder>(lifetime: ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IViewModelTransform>(lifetime: ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IViewFinder>(lifetime: ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IViewTransform>(lifetime: ServiceLifetime.Singleton);
 
             services.AddSingleton<ICommandBus, CommandBus>(c => new CommandBus(
                 c.GetService<IEventStore>(),
@@ -51,7 +51,7 @@ namespace SourceFlow
             services.AddSingleton<IBusPublisher, BusPublisher>(c => new BusPublisher(c.GetService<ICommandBus>()));
             services.AddSingleton<IEventReplayer, EventReplayer>(c => new EventReplayer(c.GetService<ICommandBus>()));
             services.AddSingleton<IBusSubscriber, BusSubscriber>(c => new BusSubscriber(c.GetService<ICommandBus>()));
-            services.AddSingleton<IETLPublisher, ETLPublisher>(c => new ETLPublisher(c.GetServices<IViewModelTransform>(), c.GetService<ILogger<ETLPublisher>>()));
+            services.AddSingleton<IETLPublisher, ETLPublisher>(c => new ETLPublisher(c.GetServices<IViewTransform>(), c.GetService<ILogger<ETLPublisher>>()));
 
             configuration(new SourceFlowConfig { Services = services });
 

@@ -2,7 +2,7 @@ using SourceFlow.Core.Tests.E2E.Projections;
 
 namespace SourceFlow.Core.Tests.E2E.Services
 {
-    public class AccountViewFinder : BaseViewModelFinder, IAccountFinder
+    public class AccountViewFinder : BaseViewFinder, IAccountFinder
     {
         public AccountViewFinder(IViewModelRepository repository) : base(repository)
         {

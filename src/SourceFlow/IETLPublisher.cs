@@ -6,7 +6,7 @@ namespace SourceFlow
     /// <summary>
     /// Interface for publishing events to an ETL (Extract, Transform, Load) process.
     /// </summary>
-    public interface IETLPublisher
+    internal interface IETLPublisher
     {
         /// <summary>
         /// Publishes an event to the ETL process asynchronously.

@@ -14,7 +14,7 @@ namespace SourceFlow
         /// <summary>
         /// Collection of view model transforms that will be applied to the events to transform to view models upon publishing.
         /// </summary>
-        private IEnumerable<IViewModelTransform> transforms;
+        private IEnumerable<IViewTransform> transforms;
 
         /// <summary>
         /// Logger for the ETL publisher to log events and errors.
@@ -25,7 +25,7 @@ namespace SourceFlow
         /// Initializes a new instance of the <see cref="ETLPublisher"/> class.
         /// </summary>
         /// <param name="eventTransforms"></param>
-        public ETLPublisher(IEnumerable<IViewModelTransform> transforms, ILogger<ETLPublisher> logger)
+        public ETLPublisher(IEnumerable<IViewTransform> transforms, ILogger<ETLPublisher> logger)
         {
             this.transforms = transforms;
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -45,9 +45,9 @@ namespace SourceFlow
             {
                 if (IsGenericEventHandler(transform, @event.GetType()))
                 {
-                    var method = typeof(IViewModelTransform<>)
+                    var method = typeof(IViewTransform<>)
                            .MakeGenericType(@event.GetType())
-                           .GetMethod(nameof(IViewModelTransform<TEvent>.Transform));
+                           .GetMethod(nameof(IViewTransform<TEvent>.Transform));
 
                     var task = (Task)method.Invoke(transform, new object[] { @event });
 
@@ -70,12 +70,12 @@ namespace SourceFlow
         /// <param name="instance"></param>
         /// <param name="eventType"></param>
         /// <returns></returns>
-        private static bool IsGenericEventHandler(IViewModelTransform instance, Type eventType)
+        private static bool IsGenericEventHandler(IViewTransform instance, Type eventType)
         {
             if (instance == null || eventType == null)
                 return false;
 
-            var handlerType = typeof(IViewModelTransform<>).MakeGenericType(eventType);
+            var handlerType = typeof(IViewTransform<>).MakeGenericType(eventType);
             return handlerType.IsAssignableFrom(instance.GetType());
         }
     }
