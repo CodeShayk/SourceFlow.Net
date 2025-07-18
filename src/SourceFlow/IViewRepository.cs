@@ -2,7 +2,7 @@ using System.Threading.Tasks;
 
 namespace SourceFlow
 {
-    public interface IViewModelRepository
+    public interface IViewRepository
     {
         /// <summary>
         /// Retrieves an view model by unique identifier.

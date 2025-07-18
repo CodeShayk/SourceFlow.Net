@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace SourceFlow.ConsoleApp.Impl
 {
-    public class InMemoryViewRepository : IViewModelRepository
+    public class InMemoryViewRepository : IViewRepository
     {
         private readonly ConcurrentDictionary<int, IViewModel> _cache = new();
 

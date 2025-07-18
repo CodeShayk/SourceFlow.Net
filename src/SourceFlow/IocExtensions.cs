@@ -38,7 +38,7 @@ namespace SourceFlow
         public static void UseSourceFlow(this IServiceCollection services, Action<ISourceFlowConfig> configuration)
         {
             services.AddAsImplementationsOfInterface<IDomainRepository>(lifetime: ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IViewModelRepository>(lifetime: ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IViewRepository>(lifetime: ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IEventStore>(lifetime: ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IViewFinder>(lifetime: ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IViewTransform>(lifetime: ServiceLifetime.Singleton);

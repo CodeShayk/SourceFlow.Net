@@ -7,9 +7,9 @@ namespace SourceFlow.ConsoleApp.ViewModels
                                        , IViewTransform<MoneyWithdrawn>
                                        , IViewTransform<AccountClosed>
     {
-        private readonly IViewModelRepository repository;
+        private readonly IViewRepository repository;
 
-        public AccountViewTransforms(IViewModelRepository repository)
+        public AccountViewTransforms(IViewRepository repository)
         {
             this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
         }

@@ -12,7 +12,7 @@ namespace SourceFlow.Core.Tests.E2E
         private IAccountService _accountService;
         private ISaga _saga;
         private ILogger _logger;
-        private IViewModelRepository _viewRepository;
+        private IViewRepository _viewRepository;
 
         [SetUp]
         public void SetUp()
@@ -34,7 +34,7 @@ namespace SourceFlow.Core.Tests.E2E
             _accountService = _serviceProvider.GetRequiredService<IAccountService>();
             _saga = _serviceProvider.GetRequiredService<ISaga>();
             _logger = _serviceProvider.GetRequiredService<ILogger<ProgramIntegrationTests>>();
-            _viewRepository = _serviceProvider.GetRequiredService<IViewModelRepository>();
+            _viewRepository = _serviceProvider.GetRequiredService<IViewRepository>();
         }
 
         [TearDown]

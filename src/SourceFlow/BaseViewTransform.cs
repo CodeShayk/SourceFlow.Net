@@ -12,7 +12,7 @@ namespace SourceFlow
         /// <summary>
         /// Repository for managing view models.
         /// </summary>
-        protected IViewModelRepository ViewModelRepository { get; set; }
+        protected IViewRepository ViewRepository { get; set; }
 
         /// <summary>
         /// Transform the event to view model.

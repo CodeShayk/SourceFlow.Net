@@ -11,14 +11,14 @@ namespace SourceFlow
         /// <summary>
         /// Repository for managing view models.
         /// </summary>
-        protected readonly IViewModelRepository repository;
+        protected readonly IViewRepository repository;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="BaseViewFinder"/> class.
         /// </summary>
         /// <param name="repository"></param>
         /// <exception cref="ArgumentNullException"></exception>
-        protected BaseViewFinder(IViewModelRepository repository)
+        protected BaseViewFinder(IViewRepository repository)
         {
             this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
         }

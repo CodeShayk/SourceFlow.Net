@@ -4,7 +4,7 @@ namespace SourceFlow.ConsoleApp.Services
 {
     public class AccountViewFinder : BaseViewFinder, IAccountFinder
     {
-        public AccountViewFinder(IViewModelRepository repository) : base(repository)
+        public AccountViewFinder(IViewRepository repository) : base(repository)
         {
         }
 

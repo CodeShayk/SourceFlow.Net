@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace SourceFlow.Core.Tests.E2E.Impl
 {
-    public class InMemoryViewRepository : IViewModelRepository
+    public class InMemoryViewRepository : IViewRepository
     {
         private readonly ConcurrentDictionary<int, IViewModel> _cache = new();
 
