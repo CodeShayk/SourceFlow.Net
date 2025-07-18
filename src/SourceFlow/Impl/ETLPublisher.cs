@@ -4,12 +4,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace SourceFlow
+namespace SourceFlow.Impl
 {
     /// <summary>
     /// Implementation of the IETLPublisher interface for publishing events to an ETL process.
     /// </summary>
-    public class ETLPublisher : IETLPublisher
+    internal class ETLPublisher : IETLPublisher
     {
         /// <summary>
         /// Collection of view model transforms that will be applied to the events to transform to view models upon publishing.
@@ -42,8 +42,7 @@ namespace SourceFlow
             var tasks = new List<Task>();
 
             foreach (var transform in transforms)
-            {
-                if (IsGenericEventHandler(transform, @event.GetType()))
+                if (CanHandle(transform, @event.GetType()))
                 {
                     var method = typeof(IViewTransform<>)
                            .MakeGenericType(@event.GetType())
@@ -56,7 +55,6 @@ namespace SourceFlow
 
                     tasks.Add(task);
                 }
-            }
 
             if (!tasks.Any())
                 return;
@@ -70,7 +68,7 @@ namespace SourceFlow
         /// <param name="instance"></param>
         /// <param name="eventType"></param>
         /// <returns></returns>
-        private static bool IsGenericEventHandler(IViewTransform instance, Type eventType)
+        private static bool CanHandle(IViewTransform instance, Type eventType)
         {
             if (instance == null || eventType == null)
                 return false;

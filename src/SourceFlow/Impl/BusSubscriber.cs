@@ -1,4 +1,4 @@
-namespace SourceFlow
+namespace SourceFlow.Impl
 {
     /// <summary>
     /// Implementation of the IBusSubscriber interface for subscribing sagas to the command bus.

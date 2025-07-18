@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -13,11 +11,6 @@ namespace SourceFlow
     public abstract class BaseSaga<TAggregateEntity> : ISaga<TAggregateEntity>
         where TAggregateEntity : class, IEntity
     {
-        /// <summary>
-        /// Collection of event handlers registered with this saga.
-        /// </summary>
-        public ICollection<SagaHandler> Handlers { get; } = new List<SagaHandler>();
-
         /// <summary>
         /// The bus publisher used to publish events.
         /// </summary>
@@ -38,23 +31,6 @@ namespace SourceFlow
         /// </summary>
         protected BaseSaga()
         {
-            RegisterHandlers();
-        }
-
-        /// <summary>
-        /// Registers all event handlers for the event types that this saga handles.
-        /// </summary>
-        private void RegisterHandlers()
-        {
-            var interfaces = this.GetType().GetInterfaces();
-            foreach (var iface in interfaces)
-            {
-                if (iface.IsGenericType &&
-                    iface.GetGenericTypeDefinition() == typeof(IEventHandler<>))
-                {
-                    Handlers.Add(new SagaHandler(iface.GetGenericArguments()[0], (IEventHandler)this));
-                }
-            }
         }
 
         /// <summary>
@@ -63,12 +39,12 @@ namespace SourceFlow
         /// <param name="instance"></param>
         /// <param name="eventType"></param>
         /// <returns></returns>
-        private static bool IsGenericEventHandler(IEventHandler instance, Type eventType)
+        internal static bool CanHandle(ISaga instance, Type eventType)
         {
             if (instance == null || eventType == null)
                 return false;
 
-            var handlerType = typeof(IEventHandler<>).MakeGenericType(eventType);
+            var handlerType = typeof(ISagaHandler<>).MakeGenericType(eventType);
             return handlerType.IsAssignableFrom(instance.GetType());
         }
 
@@ -80,30 +56,19 @@ namespace SourceFlow
         /// <returns></returns>
         async Task ISaga.Handle<TEvent>(TEvent @event)
         {
-            var tasks = new List<Task>();
-
-            foreach (var handler in Handlers)
-            {
-                if (!handler.EventType.Equals(@event.GetType()) ||
-                        !IsGenericEventHandler(handler.Handler, @event.GetType()))
-                    continue;
-
-                var method = typeof(IEventHandler<>)
-                            .MakeGenericType(@event.GetType())
-                            .GetMethod(nameof(IEventHandler<TEvent>.Handle));
-
-                var task = (Task)method.Invoke(handler.Handler, new object[] { @event });
-
-                logger?.LogInformation("Action=Saga_Handled, Event={Event}, Aggregate={Aggregate}, SequenceNo={No}, Saga={Saga}, Handler:{Handler}",
-                        @event.GetType().Name, @event.Entity.Type.Name, @event.SequenceNo, this.GetType().Name, method.Name);
-
-                tasks.Add(task);
-            }
-
-            if (!tasks.Any())
+            if (!CanHandle(this, @event.GetType()))
                 return;
 
-            await Task.WhenAll(tasks);
+            var method = typeof(ISagaHandler<>)
+                        .MakeGenericType(@event.GetType())
+                        .GetMethod(nameof(ISagaHandler<TEvent>.Handle));
+
+            var task = (Task)method.Invoke(this, new object[] { @event });
+
+            logger?.LogInformation("Action=Saga_Handled, Event={Event}, Aggregate={Aggregate}, SequenceNo={No}, Saga={Saga}, Handler:{Handler}",
+                    @event.GetType().Name, @event.Entity.Type.Name, @event.SequenceNo, this.GetType().Name, method.Name);
+
+            await Task.Run(() => task);
         }
 
         /// <summary>

@@ -2,7 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace SourceFlow
+namespace SourceFlow.Impl
 {
     /// <summary>
     /// Factory for creating aggregate roots in the event-driven architecture.

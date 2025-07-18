@@ -25,7 +25,7 @@ namespace SourceFlow.Tests
         [Test]
         public void Create_ShouldAssignEntityAndPayload()
         {
-            var builder = new EventFactory.EventBuild { Entity = new Source(1, typeof(object)) };
+            var builder = new EventFactoryExtensions.EventBuild { Entity = new Source(1, typeof(object)) };
             var payload = new TestPayload();
             var @event = builder.Create<TestEvent, TestPayload>(payload) as TestEvent;
             Assert.That(@event, Is.Not.Null);

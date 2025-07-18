@@ -5,10 +5,10 @@ using SourceFlow.ConsoleApp.Events;
 namespace SourceFlow.ConsoleApp.Sagas
 {
     public class AccountSaga : BaseSaga<BankAccount>,
-                               IEventHandler<AccountCreated>,
-                               IEventHandler<MoneyDeposited>,
-                               IEventHandler<MoneyWithdrawn>,
-                               IEventHandler<AccountClosed>
+                               ISagaHandler<AccountCreated>,
+                               ISagaHandler<MoneyDeposited>,
+                               ISagaHandler<MoneyWithdrawn>,
+                               ISagaHandler<AccountClosed>
     {
         public async Task Handle(AccountCreated @event)
         {

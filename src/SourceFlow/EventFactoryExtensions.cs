@@ -1,6 +1,6 @@
 namespace SourceFlow
 {
-    public static class EventFactory
+    public static class EventFactoryExtensions
     {
         public static IEvent Create<TEvent, TPayload>(this EventBuild eventBuild, TPayload payload)
             where TEvent : class, IEvent<TPayload>, new()
@@ -31,9 +31,9 @@ namespace SourceFlow
 
     public static class Event
     {
-        public static EventFactory.EventBuild For<TAggregate>(int aggregateId)
+        public static EventFactoryExtensions.EventBuild For<TAggregate>(int aggregateId)
         {
-            var builder = new EventFactory.EventBuild();
+            var builder = new EventFactoryExtensions.EventBuild();
             builder.Entity = new Source(aggregateId, typeof(TAggregate));
             return builder;
         }

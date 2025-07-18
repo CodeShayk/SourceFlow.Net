@@ -4,7 +4,7 @@ using System.Linq;
 using System;
 using Microsoft.Extensions.Logging;
 
-namespace SourceFlow
+namespace SourceFlow.Impl
 {
     /// <summary>
     /// Command bus implementation that handles commands and events in an event-driven architecture.
@@ -36,7 +36,7 @@ namespace SourceFlow
         {
             this.eventStore = eventStore;
             this.logger = logger;
-            this.sagas = new List<ISaga>();
+            sagas = new List<ISaga>();
             this.etlPublisher = etlPublisher;
         }
 
@@ -70,10 +70,7 @@ namespace SourceFlow
             var tasks = new List<Task>();
             foreach (var saga in sagas)
             {
-                if (saga == null || saga.Handlers == null || !saga.Handlers.Any())
-                    continue;
-
-                if (!saga.Handlers.Any(x => x.EventType.IsAssignableFrom(@event.GetType())))
+                if (saga == null || !BaseSaga<IEntity>.CanHandle(saga, @event.GetType()))
                     continue;
 
                 tasks.Add(SagaHandle(saga, @event));
@@ -104,10 +101,8 @@ namespace SourceFlow
 
             // 3. When event is not replayed
             if (!@event.IsReplay)
-            {
                 // 3.1. Append event to event store.
                 await eventStore.Append(@event);
-            }
         }
 
         /// <summary>

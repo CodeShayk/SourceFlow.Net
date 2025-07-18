@@ -19,11 +19,6 @@ namespace SourceFlow
     public interface ISaga
     {
         /// <summary>
-        /// List of Saga Handlers.
-        /// </summary>
-        ICollection<SagaHandler> Handlers { get; }
-
-        /// <summary>
         /// Handles the specified event asynchronously in the saga.
         /// </summary>
         /// <typeparam name="TEvent"></typeparam>

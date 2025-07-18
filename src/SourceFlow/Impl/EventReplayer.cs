@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 
-namespace SourceFlow
+namespace SourceFlow.Impl
 {
     /// <summary>
     /// Interface for replaying events in the event-driven architecture.

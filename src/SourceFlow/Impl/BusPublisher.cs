@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace SourceFlow
+namespace SourceFlow.Impl
 {
     /// <summary>
     /// Implementation of the IBusPublisher interface for publishing events to subscribers.

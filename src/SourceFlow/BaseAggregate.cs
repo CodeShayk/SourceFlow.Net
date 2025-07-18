@@ -47,6 +47,12 @@ namespace SourceFlow
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
 
+            if (@event.Entity?.Id == null)
+                throw new InvalidOperationException(nameof(@event) + "requires source entity id");
+
+            if (@event.Entity.Type == null)
+                @event.Entity.Type = typeof(TAggregate);
+
             return busPublisher.Publish(@event);
         }
     }

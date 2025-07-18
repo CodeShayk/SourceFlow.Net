@@ -5,15 +5,8 @@ namespace SourceFlow
     /// <summary>
     /// Interface for handling events in the event-driven saga.
     /// </summary>
-    public interface IEventHandler
-    {
-    }
-
-    /// <summary>
-    /// Interface for handling events in the event-driven saga.
-    /// </summary>
     /// <typeparam name="TEvent"></typeparam>
-    public interface IEventHandler<in TEvent> : IEventHandler
+    public interface ISagaHandler<in TEvent>
         where TEvent : IEvent
     {
         /// <summary>
