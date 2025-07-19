@@ -6,6 +6,7 @@ namespace SourceFlow.ConsoleApp.Sagas
 {
     public class AccountSaga : BaseSaga<BankAccount>,
                                ICommandHandler<CreateAccount>,
+                               ICommandHandler<ActivateAccount>,
                                ICommandHandler<DepositMoney>,
                                ICommandHandler<WithdrawMoney>,
                                ICommandHandler<CloseAccount>
@@ -29,6 +30,23 @@ namespace SourceFlow.ConsoleApp.Sagas
             };
 
             await CreateAggregate(account);
+        }
+
+        public async Task Handle(ActivateAccount command)
+        {
+            logger.LogInformation("Action=Account_Activate, ActivatedOn={ActiveOn}, Account={AccountId}", command.Payload.ActiveOn, command.Entity.Id);
+
+            var account = await GetAggregate(command.Entity.Id);
+
+            if (account.IsClosed)
+                throw new InvalidOperationException("Cannot deposit to a closed account");
+
+            if (command.Payload.ActiveOn == DateTime.MinValue)
+                throw new ArgumentException("Deposit amount must be positive", nameof(command.Payload.ActiveOn));
+
+            account.ActiveOn = command.Payload.ActiveOn;
+
+            await UpdateAggregate(account);
         }
 
         public async Task Handle(DepositMoney command)

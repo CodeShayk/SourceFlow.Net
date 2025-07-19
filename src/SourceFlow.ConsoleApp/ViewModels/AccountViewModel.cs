@@ -11,5 +11,6 @@ namespace SourceFlow.ConsoleApp.ViewModels
         public bool IsClosed { get; set; }
         public string ClosureReason { get; set; }
         public int Version { get; set; }
+        public DateTime ActiveOn { get; set; }
     }
 }

@@ -8,5 +8,6 @@ namespace SourceFlow.ConsoleApp.Aggregates
         public decimal Balance { get; set; }
         public bool IsClosed { get; set; }
         public string ClosureReason { get; internal set; }
+        public DateTime ActiveOn { get; internal set; }
     }
 }

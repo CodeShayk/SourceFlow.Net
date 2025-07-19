@@ -15,6 +15,9 @@ namespace SourceFlow.ConsoleApp.ViewModels
 
         public async Task Transform(EntityCreated<BankAccount> @event)
         {
+            if (@event.Name != "BankAccountCreated")
+                throw new InvalidOperationException($"Unexpected event type: {@event.Name}");
+
             var view = new AccountViewModel
             {
                 Id = @event.Payload.Id,
@@ -33,6 +36,9 @@ namespace SourceFlow.ConsoleApp.ViewModels
 
         public async Task Transform(EntityUpdated<BankAccount> @event)
         {
+            if (@event.Name != "BankAccountUpdated")
+                throw new InvalidOperationException($"Unexpected event type: {@event.Name}");
+
             var view = await repository.Get<AccountViewModel>(@event.Payload.Id);
 
             if (view == null)
@@ -43,6 +49,7 @@ namespace SourceFlow.ConsoleApp.ViewModels
             view.AccountName = @event.Payload.AccountName;
             view.IsClosed = @event.Payload.IsClosed;
             view.ClosureReason = @event.Payload.ClosureReason;
+            view.ActiveOn = @event.Payload.ActiveOn;
             view.Version++;
             view.TransactionCount++;
 

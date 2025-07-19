@@ -2,6 +2,11 @@ using SourceFlow.ConsoleApp.Aggregates;
 
 namespace SourceFlow.ConsoleApp.Commands
 {
+    public class ActivationPayload : IPayload
+    {
+        public DateTime ActiveOn { get; set; }
+    }
+
     public class AccountPayload : IPayload
     {
         public decimal InitialAmount { get; set; }

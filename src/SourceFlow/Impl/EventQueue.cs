@@ -39,22 +39,6 @@ namespace SourceFlow.Impl
         }
 
         /// <summary>
-        /// Determines whether the specified aggregate can handle events of the given type.
-        /// </summary>
-        /// <param name="aggregate">The aggregate root to check. Must implement <see cref="IAggregateRoot"/>.</param>
-        /// <param name="eventType">The type of the event to check for handling capability. Cannot be <see langword="null"/>.</param>
-        /// <returns><see langword="true"/> if the aggregate can handle events of the specified type; otherwise, <see
-        /// langword="false"/>.</returns>
-        internal static bool CanHandle(IAggregateRoot aggregate, Type eventType)
-        {
-            if (aggregate == null || eventType == null)
-                return false;
-
-            var handlerType = typeof(IEventHandler<>).MakeGenericType(eventType);
-            return handlerType.IsAssignableFrom(aggregate.GetType());
-        }
-
-        /// <summary>
         /// Enqueues an event in order to publish to subcribers.
         /// </summary>
         /// <typeparam name="TEvent"></typeparam>
@@ -66,18 +50,21 @@ namespace SourceFlow.Impl
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
 
+            await viewPublisher.Publish(@event);
+
             var tasks = new List<Task>();
 
             foreach (var aggregate in aggregates)
             {
-                if (!CanHandle(aggregate, @event.GetType()))
+                var handlerType = typeof(IEventHandler<>).MakeGenericType(@event.GetType());
+                if (!handlerType.IsAssignableFrom(aggregate.GetType()))
                     continue;
 
                 var method = typeof(IEventHandler<>)
                             .MakeGenericType(@event.GetType())
                             .GetMethod(nameof(IEventHandler<TEvent>.Handle));
 
-                var task = (Task)method.Invoke(this, new object[] { @event });
+                var task = (Task)method.Invoke(aggregate, new object[] { @event });
 
                 logger?.LogInformation("Action=Event_Enqueue, Event={Event}, Aggregate={Aggregate}, Handler:{Handler}",
                         @event.GetType().Name, aggregate.GetType().Name, method.Name);
@@ -86,7 +73,6 @@ namespace SourceFlow.Impl
             }
 
             await Task.WhenAll(tasks);
-            await viewPublisher.Publish(@event);
         }
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Events;
+using SourceFlow.Impl;
 
 namespace SourceFlow
 {
@@ -45,11 +46,12 @@ namespace SourceFlow
         }
 
         /// <summary>
-        /// Checks if the given event handler is a generic event handler for the specified event type.
+        /// Determines whether the specified saga instance can handle the given event type.
         /// </summary>
-        /// <param name="instance"></param>
-        /// <param name="eventType"></param>
-        /// <returns></returns>
+        /// <param name="instance">The saga instance to evaluate. Must not be <see langword="null"/>.</param>
+        /// <param name="eventType">The type of the event to check. Must not be <see langword="null"/>.</param>
+        /// <returns><see langword="true"/> if the saga instance can handle the specified event type; otherwise, <see
+        /// langword="false"/>.</returns>
         internal static bool CanHandle(ISaga instance, Type eventType)
         {
             if (instance == null || eventType == null)
@@ -60,10 +62,13 @@ namespace SourceFlow
         }
 
         /// <summary>
-        /// Handles the specified event asynchronously in the saga.
+        /// Handles the specified command as part of the saga's workflow.
         /// </summary>
-        /// <typeparam name="TCommand"></typeparam>
-        /// <param name="event"></param>
+        /// <remarks>This method dynamically resolves the appropriate command handler for the given
+        /// command type and invokes its <c>Handle</c> method. If the saga cannot handle the specified command, the
+        /// method returns without performing any action.</remarks>
+        /// <typeparam name="TCommand">The type of the command to handle.</typeparam>
+        /// <param name="command">The command to be processed by the saga. Must not be <see langword="null"/>.</param>
         /// <returns></returns>
         async Task ISaga.Handle<TCommand>(TCommand command)
         {
