@@ -40,7 +40,7 @@ namespace SourceFlow.Saga
         protected ILogger logger;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="Saga{TAggregateRoot}"/> class.
+        /// Initializes a new instance of the <see cref="Saga{TAggregate}"/> class.
         /// </summary>
         protected Saga()
         {

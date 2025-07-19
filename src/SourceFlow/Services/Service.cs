@@ -22,11 +22,11 @@ namespace SourceFlow.Services
         /// <summary>
         /// Creates an initialised aggregate root.
         /// </summary>
-        /// <typeparam name="TAggregateRoot"></typeparam>
+        /// <typeparam name="TAggregate"></typeparam>
         /// <returns>Implementation of IAggregate</returns>
-        public async Task<TAggregateRoot> CreateAggregate<TAggregateRoot>() where TAggregateRoot : IAggregate
+        public async Task<TAggregate> CreateAggregate<TAggregate>() where TAggregate : IAggregate
         {
-            var aggregate = await aggregateFactory.Create<TAggregateRoot>();
+            var aggregate = await aggregateFactory.Create<TAggregate>();
             return aggregate;
         }
     }
