@@ -19,12 +19,12 @@ namespace SourceFlow
     public interface ISaga
     {
         /// <summary>
-        /// Handles the specified event asynchronously in the saga.
+        /// Handles the specified command asynchronously in the saga.
         /// </summary>
-        /// <typeparam name="TEvent"></typeparam>
+        /// <typeparam name="TCommand"></typeparam>
         /// <param name="event"></param>
         /// <returns></returns>
-        Task Handle<TEvent>(TEvent @event)
-            where TEvent : IEvent;
+        Task Handle<TCommand>(TCommand command)
+            where TCommand : ICommand;
     }
 }

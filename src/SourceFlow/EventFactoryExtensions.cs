@@ -2,38 +2,38 @@ namespace SourceFlow
 {
     public static class EventFactoryExtensions
     {
-        public static IEvent Create<TEvent, TPayload>(this EventBuild eventBuild, TPayload payload)
-            where TEvent : class, IEvent<TPayload>, new()
-            where TPayload : class, IEventPayload, new()
+        public static ICommand Create<TCommand, TPayload>(this CommandBuild builder, TPayload payload)
+            where TCommand : class, ICommand<TPayload>, new()
+            where TPayload : class, IPayload, new()
         {
-            var @event = new TEvent
+            var command = new TCommand
             {
-                Entity = eventBuild.Entity,
+                Entity = builder.Entity,
             };
 
-            AssignPayload(@event, payload);
+            AssignPayload(command, payload);
 
-            return @event;
+            return command;
         }
 
-        private static void AssignPayload<TPayload>(IEvent<TPayload> @event, TPayload payload)
-            where TPayload : class, IEventPayload, new()
+        private static void AssignPayload<TPayload>(ICommand<TPayload> command, TPayload payload)
+            where TPayload : class, IPayload, new()
         {
-            @event.Payload = payload;
+            command.Payload = payload;
         }
 
-        public class EventBuild
+        public class CommandBuild
         {
             public Source Entity { get; set; }
-            public IEvent Event { get; set; }
+            public ICommand Command { get; set; }
         }
     }
 
-    public static class Event
+    public static class Command
     {
-        public static EventFactoryExtensions.EventBuild For<TAggregate>(int aggregateId)
+        public static EventFactoryExtensions.CommandBuild For<TAggregate>(int aggregateId)
         {
-            var builder = new EventFactoryExtensions.EventBuild();
+            var builder = new EventFactoryExtensions.CommandBuild();
             builder.Entity = new Source(aggregateId, typeof(TAggregate));
             return builder;
         }

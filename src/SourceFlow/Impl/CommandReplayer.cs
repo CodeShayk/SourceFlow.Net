@@ -4,32 +4,32 @@ using System.Threading.Tasks;
 namespace SourceFlow.Impl
 {
     /// <summary>
-    /// Interface for replaying events in the event-driven architecture.
+    /// Interface for replaying commands in the event-driven architecture.
     /// </summary>
-    internal class EventReplayer : IEventReplayer
+    internal class CommandReplayer : ICommandReplayer
     {
         /// <summary>
-        /// The command bus used to replay events for a given aggregate.
+        /// The command bus used to replay commands for a given aggregate.
         /// </summary>
         private readonly ICommandBus commandBus;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="EventReplayer"/> class.
+        /// Initializes a new instance of the <see cref="CommandReplayer"/> class.
         /// </summary>
         /// <param name="commandBus"></param>
-        public EventReplayer(ICommandBus commandBus)
+        public CommandReplayer(ICommandBus commandBus)
         {
             this.commandBus = commandBus;
         }
 
         /// <summary>
-        /// Replays event stream for a given aggregate.
+        /// Replays stream of commands for a given aggregate.
         /// </summary>
         /// <param name="aggregateId">Unique aggregate entity id.</param>
         /// <returns></returns>
-        async Task IEventReplayer.ReplayEvents(int aggregateId)
+        async Task ICommandReplayer.Replay(int aggregateId)
         {
-            await commandBus.ReplayEvents(aggregateId);
+            await commandBus.Replay(aggregateId);
         }
     }
 }

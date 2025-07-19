@@ -24,7 +24,7 @@ services.UseSourceFlow();
 
 var serviceProvider = services.BuildServiceProvider();
 
-Console.WriteLine("=== Event Sourcing Demo ===\n");
+Console.WriteLine("=== Command Sourcing Demo ===\n");
 
 var accountService = serviceProvider.GetRequiredService<IAccountService>();
 var saga = serviceProvider.GetRequiredService<ISaga>();

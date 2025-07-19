@@ -1,4 +1,3 @@
-using System;
 using System.Threading.Tasks;
 
 namespace SourceFlow
@@ -9,20 +8,20 @@ namespace SourceFlow
     internal interface ICommandBus
     {
         /// <summary>
-        /// Publishes an event to all subscribed sagas.
+        /// Publishes a command to all subscribed sagas.
         /// </summary>
-        /// <typeparam name="TEvent"></typeparam>
+        /// <typeparam name="TCommand"></typeparam>
         /// <param name="event"></param>
         /// <returns></returns>
-        Task Publish<TEvent>(TEvent @event)
-             where TEvent : IEvent;
+        Task Publish<TCommand>(TCommand command)
+             where TCommand : ICommand;
 
         /// <summary>
-        /// Replays all events for a given aggregate.
+        /// Replays all commands for a given aggregate.
         /// </summary>
         /// <param name="aggregateId">Unique aggregate entity id.</param>
         /// <returns></returns>
-        Task ReplayEvents(int aggregateId);
+        Task Replay(int aggregateId);
 
         /// <summary>
         /// Registers a saga with the command bus.

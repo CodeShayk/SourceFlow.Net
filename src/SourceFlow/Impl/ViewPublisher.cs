@@ -50,8 +50,8 @@ namespace SourceFlow.Impl
 
                     var task = (Task)method.Invoke(transform, new object[] { @event });
 
-                    logger?.LogInformation("Action=View_Transforms, Event={Event}, Aggregate={Aggregate}, SequenceNo={No}, Transform:{Transform}",
-                            @event.GetType().Name, @event.Entity.Type.Name, @event.SequenceNo, transform.GetType().Name);
+                    logger?.LogInformation("Action=View_Transforms, Event={Event}, Transform:{Transform}",
+                            @event.Name, transform.GetType().Name);
 
                     tasks.Add(task);
                 }

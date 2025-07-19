@@ -1,88 +1,88 @@
 using Microsoft.Extensions.Logging;
 using SourceFlow.ConsoleApp.Aggregates;
-using SourceFlow.ConsoleApp.Events;
+using SourceFlow.ConsoleApp.Commands;
 
 namespace SourceFlow.ConsoleApp.Sagas
 {
     public class AccountSaga : BaseSaga<BankAccount>,
-                               ISagaHandler<AccountCreated>,
-                               ISagaHandler<MoneyDeposited>,
-                               ISagaHandler<MoneyWithdrawn>,
-                               ISagaHandler<AccountClosed>
+                               ICommandHandler<CreateAccount>,
+                               ICommandHandler<DepositMoney>,
+                               ICommandHandler<WithdrawMoney>,
+                               ICommandHandler<CloseAccount>
     {
-        public async Task Handle(AccountCreated @event)
+        public async Task Handle(CreateAccount command)
         {
             logger.LogInformation("Action=Account_Created, Account={AccountId}, Holder={AccountName}, Initial_Balance={InitialBalance}",
-                @event.Entity.Id, @event.Payload.AccountName, @event.Payload.InitialAmount);
+                command.Entity.Id, command.Payload.AccountName, command.Payload.InitialAmount);
 
-            if (string.IsNullOrEmpty(@event.Payload.AccountName))
-                throw new ArgumentException("Account create requires account holder name.", nameof(@event.Payload.AccountName));
+            if (string.IsNullOrEmpty(command.Payload.AccountName))
+                throw new ArgumentException("Account create requires account holder name.", nameof(command.Payload.AccountName));
 
-            if (@event.Payload.InitialAmount <= 0)
-                throw new ArgumentException("Account create requires initial amount.", nameof(@event.Payload.InitialAmount));
+            if (command.Payload.InitialAmount <= 0)
+                throw new ArgumentException("Account create requires initial amount.", nameof(command.Payload.InitialAmount));
 
             var account = new BankAccount
             {
-                Id = @event.Entity.Id,
-                AccountName = @event.Payload.AccountName,
-                Balance = @event.Payload.InitialAmount
+                Id = command.Entity.Id,
+                AccountName = command.Payload.AccountName,
+                Balance = command.Payload.InitialAmount
             };
 
-            await PersistAggregate(account);
+            await CreateAggregate(account);
         }
 
-        public async Task Handle(MoneyDeposited @event)
+        public async Task Handle(DepositMoney command)
         {
-            logger.LogInformation("Action=Money_Deposited, Amount={Amount}, Account={AccountId}", @event.Payload.Amount, @event.Entity.Id);
+            logger.LogInformation("Action=Money_Deposited, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Entity.Id);
 
-            var account = await GetAggregate(@event.Entity.Id);
+            var account = await GetAggregate(command.Entity.Id);
 
             if (account.IsClosed)
                 throw new InvalidOperationException("Cannot deposit to a closed account");
 
-            if (@event.Payload.Amount <= 0)
-                throw new ArgumentException("Deposit amount must be positive", nameof(@event.Payload.Amount));
+            if (command.Payload.Amount <= 0)
+                throw new ArgumentException("Deposit amount must be positive", nameof(command.Payload.Amount));
 
-            @event.Payload.CurrentBalance = account.Balance + @event.Payload.Amount;
-            account.Balance = @event.Payload.CurrentBalance;
+            command.Payload.CurrentBalance = account.Balance + command.Payload.Amount;
+            account.Balance = command.Payload.CurrentBalance;
 
-            await PersistAggregate(account);
+            await UpdateAggregate(account);
         }
 
-        public async Task Handle(MoneyWithdrawn @event)
+        public async Task Handle(WithdrawMoney command)
         {
-            logger.LogInformation("Action=Money_Withdrawn, Amount={Amount}, Account={AccountId}", @event.Payload.Amount, @event.Entity.Id);
+            logger.LogInformation("Action=Money_Withdrawn, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Entity.Id);
 
-            var account = await GetAggregate(@event.Entity.Id);
+            var account = await GetAggregate(command.Entity.Id);
 
             if (account.IsClosed)
                 throw new InvalidOperationException("Cannot deposit to a closed account");
 
-            if (@event.Payload.Amount <= 0)
-                throw new ArgumentException("Deposit amount must be positive", nameof(@event.Payload.Amount));
+            if (command.Payload.Amount <= 0)
+                throw new ArgumentException("Deposit amount must be positive", nameof(command.Payload.Amount));
 
-            @event.Payload.CurrentBalance = account.Balance - @event.Payload.Amount;
-            account.Balance = @event.Payload.CurrentBalance;
+            command.Payload.CurrentBalance = account.Balance - command.Payload.Amount;
+            account.Balance = command.Payload.CurrentBalance;
 
-            await PersistAggregate(account);
+            await UpdateAggregate(account);
         }
 
-        public async Task Handle(AccountClosed @event)
+        public async Task Handle(CloseAccount command)
         {
-            logger.LogInformation("Action=Account_Closed, Account={AccountId}, Reason={Reason}", @event.Entity.Id, @event.Payload.ClosureReason);
+            logger.LogInformation("Action=Account_Closed, Account={AccountId}, Reason={Reason}", command.Entity.Id, command.Payload.ClosureReason);
 
-            if (string.IsNullOrWhiteSpace(@event.Payload.ClosureReason))
-                throw new ArgumentException("Reason for closing cannot be empty", nameof(@event.Payload.ClosureReason));
+            if (string.IsNullOrWhiteSpace(command.Payload.ClosureReason))
+                throw new ArgumentException("Reason for closing cannot be empty", nameof(command.Payload.ClosureReason));
 
-            var account = await GetAggregate(@event.Entity.Id);
+            var account = await GetAggregate(command.Entity.Id);
 
             if (account.IsClosed)
                 throw new InvalidOperationException("Cannot close account on a closed account");
 
-            account.ClosureReason = @event.Payload.ClosureReason;
-            account.IsClosed = @event.Payload.IsClosed = true;
+            account.ClosureReason = command.Payload.ClosureReason;
+            account.IsClosed = command.Payload.IsClosed = true;
 
-            await PersistAggregate(account);
+            await UpdateAggregate(account);
         }
     }
 }

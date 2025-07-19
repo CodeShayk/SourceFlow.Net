@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using SourceFlow.Events;
 
 namespace SourceFlow
 {
@@ -12,13 +13,23 @@ namespace SourceFlow
         where TAggregateEntity : class, IEntity
     {
         /// <summary>
-        /// The bus publisher used to publish events.
+        /// Provides access to the command publisher used to send commands within the application.
         /// </summary>
-        protected IBusPublisher busPublisher;
+        /// <remarks>The command publisher is typically used to dispatch commands to their respective
+        /// handlers. Derived classes can use this member to publish commands as part of their functionality.</remarks>
+        protected ICommandPublisher commandPublisher;
 
         /// <summary>
-        /// The repository used to access and persist aggregate entity.
+        /// Represents the queue used to manage and process events.
         /// </summary>
+        /// <remarks>This field is intended for internal use to handle event queuing operations.</remarks>
+        protected IEventQueue eventQueue;
+
+        /// <summary>
+        /// Represents the repository used for accessing and managing domain entities.
+        /// </summary>
+        /// <remarks>This field is intended for internal use to interact with the domain repository. It
+        /// provides access to the underlying data storage and retrieval mechanisms.</remarks>
         protected IDomainRepository repository;
 
         /// <summary>
@@ -44,83 +55,151 @@ namespace SourceFlow
             if (instance == null || eventType == null)
                 return false;
 
-            var handlerType = typeof(ISagaHandler<>).MakeGenericType(eventType);
+            var handlerType = typeof(ICommandHandler<>).MakeGenericType(eventType);
             return handlerType.IsAssignableFrom(instance.GetType());
         }
 
         /// <summary>
         /// Handles the specified event asynchronously in the saga.
         /// </summary>
-        /// <typeparam name="TEvent"></typeparam>
+        /// <typeparam name="TCommand"></typeparam>
         /// <param name="event"></param>
         /// <returns></returns>
-        async Task ISaga.Handle<TEvent>(TEvent @event)
+        async Task ISaga.Handle<TCommand>(TCommand command)
         {
-            if (!CanHandle(this, @event.GetType()))
+            if (!CanHandle(this, command.GetType()))
                 return;
 
-            var method = typeof(ISagaHandler<>)
-                        .MakeGenericType(@event.GetType())
-                        .GetMethod(nameof(ISagaHandler<TEvent>.Handle));
+            var method = typeof(ICommandHandler<>)
+                        .MakeGenericType(command.GetType())
+                        .GetMethod(nameof(ICommandHandler<TCommand>.Handle));
 
-            var task = (Task)method.Invoke(this, new object[] { @event });
+            var task = (Task)method.Invoke(this, new object[] { command });
 
-            logger?.LogInformation("Action=Saga_Handled, Event={Event}, Aggregate={Aggregate}, SequenceNo={No}, Saga={Saga}, Handler:{Handler}",
-                    @event.GetType().Name, @event.Entity.Type.Name, @event.SequenceNo, this.GetType().Name, method.Name);
+            logger?.LogInformation("Action=Saga_Handled, Command={Command}, Aggregate={Aggregate}, SequenceNo={No}, Saga={Saga}, Handler:{Handler}",
+                    command.GetType().Name, command.Entity.Type.Name, command.SequenceNo, this.GetType().Name, method.Name);
 
             await Task.Run(() => task);
         }
 
         /// <summary>
-        /// Publishes an event to all subscribers of the bus.
+        /// Publishes the specified command to the command bus.
         /// </summary>
-        /// <typeparam name="TEvent"></typeparam>
-        /// <param name="event"></param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentNullException"></exception>
-        protected Task PublishAsync<TEvent>(TEvent @event)
-            where TEvent : IEvent
+        /// <remarks>If the <paramref name="command"/> does not have an entity type specified, it will be
+        /// automatically set to the type of <c>TAggregateEntity</c>.</remarks>
+        /// <typeparam name="TCommand">The type of the command to publish. Must implement <see cref="ICommand"/>.</typeparam>
+        /// <param name="command">The command to be published. Cannot be <see langword="null"/>.</param>
+        /// <returns>A task that represents the asynchronous operation of publishing the command.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="command"/> is <see langword="null"/>.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if the <paramref name="command"/> does not have a valid source entity ID or if the entity type is not
+        /// set.</exception>
+        protected Task Publish<TCommand>(TCommand command)
+            where TCommand : ICommand
+        {
+            if (command == null)
+                throw new ArgumentNullException(nameof(command));
+
+            if (command.Entity?.Id == null)
+                throw new InvalidOperationException(nameof(command) + "requires source entity id");
+
+            if (command.Entity.Type == null)
+                command.Entity.Type = typeof(TAggregateEntity);
+
+            return commandPublisher.Publish(command);
+        }
+
+        /// <summary>
+        /// Publishes the specified event to notify subscribers.
+        /// </summary>
+        /// <typeparam name="TEvent">The type of the event to be raised.</typeparam>
+        /// <typeparam name="TEntity">The type of the entity associated with the event.</typeparam>
+        /// <param name="event">The event to be raised. Must not be <see langword="null"/> and must contain a valid payload.</param>
+        /// <returns>A task that represents the asynchronous operation of raising the event.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="event"/> is <see langword="null"/>.</exception>
+        /// <exception cref="InvalidOperationException">Thrown if the <paramref name="event"/> does not contain a valid payload.</exception>
+        protected Task Raise<TEvent, TEntity>(TEvent @event)
+            where TEntity : class, IEntity
+            where TEvent : IEvent<TEntity>
         {
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
 
-            if (@event.Entity?.Id == null)
-                throw new InvalidOperationException(nameof(@event) + "requires source entity id");
+            if (@event.Payload == null)
+                throw new InvalidOperationException(nameof(@event) + "event requires payload");
 
-            if (@event.Entity.Type == null)
-                @event.Entity.Type = typeof(TAggregateEntity);
-
-            return busPublisher.Publish(@event);
+            return eventQueue.Enqueue(@event);
         }
 
         /// <summary>
-        /// Get aggregate associated with saga by Identifier.
+        /// Retrieves an aggregate entity by its unique identifier.
         /// </summary>
-        /// <param name="id"></param>
-        /// <returns></returns>
+        /// <param name="id">The unique identifier of the aggregate entity. Must be a positive integer.</param>
+        /// <returns>A task that represents the asynchronous operation. The task result contains the aggregate entity of type
+        /// <typeparamref name="TAggregateEntity"/>.</returns>
+        /// <exception cref="ArgumentException">Thrown if <paramref name="id"/> is less than or equal to zero.</exception>
         protected Task<TAggregateEntity> GetAggregate(int id)
         {
+            if (id <= 0)
+                throw new ArgumentException("Aggregate ID must be a positive integer.", nameof(id));
+
             return repository.Get<TAggregateEntity>(id);
         }
 
         /// <summary>
-        /// Persist aggregate associated with saga.
+        /// Creates the specified aggregate entity and raises an event indicating that the entity has been created.
         /// </summary>
-        /// <param name="entity"></param>
+        /// <remarks>This method saves the provided aggregate entity to the underlying repository and
+        /// raises an <see cref="EntityCreated{TAggregateEntity}"/> event to notify subscribers that the entity has been
+        /// successfully created.</remarks>
+        /// <param name="entity">The aggregate entity to be persisted. Cannot be <see langword="null"/>.</param>
         /// <returns></returns>
-        protected Task PersistAggregate(TAggregateEntity entity)
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="entity"/> is <see langword="null"/>.</exception>
+        protected async Task CreateAggregate(TAggregateEntity entity)
         {
-            return repository.Persist(entity);
+            if (entity == null)
+                throw new ArgumentNullException(nameof(entity));
+
+            await repository.Persist(entity);
+
+            await Raise<EntityCreated<TAggregateEntity>, TAggregateEntity>(new EntityCreated<TAggregateEntity>(entity));
         }
 
         /// <summary>
-        /// Delete aggregate associated with saga.
+        /// Updates the specified aggregate entity and raises an event indicating that the entity has been updated.
         /// </summary>
-        /// <param name="entity"></param>
+        /// <remarks>This method persists the provided aggregate entity to the repository and raises an
+        /// <see cref="EntityUpdated{T}"/> event to signal that the entity has been updated. Ensure that the entity is
+        /// properly initialized before calling this method.</remarks>
+        /// <param name="entity">The aggregate entity to update. Cannot be <see langword="null"/>.</param>
         /// <returns></returns>
-        protected Task DeleteAggregate(TAggregateEntity entity)
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="entity"/> is <see langword="null"/>.</exception>
+        protected async Task UpdateAggregate(TAggregateEntity entity)
         {
-            return repository.Delete(entity);
+            if (entity == null)
+                throw new ArgumentNullException(nameof(entity));
+
+            await repository.Persist(entity);
+
+            await Raise<EntityUpdated<TAggregateEntity>, TAggregateEntity>(new EntityUpdated<TAggregateEntity>(entity));
+        }
+
+        /// <summary>
+        /// Deletes the specified aggregate entity and raises an event to indicate the deletion.
+        /// </summary>
+        /// <remarks>This method performs the deletion asynchronously and raises an <see
+        /// cref="EntityDeleted{T}"/> event to notify subscribers of the deletion. Ensure that the repository and event
+        /// handling mechanisms are properly configured before calling this method.</remarks>
+        /// <param name="entity">The aggregate entity to delete. Cannot be <see langword="null"/>.</param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="entity"/> is <see langword="null"/>.</exception>
+        protected async Task DeleteAggregate(TAggregateEntity entity)
+        {
+            if (entity == null)
+                throw new ArgumentNullException(nameof(entity));
+
+            await repository.Delete(entity);
+
+            await Raise<EntityDeleted<TAggregateEntity>, TAggregateEntity>(new EntityDeleted<TAggregateEntity>(entity));
         }
     }
 }

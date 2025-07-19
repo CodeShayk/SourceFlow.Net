@@ -45,12 +45,16 @@ namespace SourceFlow
 
             services.AddSingleton<ICommandBus, CommandBus>(c => new CommandBus(
                 c.GetService<IEventStore>(),
-                c.GetService<IViewPublisher>(),
                 c.GetService<ILogger<ICommandBus>>()));
 
+            services.AddSingleton<IEventQueue, EventQueue>(c => new EventQueue(
+                c.GetServices<IAggregateRoot>(),
+                 c.GetService<IViewPublisher>(),
+                c.GetService<ILogger<EventQueue>>()));
+
             services.AddSingleton<IAggregateFactory, AggregateFactory>();
-            services.AddSingleton<IBusPublisher, BusPublisher>(c => new BusPublisher(c.GetService<ICommandBus>()));
-            services.AddSingleton<IEventReplayer, EventReplayer>(c => new EventReplayer(c.GetService<ICommandBus>()));
+            services.AddSingleton<ICommandPublisher, CommandPublisher>(c => new CommandPublisher(c.GetService<ICommandBus>()));
+            services.AddSingleton<ICommandReplayer, CommandReplayer>(c => new CommandReplayer(c.GetService<ICommandBus>()));
             services.AddSingleton<IBusSubscriber, BusSubscriber>(c => new BusSubscriber(c.GetService<ICommandBus>()));
             services.AddSingleton<IViewPublisher, ViewPublisher>(c => new ViewPublisher(c.GetServices<IViewTransform>(), c.GetService<ILogger<ViewPublisher>>()));
 
@@ -113,12 +117,12 @@ namespace SourceFlow
                 var aggrgateInstance = factory != null ? factory(c) : new TAggregate();
 
                 typeof(TAggregate)
-                  .GetField("busPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
-                  ?.SetValue(aggrgateInstance, c.GetRequiredService<IBusPublisher>());
+                  .GetField("commandPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
+                  ?.SetValue(aggrgateInstance, c.GetRequiredService<ICommandPublisher>());
 
                 typeof(TAggregate)
-                  .GetField("eventReplayer", BindingFlags.Instance | BindingFlags.NonPublic)
-                  ?.SetValue(aggrgateInstance, c.GetRequiredService<IEventReplayer>());
+                  .GetField("commandReplayer", BindingFlags.Instance | BindingFlags.NonPublic)
+                  ?.SetValue(aggrgateInstance, c.GetRequiredService<ICommandReplayer>());
 
                 typeof(TAggregate)
                   .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -152,8 +156,12 @@ namespace SourceFlow
                     throw new InvalidOperationException($"Saga registration for {typeof(TAggregate).Name} returned null.");
 
                 typeof(TSaga)
-                    .GetField("busPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
-                    ?.SetValue(saga, c.GetRequiredService<IBusPublisher>());
+                    .GetField("commandPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.SetValue(saga, c.GetRequiredService<ICommandPublisher>());
+
+                typeof(TSaga)
+                          .GetField("eventQueue", BindingFlags.Instance | BindingFlags.NonPublic)
+                           ?.SetValue(saga, c.GetRequiredService<IEventQueue>());
 
                 typeof(TSaga)
                     .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -312,12 +320,12 @@ namespace SourceFlow
                     ((SourceFlowConfig)config).Services.AddSingleton(intrface, c =>
                     {
                         implType
-                            .GetField("busPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
-                            ?.SetValue(aggrgateInstance, c.GetRequiredService<IBusPublisher>());
+                            .GetField("commandPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
+                            ?.SetValue(aggrgateInstance, c.GetRequiredService<ICommandPublisher>());
 
                         implType
-                            .GetField("eventReplayer", BindingFlags.Instance | BindingFlags.NonPublic)
-                            ?.SetValue(aggrgateInstance, c.GetRequiredService<IEventReplayer>());
+                            .GetField("commandReplayer", BindingFlags.Instance | BindingFlags.NonPublic)
+                            ?.SetValue(aggrgateInstance, c.GetRequiredService<ICommandReplayer>());
 
                         implType
                             .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -362,8 +370,12 @@ namespace SourceFlow
                     ((SourceFlowConfig)config).Services.AddSingleton(intrface, c =>
                     {
                         implType
-                            .GetField("busPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
-                            ?.SetValue(sagaInstance, c.GetRequiredService<IBusPublisher>());
+                            .GetField("commandPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
+                            ?.SetValue(sagaInstance, c.GetRequiredService<ICommandPublisher>());
+
+                        implType
+                            .GetField("eventQueue", BindingFlags.Instance | BindingFlags.NonPublic)
+                            ?.SetValue(sagaInstance, c.GetRequiredService<IEventQueue>());
 
                         implType
                             .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)

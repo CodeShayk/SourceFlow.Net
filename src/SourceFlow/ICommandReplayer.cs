@@ -4,15 +4,15 @@ using System.Threading.Tasks;
 namespace SourceFlow
 {
     /// <summary>
-    /// Interface for replaying events in the event-driven architecture.
+    /// Interface for replaying commands in the event-driven architecture.
     /// </summary>
-    public interface IEventReplayer
+    public interface ICommandReplayer
     {
         /// <summary>
-        /// Replays all events for a given aggregate.
+        /// Replays all commands for a given aggregate.
         /// </summary>
         /// <param name="aggregateId">Unique aggregate entity id.</param>
         /// <returns></returns>
-        Task ReplayEvents(int aggregateId);
+        Task Replay(int aggregateId);
     }
 }

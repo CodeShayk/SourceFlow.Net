@@ -10,8 +10,8 @@ namespace SourceFlow.Tests
     {
         public class BaseAggregateTests
         {
-            private Mock<IBusPublisher> _busPublisherMock;
-            private Mock<IEventReplayer> _eventReplayerMock;
+            private Mock<ICommandPublisher> _busPublisherMock;
+            private Mock<ICommandReplayer> _eventReplayerMock;
             private Mock<ILogger> _loggerMock;
             private TestAggregate _aggregate;
 
@@ -20,7 +20,7 @@ namespace SourceFlow.Tests
                 public int Id { get; set; }
             }
 
-            public class DummyEvent : IEvent
+            public class DummyEvent : ICommand
             {
                 public Guid EventId { get; set; } = Guid.NewGuid();
                 public Source Entity { get; set; } = new Source(1, typeof(object));
@@ -35,21 +35,21 @@ namespace SourceFlow.Tests
             // Concrete implementation for testing
             public class TestAggregate : BaseAggregate<DummyEntity>
             {
-                public TestAggregate(IBusPublisher busPublisher, IEventReplayer eventReplayer, ILogger logger)
+                public TestAggregate(ICommandPublisher busPublisher, ICommandReplayer commandReplayer, ILogger logger)
                 {
-                    this.busPublisher = busPublisher;
-                    this.eventReplayer = eventReplayer;
+                    this.commandPublisher = busPublisher;
+                    this.commandReplayer = commandReplayer;
                     this.logger = logger;
                 }
 
-                public Task TestPublishAsync(IEvent @event) => PublishAsync(@event);
+                public Task TestPublishAsync(ICommand @event) => PublishAsync(@event);
             }
 
             [SetUp]
             public void SetUp()
             {
-                _busPublisherMock = new Mock<IBusPublisher>();
-                _eventReplayerMock = new Mock<IEventReplayer>();
+                _busPublisherMock = new Mock<ICommandPublisher>();
+                _eventReplayerMock = new Mock<ICommandReplayer>();
                 _loggerMock = new Mock<ILogger>();
                 _aggregate = new TestAggregate(_busPublisherMock.Object, _eventReplayerMock.Object, _loggerMock.Object);
             }
@@ -57,11 +57,11 @@ namespace SourceFlow.Tests
             [Test]
             public async Task ReplayEvents_DelegatesToEventReplayer()
             {
-                _eventReplayerMock.Setup(r => r.ReplayEvents(It.IsAny<int>())).Returns(Task.CompletedTask);
+                _eventReplayerMock.Setup(r => r.Replay(It.IsAny<int>())).Returns(Task.CompletedTask);
 
                 await _aggregate.ReplayEvents(42);
 
-                _eventReplayerMock.Verify(r => r.ReplayEvents(42), Times.Once);
+                _eventReplayerMock.Verify(r => r.Replay(42), Times.Once);
             }
 
             [Test]
@@ -74,7 +74,7 @@ namespace SourceFlow.Tests
             public async Task PublishAsync_CallsBusPublisher()
             {
                 var dummyEvent = new DummyEvent();
-                _busPublisherMock.Setup(b => b.Publish(It.IsAny<IEvent>())).Returns(Task.CompletedTask);
+                _busPublisherMock.Setup(b => b.Publish(It.IsAny<ICommand>())).Returns(Task.CompletedTask);
 
                 await _aggregate.TestPublishAsync(dummyEvent);
 

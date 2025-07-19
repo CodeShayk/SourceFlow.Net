@@ -4,7 +4,7 @@
 //{
 //    public class SampleSagaTests
 //    {
-//        public class DummyEvent : IEvent
+//        public class DummyEvent : ICommand
 //        {
 //            public Guid EventId { get; set; } = Guid.NewGuid();
 //            public Source Entity { get; set; } = new Source(1, typeof(object));
@@ -19,7 +19,7 @@
 //        [Test]
 //        public async Task HandleAsync_CallsRegisteredHandler()
 //        {
-//            var handlerMock = new Mock<ISagaHandler<DummyEvent>>();
+//            var handlerMock = new Mock<ICommandHandler<DummyEvent>>();
 //            handlerMock.Setup(h => h.Handle(It.IsAny<DummyEvent>())).Returns(Task.CompletedTask);
 
 //            var saga = new SampleSaga();
@@ -32,13 +32,13 @@
 
 //        public class SampleSaga : ISaga
 //        {
-//            public Task Handle<TEvent>(TEvent @event) where TEvent : IEvent
+//            public Task Handle<TEvent>(TEvent @event) where TEvent : ICommand
 //            {
 //                // Example: just call all handlers for the event type
 //                foreach (var handler in Handlers)
 //                {
 //                    if (handler.EventType == typeof(TEvent))
-//                        ((ISagaHandler<TEvent>)handler.Handler).Handle(@event);
+//                        ((ICommandHandler<TEvent>)handler.Handler).Handle(@event);
 //                }
 //                return Task.CompletedTask;
 //            }

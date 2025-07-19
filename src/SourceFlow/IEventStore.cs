@@ -14,14 +14,14 @@ namespace SourceFlow
         /// </summary>
         /// <param name="event"></param>
         /// <returns></returns>
-        Task Append(IEvent @event);
+        Task Append(ICommand @event);
 
         /// <summary>
         /// Loads all events for a given aggregate from the event store.
         /// </summary>
         /// <param name="aggregateId">Unique aggregate entity id.</param>
         /// <returns></returns>
-        Task<IEnumerable<IEvent>> Load(int aggregateId);
+        Task<IEnumerable<ICommand>> Load(int aggregateId);
 
         /// <summary>
         /// Gets the next sequence number for an event.

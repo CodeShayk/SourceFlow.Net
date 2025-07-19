@@ -12,14 +12,14 @@ namespace SourceFlow
         where TAggregateEntity : class, IEntity
     {
         /// <summary>
-        /// The bus publisher used to publish events.
+        /// The command publisher used to publish commands.
         /// </summary>
-        protected IBusPublisher busPublisher;
+        protected ICommandPublisher commandPublisher;
 
         /// <summary>
         /// The events replayer used to replay event stream for given aggregate.
         /// </summary>
-        protected IEventReplayer eventReplayer;
+        protected ICommandReplayer commandReplayer;
 
         /// <summary>
         /// Logger for the aggregate root to log events and errors.
@@ -33,27 +33,27 @@ namespace SourceFlow
         /// <returns></returns>
         public Task ReplayEvents(int AggregateId)
         {
-            return eventReplayer.ReplayEvents(AggregateId);
+            return commandReplayer.Replay(AggregateId);
         }
 
         /// <summary>
-        /// Publishes an event to all subscribers, allowing the event to be processed by other components in the system.
+        /// Publishes a command to command bus, allowing the command to be processed by subscribing sagas in the system.
         /// </summary>
-        /// <param name="event"></param>
+        /// <param name="command"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
-        protected Task PublishAsync(IEvent @event)
+        protected Task PublishAsync(ICommand command)
         {
-            if (@event == null)
-                throw new ArgumentNullException(nameof(@event));
+            if (command == null)
+                throw new ArgumentNullException(nameof(command));
 
-            if (@event.Entity?.Id == null)
-                throw new InvalidOperationException(nameof(@event) + "requires source entity id");
+            if (command.Entity?.Id == null)
+                throw new InvalidOperationException(nameof(command) + "requires source entity id");
 
-            if (@event.Entity.Type == null)
-                @event.Entity.Type = typeof(TAggregateEntity);
+            if (command.Entity.Type == null)
+                command.Entity.Type = typeof(TAggregateEntity);
 
-            return busPublisher.Publish(@event);
+            return commandPublisher.Publish(command);
         }
     }
 }

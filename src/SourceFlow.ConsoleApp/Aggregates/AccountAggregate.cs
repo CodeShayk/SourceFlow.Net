@@ -1,4 +1,4 @@
-using SourceFlow.ConsoleApp.Events;
+using SourceFlow.ConsoleApp.Commands;
 
 namespace SourceFlow.ConsoleApp.Aggregates
 {
@@ -6,8 +6,8 @@ namespace SourceFlow.ConsoleApp.Aggregates
     {
         public void CreateAccount(int accountId, string holder, decimal amount)
         {
-            PublishAsync(Event.For<BankAccount>(accountId)
-                              .Create<AccountCreated, AccountPayload>(new AccountPayload
+            PublishAsync(Command.For<BankAccount>(accountId)
+                              .Create<CreateAccount, AccountPayload>(new AccountPayload
                               {
                                   AccountName = holder,
                                   InitialAmount = amount
@@ -16,8 +16,8 @@ namespace SourceFlow.ConsoleApp.Aggregates
 
         public void Deposit(int accountId, decimal amount)
         {
-            PublishAsync(Event.For<BankAccount>(accountId)
-                              .Create<MoneyDeposited, TransactPayload>(new TransactPayload
+            PublishAsync(Command.For<BankAccount>(accountId)
+                              .Create<DepositMoney, TransactPayload>(new TransactPayload
                               {
                                   Amount = amount,
                                   Type = TransactionType.Deposit
@@ -26,8 +26,8 @@ namespace SourceFlow.ConsoleApp.Aggregates
 
         public void Withdraw(int accountId, decimal amount)
         {
-            PublishAsync(Event.For<BankAccount>(accountId)
-                              .Create<MoneyWithdrawn, TransactPayload>(new TransactPayload
+            PublishAsync(Command.For<BankAccount>(accountId)
+                              .Create<WithdrawMoney, TransactPayload>(new TransactPayload
                               {
                                   Amount = amount,
                                   Type = TransactionType.Withdrawal
@@ -36,8 +36,8 @@ namespace SourceFlow.ConsoleApp.Aggregates
 
         public void Close(int accountId, string reason)
         {
-            PublishAsync(Event.For<BankAccount>(accountId)
-                              .Create<AccountClosed, ClosurePayload>(new ClosurePayload
+            PublishAsync(Command.For<BankAccount>(accountId)
+                              .Create<CloseAccount, ClosurePayload>(new ClosurePayload
                               {
                                   ClosureReason = reason
                               }));

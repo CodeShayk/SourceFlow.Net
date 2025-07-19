@@ -5,10 +5,10 @@ using SourceFlow.Core.Tests.E2E.Events;
 namespace SourceFlow.Core.Tests.E2E.Sagas
 {
     public class AccountSaga : BaseSaga<BankAccount>,
-                               ISagaHandler<AccountCreated>,
-                               ISagaHandler<MoneyDeposited>,
-                               ISagaHandler<MoneyWithdrawn>,
-                               ISagaHandler<AccountClosed>
+                               ICommandHandler<AccountCreated>,
+                               ICommandHandler<MoneyDeposited>,
+                               ICommandHandler<MoneyWithdrawn>,
+                               ICommandHandler<AccountClosed>
     {
         public async Task Handle(AccountCreated @event)
         {
@@ -28,7 +28,7 @@ namespace SourceFlow.Core.Tests.E2E.Sagas
                 Balance = @event.Payload.InitialAmount
             };
 
-            await PersistAggregate(account);
+            await CreateAggregate(account);
         }
 
         public async Task Handle(MoneyDeposited @event)
@@ -46,7 +46,7 @@ namespace SourceFlow.Core.Tests.E2E.Sagas
             @event.Payload.CurrentBalance = account.Balance + @event.Payload.Amount;
             account.Balance = @event.Payload.CurrentBalance;
 
-            await PersistAggregate(account);
+            await UpdateAggregate(account);
         }
 
         public async Task Handle(MoneyWithdrawn @event)
@@ -64,7 +64,7 @@ namespace SourceFlow.Core.Tests.E2E.Sagas
             @event.Payload.CurrentBalance = account.Balance - @event.Payload.Amount;
             account.Balance = @event.Payload.CurrentBalance;
 
-            await PersistAggregate(account);
+            await UpdateAggregate(account);
         }
 
         public async Task Handle(AccountClosed @event)
@@ -82,7 +82,7 @@ namespace SourceFlow.Core.Tests.E2E.Sagas
             account.ClosureReason = @event.Payload.ClosureReason;
             account.IsClosed = @event.Payload.IsClosed = true;
 
-            await PersistAggregate(account);
+            await UpdateAggregate(account);
         }
     }
 }

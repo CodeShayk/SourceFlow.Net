@@ -2,20 +2,20 @@ using SourceFlow.Core.Tests.E2E.Aggregates;
 
 namespace SourceFlow.Core.Tests.E2E.Events
 {
-    public class AccountPayload : IEventPayload
+    public class AccountPayload : IPayload
     {
         public decimal InitialAmount { get; set; }
         public string AccountName { get; set; }
     }
 
-    public class TransactPayload : IEventPayload
+    public class TransactPayload : IPayload
     {
         public TransactionType Type { get; set; }
         public decimal Amount { get; set; }
         public decimal CurrentBalance { get; set; }
     }
 
-    public class ClosurePayload : IEventPayload
+    public class ClosurePayload : IPayload
     {
         public bool IsClosed { get; set; }
         public string ClosureReason { get; set; } = string.Empty;

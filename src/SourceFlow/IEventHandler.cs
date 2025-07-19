@@ -3,10 +3,10 @@ using System.Threading.Tasks;
 namespace SourceFlow
 {
     /// <summary>
-    /// Interface for handling events in the event-driven saga.
+    /// Interface for handling events in the event-driven.
     /// </summary>
     /// <typeparam name="TEvent"></typeparam>
-    public interface ISagaHandler<in TEvent>
+    public interface IEventHandler<in TEvent>
         where TEvent : IEvent
     {
         /// <summary>

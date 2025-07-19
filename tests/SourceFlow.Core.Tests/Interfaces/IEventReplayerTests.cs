@@ -9,9 +9,9 @@ namespace SourceFlow.Core.Tests.Interfaces
         [Test]
         public async Task ReplayEventsAsync_DoesNotThrow()
         {
-            var mock = new Mock<IEventReplayer>();
-            mock.Setup(r => r.ReplayEvents(It.IsAny<int>())).Returns(Task.CompletedTask);
-            Assert.DoesNotThrowAsync(async () => await mock.Object.ReplayEvents(42));
+            var mock = new Mock<ICommandReplayer>();
+            mock.Setup(r => r.Replay(It.IsAny<int>())).Returns(Task.CompletedTask);
+            Assert.DoesNotThrowAsync(async () => await mock.Object.Replay(42));
         }
     }
 }
