@@ -1,6 +1,6 @@
 namespace SourceFlow.ConsoleApp.Commands
 {
-    public class DepositMoney : AccountCommand<TransactPayload>
+    public class DepositMoney : BaseCommand<TransactPayload>
     {
     }
 }

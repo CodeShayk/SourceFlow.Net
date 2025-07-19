@@ -1,7 +1,6 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Events;
 
 namespace SourceFlow
 {
@@ -121,9 +120,8 @@ namespace SourceFlow
         /// <returns>A task that represents the asynchronous operation of raising the event.</returns>
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="event"/> is <see langword="null"/>.</exception>
         /// <exception cref="InvalidOperationException">Thrown if the <paramref name="event"/> does not contain a valid payload.</exception>
-        protected Task Raise<TEvent, TEntity>(TEvent @event)
-            where TEntity : class, IEntity
-            where TEvent : IEvent<TEntity>
+        protected Task Raise<TEvent>(TEvent @event)
+            where TEvent : IEvent
         {
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
@@ -132,78 +130,6 @@ namespace SourceFlow
                 throw new InvalidOperationException(nameof(@event) + "event requires payload");
 
             return eventQueue.Enqueue(@event);
-        }
-
-        /// <summary>
-        /// Retrieves an aggregate entity by its unique identifier.
-        /// </summary>
-        /// <param name="id">The unique identifier of the aggregate entity. Must be a positive integer.</param>
-        /// <returns>A task that represents the asynchronous operation. The task result contains the aggregate entity of type
-        /// <typeparamref name="TAggregateEntity"/>.</returns>
-        /// <exception cref="ArgumentException">Thrown if <paramref name="id"/> is less than or equal to zero.</exception>
-        protected Task<TAggregateEntity> GetAggregate(int id)
-        {
-            if (id <= 0)
-                throw new ArgumentException("Aggregate ID must be a positive integer.", nameof(id));
-
-            return repository.Get<TAggregateEntity>(id);
-        }
-
-        /// <summary>
-        /// Creates the specified aggregate entity and raises an event indicating that the entity has been created.
-        /// </summary>
-        /// <remarks>This method saves the provided aggregate entity to the underlying repository and
-        /// raises an <see cref="EntityCreated{TAggregateEntity}"/> event to notify subscribers that the entity has been
-        /// successfully created.</remarks>
-        /// <param name="entity">The aggregate entity to be persisted. Cannot be <see langword="null"/>.</param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="entity"/> is <see langword="null"/>.</exception>
-        protected async Task CreateAggregate(TAggregateEntity entity)
-        {
-            if (entity == null)
-                throw new ArgumentNullException(nameof(entity));
-
-            await repository.Persist(entity);
-
-            await Raise<EntityCreated<TAggregateEntity>, TAggregateEntity>(new EntityCreated<TAggregateEntity>(entity));
-        }
-
-        /// <summary>
-        /// Updates the specified aggregate entity and raises an event indicating that the entity has been updated.
-        /// </summary>
-        /// <remarks>This method persists the provided aggregate entity to the repository and raises an
-        /// <see cref="EntityUpdated{T}"/> event to signal that the entity has been updated. Ensure that the entity is
-        /// properly initialized before calling this method.</remarks>
-        /// <param name="entity">The aggregate entity to update. Cannot be <see langword="null"/>.</param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="entity"/> is <see langword="null"/>.</exception>
-        protected async Task UpdateAggregate(TAggregateEntity entity)
-        {
-            if (entity == null)
-                throw new ArgumentNullException(nameof(entity));
-
-            await repository.Persist(entity);
-
-            await Raise<EntityUpdated<TAggregateEntity>, TAggregateEntity>(new EntityUpdated<TAggregateEntity>(entity));
-        }
-
-        /// <summary>
-        /// Deletes the specified aggregate entity and raises an event to indicate the deletion.
-        /// </summary>
-        /// <remarks>This method performs the deletion asynchronously and raises an <see
-        /// cref="EntityDeleted{T}"/> event to notify subscribers of the deletion. Ensure that the repository and event
-        /// handling mechanisms are properly configured before calling this method.</remarks>
-        /// <param name="entity">The aggregate entity to delete. Cannot be <see langword="null"/>.</param>
-        /// <returns></returns>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="entity"/> is <see langword="null"/>.</exception>
-        protected async Task DeleteAggregate(TAggregateEntity entity)
-        {
-            if (entity == null)
-                throw new ArgumentNullException(nameof(entity));
-
-            await repository.Delete(entity);
-
-            await Raise<EntityDeleted<TAggregateEntity>, TAggregateEntity>(new EntityDeleted<TAggregateEntity>(entity));
         }
     }
 }

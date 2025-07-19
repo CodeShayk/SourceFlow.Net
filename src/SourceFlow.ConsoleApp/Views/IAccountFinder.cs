@@ -1,4 +1,4 @@
-﻿namespace SourceFlow.ConsoleApp.Services
+namespace SourceFlow.ConsoleApp.Views
 {
     internal interface IAccountFinder
     {

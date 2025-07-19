@@ -2,7 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SourceFlow;
 using SourceFlow.ConsoleApp.Services;
-using SourceFlow.ConsoleApp.ViewModels; // Ensure this using is present
+using SourceFlow.ConsoleApp.Views; // Ensure this using is present
 
 var services = new ServiceCollection();
 

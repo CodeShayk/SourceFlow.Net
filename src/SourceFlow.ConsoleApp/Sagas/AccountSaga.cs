@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using SourceFlow.ConsoleApp.Aggregates;
 using SourceFlow.ConsoleApp.Commands;
+using SourceFlow.ConsoleApp.Events;
 
 namespace SourceFlow.ConsoleApp.Sagas
 {
@@ -29,14 +30,16 @@ namespace SourceFlow.ConsoleApp.Sagas
                 Balance = command.Payload.InitialAmount
             };
 
-            await CreateAggregate(account);
+            await repository.Persist(account);
+
+            await Raise(new AccountCreated(account));
         }
 
         public async Task Handle(ActivateAccount command)
         {
             logger.LogInformation("Action=Account_Activate, ActivatedOn={ActiveOn}, Account={AccountId}", command.Payload.ActiveOn, command.Entity.Id);
 
-            var account = await GetAggregate(command.Entity.Id);
+            var account = await repository.Get<BankAccount>(command.Entity.Id);
 
             if (account.IsClosed)
                 throw new InvalidOperationException("Cannot deposit to a closed account");
@@ -46,14 +49,16 @@ namespace SourceFlow.ConsoleApp.Sagas
 
             account.ActiveOn = command.Payload.ActiveOn;
 
-            await UpdateAggregate(account);
+            await repository.Persist(account);
+
+            await Raise(new AccountUpdated(account));
         }
 
         public async Task Handle(DepositMoney command)
         {
             logger.LogInformation("Action=Money_Deposited, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Entity.Id);
 
-            var account = await GetAggregate(command.Entity.Id);
+            var account = await repository.Get<BankAccount>(command.Entity.Id);
 
             if (account.IsClosed)
                 throw new InvalidOperationException("Cannot deposit to a closed account");
@@ -64,14 +69,16 @@ namespace SourceFlow.ConsoleApp.Sagas
             command.Payload.CurrentBalance = account.Balance + command.Payload.Amount;
             account.Balance = command.Payload.CurrentBalance;
 
-            await UpdateAggregate(account);
+            await repository.Persist(account);
+
+            await Raise(new AccountUpdated(account));
         }
 
         public async Task Handle(WithdrawMoney command)
         {
             logger.LogInformation("Action=Money_Withdrawn, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Entity.Id);
 
-            var account = await GetAggregate(command.Entity.Id);
+            var account = await repository.Get<BankAccount>(command.Entity.Id);
 
             if (account.IsClosed)
                 throw new InvalidOperationException("Cannot deposit to a closed account");
@@ -82,7 +89,9 @@ namespace SourceFlow.ConsoleApp.Sagas
             command.Payload.CurrentBalance = account.Balance - command.Payload.Amount;
             account.Balance = command.Payload.CurrentBalance;
 
-            await UpdateAggregate(account);
+            await repository.Persist(account);
+
+            await Raise(new AccountUpdated(account));
         }
 
         public async Task Handle(CloseAccount command)
@@ -92,7 +101,7 @@ namespace SourceFlow.ConsoleApp.Sagas
             if (string.IsNullOrWhiteSpace(command.Payload.ClosureReason))
                 throw new ArgumentException("Reason for closing cannot be empty", nameof(command.Payload.ClosureReason));
 
-            var account = await GetAggregate(command.Entity.Id);
+            var account = await repository.Get<BankAccount>(command.Entity.Id);
 
             if (account.IsClosed)
                 throw new InvalidOperationException("Cannot close account on a closed account");
@@ -100,7 +109,9 @@ namespace SourceFlow.ConsoleApp.Sagas
             account.ClosureReason = command.Payload.ClosureReason;
             account.IsClosed = command.Payload.IsClosed = true;
 
-            await UpdateAggregate(account);
+            await repository.Persist(account);
+
+            await Raise(new AccountUpdated(account));
         }
     }
 }

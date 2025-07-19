@@ -1,14 +1,15 @@
 namespace SourceFlow
 {
-    public class BaseEvent<TEntity> : IEvent<TEntity>
-        where TEntity : class, IEntity
+    public class BaseEvent<T> : IEvent
+        where T : IEntity
     {
         public string Name { get; set; }
-        public TEntity Payload { get; set; }
+        public T Payload { get; set; }
+        IEntity IEvent.Payload => Payload;
 
-        public BaseEvent(string name, TEntity payload)
+        public BaseEvent(T payload)
         {
-            Name = name;
+            Name = this.GetType().Name;
             Payload = payload;
         }
     }

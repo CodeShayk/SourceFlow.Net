@@ -1,6 +1,4 @@
-using SourceFlow.ConsoleApp.ViewModels;
-
-namespace SourceFlow.ConsoleApp.Services
+namespace SourceFlow.ConsoleApp.Views
 {
     public class AccountViewFinder : BaseViewFinder, IAccountFinder
     {

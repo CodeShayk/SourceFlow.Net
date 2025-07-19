@@ -1,6 +1,6 @@
 namespace SourceFlow.ConsoleApp.Commands
 {
-    public class CloseAccount : AccountCommand<ClosurePayload>
+    public class CloseAccount : BaseCommand<ClosurePayload>
     {
     }
 }

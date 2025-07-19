@@ -15,8 +15,8 @@
     <Position X="12.75" Y="4.75" Width="2.25" />
     <AssociationLine Name="eventQueue" Type="SourceFlow.IEventQueue" FixedFromPoint="true" FixedToPoint="true">
       <Path>
-        <Point X="12.75" Y="5.438" />
-        <Point X="10.688" Y="5.438" />
+        <Point X="12.75" Y="5.277" />
+        <Point X="10.688" Y="5.277" />
         <Point X="10.688" Y="4.853" />
       </Path>
       <MemberNameLabel ManuallyPlaced="true">
@@ -24,12 +24,12 @@
       </MemberNameLabel>
     </AssociationLine>
     <TypeIdentifier>
-      <HashCode>AAAAAAAFAAACAIACBUAAAIACAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>AAAAAAABAAACAIACAEAAAIACAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>BaseSaga.cs</FileName>
     </TypeIdentifier>
     <ShowAsAssociation>
-      <Field Name="repository" />
       <Field Name="eventQueue" />
+      <Field Name="repository" />
     </ShowAsAssociation>
     <Lollipop Position="0.7" />
   </Class>
@@ -127,9 +127,6 @@
     <ShowAsAssociation>
       <Field Name="eventStore" />
     </ShowAsAssociation>
-    <ShowAsCollectionAssociation>
-      <Field Name="sagas" />
-    </ShowAsCollectionAssociation>
     <Lollipop Position="0.2" />
   </Class>
   <Class Name="SourceFlow.Impl.AggregateFactory">
@@ -149,22 +146,10 @@
   </Class>
   <Class Name="SourceFlow.Impl.EventQueue">
     <Position X="1" Y="8.25" Width="2.25" />
-    <AssociationLine Name="aggregates" Type="SourceFlow.IAggregateRoot" ManuallyRouted="true">
-      <Path>
-        <Point X="3.25" Y="9.316" />
-        <Point X="0.257" Y="9.316" />
-        <Point X="0.257" Y="1.184" />
-        <Point X="1" Y="1.184" />
-      </Path>
-    </AssociationLine>
     <TypeIdentifier>
       <HashCode>AABAAAgAAAAAAAgCAgAAAAAAAAAAAAAAAAAAAAEAAAA=</HashCode>
       <FileName>Impl\EventQueue.cs</FileName>
     </TypeIdentifier>
-    <ShowAsCollectionAssociation>
-      <Field Name="viewTransforms" />
-      <Field Name="aggregates" />
-    </ShowAsCollectionAssociation>
     <Lollipop Position="0.2" />
   </Class>
   <Interface Name="SourceFlow.IEventStore">
@@ -182,7 +167,7 @@
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IDomainRepository">
-    <Position X="16" Y="6" Width="1.5" />
+    <Position X="16" Y="6" Width="1.75" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAABAAAAAAAIAAAEAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IDomainRepository.cs</FileName>
@@ -238,8 +223,13 @@
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.ICommand">
-    <Position X="9.75" Y="1.5" Width="2" />
-    <AssociationLine Name="Entity" Type="SourceFlow.Source">
+    <Position X="10" Y="0.75" Width="2" />
+    <AssociationLine Name="Entity" Type="SourceFlow.Source" FixedFromPoint="true" FixedToPoint="true">
+      <Path>
+        <Point X="10.938" Y="2.43" />
+        <Point X="10.938" Y="3.094" />
+        <Point X="13.25" Y="3.094" />
+      </Path>
       <MemberNameLabel ManuallyPlaced="true">
         <Position X="0.873" Y="0.117" />
       </MemberNameLabel>
@@ -253,7 +243,7 @@
     </ShowAsAssociation>
   </Interface>
   <Interface Name="SourceFlow.IEntity">
-    <Position X="16" Y="4.75" Width="1.5" />
+    <Position X="16" Y="4.75" Width="1.75" />
     <TypeIdentifier>
       <HashCode>AAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IEntity.cs</FileName>
@@ -274,7 +264,7 @@
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IPayload">
-    <Position X="18" Y="0.75" Width="1.5" />
+    <Position X="16" Y="3.25" Width="1.75" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IPayload.cs</FileName>
@@ -311,14 +301,7 @@
   <Interface Name="SourceFlow.IEvent" Collapsed="true">
     <Position X="1.25" Y="12.5" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>AAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAA=</HashCode>
-      <FileName>IEvent.cs</FileName>
-    </TypeIdentifier>
-  </Interface>
-  <Interface Name="SourceFlow.IEvent&lt;TEntity&gt;">
-    <Position X="1.25" Y="13.5" Width="1.5" />
-    <TypeIdentifier>
-      <HashCode>AAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>AAAAAAAAAAAAAAAAAAAQAAQAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>IEvent.cs</FileName>
     </TypeIdentifier>
   </Interface>

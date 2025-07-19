@@ -1,10 +1,9 @@
-using SourceFlow.ConsoleApp.Aggregates;
-using SourceFlow.Events;
+using SourceFlow.ConsoleApp.Events;
 
-namespace SourceFlow.ConsoleApp.ViewModels
+namespace SourceFlow.ConsoleApp.Views
 {
-    public class AccountView : IViewTransform<EntityCreated<BankAccount>>,
-                               IViewTransform<EntityUpdated<BankAccount>>
+    public class AccountView : IViewTransform<AccountCreated>,
+                               IViewTransform<AccountUpdated>
     {
         private readonly IViewRepository repository;
 
@@ -13,11 +12,8 @@ namespace SourceFlow.ConsoleApp.ViewModels
             this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
         }
 
-        public async Task Transform(EntityCreated<BankAccount> @event)
+        public async Task Transform(AccountCreated @event)
         {
-            if (@event.Name != "BankAccountCreated")
-                throw new InvalidOperationException($"Unexpected event type: {@event.Name}");
-
             var view = new AccountViewModel
             {
                 Id = @event.Payload.Id,
@@ -34,11 +30,8 @@ namespace SourceFlow.ConsoleApp.ViewModels
             await repository.Persist(view);
         }
 
-        public async Task Transform(EntityUpdated<BankAccount> @event)
+        public async Task Transform(AccountUpdated @event)
         {
-            if (@event.Name != "BankAccountUpdated")
-                throw new InvalidOperationException($"Unexpected event type: {@event.Name}");
-
             var view = await repository.Get<AccountViewModel>(@event.Payload.Id);
 
             if (view == null)
