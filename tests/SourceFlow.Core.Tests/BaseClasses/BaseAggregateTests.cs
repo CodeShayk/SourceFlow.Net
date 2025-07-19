@@ -37,7 +37,7 @@
 //            }
 
 //            // Concrete implementation for testing
-//            public class TestAggregate : BaseAggregate<DummyEntity>
+//            public class TestAggregate : Aggregate<DummyEntity>
 //            {
 //                public TestAggregate(ICommandPublisher busPublisher, ICommandReplayer commandReplayer, ILogger logger)
 //                {

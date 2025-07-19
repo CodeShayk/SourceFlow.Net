@@ -2,9 +2,9 @@ using SourceFlow.Messaging;
 
 namespace SourceFlow.ConsoleApp.Commands
 {
-    public class CreateAccount : BaseCommand<AccountPayload>
+    public class CreateAccount : Command<Payload>
     {
-        public CreateAccount(AccountPayload payload) : base(payload)
+        public CreateAccount(Payload payload) : base(payload)
         {
         }
     }

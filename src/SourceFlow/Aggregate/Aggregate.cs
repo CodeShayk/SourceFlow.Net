@@ -9,9 +9,9 @@ namespace SourceFlow.Aggregate
     /// <summary>
     /// Base class for aggregate roots in the event-driven architecture.
     /// </summary>
-    /// <typeparam name="TAggregateEntity"></typeparam>
-    public abstract class BaseAggregate<TAggregateEntity> : IAggregateRoot
-        where TAggregateEntity : class, IEntity
+    /// <typeparam name="TAggregate"></typeparam>
+    public abstract class Aggregate<TAggregate> : IAggregate
+        where TAggregate : class, IEntity
     {
         /// <summary>
         /// The command publisher used to publish commands.

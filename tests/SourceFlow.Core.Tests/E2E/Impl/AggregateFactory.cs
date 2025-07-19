@@ -13,10 +13,10 @@ namespace SourceFlow.Core.Tests.E2E.Impl
         }
 
         public async Task<TAggregateRoot> Create<TAggregateRoot>()
-            where TAggregateRoot : IAggregateRoot
+            where TAggregateRoot : IAggregate
         {
             // Resolve the aggregate root from the container
-            var aggregate = serviceProvider.GetService<IAggregateRoot>();
+            var aggregate = serviceProvider.GetService<IAggregate>();
             return await Task.FromResult((TAggregateRoot)aggregate);
         }
     }

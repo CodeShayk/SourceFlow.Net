@@ -52,7 +52,7 @@ namespace SourceFlow
                 c.GetService<ILogger<ICommandBus>>()));
 
             services.AddSingleton<IEventQueue, EventQueue>(c => new EventQueue(
-                c.GetServices<IAggregateRoot>(),
+                c.GetServices<IAggregate>(),
                 c.GetServices<IProjection>(),
                 c.GetService<ILogger<EventQueue>>()));
 
@@ -108,14 +108,14 @@ namespace SourceFlow
         /// Registers an aggregate with the SourceFlow configuration.
         /// When no factory is provided, uses default constructor to create aggregate instance.
         /// </summary>
-        /// <typeparam name="TAggregate">Aggregate implementation of IAggregateRoot.</typeparam>
+        /// <typeparam name="TAggregate">Aggregate implementation of IAggregate.</typeparam>
         /// <param name="config"></param>
         /// <param name="factory">Factory to return aggrgate instance using service provider.</param>
         /// <returns></returns>
         public static ISourceFlowConfig WithAggregate<TAggregate>(this ISourceFlowConfig config, Func<IServiceProvider, TAggregate> factory = null)
-        where TAggregate : class, IAggregateRoot, new()
+        where TAggregate : class, IAggregate, new()
         {
-            ((SourceFlowConfig)config).Services.AddSingleton<IAggregateRoot, TAggregate>(c =>
+            ((SourceFlowConfig)config).Services.AddSingleton<IAggregate, TAggregate>(c =>
             {
                 var aggrgateInstance = factory != null ? factory(c) : new TAggregate();
 
@@ -141,7 +141,7 @@ namespace SourceFlow
         /// Registers a saga with the SourceFlow configuration.
         /// When no factory is provided, uses default constructor to create saga instance.
         /// </summary>
-        /// <typeparam name="TAggregate">Aggregate implementation supported by TSaga. Implementation of IAggregateRoot.</typeparam>
+        /// <typeparam name="TAggregate">Aggregate implementation supported by TSaga. Implementation of IAggregate.</typeparam>
         /// <typeparam name="TSaga">Saga that implementation for a given Aggregate. Implementation of ISaga<TAggregate>.</typeparam>
         /// <param name="config"></param>
         /// <param name="factory">Factory to return aggrgate instance using service provider.</param>
@@ -294,23 +294,23 @@ namespace SourceFlow
         }
 
         /// <summary>
-        /// Registers all aggregates that implement the IAggregateRoot interface in the IoC container.
+        /// Registers all aggregates that implement the IAggregate interface in the IoC container.
         /// When factory is not provided, uses default constructor to create aggrgate instances.
         /// </summary>
         /// <param name="config"></param>
         /// <param name="aggregateFactory">Factory to return aggregate instances by given type.</param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
-        public static ISourceFlowConfig WithAggregates(this ISourceFlowConfig config, Func<Type, IAggregateRoot> aggregateFactory = null)
+        public static ISourceFlowConfig WithAggregates(this ISourceFlowConfig config, Func<Type, IAggregate> aggregateFactory = null)
         {
-            var interfaceType = typeof(IAggregateRoot);
+            var interfaceType = typeof(IAggregate);
             var implementationTypes = GetTypesFromAssemblies(interfaceType);
 
             foreach (var implType in implementationTypes)
             {
                 var aggrgateInstance = aggregateFactory != null
                            ? aggregateFactory(implType)
-                           : (IAggregateRoot)Activator.CreateInstance(implType);
+                           : (IAggregate)Activator.CreateInstance(implType);
 
                 if (aggrgateInstance == null)
                     throw new InvalidOperationException($"Aggregate registration for {implType.Name} returned null.");

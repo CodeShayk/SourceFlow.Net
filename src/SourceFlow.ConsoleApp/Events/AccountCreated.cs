@@ -3,7 +3,7 @@ using SourceFlow.Messaging;
 
 namespace SourceFlow.ConsoleApp.Events
 {
-    public class AccountCreated : BaseEvent<BankAccount>
+    public class AccountCreated : Event<BankAccount>
     {
         public AccountCreated(BankAccount payload) : base(payload)
         {

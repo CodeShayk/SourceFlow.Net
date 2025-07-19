@@ -3,7 +3,7 @@ using SourceFlow.ViewModel;
 
 namespace SourceFlow.ConsoleApp.Impl
 {
-    public class InMemoryViewRepository : IViewProvider
+    public class InMemoryViewProvider : IViewProvider
     {
         private readonly ConcurrentDictionary<int, IViewModel> _cache = new();
 

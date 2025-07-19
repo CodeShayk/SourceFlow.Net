@@ -13,6 +13,6 @@ namespace SourceFlow.Services
         /// </summary>
         /// <typeparam name="TAggregateRoot"></typeparam>
         /// <returns></returns>
-        Task<TAggregateRoot> CreateAggregate<TAggregateRoot>() where TAggregateRoot : IAggregateRoot;
+        Task<TAggregateRoot> CreateAggregate<TAggregateRoot>() where TAggregateRoot : IAggregate;
     }
 }

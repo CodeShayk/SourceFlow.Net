@@ -3,7 +3,7 @@ using SourceFlow.Services;
 
 namespace SourceFlow.ConsoleApp.Services
 {
-    public class AccountService : BaseService, IAccountService
+    public class AccountService : Service, IAccountService
     {
         public async Task<int> CreateAccountAsync(string accountHolderName, decimal initialBalance)
         {

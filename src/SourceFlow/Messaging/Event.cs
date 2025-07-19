@@ -6,14 +6,14 @@ namespace SourceFlow.Messaging
     /// Base class for implementing events in an event-driven architecture.
     /// </summary>
     /// <typeparam name="TEntity"></typeparam>
-    public abstract class BaseEvent<TEntity> : IEvent
+    public abstract class Event<TEntity> : IEvent
         where TEntity : IEntity
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="BaseEvent{TEntity}"/> class with a specified payload.
+        /// Initializes a new instance of the <see cref="Event{TEntity}"/> class with a specified payload.
         /// </summary>
         /// <param name="payload"></param>
-        public BaseEvent(TEntity payload)
+        public Event(TEntity payload)
         {
             Metadata = new Metadata();
             Name = GetType().Name;

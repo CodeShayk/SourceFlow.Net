@@ -31,10 +31,10 @@ namespace SourceFlow.Impl
         /// <summary>
         /// Represents a collection of aggregate root objects.
         /// </summary>
-        /// <remarks>This field holds a read-only collection of objects that implement the <see cref="IAggregateRoot"/>
+        /// <remarks>This field holds a read-only collection of objects that implement the <see cref="IAggregate"/>
         /// interface. It is intended to be used internally to manage or process aggregate roots within the context of the
         /// application.</remarks>
-        private readonly IEnumerable<IAggregateRoot> aggregates;
+        private readonly IEnumerable<IAggregate> aggregates;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="EventQueue"/> class with the specified aggregates and view projections.
@@ -43,7 +43,7 @@ namespace SourceFlow.Impl
         /// <param name="viewProjections"></param>
         /// <param name="logger"></param>
         /// <exception cref="ArgumentNullException"></exception>
-        public EventQueue(IEnumerable<IAggregateRoot> aggregates, IEnumerable<IProjection> viewProjections, ILogger<EventQueue> logger)
+        public EventQueue(IEnumerable<IAggregate> aggregates, IEnumerable<IProjection> viewProjections, ILogger<EventQueue> logger)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.aggregates = aggregates ?? throw new ArgumentNullException(nameof(aggregates));

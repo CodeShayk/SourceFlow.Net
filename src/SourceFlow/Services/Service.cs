@@ -7,7 +7,7 @@ namespace SourceFlow.Services
     /// <summary>
     /// Base class for services in the event-driven architecture.
     /// </summary>
-    public abstract class BaseService : IService
+    public abstract class Service : IService
     {
         /// <summary>
         /// Factory for creating aggregate roots.
@@ -23,8 +23,8 @@ namespace SourceFlow.Services
         /// Creates an initialised aggregate root.
         /// </summary>
         /// <typeparam name="TAggregateRoot"></typeparam>
-        /// <returns>Implementation of IAggregateRoot</returns>
-        public async Task<TAggregateRoot> CreateAggregate<TAggregateRoot>() where TAggregateRoot : IAggregateRoot
+        /// <returns>Implementation of IAggregate</returns>
+        public async Task<TAggregateRoot> CreateAggregate<TAggregateRoot>() where TAggregateRoot : IAggregate
         {
             var aggregate = await aggregateFactory.Create<TAggregateRoot>();
             return aggregate;

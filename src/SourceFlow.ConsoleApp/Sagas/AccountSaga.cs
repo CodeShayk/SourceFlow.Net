@@ -6,7 +6,7 @@ using SourceFlow.Saga;
 
 namespace SourceFlow.ConsoleApp.Sagas
 {
-    public class AccountSaga : BaseSaga<BankAccount>,
+    public class AccountSaga : Saga<BankAccount>,
                                IHandles<CreateAccount>,
                                IHandles<ActivateAccount>,
                                IHandles<DepositMoney>,

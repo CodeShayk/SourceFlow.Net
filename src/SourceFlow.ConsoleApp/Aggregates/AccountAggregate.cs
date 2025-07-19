@@ -4,13 +4,13 @@ using SourceFlow.ConsoleApp.Events;
 
 namespace SourceFlow.ConsoleApp.Aggregates
 {
-    public class AccountAggregate : BaseAggregate<BankAccount>,
+    public class AccountAggregate : Aggregate<BankAccount>,
                                     ISubscribes<AccountCreated>
 
     {
         public void CreateAccount(int accountId, string holder, decimal amount)
         {
-            Send(new CreateAccount(new AccountPayload
+            Send(new CreateAccount(new Payload
             {
                 Id = accountId,
                 AccountName = holder,

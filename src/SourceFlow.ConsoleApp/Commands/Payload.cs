@@ -9,7 +9,7 @@ namespace SourceFlow.ConsoleApp.Commands
         public DateTime ActiveOn { get; set; }
     }
 
-    public class AccountPayload : IPayload
+    public class Payload : IPayload
     {
         public int Id { get; set; }
         public decimal InitialAmount { get; set; }

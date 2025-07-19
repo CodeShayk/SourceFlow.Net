@@ -10,9 +10,9 @@ namespace SourceFlow.Saga
     /// <summary>
     /// Base class for sagas in the event-driven architecture.
     /// </summary>
-    /// <typeparam name="TAggregateRoot"></typeparam>
-    public abstract class BaseSaga<TAggregateEntity> : ISaga<TAggregateEntity>
-        where TAggregateEntity : class, IEntity
+    /// <typeparam name="TAggregate"></typeparam>
+    public abstract class Saga<TAggregate> : ISaga<TAggregate>
+        where TAggregate : class, IEntity
     {
         /// <summary>
         /// Provides access to the command publisher used to send commands within the application.
@@ -40,9 +40,9 @@ namespace SourceFlow.Saga
         protected ILogger logger;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="BaseSaga{TAggregateRoot}"/> class.
+        /// Initializes a new instance of the <see cref="Saga{TAggregateRoot}"/> class.
         /// </summary>
-        protected BaseSaga()
+        protected Saga()
         {
         }
 
@@ -92,7 +92,7 @@ namespace SourceFlow.Saga
         /// Publishes the specified command to the command bus.
         /// </summary>
         /// <remarks>If the <paramref name="command"/> does not have an entity type specified, it will be
-        /// automatically set to the type of <c>TAggregateEntity</c>.</remarks>
+        /// automatically set to the type of <c>TAggregate</c>.</remarks>
         /// <typeparam name="TCommand">The type of the command to publish. Must implement <see cref="ICommand"/>.</typeparam>
         /// <param name="command">The command to be published. Cannot be <see langword="null"/>.</param>
         /// <returns>A task that represents the asynchronous operation of publishing the command.</returns>

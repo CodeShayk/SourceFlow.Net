@@ -14,6 +14,6 @@ namespace SourceFlow.Aggregate
         /// <param name="state"></param>
         /// <returns></returns>
         Task<TAggregateRoot> Create<TAggregateRoot>()
-            where TAggregateRoot : IAggregateRoot;
+            where TAggregateRoot : IAggregate;
     }
 }

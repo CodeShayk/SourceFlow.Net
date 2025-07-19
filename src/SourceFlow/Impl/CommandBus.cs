@@ -71,7 +71,7 @@ namespace SourceFlow.Impl
             var tasks = new List<Task>();
             foreach (var saga in sagas)
             {
-                if (saga == null || !BaseSaga<IEntity>.CanHandle(saga, command.GetType()))
+                if (saga == null || !Saga<IEntity>.CanHandle(saga, command.GetType()))
                     continue;
 
                 tasks.Add(SagaHandle(saga, command));

@@ -3,14 +3,14 @@ namespace SourceFlow.Messaging
     /// <summary>
     /// Base class for command in the command-driven architecture.
     /// </summary>
-    public class BaseCommand<TPayload> : ICommand
+    public abstract class Command<TPayload> : ICommand
         where TPayload : class, IPayload, new()
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="BaseCommand{TPayload}"/> class with a new payload.
+        /// Initializes a new instance of the <see cref="Command{TPayload}"/> class with a new payload.
         /// </summary>
         /// <param name="payload"></param>
-        public BaseCommand(TPayload payload)
+        public Command(TPayload payload)
         {
             Metadata = new Metadata();
             Name = GetType().Name;
