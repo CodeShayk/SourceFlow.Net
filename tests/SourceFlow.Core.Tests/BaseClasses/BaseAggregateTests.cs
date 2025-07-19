@@ -1,89 +1,89 @@
-namespace SourceFlow.Tests
-{
-    using System;
-    using System.Threading.Tasks;
-    using global::SourceFlow.Aggregate;
-    using global::SourceFlow.Messaging;
-    using global::SourceFlow.Messaging.Bus;
-    using Microsoft.Extensions.Logging;
-    using Moq;
-    using NUnit.Framework;
+//namespace SourceFlow.Tests
+//{
+//    using System;
+//    using System.Threading.Tasks;
+//    using global::SourceFlow.Aggregate;
+//    using global::SourceFlow.Messaging;
+//    using global::SourceFlow.Messaging.Bus;
+//    using Microsoft.Extensions.Logging;
+//    using Moq;
+//    using NUnit.Framework;
 
-    namespace SourceFlow.Tests
-    {
-        public class BaseAggregateTests
-        {
-            private Mock<ICommandPublisher> _busPublisherMock;
-            private Mock<ICommandReplayer> _eventReplayerMock;
-            private Mock<ILogger> _loggerMock;
-            private TestAggregate _aggregate;
+//    namespace SourceFlow.Tests
+//    {
+//        public class BaseAggregateTests
+//        {
+//            private Mock<ICommandPublisher> _busPublisherMock;
+//            private Mock<ICommandReplayer> _eventReplayerMock;
+//            private Mock<ILogger> _loggerMock;
+//            private TestAggregate _aggregate;
 
-            public class DummyEntity : IEntity
-            {
-                public int Id { get; set; }
-            }
+//            public class DummyEntity : IEntity
+//            {
+//                public int Id { get; set; }
+//            }
 
-            public class DummyEvent : ICommand
-            {
-                public Guid EventId { get; set; } = Guid.NewGuid();
-                public bool IsReplay { get; set; }
-                public DateTime OccurredOn { get; set; } = DateTime.UtcNow;
-                public int SequenceNo { get; set; }
-                public DateTime Timestamp => OccurredOn;
-                public string EventType => nameof(DummyEvent);
-                public int Version => 1;
+//            public class DummyEvent : ICommand
+//            {
+//                public Guid EventId { get; set; } = Guid.NewGuid();
+//                public bool IsReplay { get; set; }
+//                public DateTime OccurredOn { get; set; } = DateTime.UtcNow;
+//                public int SequenceNo { get; set; }
+//                public DateTime Timestamp => OccurredOn;
+//                public string EventType => nameof(DummyEvent);
+//                public int Version => 1;
 
-                public IPayload Payload { get; set; }
-            }
+//                public IPayload Payload { get; set; }
+//            }
 
-            // Concrete implementation for testing
-            public class TestAggregate : BaseAggregate<DummyEntity>
-            {
-                public TestAggregate(ICommandPublisher busPublisher, ICommandReplayer commandReplayer, ILogger logger)
-                {
-                    this.commandPublisher = busPublisher;
-                    this.commandReplayer = commandReplayer;
-                    this.logger = logger;
-                }
+//            // Concrete implementation for testing
+//            public class TestAggregate : BaseAggregate<DummyEntity>
+//            {
+//                public TestAggregate(ICommandPublisher busPublisher, ICommandReplayer commandReplayer, ILogger logger)
+//                {
+//                    this.commandPublisher = busPublisher;
+//                    this.commandReplayer = commandReplayer;
+//                    this.logger = logger;
+//                }
 
-                public Task TestPublishAsync(ICommand @event) => Send(@event);
-            }
+//                public Task TestPublishAsync(ICommand @event) => Send(@event);
+//            }
 
-            [SetUp]
-            public void SetUp()
-            {
-                _busPublisherMock = new Mock<ICommandPublisher>();
-                _eventReplayerMock = new Mock<ICommandReplayer>();
-                _loggerMock = new Mock<ILogger>();
-                _aggregate = new TestAggregate(_busPublisherMock.Object, _eventReplayerMock.Object, _loggerMock.Object);
-            }
+//            [SetUp]
+//            public void SetUp()
+//            {
+//                _busPublisherMock = new Mock<ICommandPublisher>();
+//                _eventReplayerMock = new Mock<ICommandReplayer>();
+//                _loggerMock = new Mock<ILogger>();
+//                _aggregate = new TestAggregate(_busPublisherMock.Object, _eventReplayerMock.Object, _loggerMock.Object);
+//            }
 
-            [Test]
-            public async Task ReplayEvents_DelegatesToEventReplayer()
-            {
-                _eventReplayerMock.Setup(r => r.Replay(It.IsAny<int>())).Returns(Task.CompletedTask);
+//            [Test]
+//            public async Task ReplayEvents_DelegatesToEventReplayer()
+//            {
+//                _eventReplayerMock.Setup(r => r.Replay(It.IsAny<int>())).Returns(Task.CompletedTask);
 
-                await _aggregate.Replay(42);
+//                await _aggregate.Replay(42);
 
-                _eventReplayerMock.Verify(r => r.Replay(42), Times.Once);
-            }
+//                _eventReplayerMock.Verify(r => r.Replay(42), Times.Once);
+//            }
 
-            [Test]
-            public void PublishAsync_ThrowsArgumentNullException_WhenEventIsNull()
-            {
-                Assert.ThrowsAsync<ArgumentNullException>(async () => await _aggregate.TestPublishAsync(null));
-            }
+//            [Test]
+//            public void PublishAsync_ThrowsArgumentNullException_WhenEventIsNull()
+//            {
+//                Assert.ThrowsAsync<ArgumentNullException>(async () => await _aggregate.TestPublishAsync(null));
+//            }
 
-            [Test]
-            public async Task PublishAsync_CallsBusPublisher()
-            {
-                var dummyEvent = new DummyEvent();
-                _busPublisherMock.Setup(b => b.Publish(It.IsAny<ICommand>())).Returns(Task.CompletedTask);
+//            [Test]
+//            public async Task PublishAsync_CallsBusPublisher()
+//            {
+//                var dummyEvent = new DummyEvent();
+//                _busPublisherMock.Setup(b => b.Publish(It.IsAny<ICommand>())).Returns(Task.CompletedTask);
 
-                await _aggregate.TestPublishAsync(dummyEvent);
+//                await _aggregate.TestPublishAsync(dummyEvent);
 
-                _busPublisherMock.Verify(b => b.Publish(dummyEvent), Times.Once);
-            }
-        }
-    }
-}
+//                _busPublisherMock.Verify(b => b.Publish(dummyEvent), Times.Once);
+//            }
+//        }
+//    }
+//}

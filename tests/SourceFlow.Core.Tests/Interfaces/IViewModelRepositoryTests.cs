@@ -1,6 +1,4 @@
-using NUnit.Framework;
 using Moq;
-using System.Threading.Tasks;
 using SourceFlow.ViewModel;
 
 namespace SourceFlow.Core.Tests.Interfaces

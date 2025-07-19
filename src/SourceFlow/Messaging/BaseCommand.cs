@@ -1,11 +1,9 @@
-using System;
-
 namespace SourceFlow.Messaging
 {
     /// <summary>
     /// Base class for command in the command-driven architecture.
     /// </summary>
-    public class BaseCommand<TPayload> : ICommand<TPayload>
+    public class BaseCommand<TPayload> : ICommand
         where TPayload : class, IPayload, new()
     {
         /// <summary>
@@ -14,30 +12,20 @@ namespace SourceFlow.Messaging
         /// <param name="payload"></param>
         public BaseCommand(TPayload payload)
         {
-            EventId = Guid.NewGuid();
-            OccurredOn = DateTime.UtcNow;
+            Metadata = new Metadata();
+            Name = GetType().Name;
             Payload = payload;
         }
 
         /// <summary>
-        /// Unique identifier for the command.
+        /// Metadata associated with the command, which includes information such as event ID, occurrence time, and sequence number.
         /// </summary>
-        public Guid EventId { get; }
+        public Metadata Metadata { get; set; } = new Metadata();
 
         /// <summary>
-        /// Indicates whether the command is a replay of an existing command.
+        /// Name of the command, typically the class name.
         /// </summary>
-        public DateTime OccurredOn { get; }
-
-        /// <summary>
-        /// Indicates whether the command is a replay of an existing command.
-        /// </summary>
-        bool ICommand.IsReplay { get; set; }
-
-        /// <summary>
-        /// Sequence number of the command within the aggregate's command stream.
-        /// </summary>
-        public int SequenceNo { get; set; }
+        public string Name { get; set; }
 
         /// <summary>
         /// Payload of the command, containing the data associated with the command.

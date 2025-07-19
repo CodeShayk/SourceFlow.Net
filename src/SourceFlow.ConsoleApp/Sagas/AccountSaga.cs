@@ -2,7 +2,6 @@ using Microsoft.Extensions.Logging;
 using SourceFlow.ConsoleApp.Aggregates;
 using SourceFlow.ConsoleApp.Commands;
 using SourceFlow.ConsoleApp.Events;
-using SourceFlow.Messaging;
 using SourceFlow.Saga;
 
 namespace SourceFlow.ConsoleApp.Sagas

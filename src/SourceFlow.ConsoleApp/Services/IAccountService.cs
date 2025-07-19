@@ -1,5 +1,3 @@
-using SourceFlow.ConsoleApp.Aggregates;
-
 namespace SourceFlow.ConsoleApp.Services
 {
     public interface IAccountService

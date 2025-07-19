@@ -90,18 +90,18 @@ namespace SourceFlow.Impl
         private async Task SagaHandle<TCommand>(ISaga saga, TCommand command) where TCommand : ICommand
         {
             // 1. Set event sequence no.
-            if (!command.IsReplay)
-                command.SequenceNo = await eventStore.GetNextSequenceNo(command.Payload.Id);
+            if (!((IMetadata)command).Metadata.IsReplay)
+                ((IMetadata)command).Metadata.SequenceNo = await eventStore.GetNextSequenceNo(command.Payload.Id);
 
             // 4. Log event.
             logger?.LogInformation("Action=Command_Dispatched, Command={Command}, Payload={Payload}, SequenceNo={No}, Saga={Saga}",
-                command.GetType().Name, command.Payload.GetType().Name, command.SequenceNo, saga.GetType().Name);
+                command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo, saga.GetType().Name);
 
             // 2. handle event by Saga?
             await saga.Handle(command);
 
             // 3. When event is not replayed
-            if (!command.IsReplay)
+            if (!((IMetadata)command).Metadata.IsReplay)
                 // 3.1. Append event to event store.
                 await eventStore.Append(command);
         }
@@ -120,7 +120,7 @@ namespace SourceFlow.Impl
 
             foreach (var command in commands.ToList())
             {
-                command.IsReplay = true;
+                ((IMetadata)command).Metadata.IsReplay = true;
                 await PublishToSagas(command);
             }
         }

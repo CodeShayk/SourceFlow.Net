@@ -27,7 +27,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
         public Task<int> GetNextSequenceNo(int aggregateId)
         {
             if (_store.TryGetValue(aggregateId, out var events))
-                return Task.FromResult(events.Max<ICommand, int>(c => c.SequenceNo) + 1);
+                return Task.FromResult(events.Max<ICommand, int>(c => ((IMetadata)c).Metadata.SequenceNo) + 1);
             return Task.FromResult(1);
         }
     }

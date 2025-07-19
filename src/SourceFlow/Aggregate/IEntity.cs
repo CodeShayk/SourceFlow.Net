@@ -1,5 +1,3 @@
-using System;
-
 namespace SourceFlow.Aggregate
 {
     public interface IEntity

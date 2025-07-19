@@ -83,7 +83,7 @@ namespace SourceFlow.Saga
             var task = (Task)method.Invoke(this, new object[] { command });
 
             logger?.LogInformation("Action=Saga_Handled, Command={Command}, Payload={Payload}, SequenceNo={No}, Saga={Saga}, Handler:{Handler}",
-                    command.GetType().Name, command.Payload.GetType().Name, command.SequenceNo, GetType().Name, method.Name);
+                    command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo, GetType().Name, method.Name);
 
             await Task.Run(() => task);
         }
