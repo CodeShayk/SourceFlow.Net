@@ -6,11 +6,11 @@
 //namespace SourceFlow.ConsoleApp.Sagas
 //{
 //    public class AccountSaga : BaseSaga<BankAccount>,
-//                               ICommandHandler<CreateAccount>,
-//                               ICommandHandler<ActivateAccount>,
-//                               ICommandHandler<DepositMoney>,
-//                               ICommandHandler<WithdrawMoney>,
-//                               ICommandHandler<CloseAccount>
+//                               IHandles<CreateAccount>,
+//                               IHandles<ActivateAccount>,
+//                               IHandles<DepositMoney>,
+//                               IHandles<WithdrawMoney>,
+//                               IHandles<CloseAccount>
 //    {
 //        public async Task Handle(CreateAccount command)
 //        {
@@ -30,7 +30,7 @@
 //                Balance = command.Payload.InitialAmount
 //            };
 
-//            await repository.Persist(account);
+//            await repository.Push(account);
 
 //            await Raise(new AccountCreated(account));
 //        }
@@ -39,7 +39,7 @@
 //        {
 //            logger.LogInformation("Action=Account_Activate, ActivatedOn={ActiveOn}, Account={AccountId}", command.Payload.ActiveOn, command.Entity.Id);
 
-//            var account = await repository.Get<BankAccount>(command.Entity.Id);
+//            var account = await repository.Find<BankAccount>(command.Entity.Id);
 
 //            if (account.IsClosed)
 //                throw new InvalidOperationException("Cannot deposit to a closed account");
@@ -49,7 +49,7 @@
 
 //            account.ActiveOn = command.Payload.ActiveOn;
 
-//            await repository.Persist(account);
+//            await repository.Push(account);
 
 //            await Raise(new AccountUpdated(account));
 //        }
@@ -58,7 +58,7 @@
 //        {
 //            logger.LogInformation("Action=Money_Deposited, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Entity.Id);
 
-//            var account = await repository.Get<BankAccount>(command.Entity.Id);
+//            var account = await repository.Find<BankAccount>(command.Entity.Id);
 
 //            if (account.IsClosed)
 //                throw new InvalidOperationException("Cannot deposit to a closed account");
@@ -69,7 +69,7 @@
 //            command.Payload.CurrentBalance = account.Balance + command.Payload.Amount;
 //            account.Balance = command.Payload.CurrentBalance;
 
-//            await repository.Persist(account);
+//            await repository.Push(account);
 
 //            await Raise(new AccountUpdated(account));
 //        }
@@ -78,7 +78,7 @@
 //        {
 //            logger.LogInformation("Action=Money_Withdrawn, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Entity.Id);
 
-//            var account = await repository.Get<BankAccount>(command.Entity.Id);
+//            var account = await repository.Find<BankAccount>(command.Entity.Id);
 
 //            if (account.IsClosed)
 //                throw new InvalidOperationException("Cannot deposit to a closed account");
@@ -89,7 +89,7 @@
 //            command.Payload.CurrentBalance = account.Balance - command.Payload.Amount;
 //            account.Balance = command.Payload.CurrentBalance;
 
-//            await repository.Persist(account);
+//            await repository.Push(account);
 
 //            await Raise(new AccountUpdated(account));
 //        }
@@ -101,7 +101,7 @@
 //            if (string.IsNullOrWhiteSpace(command.Payload.ClosureReason))
 //                throw new ArgumentException("Reason for closing cannot be empty", nameof(command.Payload.ClosureReason));
 
-//            var account = await repository.Get<BankAccount>(command.Entity.Id);
+//            var account = await repository.Find<BankAccount>(command.Entity.Id);
 
 //            if (account.IsClosed)
 //                throw new InvalidOperationException("Cannot close account on a closed account");
@@ -109,7 +109,7 @@
 //            account.ClosureReason = command.Payload.ClosureReason;
 //            account.IsClosed = command.Payload.IsClosed = true;
 
-//            await repository.Persist(account);
+//            await repository.Push(account);
 
 //            await Raise(new AccountUpdated(account));
 //        }

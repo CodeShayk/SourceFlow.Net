@@ -1,8 +1,9 @@
 using System.Collections.Concurrent;
+using SourceFlow.ViewModel;
 
 namespace SourceFlow.ConsoleApp.Impl
 {
-    public class InMemoryViewRepository : IViewRepository
+    public class InMemoryViewRepository : IViewProvider
     {
         private readonly ConcurrentDictionary<int, IViewModel> _cache = new();
 
@@ -16,7 +17,7 @@ namespace SourceFlow.ConsoleApp.Impl
             return Task.CompletedTask;
         }
 
-        public Task<TViewModel> Get<TViewModel>(int id) where TViewModel : class, IViewModel
+        public Task<TViewModel> Find<TViewModel>(int id) where TViewModel : class, IViewModel
         {
             if (id == 0)
                 throw new ArgumentNullException(nameof(id));
@@ -26,7 +27,7 @@ namespace SourceFlow.ConsoleApp.Impl
             return Task.FromResult<TViewModel>(success ? (TViewModel)model : null);
         }
 
-        public Task Persist<TViewModel>(TViewModel model) where TViewModel : IViewModel
+        public Task Push<TViewModel>(TViewModel model) where TViewModel : IViewModel
         {
             if (model?.Id == null)
                 throw new ArgumentNullException(nameof(model));

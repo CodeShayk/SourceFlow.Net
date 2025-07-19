@@ -1,3 +1,5 @@
+using SourceFlow.ViewModel;
+
 namespace SourceFlow.ConsoleApp.Views
 {
     public class AccountViewModel : IViewModel

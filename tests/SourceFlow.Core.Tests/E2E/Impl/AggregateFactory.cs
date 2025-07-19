@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using SourceFlow.Aggregate;
 
 namespace SourceFlow.Core.Tests.E2E.Impl
 {

@@ -1,4 +1,5 @@
 using SourceFlow.Core.Tests.E2E.Aggregates;
+using SourceFlow.Services;
 
 namespace SourceFlow.Core.Tests.E2E.Services
 {

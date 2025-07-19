@@ -1,4 +1,5 @@
 using SourceFlow.ConsoleApp.Aggregates;
+using SourceFlow.Messaging;
 
 namespace SourceFlow.ConsoleApp.Events
 {

@@ -23,12 +23,12 @@
 //                Version = @event.SequenceNo
 //            };
 
-//            await repository.Persist(view);
+//            await repository.Push(view);
 //        }
 
 //        public async Task ProjectAsync(MoneyDeposited @event)
 //        {
-//            var view = await repository.Get<AccountViewModel>(@event.Entity.Id);
+//            var view = await repository.Find<AccountViewModel>(@event.Entity.Id);
 
 //            if (view == null)
 //                throw new InvalidOperationException($"Account view not found for ID: {@event.Entity.Id}");
@@ -38,12 +38,12 @@
 //            view.Version = @event.SequenceNo;
 //            view.TransactionCount++;
 
-//            await repository.Persist(view);
+//            await repository.Push(view);
 //        }
 
 //        public async Task ProjectAsync(MoneyWithdrawn @event)
 //        {
-//            var view = await repository.Get<AccountViewModel>(@event.Entity.Id);
+//            var view = await repository.Find<AccountViewModel>(@event.Entity.Id);
 
 //            if (view == null)
 //                throw new InvalidOperationException($"Account view not found for ID: {@event.Entity.Id}");
@@ -53,12 +53,12 @@
 //            view.Version = @event.SequenceNo;
 //            view.TransactionCount++;
 
-//            await repository.Persist(view);
+//            await repository.Push(view);
 //        }
 
 //        public async Task ProjectAsync(AccountClosed @event)
 //        {
-//            var view = await repository.Get<AccountViewModel>(@event.Entity.Id);
+//            var view = await repository.Find<AccountViewModel>(@event.Entity.Id);
 
 //            if (view == null)
 //                throw new InvalidOperationException($"Account view not found for ID: {@event.Entity.Id}");
@@ -68,7 +68,7 @@
 //            view.Version = @event.SequenceNo;
 //            view.IsClosed = @event.Payload.IsClosed;
 
-//            await repository.Persist(view);
+//            await repository.Push(view);
 //        }
 //    }
 //}

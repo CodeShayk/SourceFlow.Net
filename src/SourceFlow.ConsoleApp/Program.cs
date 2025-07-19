@@ -2,7 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SourceFlow;
 using SourceFlow.ConsoleApp.Services;
-using SourceFlow.ConsoleApp.Views; // Ensure this using is present
+using SourceFlow.ConsoleApp.Views;
+using SourceFlow.Saga; // Ensure this using is present
 
 var services = new ServiceCollection();
 
@@ -29,7 +30,7 @@ Console.WriteLine("=== Command Sourcing Demo ===\n");
 var accountService = serviceProvider.GetRequiredService<IAccountService>();
 var saga = serviceProvider.GetRequiredService<ISaga>();
 var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
-var accountFinder = serviceProvider.GetRequiredService<IViewFinder>();
+var viewProvider = serviceProvider.GetRequiredService<IViewProvider>();
 
 // Create account
 var accountId = await accountService.CreateAccountAsync("John Doe", 1000m);
@@ -48,8 +49,8 @@ amount = 100m;
 logger.LogInformation("Action=Program_Deposit, Amount={Amount}", amount);
 await accountService.DepositAsync(accountId, amount);
 
-// Get current state
-var account = await accountFinder.Find<AccountViewModel>(accountId);
+// Find current state
+var account = await viewProvider.Find<AccountViewModel>(accountId);
 Console.WriteLine($"\nCurrent Account State:");
 Console.WriteLine($"- Account Id: {account?.Id}");
 Console.WriteLine($"- Holder: {account?.AccountName}");
@@ -66,7 +67,7 @@ Console.WriteLine($"\nReplay Account History:");
 await accountService.ReplayHistoryAsync(accountId);
 
 // Show account summary by replaying history.
-account = await accountFinder.Find<AccountViewModel>(accountId);
+account = await viewProvider.Find<AccountViewModel>(accountId);
 Console.WriteLine($"\nCurrent Account State:");
 Console.WriteLine($"- Account Id: {account?.Id}");
 Console.WriteLine($"- Holder: {account?.AccountName}");
@@ -83,7 +84,7 @@ await accountService.CloseAccountAsync(accountId, "Customer account close reques
 Console.WriteLine($"\nClose Account");
 
 //// Final state
-account = await accountFinder.Find<AccountViewModel>(accountId);
+account = await viewProvider.Find<AccountViewModel>(accountId);
 Console.WriteLine($"\nCurrent Account State:");
 Console.WriteLine($"- Account Id: {account?.Id}");
 Console.WriteLine($"- Holder: {account?.AccountName}");

@@ -1,18 +1,19 @@
 using SourceFlow.ConsoleApp.Events;
+using SourceFlow.ViewModel;
 
 namespace SourceFlow.ConsoleApp.Views
 {
-    public class AccountView : IViewTransform<AccountCreated>,
-                               IViewTransform<AccountUpdated>
+    public class AccountView : IViewProjection<AccountCreated>,
+                               IViewProjection<AccountUpdated>
     {
-        private readonly IViewRepository repository;
+        private readonly IViewProvider provider;
 
-        public AccountView(IViewRepository repository)
+        public AccountView(IViewProvider provider)
         {
-            this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
+            this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
         }
 
-        public async Task Transform(AccountCreated @event)
+        public async Task Apply(AccountCreated @event)
         {
             var view = new AccountViewModel
             {
@@ -27,12 +28,12 @@ namespace SourceFlow.ConsoleApp.Views
                 Version = 1
             };
 
-            await repository.Persist(view);
+            await provider.Push(view);
         }
 
-        public async Task Transform(AccountUpdated @event)
+        public async Task Apply(AccountUpdated @event)
         {
-            var view = await repository.Get<AccountViewModel>(@event.Payload.Id);
+            var view = await provider.Find<AccountViewModel>(@event.Payload.Id);
 
             if (view == null)
                 throw new InvalidOperationException($"Account view not found for ID: {@event.Payload.Id}");
@@ -46,7 +47,7 @@ namespace SourceFlow.ConsoleApp.Views
             view.Version++;
             view.TransactionCount++;
 
-            await repository.Persist(view);
+            await provider.Push(view);
         }
     }
 }

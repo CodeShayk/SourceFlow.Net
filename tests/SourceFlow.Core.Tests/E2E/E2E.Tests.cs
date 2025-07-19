@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Core.Tests.E2E.Projections;
 using SourceFlow.Core.Tests.E2E.Services;
+using SourceFlow.Saga;
 
 namespace SourceFlow.Core.Tests.E2E
 {
@@ -12,7 +13,7 @@ namespace SourceFlow.Core.Tests.E2E
         private IAccountService _accountService;
         private ISaga _saga;
         private ILogger _logger;
-        private IViewRepository _viewRepository;
+        private IViewProvider _viewRepository;
 
         [SetUp]
         public void SetUp()
@@ -34,7 +35,7 @@ namespace SourceFlow.Core.Tests.E2E
             _accountService = _serviceProvider.GetRequiredService<IAccountService>();
             _saga = _serviceProvider.GetRequiredService<ISaga>();
             _logger = _serviceProvider.GetRequiredService<ILogger<ProgramIntegrationTests>>();
-            _viewRepository = _serviceProvider.GetRequiredService<IViewRepository>();
+            _viewRepository = _serviceProvider.GetRequiredService<IViewProvider>();
         }
 
         [TearDown]
@@ -66,8 +67,8 @@ namespace SourceFlow.Core.Tests.E2E
             _logger.LogInformation("Action=Test_Deposit, Amount={Amount}", amount);
             await _accountService.DepositAsync(accountId, amount);
 
-            // Get current state and assertions
-            var account = await _viewRepository.Get<AccountViewModel>(accountId);
+            // Find current state and assertions
+            var account = await _viewRepository.Find<AccountViewModel>(accountId);
             Assert.That(account, Is.Not.Null);
             Assert.That(accountId, Is.EqualTo(account.Id));
             Assert.That("John Doe", Is.EqualTo(account.AccountName));
@@ -79,7 +80,7 @@ namespace SourceFlow.Core.Tests.E2E
             Assert.DoesNotThrowAsync(async () => await _accountService.ReplayHistoryAsync(accountId));
 
             // Fetch state again, should be the same
-            var replayedAccount = await _viewRepository.Get<AccountViewModel>(accountId);
+            var replayedAccount = await _viewRepository.Find<AccountViewModel>(accountId);
             Assert.That(account.CurrentBalance, Is.EqualTo(replayedAccount.CurrentBalance));
             Assert.That(account.TransactionCount, Is.EqualTo(replayedAccount.TransactionCount));
 
@@ -87,7 +88,7 @@ namespace SourceFlow.Core.Tests.E2E
             Assert.DoesNotThrowAsync(async () => await _accountService.CloseAccountAsync(accountId, "Customer account close request"));
 
             // Final state
-            var closedAccount = await _viewRepository.Get<AccountViewModel>(accountId);
+            var closedAccount = await _viewRepository.Find<AccountViewModel>(accountId);
             Assert.That(closedAccount.IsClosed, Is.True);
         }
     }

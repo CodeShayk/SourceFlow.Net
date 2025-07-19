@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using SourceFlow.Messaging;
 
 namespace SourceFlow.Core.Tests.E2E.Impl
 {

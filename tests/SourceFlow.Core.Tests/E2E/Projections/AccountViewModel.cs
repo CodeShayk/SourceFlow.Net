@@ -1,3 +1,5 @@
+using SourceFlow.ViewModel;
+
 namespace SourceFlow.Core.Tests.E2E.Projections
 {
     public class AccountViewModel : IViewModel

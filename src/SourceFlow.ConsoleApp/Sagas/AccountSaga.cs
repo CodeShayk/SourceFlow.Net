@@ -2,15 +2,17 @@ using Microsoft.Extensions.Logging;
 using SourceFlow.ConsoleApp.Aggregates;
 using SourceFlow.ConsoleApp.Commands;
 using SourceFlow.ConsoleApp.Events;
+using SourceFlow.Messaging;
+using SourceFlow.Saga;
 
 namespace SourceFlow.ConsoleApp.Sagas
 {
     public class AccountSaga : BaseSaga<BankAccount>,
-                               ICommandHandler<CreateAccount>,
-                               ICommandHandler<ActivateAccount>,
-                               ICommandHandler<DepositMoney>,
-                               ICommandHandler<WithdrawMoney>,
-                               ICommandHandler<CloseAccount>
+                               IHandles<CreateAccount>,
+                               IHandles<ActivateAccount>,
+                               IHandles<DepositMoney>,
+                               IHandles<WithdrawMoney>,
+                               IHandles<CloseAccount>
     {
         public async Task Handle(CreateAccount command)
         {

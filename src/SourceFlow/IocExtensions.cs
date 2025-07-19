@@ -5,7 +5,12 @@ using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using SourceFlow.Aggregate;
 using SourceFlow.Impl;
+using SourceFlow.Messaging.Bus;
+using SourceFlow.Saga;
+using SourceFlow.Services;
+using SourceFlow.ViewModel;
 
 namespace SourceFlow
 {
@@ -37,11 +42,10 @@ namespace SourceFlow
         /// <param name="configuration"></param>
         public static void UseSourceFlow(this IServiceCollection services, Action<ISourceFlowConfig> configuration)
         {
-            services.AddAsImplementationsOfInterface<IDomainRepository>(lifetime: ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IViewRepository>(lifetime: ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IRepository>(lifetime: ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IViewProvider>(lifetime: ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IEventStore>(lifetime: ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IViewFinder>(lifetime: ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IViewTransform>(lifetime: ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IViewProjection>(lifetime: ServiceLifetime.Singleton);
 
             services.AddSingleton<ICommandBus, CommandBus>(c => new CommandBus(
                 c.GetService<IEventStore>(),
@@ -49,7 +53,7 @@ namespace SourceFlow
 
             services.AddSingleton<IEventQueue, EventQueue>(c => new EventQueue(
                 c.GetServices<IAggregateRoot>(),
-                c.GetServices<IViewTransform>(),
+                c.GetServices<IViewProjection>(),
                 c.GetService<ILogger<EventQueue>>()));
 
             services.AddSingleton<IAggregateFactory, AggregateFactory>();
@@ -168,7 +172,7 @@ namespace SourceFlow
 
                 typeof(TSaga)
                     .GetField("repository", BindingFlags.Instance | BindingFlags.NonPublic)
-                    ?.SetValue(saga, c.GetRequiredService<IDomainRepository>());
+                    ?.SetValue(saga, c.GetRequiredService<IRepository>());
 
                 var subscriber = c.GetRequiredService<IBusSubscriber>();
                 subscriber.Subscribe(saga);
@@ -382,7 +386,7 @@ namespace SourceFlow
 
                         implType
                             .GetField("repository", BindingFlags.Instance | BindingFlags.NonPublic)
-                            ?.SetValue(sagaInstance, c.GetRequiredService<IDomainRepository>());
+                            ?.SetValue(sagaInstance, c.GetRequiredService<IRepository>());
 
                         if (index == 1)
                         {
@@ -397,6 +401,24 @@ namespace SourceFlow
             }
 
             return config;
+        }
+
+        /// <summary>
+        /// Interface for SourceFlow configuration.
+        /// </summary>
+        public interface ISourceFlowConfig
+        {
+        }
+
+        /// <summary>
+        /// Configuration class for SourceFlow.
+        /// </summary>
+        public class SourceFlowConfig : ISourceFlowConfig
+        {
+            /// <summary>
+            /// Service collection for SourceFlow configuration.
+            /// </summary>
+            public IServiceCollection Services { get; set; }
         }
     }
 }

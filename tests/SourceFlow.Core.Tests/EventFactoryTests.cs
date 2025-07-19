@@ -1,5 +1,5 @@
 using NUnit.Framework;
-using SourceFlow;
+using SourceFlow.Messaging;
 
 namespace SourceFlow.Tests
 {
@@ -25,7 +25,7 @@ namespace SourceFlow.Tests
         [Test]
         public void Create_ShouldAssignEntityAndPayload()
         {
-            var builder = new EventFactoryExtensions.CommandBuild { Entity = new Source(1, typeof(object)) };
+            var builder = new MessageExtensions.CommandBuild { Entity = new Source(1, typeof(object)) };
             var payload = new TestPayload();
             var @event = builder.Create<TestEvent, TestPayload>(payload) as TestEvent;
             Assert.That(@event, Is.Not.Null);

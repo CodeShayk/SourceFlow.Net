@@ -1,6 +1,7 @@
 using NUnit.Framework;
 using Moq;
 using System.Threading.Tasks;
+using SourceFlow.Messaging.Bus;
 
 namespace SourceFlow.Core.Tests.Interfaces
 {

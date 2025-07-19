@@ -2,6 +2,9 @@ namespace SourceFlow.Tests
 {
     using System;
     using System.Threading.Tasks;
+    using global::SourceFlow.Aggregate;
+    using global::SourceFlow.Messaging;
+    using global::SourceFlow.Messaging.Bus;
     using Microsoft.Extensions.Logging;
     using Moq;
     using NUnit.Framework;
@@ -42,7 +45,7 @@ namespace SourceFlow.Tests
                     this.logger = logger;
                 }
 
-                public Task TestPublishAsync(ICommand @event) => PublishAsync(@event);
+                public Task TestPublishAsync(ICommand @event) => Send(@event);
             }
 
             [SetUp]

@@ -3,9 +3,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using SourceFlow.Aggregate;
+using SourceFlow.Messaging;
+using SourceFlow.Messaging.Bus;
+using SourceFlow.ViewModel;
 
 namespace SourceFlow.Impl
 {
+    /// <summary>
+    /// EventQueue is responsible for managing the flow of events in an event-driven architecture.
+    /// </summary>
     internal class EventQueue : IEventQueue
     {
         /// <summary>
@@ -17,9 +24,9 @@ namespace SourceFlow.Impl
         /// Represents a collection of view transforms used to modify or manipulate views.
         /// </summary>
         /// <remarks>This collection contains instances of objects implementing the <see
-        /// cref="IViewTransform"/> interface. Each transform in the collection can be applied to alter the appearance
+        /// cref="IViewProjection"/> interface. Each projection in the collection can be applied to alter the appearance
         /// or behavior of a view.</remarks>
-        private IEnumerable<IViewTransform> viewTransforms;
+        private IEnumerable<IViewProjection> viewProjections;
 
         /// <summary>
         /// Represents a collection of aggregate root objects.
@@ -30,17 +37,17 @@ namespace SourceFlow.Impl
         private readonly IEnumerable<IAggregateRoot> aggregates;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="EventQueue"/> class.
+        /// Initializes a new instance of the <see cref="EventQueue"/> class with the specified aggregates and view projections.
         /// </summary>
         /// <param name="aggregates"></param>
-        /// <param name="viewTransforms"></param>
+        /// <param name="viewProjections"></param>
         /// <param name="logger"></param>
         /// <exception cref="ArgumentNullException"></exception>
-        public EventQueue(IEnumerable<IAggregateRoot> aggregates, IEnumerable<IViewTransform> viewTransforms, ILogger<EventQueue> logger)
+        public EventQueue(IEnumerable<IAggregateRoot> aggregates, IEnumerable<IViewProjection> viewProjections, ILogger<EventQueue> logger)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.aggregates = aggregates ?? throw new ArgumentNullException(nameof(aggregates));
-            this.viewTransforms = viewTransforms ?? throw new ArgumentNullException(nameof(viewTransforms));
+            this.viewProjections = viewProjections ?? throw new ArgumentNullException(nameof(viewProjections));
         }
 
         /// <summary>
@@ -55,7 +62,7 @@ namespace SourceFlow.Impl
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
 
-            await DequeueToTranforms(@event);
+            await DequeueToViews(@event);
             await DequeueToAggregates(@event);
         }
 
@@ -72,13 +79,13 @@ namespace SourceFlow.Impl
 
             foreach (var aggregate in aggregates)
             {
-                var handlerType = typeof(IEventHandler<>).MakeGenericType(@event.GetType());
+                var handlerType = typeof(ISubscribes<>).MakeGenericType(@event.GetType());
                 if (!handlerType.IsAssignableFrom(aggregate.GetType()))
                     continue;
 
-                var method = typeof(IEventHandler<>)
+                var method = typeof(ISubscribes<>)
                             .MakeGenericType(@event.GetType())
-                            .GetMethod(nameof(IEventHandler<TEvent>.Handle));
+                            .GetMethod(nameof(ISubscribes<TEvent>.Handle));
 
                 var task = (Task)method.Invoke(aggregate, new object[] { @event });
 
@@ -92,32 +99,32 @@ namespace SourceFlow.Impl
         }
 
         /// <summary>
-        /// Dequeues the event to all view transforms that can handle it.
+        /// Dequeues the event to all view projections that can handle it.
         /// </summary>
         /// <typeparam name="TEvent"></typeparam>
         /// <param name="event"></param>
         /// <returns></returns>
-        public async Task DequeueToTranforms<TEvent>(TEvent @event)
+        public async Task DequeueToViews<TEvent>(TEvent @event)
            where TEvent : IEvent
         {
             var tasks = new List<Task>();
 
-            foreach (var transform in viewTransforms)
+            foreach (var projection in viewProjections)
             {
-                var transformType = typeof(IViewTransform<>).MakeGenericType(@event.GetType());
-                if (!transformType.IsAssignableFrom(transform.GetType()))
+                var projectionType = typeof(IViewProjection<>).MakeGenericType(@event.GetType());
+                if (!projectionType.IsAssignableFrom(projection.GetType()))
                     continue;
 
-                var method = typeof(IViewTransform<>)
+                var method = typeof(IViewProjection<>)
                            .MakeGenericType(@event.GetType())
-                           .GetMethod(nameof(IViewTransform<TEvent>.Transform));
+                           .GetMethod(nameof(IViewProjection<TEvent>.Apply));
 
-                var task = (Task)method.Invoke(transform, new object[] { @event });
+                var task = (Task)method.Invoke(projection, new object[] { @event });
 
                 tasks.Add(task);
 
-                logger?.LogInformation("Action=View_Transforms, Event={Event}, Transform:{Transform}",
-                        @event.Name, transform.GetType().Name);
+                logger?.LogInformation("Action=View_Projection, Event={Event}, Apply:{Apply}",
+                        @event.Name, projection.GetType().Name);
             }
 
             if (!tasks.Any())

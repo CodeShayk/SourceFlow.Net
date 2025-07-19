@@ -19,7 +19,7 @@
 //        [Test]
 //        public async Task HandleAsync_CallsRegisteredHandler()
 //        {
-//            var handlerMock = new Mock<ICommandHandler<DummyEvent>>();
+//            var handlerMock = new Mock<IHandles<DummyEvent>>();
 //            handlerMock.Setup(h => h.Handle(It.IsAny<DummyEvent>())).Returns(Task.CompletedTask);
 
 //            var saga = new SampleSaga();
@@ -38,7 +38,7 @@
 //                foreach (var handler in Handlers)
 //                {
 //                    if (handler.EventType == typeof(TEvent))
-//                        ((ICommandHandler<TEvent>)handler.Handler).Handle(@event);
+//                        ((IHandles<TEvent>)handler.Handler).Handle(@event);
 //                }
 //                return Task.CompletedTask;
 //            }
