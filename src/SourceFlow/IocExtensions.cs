@@ -49,14 +49,13 @@ namespace SourceFlow
 
             services.AddSingleton<IEventQueue, EventQueue>(c => new EventQueue(
                 c.GetServices<IAggregateRoot>(),
-                 c.GetService<IViewPublisher>(),
+                c.GetServices<IViewTransform>(),
                 c.GetService<ILogger<EventQueue>>()));
 
             services.AddSingleton<IAggregateFactory, AggregateFactory>();
             services.AddSingleton<ICommandPublisher, CommandPublisher>(c => new CommandPublisher(c.GetService<ICommandBus>()));
             services.AddSingleton<ICommandReplayer, CommandReplayer>(c => new CommandReplayer(c.GetService<ICommandBus>()));
             services.AddSingleton<IBusSubscriber, BusSubscriber>(c => new BusSubscriber(c.GetService<ICommandBus>()));
-            services.AddSingleton<IViewPublisher, ViewPublisher>(c => new ViewPublisher(c.GetServices<IViewTransform>(), c.GetService<ILogger<ViewPublisher>>()));
 
             configuration(new SourceFlowConfig { Services = services });
 

@@ -3,12 +3,12 @@ using SourceFlow.Events;
 
 namespace SourceFlow.ConsoleApp.ViewModels
 {
-    public class AccountViewTransforms : IViewTransform<EntityCreated<BankAccount>>
-                                       , IViewTransform<EntityUpdated<BankAccount>>
+    public class AccountView : IViewTransform<EntityCreated<BankAccount>>,
+                               IViewTransform<EntityUpdated<BankAccount>>
     {
         private readonly IViewRepository repository;
 
-        public AccountViewTransforms(IViewRepository repository)
+        public AccountView(IViewRepository repository)
         {
             this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
         }

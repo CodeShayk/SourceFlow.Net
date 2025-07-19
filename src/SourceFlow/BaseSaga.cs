@@ -2,7 +2,6 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Events;
-using SourceFlow.Impl;
 
 namespace SourceFlow
 {

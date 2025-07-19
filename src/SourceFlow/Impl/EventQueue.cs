@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -13,29 +14,33 @@ namespace SourceFlow.Impl
         private readonly ILogger<EventQueue> logger;
 
         /// <summary>
-        /// Collection of aggregates registered with the event queue.
+        /// Represents a collection of view transforms used to modify or manipulate views.
         /// </summary>
+        /// <remarks>This collection contains instances of objects implementing the <see
+        /// cref="IViewTransform"/> interface. Each transform in the collection can be applied to alter the appearance
+        /// or behavior of a view.</remarks>
+        private IEnumerable<IViewTransform> viewTransforms;
+
+        /// <summary>
+        /// Represents a collection of aggregate root objects.
+        /// </summary>
+        /// <remarks>This field holds a read-only collection of objects that implement the <see cref="IAggregateRoot"/>
+        /// interface. It is intended to be used internally to manage or process aggregate roots within the context of the
+        /// application.</remarks>
         private readonly IEnumerable<IAggregateRoot> aggregates;
 
         /// <summary>
-        /// Transform publisher used to publish events to view transforms.
+        /// Initializes a new instance of the <see cref="EventQueue"/> class.
         /// </summary>
-        private readonly IViewPublisher viewPublisher;
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="EventQueue"/> class with the specified aggregates, view
-        /// publisher, and logger.
-        /// </summary>
-        /// <param name="aggregates">A collection of aggregate roots that the event queue will process. Cannot be null.</param>
-        /// <param name="viewPublisher">The view publisher responsible for publishing events to views. Cannot be null.</param>
-        /// <param name="logger">The logger used to log diagnostic and operational information. Cannot be null.</param>
-        /// <exception cref="ArgumentNullException">Thrown if <paramref name="aggregates"/>, <paramref name="viewPublisher"/>, or <paramref name="logger"/> is
-        /// null.</exception>
-        public EventQueue(IEnumerable<IAggregateRoot> aggregates, IViewPublisher viewPublisher, ILogger<EventQueue> logger)
+        /// <param name="aggregates"></param>
+        /// <param name="viewTransforms"></param>
+        /// <param name="logger"></param>
+        /// <exception cref="ArgumentNullException"></exception>
+        public EventQueue(IEnumerable<IAggregateRoot> aggregates, IEnumerable<IViewTransform> viewTransforms, ILogger<EventQueue> logger)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.aggregates = aggregates ?? throw new ArgumentNullException(nameof(aggregates));
-            this.viewPublisher = viewPublisher ?? throw new ArgumentNullException(nameof(viewPublisher));
+            this.viewTransforms = viewTransforms ?? throw new ArgumentNullException(nameof(viewTransforms));
         }
 
         /// <summary>
@@ -50,8 +55,19 @@ namespace SourceFlow.Impl
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
 
-            await viewPublisher.Publish(@event);
+            await DequeueToTranforms(@event);
+            await DequeueToAggregates(@event);
+        }
 
+        /// <summary>
+        /// Dequeues the event to all aggregates that can handle it.
+        /// </summary>
+        /// <typeparam name="TEvent"></typeparam>
+        /// <param name="event"></param>
+        /// <returns></returns>
+        private async Task DequeueToAggregates<TEvent>(TEvent @event)
+            where TEvent : IEvent
+        {
             var tasks = new List<Task>();
 
             foreach (var aggregate in aggregates)
@@ -66,11 +82,46 @@ namespace SourceFlow.Impl
 
                 var task = (Task)method.Invoke(aggregate, new object[] { @event });
 
+                tasks.Add(task);
+
                 logger?.LogInformation("Action=Event_Enqueue, Event={Event}, Aggregate={Aggregate}, Handler:{Handler}",
-                        @event.GetType().Name, aggregate.GetType().Name, method.Name);
+                       @event.GetType().Name, aggregate.GetType().Name, method.Name);
+            }
+
+            await Task.WhenAll(tasks);
+        }
+
+        /// <summary>
+        /// Dequeues the event to all view transforms that can handle it.
+        /// </summary>
+        /// <typeparam name="TEvent"></typeparam>
+        /// <param name="event"></param>
+        /// <returns></returns>
+        public async Task DequeueToTranforms<TEvent>(TEvent @event)
+           where TEvent : IEvent
+        {
+            var tasks = new List<Task>();
+
+            foreach (var transform in viewTransforms)
+            {
+                var transformType = typeof(IViewTransform<>).MakeGenericType(@event.GetType());
+                if (!transformType.IsAssignableFrom(transform.GetType()))
+                    continue;
+
+                var method = typeof(IViewTransform<>)
+                           .MakeGenericType(@event.GetType())
+                           .GetMethod(nameof(IViewTransform<TEvent>.Transform));
+
+                var task = (Task)method.Invoke(transform, new object[] { @event });
 
                 tasks.Add(task);
+
+                logger?.LogInformation("Action=View_Transforms, Event={Event}, Transform:{Transform}",
+                        @event.Name, transform.GetType().Name);
             }
+
+            if (!tasks.Any())
+                return;
 
             await Task.WhenAll(tasks);
         }
