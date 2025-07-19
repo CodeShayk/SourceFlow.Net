@@ -5,5 +5,9 @@ namespace SourceFlow.Messaging
     /// </summary>
     public interface IPayload
     {
+        /// <summary>
+        /// Unique identifier for the Aggregate.
+        /// </summary>
+        int Id { get; set; }
     }
 }

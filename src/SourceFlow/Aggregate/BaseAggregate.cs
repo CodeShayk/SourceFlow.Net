@@ -33,7 +33,7 @@ namespace SourceFlow.Aggregate
         /// </summary>
         /// <param name="AggregateId">Unique Aggregate entity identifier.</param>
         /// <returns></returns>
-        public Task ReplayEvents(int AggregateId)
+        public Task Replay(int AggregateId)
         {
             return commandReplayer.Replay(AggregateId);
         }
@@ -44,16 +44,14 @@ namespace SourceFlow.Aggregate
         /// <param name="command"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="InvalidOperationException"></exception>
         protected Task Send(ICommand command)
         {
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
 
-            if (command.Entity?.Id == null)
-                throw new InvalidOperationException(nameof(command) + "requires source entity id");
-
-            if (command.Entity.Type == null)
-                command.Entity.Type = typeof(TAggregateEntity);
+            if (command.Payload?.Id == null)
+                throw new InvalidOperationException(nameof(command) + "requires Payload");
 
             return commandPublisher.Publish(command);
         }

@@ -82,8 +82,8 @@ namespace SourceFlow.Saga
 
             var task = (Task)method.Invoke(this, new object[] { command });
 
-            logger?.LogInformation("Action=Saga_Handled, Command={Command}, Aggregate={Aggregate}, SequenceNo={No}, Saga={Saga}, Handler:{Handler}",
-                    command.GetType().Name, command.Entity.Type.Name, command.SequenceNo, GetType().Name, method.Name);
+            logger?.LogInformation("Action=Saga_Handled, Command={Command}, Payload={Payload}, SequenceNo={No}, Saga={Saga}, Handler:{Handler}",
+                    command.GetType().Name, command.Payload.GetType().Name, command.SequenceNo, GetType().Name, method.Name);
 
             await Task.Run(() => task);
         }
@@ -105,11 +105,8 @@ namespace SourceFlow.Saga
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
 
-            if (command.Entity?.Id == null)
+            if (command.Payload?.Id == null)
                 throw new InvalidOperationException(nameof(command) + "requires source entity id");
-
-            if (command.Entity.Type == null)
-                command.Entity.Type = typeof(TAggregateEntity);
 
             return commandPublisher.Publish(command);
         }

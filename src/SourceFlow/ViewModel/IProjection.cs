@@ -6,7 +6,7 @@ namespace SourceFlow.ViewModel
     /// <summary>
     /// Interface for applying an event to view model for data projection.
     /// </summary>
-    public interface IViewProjection
+    public interface IProjection
     {
     }
 
@@ -14,7 +14,7 @@ namespace SourceFlow.ViewModel
     /// Interface for applying an event to view model for data projection.
     /// </summary>
     /// <typeparam name="TEvent"></typeparam>
-    public interface IViewProjection<TEvent> : IViewProjection
+    public interface IProjectOn<TEvent> : IProjection
         where TEvent : IEvent
     {
         /// <summary>

@@ -17,7 +17,7 @@ namespace SourceFlow.ConsoleApp.Sagas
         public async Task Handle(CreateAccount command)
         {
             logger.LogInformation("Action=Account_Created, Account={AccountId}, Holder={AccountName}, Initial_Balance={InitialBalance}",
-                command.Entity.Id, command.Payload.AccountName, command.Payload.InitialAmount);
+                command.Payload.Id, command.Payload.AccountName, command.Payload.InitialAmount);
 
             if (string.IsNullOrEmpty(command.Payload.AccountName))
                 throw new ArgumentException("Account create requires account holder name.", nameof(command.Payload.AccountName));
@@ -27,7 +27,7 @@ namespace SourceFlow.ConsoleApp.Sagas
 
             var account = new BankAccount
             {
-                Id = command.Entity.Id,
+                Id = command.Payload.Id,
                 AccountName = command.Payload.AccountName,
                 Balance = command.Payload.InitialAmount
             };
@@ -39,9 +39,9 @@ namespace SourceFlow.ConsoleApp.Sagas
 
         public async Task Handle(ActivateAccount command)
         {
-            logger.LogInformation("Action=Account_Activate, ActivatedOn={ActiveOn}, Account={AccountId}", command.Payload.ActiveOn, command.Entity.Id);
+            logger.LogInformation("Action=Account_Activate, ActivatedOn={ActiveOn}, Account={AccountId}", command.Payload.ActiveOn, command.Payload.Id);
 
-            var account = await repository.Get<BankAccount>(command.Entity.Id);
+            var account = await repository.Get<BankAccount>(command.Payload.Id);
 
             if (account.IsClosed)
                 throw new InvalidOperationException("Cannot deposit to a closed account");
@@ -58,9 +58,9 @@ namespace SourceFlow.ConsoleApp.Sagas
 
         public async Task Handle(DepositMoney command)
         {
-            logger.LogInformation("Action=Money_Deposited, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Entity.Id);
+            logger.LogInformation("Action=Money_Deposited, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Payload.Id);
 
-            var account = await repository.Get<BankAccount>(command.Entity.Id);
+            var account = await repository.Get<BankAccount>(command.Payload.Id);
 
             if (account.IsClosed)
                 throw new InvalidOperationException("Cannot deposit to a closed account");
@@ -78,9 +78,9 @@ namespace SourceFlow.ConsoleApp.Sagas
 
         public async Task Handle(WithdrawMoney command)
         {
-            logger.LogInformation("Action=Money_Withdrawn, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Entity.Id);
+            logger.LogInformation("Action=Money_Withdrawn, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Payload.Id);
 
-            var account = await repository.Get<BankAccount>(command.Entity.Id);
+            var account = await repository.Get<BankAccount>(command.Payload.Id);
 
             if (account.IsClosed)
                 throw new InvalidOperationException("Cannot deposit to a closed account");
@@ -98,12 +98,12 @@ namespace SourceFlow.ConsoleApp.Sagas
 
         public async Task Handle(CloseAccount command)
         {
-            logger.LogInformation("Action=Account_Closed, Account={AccountId}, Reason={Reason}", command.Entity.Id, command.Payload.ClosureReason);
+            logger.LogInformation("Action=Account_Closed, Account={AccountId}, Reason={Reason}", command.Payload.Id, command.Payload.ClosureReason);
 
             if (string.IsNullOrWhiteSpace(command.Payload.ClosureReason))
                 throw new ArgumentException("Reason for closing cannot be empty", nameof(command.Payload.ClosureReason));
 
-            var account = await repository.Get<BankAccount>(command.Entity.Id);
+            var account = await repository.Get<BankAccount>(command.Payload.Id);
 
             if (account.IsClosed)
                 throw new InvalidOperationException("Cannot close account on a closed account");

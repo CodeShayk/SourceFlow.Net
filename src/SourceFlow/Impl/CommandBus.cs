@@ -91,11 +91,11 @@ namespace SourceFlow.Impl
         {
             // 1. Set event sequence no.
             if (!command.IsReplay)
-                command.SequenceNo = await eventStore.GetNextSequenceNo(command.Entity.Id);
+                command.SequenceNo = await eventStore.GetNextSequenceNo(command.Payload.Id);
 
             // 4. Log event.
-            logger?.LogInformation("Action=Command_Dispatched, Command={Command}, Aggregate={Aggregate}, SequenceNo={No}, Saga={Saga}",
-                command.GetType().Name, command.Entity.Type.Name, command.SequenceNo, saga.GetType().Name);
+            logger?.LogInformation("Action=Command_Dispatched, Command={Command}, Payload={Payload}, SequenceNo={No}, Saga={Saga}",
+                command.GetType().Name, command.Payload.GetType().Name, command.SequenceNo, saga.GetType().Name);
 
             // 2. handle event by Saga?
             await saga.Handle(command);

@@ -27,4 +27,8 @@
   <ItemGroup>
     <Using Include="NUnit.Framework" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="E2E\Events\" />
+  </ItemGroup>
 </Project>

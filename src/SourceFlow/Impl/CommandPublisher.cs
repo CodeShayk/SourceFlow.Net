@@ -24,21 +24,20 @@ namespace SourceFlow.Impl
         }
 
         /// <summary>
-        /// Publishes an command to command bus.
+        /// Publishes a command to the command bus.
         /// </summary>
         /// <typeparam name="TCommand"></typeparam>
-        /// <param name="event"></param>
+        /// <param name="command"></param>
         /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="InvalidOperationException"></exception>
         async Task ICommandPublisher.Publish<TCommand>(TCommand command)
         {
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
 
-            if (command.Entity?.Id == null)
-                throw new InvalidOperationException(nameof(command) + "requires source entity id");
-
-            if (command.Entity.Type == null)
-                throw new InvalidOperationException(nameof(command) + "requires source entity Type");
+            if (command.Payload?.Id == null)
+                throw new InvalidOperationException(nameof(command) + "requires payload entity with id");
 
             await commandBus.Publish(command);
         }

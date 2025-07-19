@@ -13,11 +13,6 @@ namespace SourceFlow.Messaging
         Guid EventId { get; }
 
         /// <summary>
-        /// Source entity of the event, indicating where it originated from.
-        /// </summary>
-        Source Entity { get; set; }
-
-        /// <summary>
         /// Indicates whether the event is a replay of an existing event.
         /// </summary>
         bool IsReplay { get; set; }
@@ -31,6 +26,8 @@ namespace SourceFlow.Messaging
         /// Sequence number of the event within the aggregate's event stream.
         /// </summary>
         int SequenceNo { get; set; }
+
+        IPayload Payload { get; set; }
     }
 
     /// <summary>

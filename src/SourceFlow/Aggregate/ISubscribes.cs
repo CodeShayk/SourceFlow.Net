@@ -11,7 +11,7 @@ namespace SourceFlow.Aggregate
         where TEvent : IEvent
     {
         /// <summary>
-        /// Handles the specified event.
+        /// Handles the subscribed event.
         /// </summary>
         /// <param name="event"></param>
         /// <returns></returns>

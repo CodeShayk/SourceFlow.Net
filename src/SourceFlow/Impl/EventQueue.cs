@@ -24,9 +24,9 @@ namespace SourceFlow.Impl
         /// Represents a collection of view transforms used to modify or manipulate views.
         /// </summary>
         /// <remarks>This collection contains instances of objects implementing the <see
-        /// cref="IViewProjection"/> interface. Each projection in the collection can be applied to alter the appearance
+        /// cref="IProjection"/> interface. Each projection in the collection can be applied to alter the appearance
         /// or behavior of a view.</remarks>
-        private IEnumerable<IViewProjection> viewProjections;
+        private IEnumerable<IProjection> viewProjections;
 
         /// <summary>
         /// Represents a collection of aggregate root objects.
@@ -43,7 +43,7 @@ namespace SourceFlow.Impl
         /// <param name="viewProjections"></param>
         /// <param name="logger"></param>
         /// <exception cref="ArgumentNullException"></exception>
-        public EventQueue(IEnumerable<IAggregateRoot> aggregates, IEnumerable<IViewProjection> viewProjections, ILogger<EventQueue> logger)
+        public EventQueue(IEnumerable<IAggregateRoot> aggregates, IEnumerable<IProjection> viewProjections, ILogger<EventQueue> logger)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.aggregates = aggregates ?? throw new ArgumentNullException(nameof(aggregates));
@@ -111,13 +111,13 @@ namespace SourceFlow.Impl
 
             foreach (var projection in viewProjections)
             {
-                var projectionType = typeof(IViewProjection<>).MakeGenericType(@event.GetType());
+                var projectionType = typeof(IProjectOn<>).MakeGenericType(@event.GetType());
                 if (!projectionType.IsAssignableFrom(projection.GetType()))
                     continue;
 
-                var method = typeof(IViewProjection<>)
+                var method = typeof(IProjectOn<>)
                            .MakeGenericType(@event.GetType())
-                           .GetMethod(nameof(IViewProjection<TEvent>.Apply));
+                           .GetMethod(nameof(IProjectOn<TEvent>.Apply));
 
                 var task = (Task)method.Invoke(projection, new object[] { @event });
 

@@ -45,7 +45,7 @@ namespace SourceFlow
             services.AddAsImplementationsOfInterface<IRepository>(lifetime: ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IViewProvider>(lifetime: ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IEventStore>(lifetime: ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IViewProjection>(lifetime: ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<IProjection>(lifetime: ServiceLifetime.Singleton);
 
             services.AddSingleton<ICommandBus, CommandBus>(c => new CommandBus(
                 c.GetService<IEventStore>(),
@@ -53,7 +53,7 @@ namespace SourceFlow
 
             services.AddSingleton<IEventQueue, EventQueue>(c => new EventQueue(
                 c.GetServices<IAggregateRoot>(),
-                c.GetServices<IViewProjection>(),
+                c.GetServices<IProjection>(),
                 c.GetService<ILogger<EventQueue>>()));
 
             services.AddSingleton<IAggregateFactory, AggregateFactory>();

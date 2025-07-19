@@ -3,8 +3,8 @@ using SourceFlow.ViewModel;
 
 namespace SourceFlow.ConsoleApp.Views
 {
-    public class AccountView : IViewProjection<AccountCreated>,
-                               IViewProjection<AccountUpdated>
+    public class AccountView : IProjectOn<AccountCreated>,
+                               IProjectOn<AccountUpdated>
     {
         private readonly IViewProvider provider;
 

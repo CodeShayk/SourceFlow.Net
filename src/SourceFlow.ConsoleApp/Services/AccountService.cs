@@ -72,7 +72,7 @@ namespace SourceFlow.ConsoleApp.Services
 
             var account = await CreateAggregate<AccountAggregate>();
 
-            await account.ReplayEvents(accountId);
+            await account.Replay(accountId);
         }
     }
 }

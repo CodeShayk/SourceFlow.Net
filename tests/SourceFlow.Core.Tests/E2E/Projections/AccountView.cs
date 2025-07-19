@@ -3,10 +3,10 @@
 //namespace SourceFlow.Core.Tests.E2E.Projections
 //{
 //    public class AccountView : BaseDataView<AccountViewModel>,
-//                               IProjection<AccountCreated>,
-//                               IProjection<MoneyDeposited>,
-//                               IProjection<MoneyWithdrawn>,
-//                               IProjection<AccountClosed>
+//                               IProjectOn<AccountCreated>,
+//                               IProjectOn<MoneyDeposited>,
+//                               IProjectOn<MoneyWithdrawn>,
+//                               IProjectOn<AccountClosed>
 //    {
 //        public async Task ProjectAsync(AccountCreated @event)
 //        {

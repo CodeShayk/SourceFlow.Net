@@ -26,13 +26,14 @@ namespace SourceFlow.Tests
             public class DummyEvent : ICommand
             {
                 public Guid EventId { get; set; } = Guid.NewGuid();
-                public Source Entity { get; set; } = new Source(1, typeof(object));
                 public bool IsReplay { get; set; }
                 public DateTime OccurredOn { get; set; } = DateTime.UtcNow;
                 public int SequenceNo { get; set; }
                 public DateTime Timestamp => OccurredOn;
                 public string EventType => nameof(DummyEvent);
                 public int Version => 1;
+
+                public IPayload Payload { get; set; }
             }
 
             // Concrete implementation for testing
@@ -62,7 +63,7 @@ namespace SourceFlow.Tests
             {
                 _eventReplayerMock.Setup(r => r.Replay(It.IsAny<int>())).Returns(Task.CompletedTask);
 
-                await _aggregate.ReplayEvents(42);
+                await _aggregate.Replay(42);
 
                 _eventReplayerMock.Verify(r => r.Replay(42), Times.Once);
             }

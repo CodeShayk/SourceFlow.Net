@@ -9,10 +9,10 @@ namespace SourceFlow.Core.Tests.E2E.Impl
 
         public Task Append(ICommand @event)
         {
-            if (!_store.ContainsKey(@event.Entity.Id))
-                _store[@event.Entity.Id] = new List<ICommand>();
+            if (!_store.ContainsKey(@event.Payload.Id))
+                _store[@event.Payload.Id] = new List<ICommand>();
 
-            _store[@event.Entity.Id].Add(@event);
+            _store[@event.Payload.Id].Add(@event);
 
             return Task.CompletedTask;
         }
