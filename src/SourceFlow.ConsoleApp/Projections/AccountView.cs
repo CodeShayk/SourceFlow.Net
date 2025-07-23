@@ -1,7 +1,7 @@
 using SourceFlow.ConsoleApp.Events;
 using SourceFlow.Projections;
 
-namespace SourceFlow.ConsoleApp.Views
+namespace SourceFlow.ConsoleApp.Projections
 {
     public class AccountView : IProjectOn<AccountCreated>,
                                IProjectOn<AccountUpdated>

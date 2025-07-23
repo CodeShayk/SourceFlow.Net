@@ -1,6 +1,6 @@
 using SourceFlow.Projections;
 
-namespace SourceFlow.ConsoleApp.Views
+namespace SourceFlow.ConsoleApp.Projections
 {
     public class AccountViewModel : IViewModel
     {
