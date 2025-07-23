@@ -1,5 +1,5 @@
 using System.Threading.Tasks;
-using SourceFlow.ViewModel;
+using SourceFlow.Projections;
 
 namespace SourceFlow
 {

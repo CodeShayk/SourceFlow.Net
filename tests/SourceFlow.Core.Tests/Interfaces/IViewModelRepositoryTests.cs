@@ -1,5 +1,5 @@
 using Moq;
-using SourceFlow.ViewModel;
+using SourceFlow.Projections;
 
 namespace SourceFlow.Core.Tests.Interfaces
 {

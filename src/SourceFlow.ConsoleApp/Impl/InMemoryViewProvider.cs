@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using SourceFlow.ViewModel;
+using SourceFlow.Projections;
 
 namespace SourceFlow.ConsoleApp.Impl
 {

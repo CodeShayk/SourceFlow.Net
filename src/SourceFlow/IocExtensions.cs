@@ -8,9 +8,9 @@ using Microsoft.Extensions.Logging;
 using SourceFlow.Aggregate;
 using SourceFlow.Impl;
 using SourceFlow.Messaging.Bus;
+using SourceFlow.Projections;
 using SourceFlow.Saga;
 using SourceFlow.Services;
-using SourceFlow.ViewModel;
 
 namespace SourceFlow
 {

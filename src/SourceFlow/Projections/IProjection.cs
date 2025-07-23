@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
 using SourceFlow.Messaging;
 
-namespace SourceFlow.ViewModel
+namespace SourceFlow.Projections
 {
     /// <summary>
     /// Interface for applying an event to view model for data projection.

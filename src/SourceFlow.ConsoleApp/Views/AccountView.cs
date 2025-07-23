@@ -1,5 +1,5 @@
 using SourceFlow.ConsoleApp.Events;
-using SourceFlow.ViewModel;
+using SourceFlow.Projections;
 
 namespace SourceFlow.ConsoleApp.Views
 {

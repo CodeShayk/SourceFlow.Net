@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Messaging;
 using SourceFlow.Messaging.Bus;
-using SourceFlow.ViewModel;
+using SourceFlow.Projections;
 
 namespace SourceFlow.Impl
 {

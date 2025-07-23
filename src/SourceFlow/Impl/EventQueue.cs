@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using SourceFlow.Aggregate;
 using SourceFlow.Messaging;
 using SourceFlow.Messaging.Bus;
-using SourceFlow.ViewModel;
 
 namespace SourceFlow.Impl
 {

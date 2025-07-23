@@ -1,4 +1,4 @@
-using SourceFlow.ViewModel;
+using SourceFlow.Projections;
 
 namespace SourceFlow.Core.Tests.E2E.Projections
 {
