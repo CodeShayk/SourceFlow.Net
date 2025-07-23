@@ -237,7 +237,7 @@ namespace SourceFlow
                     .GetField("repository", BindingFlags.Instance | BindingFlags.NonPublic)
                     ?.SetValue(saga, c.GetRequiredService<IRepository>());
 
-                var dispatcher = c.GetRequiredService<ICommandDispatcher>();
+                var dispatcher = c.GetRequiredService<SagaDispatcher>();
                 dispatcher.Register(saga);
 
                 return (TSaga)saga;
@@ -483,7 +483,7 @@ namespace SourceFlow
 
                         if (index == 1)
                         {
-                            var dispatcher = c.GetRequiredService<ICommandDispatcher>();
+                            var dispatcher = c.GetRequiredService<SagaDispatcher>();
                             dispatcher.Register(sagaInstance);
                         }
 
