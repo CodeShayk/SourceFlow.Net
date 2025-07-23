@@ -51,10 +51,21 @@ namespace SourceFlow
                 c.GetService<ICommandStore>(),
                 c.GetService<ILogger<ICommandBus>>()));
 
-            services.AddSingleton<IEventQueue, EventQueue>(c => new EventQueue(
-                c.GetServices<IAggregate>(),
-                c.GetServices<IProjection>(),
-                c.GetService<ILogger<EventQueue>>()));
+            services.AddSingleton<IEventDispatcher, EventDispatcher>(c => new EventDispatcher(
+                        c.GetServices<IAggregate>(),
+                        c.GetServices<IProjection>(),
+                        c.GetService<ILogger<IEventDispatcher>>())
+                );
+
+            services.AddSingleton<IEventQueue, EventQueue>(c =>
+            {
+                var queue = new EventQueue(
+                c.GetService<ILogger<IEventQueue>>());
+
+                var dispatcher = c.GetService<IEventDispatcher>();
+                queue.Handlers += dispatcher.Dispatch;
+                return queue;
+            });
 
             services.AddSingleton<IAggregateFactory, AggregateFactory>();
             services.AddSingleton<ICommandPublisher, CommandPublisher>(c => new CommandPublisher(c.GetService<ICommandBus>()));

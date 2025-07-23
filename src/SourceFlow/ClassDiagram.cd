@@ -25,27 +25,10 @@
   </Class>
   <Class Name="SourceFlow.Impl.EventQueue">
     <Position X="10.25" Y="3" Width="1.5" />
-    <AssociationLine Name="aggregates" Type="SourceFlow.Aggregate.IAggregate" FixedFromPoint="true" FixedToPoint="true">
-      <Path>
-        <Point X="11.75" Y="3.469" />
-        <Point X="12.125" Y="3.469" />
-        <Point X="12.125" Y="1.875" />
-        <Point X="14.75" Y="1.875" />
-      </Path>
-    </AssociationLine>
-    <AssociationLine Name="projections" Type="SourceFlow.ViewModel.IProjection">
-      <MemberNameLabel ManuallyPlaced="true">
-        <Position X="-0.021" Y="0.453" />
-      </MemberNameLabel>
-    </AssociationLine>
     <TypeIdentifier>
-      <HashCode>AABAAAgAAAAAAAgCAAAAAAAAAACAAAAAACAAAAAAAAA=</HashCode>
+      <HashCode>AABAAAAAAAAAAAACAAAAAAAAAEAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>Impl\EventQueue.cs</FileName>
     </TypeIdentifier>
-    <ShowAsCollectionAssociation>
-      <Field Name="aggregates" />
-      <Field Name="projections" />
-    </ShowAsCollectionAssociation>
     <Lollipop Position="0.2" />
   </Class>
   <Class Name="SourceFlow.Impl.CommandBus">
@@ -240,7 +223,7 @@
   <Interface Name="SourceFlow.Messaging.Bus.IEventQueue">
     <Position X="10" Y="1.5" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>AABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>AABAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>Messaging\Bus\IEventQueue.cs</FileName>
     </TypeIdentifier>
   </Interface>
