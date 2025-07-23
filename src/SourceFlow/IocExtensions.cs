@@ -44,11 +44,11 @@ namespace SourceFlow
         {
             services.AddAsImplementationsOfInterface<IRepository>(lifetime: ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IViewProvider>(lifetime: ServiceLifetime.Singleton);
-            services.AddAsImplementationsOfInterface<IEventStore>(lifetime: ServiceLifetime.Singleton);
+            services.AddAsImplementationsOfInterface<ICommandStore>(lifetime: ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IProjection>(lifetime: ServiceLifetime.Singleton);
 
             services.AddSingleton<ICommandBus, CommandBus>(c => new CommandBus(
-                c.GetService<IEventStore>(),
+                c.GetService<ICommandStore>(),
                 c.GetService<ILogger<ICommandBus>>()));
 
             services.AddSingleton<IEventQueue, EventQueue>(c => new EventQueue(

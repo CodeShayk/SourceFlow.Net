@@ -3,7 +3,7 @@ using SourceFlow.Messaging;
 
 namespace SourceFlow.ConsoleApp.Impl
 {
-    public class InMemoryEventStore : IEventStore
+    public class InMemoryCommandStore : ICommandStore
     {
         private readonly ConcurrentDictionary<int, List<ICommand>> _store = new();
 

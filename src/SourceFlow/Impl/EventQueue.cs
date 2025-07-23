@@ -26,7 +26,7 @@ namespace SourceFlow.Impl
         /// <remarks>This collection contains instances of objects implementing the <see
         /// cref="IProjection"/> interface. Each projection in the collection can be applied to alter the appearance
         /// or behavior of a view.</remarks>
-        private IEnumerable<IProjection> viewProjections;
+        private IEnumerable<IProjection> projections;
 
         /// <summary>
         /// Represents a collection of aggregate root objects.
@@ -40,14 +40,14 @@ namespace SourceFlow.Impl
         /// Initializes a new instance of the <see cref="EventQueue"/> class with the specified aggregates and view projections.
         /// </summary>
         /// <param name="aggregates"></param>
-        /// <param name="viewProjections"></param>
+        /// <param name="projections"></param>
         /// <param name="logger"></param>
         /// <exception cref="ArgumentNullException"></exception>
-        public EventQueue(IEnumerable<IAggregate> aggregates, IEnumerable<IProjection> viewProjections, ILogger<EventQueue> logger)
+        public EventQueue(IEnumerable<IAggregate> aggregates, IEnumerable<IProjection> projections, ILogger<EventQueue> logger)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.aggregates = aggregates ?? throw new ArgumentNullException(nameof(aggregates));
-            this.viewProjections = viewProjections ?? throw new ArgumentNullException(nameof(viewProjections));
+            this.projections = projections ?? throw new ArgumentNullException(nameof(projections));
         }
 
         /// <summary>
@@ -109,7 +109,7 @@ namespace SourceFlow.Impl
         {
             var tasks = new List<Task>();
 
-            foreach (var projection in viewProjections)
+            foreach (var projection in projections)
             {
                 var projectionType = typeof(IProjectOn<>).MakeGenericType(@event.GetType());
                 if (!projectionType.IsAssignableFrom(projection.GetType()))

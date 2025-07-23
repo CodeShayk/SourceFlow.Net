@@ -16,9 +16,9 @@ namespace SourceFlow.Impl
     internal class CommandBus : ICommandBus
     {
         /// <summary>
-        /// The event store used to persist events.
+        /// The command store used to persist commands.
         /// </summary>
-        private readonly IEventStore eventStore;
+        private readonly ICommandStore commandStore;
 
         /// <summary>
         /// Logger for the command bus to log events and errors.
@@ -33,11 +33,11 @@ namespace SourceFlow.Impl
         /// <summary>
         /// Initializes a new instance of the <see cref="CommandBus"/> class.
         /// </summary>
-        /// <param name="eventStore"></param>
+        /// <param name="commandStore"></param>
         /// <param name="logger"></param>
-        public CommandBus(IEventStore eventStore, ILogger<ICommandBus> logger)
+        public CommandBus(ICommandStore commandStore, ILogger<ICommandBus> logger)
         {
-            this.eventStore = eventStore;
+            this.commandStore = commandStore;
             this.logger = logger;
             sagas = new List<ISaga>();
         }
@@ -91,7 +91,7 @@ namespace SourceFlow.Impl
         {
             // 1. Set event sequence no.
             if (!((IMetadata)command).Metadata.IsReplay)
-                ((IMetadata)command).Metadata.SequenceNo = await eventStore.GetNextSequenceNo(command.Payload.Id);
+                ((IMetadata)command).Metadata.SequenceNo = await commandStore.GetNextSequenceNo(command.Payload.Id);
 
             // 4. Log event.
             logger?.LogInformation("Action=Command_Dispatched, Command={Command}, Payload={Payload}, SequenceNo={No}, Saga={Saga}",
@@ -103,7 +103,7 @@ namespace SourceFlow.Impl
             // 3. When event is not replayed
             if (!((IMetadata)command).Metadata.IsReplay)
                 // 3.1. Append event to event store.
-                await eventStore.Append(command);
+                await commandStore.Append(command);
         }
 
         /// <summary>
@@ -113,7 +113,7 @@ namespace SourceFlow.Impl
         /// <returns></returns>
         async Task ICommandBus.Replay(int aggregateId)
         {
-            var commands = await eventStore.Load(aggregateId);
+            var commands = await commandStore.Load(aggregateId);
 
             if (commands == null || !commands.Any())
                 return;

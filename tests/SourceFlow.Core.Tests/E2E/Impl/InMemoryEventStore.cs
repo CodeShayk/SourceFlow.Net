@@ -3,7 +3,7 @@ using SourceFlow.Messaging;
 
 namespace SourceFlow.Core.Tests.E2E.Impl
 {
-    public class InMemoryEventStore : IEventStore
+    public class InMemoryEventStore : ICommandStore
     {
         private readonly ConcurrentDictionary<int, List<ICommand>> _store = new();
 
@@ -28,6 +28,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
         {
             if (_store.TryGetValue(aggregateId, out var events))
                 return Task.FromResult(events.Max<ICommand, int>(c => ((IMetadata)c).Metadata.SequenceNo) + 1);
+
             return Task.FromResult(1);
         }
     }

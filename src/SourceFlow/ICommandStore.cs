@@ -5,16 +5,16 @@ using SourceFlow.Messaging;
 namespace SourceFlow
 {
     /// <summary>
-    /// Interface for the event store in the event-driven architecture.
+    /// Interface for the command store in the event-driven architecture.
     /// </summary>
-    public interface IEventStore
+    public interface ICommandStore
     {
         /// <summary>
-        /// Appends an event to the event store.
+        /// Appends a command to the store. Commands serve as units of auditable change in the event-driven architecture,
         /// </summary>
-        /// <param name="event"></param>
+        /// <param name="command"></param>
         /// <returns></returns>
-        Task Append(ICommand @event);
+        Task Append(ICommand command);
 
         /// <summary>
         /// Loads all events for a given aggregate from the event store.
