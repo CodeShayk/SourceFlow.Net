@@ -1,12 +1,9 @@
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
 using System;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Aggregate;
 using SourceFlow.Messaging;
 using SourceFlow.Messaging.Bus;
-using SourceFlow.Saga;
 
 namespace SourceFlow.Impl
 {
@@ -26,9 +23,9 @@ namespace SourceFlow.Impl
         private readonly ILogger<ICommandBus> logger;
 
         /// <summary>
-        /// Collection of sagas registered with the command bus.
+        /// Represents command dispathers that can handle the publishing of commands.
         /// </summary>
-        private readonly ICollection<ISaga> sagas;
+        public event EventHandler<ICommand> Handlers;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CommandBus"/> class.
@@ -39,7 +36,6 @@ namespace SourceFlow.Impl
         {
             this.commandStore = commandStore;
             this.logger = logger;
-            sagas = new List<ISaga>();
         }
 
         /// <summary>
@@ -54,55 +50,25 @@ namespace SourceFlow.Impl
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
 
-            await PublishToSagas(command);
+            await Dispatch(command);
         }
 
-        /// <summary>
-        /// Publishes a command to all sagas that are registered with the command bus.
-        /// </summary>
-        /// <typeparam name="TCommand"></typeparam>
-        /// <param name="event"></param>
-        /// <returns></returns>
-        private async Task PublishToSagas<TCommand>(TCommand command) where TCommand : ICommand
-        {
-            if (!sagas.Any())
-                return;
-
-            var tasks = new List<Task>();
-            foreach (var saga in sagas)
-            {
-                if (saga == null || !Saga<IEntity>.CanHandle(saga, command.GetType()))
-                    continue;
-
-                tasks.Add(SagaHandle(saga, command));
-            }
-
-            await Task.WhenAll(tasks);
-        }
-
-        /// <summary>
-        /// Handles the command in the saga and appends it to the event store if not replayed.
-        /// </summary>
-        /// <typeparam name="TCommand"></typeparam>
-        /// <param name="saga"></param>
-        /// <param name="event"></param>
-        /// <returns></returns>
-        private async Task SagaHandle<TCommand>(ISaga saga, TCommand command) where TCommand : ICommand
+        private async Task Dispatch<TCommand>(TCommand command) where TCommand : ICommand
         {
             // 1. Set event sequence no.
             if (!((IMetadata)command).Metadata.IsReplay)
                 ((IMetadata)command).Metadata.SequenceNo = await commandStore.GetNextSequenceNo(command.Payload.Id);
 
-            // 4. Log event.
+            // 2. Dispatch command to handlers.
+            Handlers?.Invoke(this, command);
+
+            // 3. Log event.
             logger?.LogInformation("Action=Command_Dispatched, Command={Command}, Payload={Payload}, SequenceNo={No}, Saga={Saga}",
-                command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo, saga.GetType().Name);
+                command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo);
 
-            // 2. handle event by Saga?
-            await saga.Handle(command);
-
-            // 3. When event is not replayed
+            // 4. When event is not replayed
             if (!((IMetadata)command).Metadata.IsReplay)
-                // 3.1. Append event to event store.
+                // 4.1. Append event to event store.
                 await commandStore.Append(command);
         }
 
@@ -121,17 +87,8 @@ namespace SourceFlow.Impl
             foreach (var command in commands.ToList())
             {
                 ((IMetadata)command).Metadata.IsReplay = true;
-                await PublishToSagas(command);
+                await Dispatch(command);
             }
-        }
-
-        /// <summary>
-        /// Registers a saga with the command bus.
-        /// </summary>
-        /// <param name="saga"></param>
-        void ICommandBus.RegisterSaga(ISaga saga)
-        {
-            sagas.Add(saga);
         }
     }
 }

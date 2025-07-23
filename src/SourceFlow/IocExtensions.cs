@@ -47,9 +47,20 @@ namespace SourceFlow
             services.AddAsImplementationsOfInterface<ICommandStore>(lifetime: ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IProjection>(lifetime: ServiceLifetime.Singleton);
 
-            services.AddSingleton<ICommandBus, CommandBus>(c => new CommandBus(
+            services.AddSingleton<ICommandDispatcher, CommandDispatcher>(c => new CommandDispatcher(
+                c.GetService<ILogger<ICommandDispatcher>>()));
+
+            services.AddSingleton<ICommandBus, CommandBus>(c =>
+            {
+                var commandBus = new CommandBus(
                 c.GetService<ICommandStore>(),
-                c.GetService<ILogger<ICommandBus>>()));
+                c.GetService<ILogger<ICommandBus>>());
+
+                var dispatcher = c.GetService<ICommandDispatcher>();
+                commandBus.Handlers += dispatcher.Dispatch;
+
+                return commandBus;
+            });
 
             services.AddSingleton<IEventDispatcher, EventDispatcher>(c => new EventDispatcher(
                         c.GetServices<IAggregate>(),
@@ -70,7 +81,6 @@ namespace SourceFlow
             services.AddSingleton<IAggregateFactory, AggregateFactory>();
             services.AddSingleton<ICommandPublisher, CommandPublisher>(c => new CommandPublisher(c.GetService<ICommandBus>()));
             services.AddSingleton<ICommandReplayer, CommandReplayer>(c => new CommandReplayer(c.GetService<ICommandBus>()));
-            services.AddSingleton<IBusSubscriber, BusSubscriber>(c => new BusSubscriber(c.GetService<ICommandBus>()));
 
             configuration(new SourceFlowConfig { Services = services });
 
@@ -92,6 +102,21 @@ namespace SourceFlow
         public static ISourceFlowConfig WithService<TService>(this ISourceFlowConfig config, Func<IServiceProvider, TService> factory = null)
         where TService : class, IService, new()
         {
+            ((SourceFlowConfig)config).Services.AddSingleton(c =>
+            {
+                var serviceInstance = factory != null ? factory(c) : new TService();
+
+                typeof(TService)
+                  .GetField("aggregateFactory", BindingFlags.Instance | BindingFlags.NonPublic)
+                  ?.SetValue(serviceInstance, c.GetRequiredService<IAggregateFactory>());
+
+                typeof(TService)
+                  .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
+                  ?.SetValue(serviceInstance, c.GetService<ILogger<TService>>());
+
+                return serviceInstance;
+            });
+
             var interfaces = typeof(TService).GetInterfaces();
 
             foreach (var intrface in interfaces)
@@ -127,6 +152,25 @@ namespace SourceFlow
         where TAggregate : class, IAggregate, new()
         {
             ((SourceFlowConfig)config).Services.AddSingleton<IAggregate, TAggregate>(c =>
+            {
+                var aggrgateInstance = factory != null ? factory(c) : new TAggregate();
+
+                typeof(TAggregate)
+                  .GetField("commandPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
+                  ?.SetValue(aggrgateInstance, c.GetRequiredService<ICommandPublisher>());
+
+                typeof(TAggregate)
+                  .GetField("commandReplayer", BindingFlags.Instance | BindingFlags.NonPublic)
+                  ?.SetValue(aggrgateInstance, c.GetRequiredService<ICommandReplayer>());
+
+                typeof(TAggregate)
+                  .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
+                  ?.SetValue(aggrgateInstance, c.GetService<ILogger<TAggregate>>());
+
+                return aggrgateInstance;
+            });
+
+            ((SourceFlowConfig)config).Services.AddSingleton<TAggregate>(c =>
             {
                 var aggrgateInstance = factory != null ? factory(c) : new TAggregate();
 
@@ -185,8 +229,8 @@ namespace SourceFlow
                     .GetField("repository", BindingFlags.Instance | BindingFlags.NonPublic)
                     ?.SetValue(saga, c.GetRequiredService<IRepository>());
 
-                var subscriber = c.GetRequiredService<IBusSubscriber>();
-                subscriber.Subscribe(saga);
+                var dispatcher = c.GetRequiredService<ICommandDispatcher>();
+                dispatcher.Register(saga);
 
                 return (TSaga)saga;
             });
@@ -284,6 +328,19 @@ namespace SourceFlow
 
                 var loggerType = typeof(ILogger<>).MakeGenericType(implType);
 
+                ((SourceFlowConfig)config).Services.AddSingleton(c =>
+                {
+                    implType
+                        .GetField("aggregateFactory", BindingFlags.Instance | BindingFlags.NonPublic)
+                        ?.SetValue(serviceInstance, c.GetRequiredService<IAggregateFactory>());
+
+                    implType
+                        .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
+                        ?.SetValue(serviceInstance, (ILogger)c.GetService(loggerType));
+
+                    return serviceInstance;
+                });
+
                 var interfaces = implType.GetInterfaces();
 
                 foreach (var intrface in interfaces)
@@ -327,6 +384,23 @@ namespace SourceFlow
                     throw new InvalidOperationException($"Aggregate registration for {implType.Name} returned null.");
 
                 var loggerType = typeof(ILogger<>).MakeGenericType(implType);
+
+                ((SourceFlowConfig)config).Services.AddSingleton(implType, c =>
+                {
+                    implType
+                        .GetField("commandPublisher", BindingFlags.Instance | BindingFlags.NonPublic)
+                        ?.SetValue(aggrgateInstance, c.GetRequiredService<ICommandPublisher>());
+
+                    implType
+                        .GetField("commandReplayer", BindingFlags.Instance | BindingFlags.NonPublic)
+                        ?.SetValue(aggrgateInstance, c.GetRequiredService<ICommandReplayer>());
+
+                    implType
+                        .GetField("logger", BindingFlags.Instance | BindingFlags.NonPublic)
+                        ?.SetValue(aggrgateInstance, (ILogger)c.GetService(loggerType));
+
+                    return aggrgateInstance;
+                });
 
                 var interfaces = implType.GetInterfaces();
 
@@ -401,8 +475,8 @@ namespace SourceFlow
 
                         if (index == 1)
                         {
-                            var subscriber = c.GetRequiredService<IBusSubscriber>();
-                            subscriber.Subscribe(sagaInstance);
+                            var dispatcher = c.GetRequiredService<ICommandDispatcher>();
+                            dispatcher.Register(sagaInstance);
                         }
 
                         index++;

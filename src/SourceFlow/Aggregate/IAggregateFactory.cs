@@ -10,10 +10,10 @@ namespace SourceFlow.Aggregate
         /// <summary>
         /// Creates a new instance of an aggregate root with the specified state.
         /// </summary>
-        /// <typeparam name="TAggregateRoot"></typeparam>
+        /// <typeparam name="TAggregate">Type Implementation of IAgrregate</typeparam>
         /// <param name="state"></param>
         /// <returns></returns>
-        Task<TAggregateRoot> Create<TAggregateRoot>()
-            where TAggregateRoot : IAggregate;
+        Task<TAggregate> Create<TAggregate>()
+            where TAggregate : IAggregate;
     }
 }

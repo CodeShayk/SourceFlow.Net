@@ -27,14 +27,14 @@ namespace SourceFlow.Impl
         /// <summary>
         /// Creates a singleton instance of an aggregate root with the specified state.
         /// </summary>
-        /// <typeparam name="TAggregateRoot"></typeparam>
+        /// <typeparam name="TAggregate">Type Implementation of IAggregate</typeparam>
         /// <returns></returns>
-        public async Task<TAggregateRoot> Create<TAggregateRoot>()
-            where TAggregateRoot : IAggregate
+        public async Task<TAggregate> Create<TAggregate>()
+            where TAggregate : IAggregate
         {
             // Resolve the aggregate root from the container
-            var aggregate = serviceProvider.GetService<IAggregate>();
-            return await Task.FromResult((TAggregateRoot)aggregate);
+            var aggregate = serviceProvider.GetService<TAggregate>();
+            return await Task.FromResult((TAggregate)aggregate);
         }
     }
 }

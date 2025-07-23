@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using SourceFlow.Saga;
 
@@ -6,7 +7,7 @@ namespace SourceFlow.Messaging.Bus
     /// <summary>
     /// Interface for the command bus in the event-driven architecture.
     /// </summary>
-    internal interface ICommandBus
+    public interface ICommandBus
     {
         /// <summary>
         /// Publishes a command to all subscribed sagas.
@@ -25,9 +26,8 @@ namespace SourceFlow.Messaging.Bus
         Task Replay(int aggregateId);
 
         /// <summary>
-        /// Registers a saga with the command bus.
+        /// Represents command dispathers that can handle the publishing of commands.
         /// </summary>
-        /// <param name="saga"></param>
-        void RegisterSaga(ISaga saga);
+        event EventHandler<ICommand> Handlers;
     }
 }
