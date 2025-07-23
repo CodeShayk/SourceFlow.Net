@@ -35,7 +35,7 @@
 //            public Task Handle<TEvent>(TEvent @event) where TEvent : ICommand
 //            {
 //                // Example: just call all handlers for the event type
-//                foreach (var handler in Handlers)
+//                foreach (var handler in Dispatchers)
 //                {
 //                    if (handler.EventType == typeof(TEvent))
 //                        ((IHandles<TEvent>)handler.Handler).Handle(@event);

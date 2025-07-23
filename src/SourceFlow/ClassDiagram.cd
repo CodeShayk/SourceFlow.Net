@@ -26,7 +26,7 @@
   <Class Name="SourceFlow.Impl.EventQueue">
     <Position X="10.25" Y="3.5" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>AABAAAAAAAAAAAACAAAAAAAAAEAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>AABAAAAAAAAAAAACAAAAAABAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>Impl\EventQueue.cs</FileName>
     </TypeIdentifier>
     <Lollipop Position="0.2" />
@@ -44,7 +44,7 @@
       </MemberNameLabel>
     </AssociationLine>
     <TypeIdentifier>
-      <HashCode>AAgAAAAAABAAAAACAAAAAAAABEAAAAQAAAAAAAAAAAA=</HashCode>
+      <HashCode>AAgAAAAAABAAAAACAAAAAABABAAAAAQAAAAAAAAAAAA=</HashCode>
       <FileName>Impl\CommandBus.cs</FileName>
     </TypeIdentifier>
     <ShowAsAssociation>
@@ -201,54 +201,19 @@
     </ShowAsAssociation>
     <Lollipop Position="0.2" />
   </Class>
-  <Class Name="SourceFlow.Impl.CommandDispatcher">
+  <Class Name="SourceFlow.Impl.SagaDispatcher">
     <Position X="3" Y="7.5" Width="2" />
-    <AssociationLine Name="sagas" Type="SourceFlow.Saga.ISaga" ManuallyRouted="true" FixedFromPoint="true" FixedToPoint="true">
-      <Path>
-        <Point X="5" Y="8.245" />
-        <Point X="5.375" Y="8.245" />
-        <Point X="5.375" Y="4.552" />
-        <Point X="6" Y="4.552" />
-      </Path>
-    </AssociationLine>
     <TypeIdentifier>
       <HashCode>AAgAAAAAAAAAAEACAEAAAAAAAAABAAAAAAAAAAAAAAA=</HashCode>
-      <FileName>Impl\CommandDispatcher.cs</FileName>
+      <FileName>Impl\SagaDispatcher.cs</FileName>
     </TypeIdentifier>
     <ShowAsCollectionAssociation>
       <Field Name="sagas" />
     </ShowAsCollectionAssociation>
     <Lollipop Position="0.2" />
   </Class>
-  <Class Name="SourceFlow.Impl.ProjectionDispatcher">
-    <Position X="12.5" Y="6.25" Width="1.75" />
-    <AssociationLine Name="projections" Type="SourceFlow.ViewModel.IProjection" FixedFromPoint="true" FixedToPoint="true">
-      <Path>
-        <Point X="14.25" Y="6.688" />
-        <Point X="14.625" Y="6.688" />
-        <Point X="14.625" Y="5.938" />
-        <Point X="15.5" Y="5.938" />
-      </Path>
-      <MemberNameLabel ManuallyPlaced="true">
-        <Position X="0.138" Y="0.157" />
-      </MemberNameLabel>
-    </AssociationLine>
-    <TypeIdentifier>
-      <HashCode>AAgAAAAAAAAAAAACAAAAAAAAAAAAAAAAACAAAAAAAAA=</HashCode>
-      <FileName>Impl\ProjectionDispatcher.cs</FileName>
-    </TypeIdentifier>
-    <ShowAsCollectionAssociation>
-      <Field Name="projections" />
-    </ShowAsCollectionAssociation>
-    <Lollipop Position="0.2" />
-  </Class>
   <Class Name="SourceFlow.Impl.AggregateDispatcher">
-    <Position X="12.5" Y="3.75" Width="1.75" />
-    <AssociationLine Name="aggregates" Type="SourceFlow.Aggregate.IAggregate">
-      <MemberNameLabel ManuallyPlaced="true">
-        <Position X="0.235" Y="0.06" />
-      </MemberNameLabel>
-    </AssociationLine>
+    <Position X="12.5" Y="3.5" Width="1.75" />
     <TypeIdentifier>
       <HashCode>AAgAAAgAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>Impl\AggregateDispatcher.cs</FileName>
@@ -258,10 +223,21 @@
     </ShowAsCollectionAssociation>
     <Lollipop Position="0.2" />
   </Class>
+  <Class Name="SourceFlow.Impl.ProjectionDispatcher">
+    <Position X="12.5" Y="5.75" Width="1.75" />
+    <TypeIdentifier>
+      <HashCode>AAgAAAAAAAAAAAACAAAAAAAAAAAAAAAAACAAAAAAAAA=</HashCode>
+      <FileName>Impl\ProjectionDispatcher.cs</FileName>
+    </TypeIdentifier>
+    <ShowAsCollectionAssociation>
+      <Field Name="projections" />
+    </ShowAsCollectionAssociation>
+    <Lollipop Position="0.2" />
+  </Class>
   <Interface Name="SourceFlow.Messaging.Bus.IEventQueue">
     <Position X="10.25" Y="1.5" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>AABAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAA=</HashCode>
+      <HashCode>AABAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>Messaging\Bus\IEventQueue.cs</FileName>
     </TypeIdentifier>
   </Interface>
@@ -338,7 +314,7 @@
   <Interface Name="SourceFlow.Messaging.Bus.ICommandBus" Collapsed="true">
     <Position X="0.5" Y="3" Width="1.5" />
     <TypeIdentifier>
-      <HashCode>AAAAAAAAAAAAAAAAAEAAAAAAAEAAAAAAAQAAAAAAAAA=</HashCode>
+      <HashCode>AAAAAAAAAAAAAAAAAEAAAABAAAAAAAAAAQAAAAAAAAA=</HashCode>
       <FileName>Messaging\Bus\ICommandBus.cs</FileName>
     </TypeIdentifier>
   </Interface>

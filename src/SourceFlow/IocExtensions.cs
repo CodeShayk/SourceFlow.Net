@@ -47,7 +47,7 @@ namespace SourceFlow
             services.AddAsImplementationsOfInterface<ICommandStore>(lifetime: ServiceLifetime.Singleton);
             services.AddAsImplementationsOfInterface<IProjection>(lifetime: ServiceLifetime.Singleton);
 
-            services.AddSingleton<ICommandDispatcher, CommandDispatcher>(c => new CommandDispatcher(
+            services.AddSingleton<SagaDispatcher>(c => new SagaDispatcher(
                 c.GetService<ILogger<ICommandDispatcher>>()));
 
             services.AddSingleton<ICommandBus, CommandBus>(c =>
@@ -56,8 +56,8 @@ namespace SourceFlow
                 c.GetService<ICommandStore>(),
                 c.GetService<ILogger<ICommandBus>>());
 
-                var dispatcher = c.GetService<ICommandDispatcher>();
-                commandBus.Handlers += dispatcher.Dispatch;
+                var dispatcher = c.GetService<SagaDispatcher>();
+                commandBus.Dispatchers += dispatcher.Dispatch;
 
                 return commandBus;
             });
@@ -78,10 +78,10 @@ namespace SourceFlow
                 c.GetService<ILogger<IEventQueue>>());
                 // need to register event handlers for the projection before aggregates
                 var projectionDispatcher = c.GetService<ProjectionDispatcher>();
-                queue.Handlers += projectionDispatcher.Dispatch;
+                queue.Dispatchers += projectionDispatcher.Dispatch;
                 // need to register event handlers for the aggregates after projections
                 var aggregateDispatcher = c.GetService<AggregateDispatcher>();
-                queue.Handlers += aggregateDispatcher.Dispatch;
+                queue.Dispatchers += aggregateDispatcher.Dispatch;
 
                 return queue;
             });

@@ -6,9 +6,9 @@ namespace SourceFlow.Messaging.Bus
     public interface IEventQueue
     {
         /// <summary>
-        /// Handlers that are invoked to dispatch an event that is dequeued from the event queue.
+        /// Dispatchers that are invoked to publish an event that is dequeued from the event queue.
         /// </summary>
-        event EventHandler<IEvent> Handlers;
+        event EventHandler<IEvent> Dispatchers;
 
         /// <summary>
         /// Enqueues an event in order to publish to subcribers.

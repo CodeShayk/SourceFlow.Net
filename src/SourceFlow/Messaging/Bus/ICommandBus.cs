@@ -28,6 +28,6 @@ namespace SourceFlow.Messaging.Bus
         /// <summary>
         /// Represents command dispathers that can handle the publishing of commands.
         /// </summary>
-        event EventHandler<ICommand> Handlers;
+        event EventHandler<ICommand> Dispatchers;
     }
 }

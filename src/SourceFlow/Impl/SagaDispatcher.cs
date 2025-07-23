@@ -10,9 +10,9 @@ using SourceFlow.Saga;
 namespace SourceFlow.Impl
 {
     /// <summary>
-    /// CommandDispatcher is responsible for dispatching commands to registered sagas in an event-driven architecture.
+    /// This dispatcher is responsible for dispatching commands to registered sagas in an event-driven architecture.
     /// </summary>
-    internal class CommandDispatcher : ICommandDispatcher
+    internal class SagaDispatcher : ICommandDispatcher
     {
         /// <summary>
         /// Collection of sagas registered with the dispatcher.
@@ -25,10 +25,10 @@ namespace SourceFlow.Impl
         private readonly ILogger<ICommandDispatcher> logger;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="CommandDispatcher"/> class with the specified logger.
+        /// Initializes a new instance of the <see cref="SagaDispatcher"/> class with the specified logger.
         /// </summary>
         /// <param name="logger"></param>
-        public CommandDispatcher(ILogger<ICommandDispatcher> logger)
+        public SagaDispatcher(ILogger<ICommandDispatcher> logger)
         {
             this.logger = logger;
             sagas = new List<ISaga>();

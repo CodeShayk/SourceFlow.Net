@@ -21,7 +21,7 @@ namespace SourceFlow.Impl
         /// <summary>
         /// Represents event dispathers that can handle the dequeuing of events.
         /// </summary>
-        public event EventHandler<IEvent> Handlers;
+        public event EventHandler<IEvent> Dispatchers;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="EventQueue"/> class with the specified logger.
@@ -45,7 +45,7 @@ namespace SourceFlow.Impl
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
 
-            Handlers?.Invoke(this, @event);
+            Dispatchers?.Invoke(this, @event);
 
             logger?.LogInformation("Action=Event_Enqueue, Event={Event}, Payload={Payload}",
                 @event.GetType().Name, @event.Payload.GetType().Name);

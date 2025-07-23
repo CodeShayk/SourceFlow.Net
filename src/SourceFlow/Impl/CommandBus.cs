@@ -25,7 +25,7 @@ namespace SourceFlow.Impl
         /// <summary>
         /// Represents command dispathers that can handle the publishing of commands.
         /// </summary>
-        public event EventHandler<ICommand> Handlers;
+        public event EventHandler<ICommand> Dispatchers;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CommandBus"/> class.
@@ -60,7 +60,7 @@ namespace SourceFlow.Impl
                 ((IMetadata)command).Metadata.SequenceNo = await commandStore.GetNextSequenceNo(command.Payload.Id);
 
             // 2. Dispatch command to handlers.
-            Handlers?.Invoke(this, command);
+            Dispatchers?.Invoke(this, command);
 
             // 3. Log event.
             logger?.LogInformation("Action=Command_Dispatched, Command={Command}, Payload={Payload}, SequenceNo={No}, Saga={Saga}",
