@@ -17,8 +17,8 @@
       <FileName>Saga\Saga.cs</FileName>
     </TypeIdentifier>
     <ShowAsAssociation>
-      <Field Name="eventQueue" />
       <Field Name="commandPublisher" />
+      <Field Name="eventQueue" />
       <Field Name="repository" />
     </ShowAsAssociation>
     <Lollipop Position="0.2" />
@@ -53,13 +53,13 @@
     <Lollipop Position="0.2" />
   </Class>
   <Class Name="SourceFlow.Aggregate.Aggregate&lt;TAggregate&gt;">
-    <Position X="16.5" Y="3.5" Width="1.75" />
+    <Position X="17.75" Y="3.5" Width="1.75" />
     <AssociationLine Name="commandPublisher" Type="SourceFlow.Messaging.Bus.ICommandPublisher" ManuallyRouted="true" FixedFromPoint="true" FixedToPoint="true">
       <Path>
-        <Point X="18.25" Y="3.938" />
-        <Point X="18.631" Y="3.938" />
-        <Point X="18.631" Y="0.705" />
-        <Point X="3.562" Y="0.705" />
+        <Point X="19.5" Y="3.938" />
+        <Point X="20.031" Y="3.938" />
+        <Point X="20.031" Y="1.125" />
+        <Point X="3.562" Y="1.125" />
         <Point X="3.562" Y="1.5" />
       </Path>
       <MemberNameLabel ManuallyPlaced="true">
@@ -68,9 +68,9 @@
     </AssociationLine>
     <AssociationLine Name="commandReplayer" Type="SourceFlow.Messaging.Bus.ICommandReplayer" ManuallyRouted="true" FixedFromPoint="true" FixedToPoint="true">
       <Path>
-        <Point X="18.25" Y="4.312" />
-        <Point X="19.066" Y="4.312" />
-        <Point X="19.066" Y="0.314" />
+        <Point X="19.5" Y="4.312" />
+        <Point X="20.531" Y="4.312" />
+        <Point X="20.531" Y="0.314" />
         <Point X="1.125" Y="0.314" />
         <Point X="1.125" Y="1.5" />
       </Path>
@@ -176,7 +176,7 @@
     <Lollipop Position="0.2" />
   </Class>
   <Class Name="SourceFlow.Impl.AggregateFactory">
-    <Position X="16.5" Y="7" Width="2" />
+    <Position X="17.75" Y="7" Width="2" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAABAEAAAAAAAAAAAAA=</HashCode>
       <FileName>Impl\AggregateFactory.cs</FileName>
@@ -184,12 +184,12 @@
     <Lollipop Position="0.2" />
   </Class>
   <Class Name="SourceFlow.Services.Service">
-    <Position X="19" Y="6.25" Width="1.75" />
+    <Position X="20.25" Y="6.25" Width="1.75" />
     <AssociationLine Name="aggregateFactory" Type="SourceFlow.Aggregate.IAggregateFactory" FixedFromPoint="true" FixedToPoint="true">
       <Path>
-        <Point X="20.25" Y="6.25" />
-        <Point X="20.25" Y="5.746" />
-        <Point X="18.25" Y="5.746" />
+        <Point X="21.5" Y="6.25" />
+        <Point X="21.5" Y="5.746" />
+        <Point X="19.5" Y="5.746" />
       </Path>
     </AssociationLine>
     <TypeIdentifier>
@@ -200,39 +200,6 @@
       <Field Name="aggregateFactory" />
     </ShowAsAssociation>
     <Lollipop Position="0.2" />
-  </Class>
-  <Class Name="SourceFlow.Impl.EventDispatcher">
-    <Position X="12.25" Y="3.5" Width="1.5" />
-    <AssociationLine Name="projections" Type="SourceFlow.ViewModel.IProjection" FixedFromPoint="true" FixedToPoint="true">
-      <Path>
-        <Point X="13" Y="5.632" />
-        <Point X="13" Y="5.918" />
-        <Point X="15.188" Y="5.918" />
-        <Point X="15.188" Y="5.618" />
-      </Path>
-      <MemberNameLabel ManuallyPlaced="true">
-        <Position X="0.315" Y="0.132" />
-      </MemberNameLabel>
-    </AssociationLine>
-    <AssociationLine Name="aggregates" Type="SourceFlow.Aggregate.IAggregate" FixedFromPoint="true" FixedToPoint="true">
-      <Path>
-        <Point X="13.75" Y="4.375" />
-        <Point X="15.438" Y="4.375" />
-        <Point X="15.438" Y="4.062" />
-      </Path>
-      <MemberNameLabel ManuallyPlaced="true">
-        <Position X="0.584" Y="0.11" />
-      </MemberNameLabel>
-    </AssociationLine>
-    <TypeIdentifier>
-      <HashCode>AAgAAAgAAAAAAAgCAAAAAAAAAACAAAAAACAAAAAAAAA=</HashCode>
-      <FileName>Impl\EventDispatcher.cs</FileName>
-    </TypeIdentifier>
-    <ShowAsCollectionAssociation>
-      <Field Name="projections" />
-      <Field Name="aggregates" />
-    </ShowAsCollectionAssociation>
-    <Lollipop Position="0.1" />
   </Class>
   <Class Name="SourceFlow.Impl.CommandDispatcher">
     <Position X="3" Y="7.5" Width="2" />
@@ -250,6 +217,44 @@
     </TypeIdentifier>
     <ShowAsCollectionAssociation>
       <Field Name="sagas" />
+    </ShowAsCollectionAssociation>
+    <Lollipop Position="0.2" />
+  </Class>
+  <Class Name="SourceFlow.Impl.ProjectionDispatcher">
+    <Position X="12.5" Y="6.25" Width="1.75" />
+    <AssociationLine Name="projections" Type="SourceFlow.ViewModel.IProjection" FixedFromPoint="true" FixedToPoint="true">
+      <Path>
+        <Point X="14.25" Y="6.688" />
+        <Point X="14.625" Y="6.688" />
+        <Point X="14.625" Y="5.938" />
+        <Point X="15.5" Y="5.938" />
+      </Path>
+      <MemberNameLabel ManuallyPlaced="true">
+        <Position X="0.138" Y="0.157" />
+      </MemberNameLabel>
+    </AssociationLine>
+    <TypeIdentifier>
+      <HashCode>AAgAAAAAAAAAAAACAAAAAAAAAAAAAAAAACAAAAAAAAA=</HashCode>
+      <FileName>Impl\ProjectionDispatcher.cs</FileName>
+    </TypeIdentifier>
+    <ShowAsCollectionAssociation>
+      <Field Name="projections" />
+    </ShowAsCollectionAssociation>
+    <Lollipop Position="0.2" />
+  </Class>
+  <Class Name="SourceFlow.Impl.AggregateDispatcher">
+    <Position X="12.5" Y="3.75" Width="1.75" />
+    <AssociationLine Name="aggregates" Type="SourceFlow.Aggregate.IAggregate">
+      <MemberNameLabel ManuallyPlaced="true">
+        <Position X="0.235" Y="0.06" />
+      </MemberNameLabel>
+    </AssociationLine>
+    <TypeIdentifier>
+      <HashCode>AAgAAAgAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Impl\AggregateDispatcher.cs</FileName>
+    </TypeIdentifier>
+    <ShowAsCollectionAssociation>
+      <Field Name="aggregates" />
     </ShowAsCollectionAssociation>
     <Lollipop Position="0.2" />
   </Class>
@@ -275,14 +280,14 @@
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.Aggregate.IAggregate" Collapsed="true">
-    <Position X="14.5" Y="3.5" Width="1.75" />
+    <Position X="15.5" Y="3.75" Width="1.75" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>Aggregate\IAggregate.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.ViewModel.IProjection">
-    <Position X="14.5" Y="4.75" Width="1.75" />
+    <Position X="15.5" Y="5.5" Width="1.75" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>ViewModel\IProjection.cs</FileName>
@@ -310,7 +315,7 @@
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.ViewModel.IProjectOn&lt;TEvent&gt;">
-    <Position X="14.5" Y="6.25" Width="1.75" />
+    <Position X="15.5" Y="6.75" Width="1.75" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>ViewModel\IProjection.cs</FileName>
@@ -324,7 +329,7 @@
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.Aggregate.ISubscribes&lt;TEvent&gt;">
-    <Position X="14.5" Y="2" Width="1.75" />
+    <Position X="15.5" Y="2" Width="1.75" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAA=</HashCode>
       <FileName>Aggregate\ISubscribes.cs</FileName>
@@ -352,28 +357,28 @@
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.Aggregate.IAggregateFactory">
-    <Position X="16.5" Y="5.5" Width="1.75" />
+    <Position X="17.75" Y="5.5" Width="1.75" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAA=</HashCode>
       <FileName>Aggregate\IAggregateFactory.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.IViewProvider">
-    <Position X="12.5" Y="7.5" Width="1.75" />
+    <Position X="13.5" Y="8.25" Width="1.75" />
     <TypeIdentifier>
       <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAACAA=</HashCode>
       <FileName>IViewProvider.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.ViewModel.IViewModel">
-    <Position X="12.5" Y="6.25" Width="1.75" />
+    <Position X="15.5" Y="8.25" Width="1.75" />
     <TypeIdentifier>
       <HashCode>AAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>ViewModel\IViewModel.cs</FileName>
     </TypeIdentifier>
   </Interface>
   <Interface Name="SourceFlow.Messaging.Bus.IEventDispatcher">
-    <Position X="12.25" Y="2" Width="1.75" />
+    <Position X="12.5" Y="2" Width="1.75" />
     <TypeIdentifier>
       <HashCode>AAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</HashCode>
       <FileName>Messaging\Bus\IEventDispatcher.cs</FileName>

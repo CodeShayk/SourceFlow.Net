@@ -62,19 +62,27 @@ namespace SourceFlow
                 return commandBus;
             });
 
-            services.AddSingleton<IEventDispatcher, EventDispatcher>(c => new EventDispatcher(
+            services.AddSingleton<AggregateDispatcher>(c => new AggregateDispatcher(
                         c.GetServices<IAggregate>(),
+                        c.GetService<ILogger<IEventDispatcher>>())
+            );
+
+            services.AddSingleton<ProjectionDispatcher>(c => new ProjectionDispatcher(
                         c.GetServices<IProjection>(),
                         c.GetService<ILogger<IEventDispatcher>>())
-                );
+            );
 
             services.AddSingleton<IEventQueue, EventQueue>(c =>
             {
                 var queue = new EventQueue(
                 c.GetService<ILogger<IEventQueue>>());
+                // need to register event handlers for the projection before aggregates
+                var projectionDispatcher = c.GetService<ProjectionDispatcher>();
+                queue.Handlers += projectionDispatcher.Dispatch;
+                // need to register event handlers for the aggregates after projections
+                var aggregateDispatcher = c.GetService<AggregateDispatcher>();
+                queue.Handlers += aggregateDispatcher.Dispatch;
 
-                var dispatcher = c.GetService<IEventDispatcher>();
-                queue.Handlers += dispatcher.Dispatch;
                 return queue;
             });
 
