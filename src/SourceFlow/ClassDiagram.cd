@@ -119,7 +119,7 @@
         <Point X="9.188" Y="8.603" />
       </Path>
       <MemberNameLabel ManuallyPlaced="true" ManuallySized="true">
-        <Position X="0.191" Y="0.372" Height="0.182" Width="1.091" />
+        <Position X="0.205" Y="0.497" Height="0.182" Width="1.452" />
       </MemberNameLabel>
     </AssociationLine>
     <TypeIdentifier>
