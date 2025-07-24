@@ -18,79 +18,35 @@
 
 SourceFlow.Net empowers developers to build scalable, maintainable applications by providing a complete toolkit for event sourcing, domain modeling, and command/query separation. Built from the ground up for .NET 8+ with **performance** and **developer experience** as core priorities.
 
-## ✨ Key Features
+## 🌟 Why SourceFlow.Net?
+### ✨ Key Features
+* 🏗️ Domain-Driven Design Support
+  - **Aggregate Root Framework** - Base classes and interfaces for DDD aggregates
+  - **Value Objects** - Immutable value type helpers and generators
+  - **Domain Events** - Rich domain event publishing and handling
+  - **Bounded Context Isolation** - Tools for maintaining clean architectural boundaries 
+* ⚡ CQRS Implementation with Command/Query Segregation
+  - **Command Pipeline** - Validation, authorization, and middleware support
+  - **Query Optimization** - Dedicated read models with eventual consistency
+  - **Mediator Pattern** - Built-in command/query dispatching
+  - **Projection Engine** - Real-time and batch projection processing
+  - **Read Model Synchronization** - Automated view materialization
+* 📊 Event-First Design with Event Sourcing Foundation
+  - **Event Replay** - Complete system state reconstruction capabilities
+  - **Event Correlation** - Track causation and correlation across event streams
+  - **Eventual Consistency** - Saga pattern implementation for long-running processes
+  - **Audit Trail** - Immutable audit log for compliance requirements
+  - **Snapshots** - Automatic snapshot management for performance optimization
+* 🧱 Clean Architecture
+  - **Improved Maintainability** - well-organized codebase with distinct layers and separation of concerns
+  - **Increased Modularity** - promotes smaller, well-defined modules or components, each with a specific responsibility
+  - **Enhanced Testability** - allows focused testing of individual components without the need for complex setups or external dependencies
+  - **Framework and Database Independence** - allows easy switching of components, databases, or other external dependencies without requiring significant changes to the core application
 
-### 📊 Event Sourcing Foundation
-- **Event Store Abstraction** - Pluggable storage backends (SQL Server, PostgreSQL, MongoDB, EventStore DB)
-- **Event Serialization** - JSON, MessagePack, and custom serializers
-- **Event Versioning** - Built-in support for event schema evolution
-- **Snapshots** - Automatic snapshot management for performance optimization
-- **Event Correlation** - Track causation and correlation across event streams
+  
+ 
 
-### 🏗️ Domain-Driven Design Support
-- **Aggregate Root Framework** - Base classes and interfaces for DDD aggregates
-- **Value Objects** - Immutable value type helpers and generators
-- **Domain Events** - Rich domain event publishing and handling
-- **Bounded Context Isolation** - Tools for maintaining clean architectural boundaries
-- **Specification Pattern** - Reusable business rule implementations
 
-### ⚡ CQRS Implementation
-- **Command Pipeline** - Validation, authorization, and middleware support
-- **Query Optimization** - Dedicated read models with eventual consistency
-- **Mediator Pattern** - Built-in command/query dispatching
-- **Projection Engine** - Real-time and batch projection processing
-- **Read Model Synchronization** - Automated view materialization
-
-### 👨‍💻 Developer Experience
-- **Minimal Configuration** - Convention-over-configuration approach
-- **ASP.NET Core Integration** - Seamless web API and MVC support
-- **Dependency Injection** - Native DI container integration
-- **Health Checks** - Built-in monitoring and diagnostics
-- **OpenTelemetry Support** - Distributed tracing and metrics
-- **Code Generation** - T4 templates and source generators for boilerplate reduction
-
-### 🏢 Enterprise Features
-- **Multi-tenancy** - Tenant isolation at the event store level
-- **Eventual Consistency** - Saga pattern implementation for long-running processes
-- **Event Replay** - Complete system state reconstruction capabilities
-- **Audit Trail** - Immutable audit log for compliance requirements
-- **Performance Monitoring** - Built-in metrics and performance counters
-- **Horizontal Scaling** - Support for distributed event processing
-
-## 🏛️ Architecture Principles
-
-<table>
-  <tr>
-    <td><strong>🧱 Clean Architecture</strong></td>
-    <td>Enforces dependency inversion and separation of concerns</td>
-  </tr>
-  <tr>
-    <td><strong>📝 Event-First Design</strong></td>
-    <td>Events as the source of truth for all state changes</td>
-  </tr>
-  <tr>
-    <td><strong>🔒 Immutable Data</strong></td>
-    <td>Promotes functional programming concepts where applicable</td>
-  </tr>
-  <tr>
-    <td><strong>🧪 Testability</strong></td>
-    <td>Easy unit and integration testing with in-memory implementations</td>
-  </tr>
-  <tr>
-    <td><strong>👁️ Observability</strong></td>
-    <td>Comprehensive logging, metrics, and tracing out of the box</td>
-  </tr>
-</table>
-
-## 💼 Use Cases
-
-| Industry | Applications |
-|----------|-------------|
-| **💰 Financial** | Trading platforms, payment processing, accounting systems |
-| **🛒 E-commerce** | Order management, inventory tracking, customer journeys |
-| **🌐 IoT** | Device state management, sensor data processing |
-| **👥 Collaboration** | Document versioning, user activity tracking |
-| **📋 Compliance** | Audit trails, regulatory re
 
 ## 🏁 Getting Started
 ### Installation
@@ -126,36 +82,12 @@ public class PlaceOrderHandler : ICommandHandler<PlaceOrderCommand>
     }
 }
 ```
-## 🌟 Why SourceFlow.Net?
-Features
-- 🚀 Production Ready, Battle-tested patterns with enterprise-grade reliability
-- 💫 Developer Friendly Intuitive APIs with excellent documentation and samples
-- ⚡ Performance Focused, Optimized for high-throughput, low-latency scenarios
-- 🔧 ExtensiblePlugin architecture for custom storage, serialization, and messaging
-- 👥 Community DrivenOpen source with active community and contributor support
-- 🆕 Modern .NETTakes advantage of latest C# and .NET platform features
-
-## 🎯 Target Audience
-
-- 👨‍💼 Senior Developers building complex business applications
-- 🏗️ Architects designing scalable, event-driven systems
-- 👨‍👩‍👧‍👦 Teams transitioning from CRUD to event-sourcing patterns
-- 🏢 Organizations requiring audit trails and temporal data queries
-- 🔬 Microservice Teams implementing distributed system patterns
-
-## 📚 Documentation
-- 📖 Documentation - Complete guides and API reference
-- 🚀 Quick Start - Get up and running in minutes
-- 💡 Examples - Sample applications and use cases
-- ❓ FAQ - Common questions and troubleshooting
-
 ## 🤝 Contributing
 We welcome contributions! Please see our Contributing Guide for details.
-
-🐛 Bug Reports - Create an issue
-💡 Feature Requests - Start a discussion
-📝 Documentation - Help improve our docs
-💻 Code - Submit pull requests
+- 🐛 Bug Reports - Create an issue
+- 💡 Feature Requests - Start a discussion
+- 📝 Documentation - Help improve our docs
+- 💻 Code - Submit pull requests
 
 ## 📄 License
 MIT License - Free for commercial and open source use
