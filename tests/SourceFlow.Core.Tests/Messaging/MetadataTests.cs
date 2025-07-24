@@ -1,7 +1,4 @@
-using System;
-using NUnit.Framework;
 using SourceFlow.Messaging;
-using System.Collections.Generic;
 
 namespace SourceFlow.Core.Tests.Messaging
 {
@@ -37,4 +34,4 @@ namespace SourceFlow.Core.Tests.Messaging
             Assert.AreEqual(123, metadata.Properties["foo"]);
         }
     }
-} 
+}

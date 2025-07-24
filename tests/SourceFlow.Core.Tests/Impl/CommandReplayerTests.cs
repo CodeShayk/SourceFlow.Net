@@ -1,8 +1,6 @@
-using System.Threading.Tasks;
 using Moq;
-using NUnit.Framework;
-using SourceFlow.Messaging.Bus;
 using SourceFlow.Impl;
+using SourceFlow.Messaging.Bus;
 
 namespace SourceFlow.Core.Tests.Impl
 {
@@ -27,4 +25,4 @@ namespace SourceFlow.Core.Tests.Impl
             busMock.Verify(b => b.Replay(42), Times.Once);
         }
     }
-} 
+}

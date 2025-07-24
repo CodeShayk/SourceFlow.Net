@@ -1,6 +1,5 @@
-using NUnit.Framework;
-using SourceFlow.Messaging;
 using SourceFlow.Aggregate;
+using SourceFlow.Messaging;
 
 namespace SourceFlow.Core.Tests.Messaging
 {
@@ -11,7 +10,9 @@ namespace SourceFlow.Core.Tests.Messaging
 
     public class DummyEvent : Event<DummyEntity>
     {
-        public DummyEvent(DummyEntity payload) : base(payload) { }
+        public DummyEvent(DummyEntity payload) : base(payload)
+        {
+        }
     }
 
     [TestFixture]
@@ -37,4 +38,4 @@ namespace SourceFlow.Core.Tests.Messaging
             Assert.AreSame(payload, ((IEvent)ev).Payload);
         }
     }
-} 
+}

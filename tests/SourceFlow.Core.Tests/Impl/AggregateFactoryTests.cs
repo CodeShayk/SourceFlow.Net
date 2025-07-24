@@ -1,8 +1,4 @@
-using System;
-using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
 using Moq;
-using NUnit.Framework;
 using SourceFlow.Aggregate;
 using SourceFlow.Impl;
 
@@ -31,4 +27,4 @@ namespace SourceFlow.Core.Tests.Impl
             Assert.AreSame(aggregateMock.Object, result);
         }
     }
-} 
+}

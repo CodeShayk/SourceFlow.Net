@@ -1,7 +1,6 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Aggregate;
 using SourceFlow.Messaging;
 using SourceFlow.Messaging.Bus;
 

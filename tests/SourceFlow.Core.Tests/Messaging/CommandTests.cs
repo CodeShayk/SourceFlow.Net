@@ -1,4 +1,3 @@
-using NUnit.Framework;
 using SourceFlow.Messaging;
 
 namespace SourceFlow.Core.Tests.Messaging
@@ -10,7 +9,9 @@ namespace SourceFlow.Core.Tests.Messaging
 
     public class DummyCommand : Command<DummyPayload>
     {
-        public DummyCommand(DummyPayload payload) : base(payload) { }
+        public DummyCommand(DummyPayload payload) : base(payload)
+        {
+        }
     }
 
     [TestFixture]
@@ -36,4 +37,4 @@ namespace SourceFlow.Core.Tests.Messaging
             Assert.AreSame(payload, ((ICommand)command).Payload);
         }
     }
-} 
+}
