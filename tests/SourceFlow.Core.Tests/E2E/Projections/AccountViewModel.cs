@@ -13,5 +13,6 @@ namespace SourceFlow.Core.Tests.E2E.Projections
         public bool IsClosed { get; set; }
         public string ClosureReason { get; set; }
         public int Version { get; set; }
+        public DateTime ActiveOn { get; set; }
     }
 }

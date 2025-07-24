@@ -1,74 +1,53 @@
-//using SourceFlow.Core.Tests.E2E.Events;
+using SourceFlow.Core.Tests.E2E.Events;
+using SourceFlow.Projections;
 
-//namespace SourceFlow.Core.Tests.E2E.Projections
-//{
-//    public class AccountView : BaseDataView<AccountViewModel>,
-//                               IProjectOn<AccountCreated>,
-//                               IProjectOn<MoneyDeposited>,
-//                               IProjectOn<MoneyWithdrawn>,
-//                               IProjectOn<AccountClosed>
-//    {
-//        public async Task ProjectAsync(AccountCreated @event)
-//        {
-//            var view = new AccountViewModel
-//            {
-//                Id = @event.Entity.Id,
-//                AccountName = @event.Payload.AccountName,
-//                CurrentBalance = @event.Payload.InitialAmount,
-//                IsClosed = false,
-//                CreatedDate = @event.OccurredOn,
-//                LastUpdated = @event.OccurredOn,
-//                TransactionCount = 1,
-//                ClosureReason = null,
-//                Version = @event.SequenceNo
-//            };
+namespace SourceFlow.Core.Tests.E2E.Projections
+{
+    public class AccountView : IProjectOn<AccountCreated>,
+                               IProjectOn<AccountUpdated>
+    {
+        private readonly IViewProvider provider;
 
-//            await repository.Push(view);
-//        }
+        public AccountView(IViewProvider provider)
+        {
+            this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        }
 
-//        public async Task ProjectAsync(MoneyDeposited @event)
-//        {
-//            var view = await repository.Find<AccountViewModel>(@event.Entity.Id);
+        public async Task Apply(AccountCreated @event)
+        {
+            var view = new AccountViewModel
+            {
+                Id = @event.Payload.Id,
+                AccountName = @event.Payload.AccountName,
+                CurrentBalance = @event.Payload.Balance,
+                IsClosed = false,
+                CreatedDate = @event.Payload.CreatedOn,
+                LastUpdated = DateTime.UtcNow,
+                TransactionCount = 0,
+                ClosureReason = null,
+                Version = 1
+            };
 
-//            if (view == null)
-//                throw new InvalidOperationException($"Account view not found for ID: {@event.Entity.Id}");
+            await provider.Push(view);
+        }
 
-//            view.CurrentBalance = @event.Payload.CurrentBalance;
-//            view.LastUpdated = @event.OccurredOn;
-//            view.Version = @event.SequenceNo;
-//            view.TransactionCount++;
+        public async Task Apply(AccountUpdated @event)
+        {
+            var view = await provider.Find<AccountViewModel>(@event.Payload.Id);
 
-//            await repository.Push(view);
-//        }
+            if (view == null)
+                throw new InvalidOperationException($"Account view not found for ID: {@event.Payload.Id}");
 
-//        public async Task ProjectAsync(MoneyWithdrawn @event)
-//        {
-//            var view = await repository.Find<AccountViewModel>(@event.Entity.Id);
+            view.CurrentBalance = @event.Payload.Balance;
+            view.LastUpdated = DateTime.UtcNow;
+            view.AccountName = @event.Payload.AccountName;
+            view.IsClosed = @event.Payload.IsClosed;
+            view.ClosureReason = @event.Payload.ClosureReason;
+            view.ActiveOn = @event.Payload.ActiveOn;
+            view.Version++;
+            view.TransactionCount++;
 
-//            if (view == null)
-//                throw new InvalidOperationException($"Account view not found for ID: {@event.Entity.Id}");
-
-//            view.CurrentBalance = @event.Payload.CurrentBalance;
-//            view.LastUpdated = @event.OccurredOn;
-//            view.Version = @event.SequenceNo;
-//            view.TransactionCount++;
-
-//            await repository.Push(view);
-//        }
-
-//        public async Task ProjectAsync(AccountClosed @event)
-//        {
-//            var view = await repository.Find<AccountViewModel>(@event.Entity.Id);
-
-//            if (view == null)
-//                throw new InvalidOperationException($"Account view not found for ID: {@event.Entity.Id}");
-
-//            view.ClosureReason = @event.Payload.ClosureReason;
-//            view.LastUpdated = @event.OccurredOn;
-//            view.Version = @event.SequenceNo;
-//            view.IsClosed = @event.Payload.IsClosed;
-
-//            await repository.Push(view);
-//        }
-//    }
-//}
+            await provider.Push(view);
+        }
+    }
+}

@@ -24,7 +24,7 @@ namespace SourceFlow.Services
         /// </summary>
         /// <typeparam name="TAggregate"></typeparam>
         /// <returns>Implementation of IAggregate</returns>
-        public async Task<TAggregate> CreateAggregate<TAggregate>() where TAggregate : IAggregate
+        public async Task<TAggregate> CreateAggregate<TAggregate>() where TAggregate : class, IAggregate
         {
             var aggregate = await aggregateFactory.Create<TAggregate>();
             return aggregate;

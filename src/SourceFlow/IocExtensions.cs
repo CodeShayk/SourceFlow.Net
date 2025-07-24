@@ -50,6 +50,9 @@ namespace SourceFlow
             services.AddSingleton<SagaDispatcher>(c => new SagaDispatcher(
                 c.GetService<ILogger<ICommandDispatcher>>()));
 
+            services.AddSingleton<ICommandDispatcher, SagaDispatcher>(c => new SagaDispatcher(
+              c.GetService<ILogger<ICommandDispatcher>>()));
+
             services.AddSingleton<ICommandBus, CommandBus>(c =>
             {
                 var commandBus = new CommandBus(
@@ -67,11 +70,20 @@ namespace SourceFlow
                         c.GetService<ILogger<IEventDispatcher>>())
             );
 
+            services.AddSingleton<IEventDispatcher, AggregateDispatcher>(c => new AggregateDispatcher(
+                       c.GetServices<IAggregate>(),
+                       c.GetService<ILogger<IEventDispatcher>>())
+           );
+
             services.AddSingleton<ProjectionDispatcher>(c => new ProjectionDispatcher(
                         c.GetServices<IProjection>(),
                         c.GetService<ILogger<IEventDispatcher>>())
             );
 
+            services.AddSingleton<IEventDispatcher, ProjectionDispatcher>(c => new ProjectionDispatcher(
+                       c.GetServices<IProjection>(),
+                       c.GetService<ILogger<IEventDispatcher>>())
+           );
             services.AddSingleton<IEventQueue, EventQueue>(c =>
             {
                 var queue = new EventQueue(

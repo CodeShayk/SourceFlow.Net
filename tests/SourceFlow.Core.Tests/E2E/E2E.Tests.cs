@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SourceFlow.Core.Tests.E2E.Aggregates;
 using SourceFlow.Core.Tests.E2E.Projections;
+using SourceFlow.Core.Tests.E2E.Sagas;
 using SourceFlow.Core.Tests.E2E.Services;
 using SourceFlow.Saga;
 
@@ -28,7 +30,14 @@ namespace SourceFlow.Core.Tests.E2E
             });
 
             // Register SourceFlow and all required services
-            services.UseSourceFlow();
+            services.UseSourceFlow(
+                configuration =>
+                {
+                    configuration
+                        .WithAggregate<AccountAggregate>()
+                        .WithSaga<BankAccount, AccountSaga>()
+                        .WithService<AccountService>();
+                });
 
             _serviceProvider = services.BuildServiceProvider();
 

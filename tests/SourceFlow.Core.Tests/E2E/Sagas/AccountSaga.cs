@@ -1,117 +1,118 @@
-//using Microsoft.Extensions.Logging;
-//using SourceFlow.ConsoleApp.Aggregates;
-//using SourceFlow.ConsoleApp.Commands;
-//using SourceFlow.ConsoleApp.Events;
+using Microsoft.Extensions.Logging;
+using SourceFlow.Core.Tests.E2E.Aggregates;
+using SourceFlow.Core.Tests.E2E.Commands;
+using SourceFlow.Core.Tests.E2E.Events;
+using SourceFlow.Saga;
 
-//namespace SourceFlow.ConsoleApp.Sagas
-//{
-//    public class AccountSaga : Saga<BankAccount>,
-//                               IHandles<CreateAccount>,
-//                               IHandles<ActivateAccount>,
-//                               IHandles<DepositMoney>,
-//                               IHandles<WithdrawMoney>,
-//                               IHandles<CloseAccount>
-//    {
-//        public async Task Handle(CreateAccount command)
-//        {
-//            logger.LogInformation("Action=Account_Created, Account={AccountId}, Holder={AccountName}, Initial_Balance={InitialBalance}",
-//                command.Entity.Id, command.Payload.AccountName, command.Payload.InitialAmount);
+namespace SourceFlow.Core.Tests.E2E.Sagas
+{
+    public class AccountSaga : Saga<BankAccount>,
+                               IHandles<CreateAccount>,
+                               IHandles<ActivateAccount>,
+                               IHandles<DepositMoney>,
+                               IHandles<WithdrawMoney>,
+                               IHandles<CloseAccount>
+    {
+        public async Task Handle(CreateAccount command)
+        {
+            logger.LogInformation("Action=Account_Created, Account={AccountId}, Holder={AccountName}, Initial_Balance={InitialBalance}",
+                command.Payload.Id, command.Payload.AccountName, command.Payload.InitialAmount);
 
-//            if (string.IsNullOrEmpty(command.Payload.AccountName))
-//                throw new ArgumentException("Account create requires account holder name.", nameof(command.Payload.AccountName));
+            if (string.IsNullOrEmpty(command.Payload.AccountName))
+                throw new ArgumentException("Account create requires account holder name.", nameof(command.Payload.AccountName));
 
-//            if (command.Payload.InitialAmount <= 0)
-//                throw new ArgumentException("Account create requires initial amount.", nameof(command.Payload.InitialAmount));
+            if (command.Payload.InitialAmount <= 0)
+                throw new ArgumentException("Account create requires initial amount.", nameof(command.Payload.InitialAmount));
 
-//            var account = new BankAccount
-//            {
-//                Id = command.Entity.Id,
-//                AccountName = command.Payload.AccountName,
-//                Balance = command.Payload.InitialAmount
-//            };
+            var account = new BankAccount
+            {
+                Id = command.Payload.Id,
+                AccountName = command.Payload.AccountName,
+                Balance = command.Payload.InitialAmount
+            };
 
-//            await repository.Push(account);
+            await repository.Persist(account);
 
-//            await Raise(new AccountCreated(account));
-//        }
+            await Raise(new AccountCreated(account));
+        }
 
-//        public async Task Handle(ActivateAccount command)
-//        {
-//            logger.LogInformation("Action=Account_Activate, ActivatedOn={ActiveOn}, Account={AccountId}", command.Payload.ActiveOn, command.Entity.Id);
+        public async Task Handle(ActivateAccount command)
+        {
+            logger.LogInformation("Action=Account_Activate, ActivatedOn={ActiveOn}, Account={AccountId}", command.Payload.ActiveOn, command.Payload.Id);
 
-//            var account = await repository.Find<BankAccount>(command.Entity.Id);
+            var account = await repository.Get<BankAccount>(command.Payload.Id);
 
-//            if (account.IsClosed)
-//                throw new InvalidOperationException("Cannot deposit to a closed account");
+            if (account.IsClosed)
+                throw new InvalidOperationException("Cannot deposit to a closed account");
 
-//            if (command.Payload.ActiveOn == DateTime.MinValue)
-//                throw new ArgumentException("Deposit amount must be positive", nameof(command.Payload.ActiveOn));
+            if (command.Payload.ActiveOn == DateTime.MinValue)
+                throw new ArgumentException("Deposit amount must be positive", nameof(command.Payload.ActiveOn));
 
-//            account.ActiveOn = command.Payload.ActiveOn;
+            account.ActiveOn = command.Payload.ActiveOn;
 
-//            await repository.Push(account);
+            await repository.Persist(account);
 
-//            await Raise(new AccountUpdated(account));
-//        }
+            await Raise(new AccountUpdated(account));
+        }
 
-//        public async Task Handle(DepositMoney command)
-//        {
-//            logger.LogInformation("Action=Money_Deposited, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Entity.Id);
+        public async Task Handle(DepositMoney command)
+        {
+            logger.LogInformation("Action=Money_Deposited, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Payload.Id);
 
-//            var account = await repository.Find<BankAccount>(command.Entity.Id);
+            var account = await repository.Get<BankAccount>(command.Payload.Id);
 
-//            if (account.IsClosed)
-//                throw new InvalidOperationException("Cannot deposit to a closed account");
+            if (account.IsClosed)
+                throw new InvalidOperationException("Cannot deposit to a closed account");
 
-//            if (command.Payload.Amount <= 0)
-//                throw new ArgumentException("Deposit amount must be positive", nameof(command.Payload.Amount));
+            if (command.Payload.Amount <= 0)
+                throw new ArgumentException("Deposit amount must be positive", nameof(command.Payload.Amount));
 
-//            command.Payload.CurrentBalance = account.Balance + command.Payload.Amount;
-//            account.Balance = command.Payload.CurrentBalance;
+            command.Payload.CurrentBalance = account.Balance + command.Payload.Amount;
+            account.Balance = command.Payload.CurrentBalance;
 
-//            await repository.Push(account);
+            await repository.Persist(account);
 
-//            await Raise(new AccountUpdated(account));
-//        }
+            await Raise(new AccountUpdated(account));
+        }
 
-//        public async Task Handle(WithdrawMoney command)
-//        {
-//            logger.LogInformation("Action=Money_Withdrawn, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Entity.Id);
+        public async Task Handle(WithdrawMoney command)
+        {
+            logger.LogInformation("Action=Money_Withdrawn, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Payload.Id);
 
-//            var account = await repository.Find<BankAccount>(command.Entity.Id);
+            var account = await repository.Get<BankAccount>(command.Payload.Id);
 
-//            if (account.IsClosed)
-//                throw new InvalidOperationException("Cannot deposit to a closed account");
+            if (account.IsClosed)
+                throw new InvalidOperationException("Cannot deposit to a closed account");
 
-//            if (command.Payload.Amount <= 0)
-//                throw new ArgumentException("Deposit amount must be positive", nameof(command.Payload.Amount));
+            if (command.Payload.Amount <= 0)
+                throw new ArgumentException("Deposit amount must be positive", nameof(command.Payload.Amount));
 
-//            command.Payload.CurrentBalance = account.Balance - command.Payload.Amount;
-//            account.Balance = command.Payload.CurrentBalance;
+            command.Payload.CurrentBalance = account.Balance - command.Payload.Amount;
+            account.Balance = command.Payload.CurrentBalance;
 
-//            await repository.Push(account);
+            await repository.Persist(account);
 
-//            await Raise(new AccountUpdated(account));
-//        }
+            await Raise(new AccountUpdated(account));
+        }
 
-//        public async Task Handle(CloseAccount command)
-//        {
-//            logger.LogInformation("Action=Account_Closed, Account={AccountId}, Reason={Reason}", command.Entity.Id, command.Payload.ClosureReason);
+        public async Task Handle(CloseAccount command)
+        {
+            logger.LogInformation("Action=Account_Closed, Account={AccountId}, Reason={Reason}", command.Payload.Id, command.Payload.ClosureReason);
 
-//            if (string.IsNullOrWhiteSpace(command.Payload.ClosureReason))
-//                throw new ArgumentException("Reason for closing cannot be empty", nameof(command.Payload.ClosureReason));
+            if (string.IsNullOrWhiteSpace(command.Payload.ClosureReason))
+                throw new ArgumentException("Reason for closing cannot be empty", nameof(command.Payload.ClosureReason));
 
-//            var account = await repository.Find<BankAccount>(command.Entity.Id);
+            var account = await repository.Get<BankAccount>(command.Payload.Id);
 
-//            if (account.IsClosed)
-//                throw new InvalidOperationException("Cannot close account on a closed account");
+            if (account.IsClosed)
+                throw new InvalidOperationException("Cannot close account on a closed account");
 
-//            account.ClosureReason = command.Payload.ClosureReason;
-//            account.IsClosed = command.Payload.IsClosed = true;
+            account.ClosureReason = command.Payload.ClosureReason;
+            account.IsClosed = command.Payload.IsClosed = true;
 
-//            await repository.Push(account);
+            await repository.Persist(account);
 
-//            await Raise(new AccountUpdated(account));
-//        }
-//    }
-//}
+            await Raise(new AccountUpdated(account));
+        }
+    }
+}
