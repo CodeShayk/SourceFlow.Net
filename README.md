@@ -42,18 +42,13 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
   - **Increased Modularity** - promotes smaller, well-defined modules or components, each with a specific responsibility
   - **Enhanced Testability** - allows focused testing of individual components without the need for complex setups or external dependencies
   - **Framework and Database Independence** - allows easy switching of components, databases, or other external dependencies without requiring significant changes to the core application
-
   
- 
-
-
-
 ## 🏁 Getting Started
-### Installation
+### 🏢 Installation
 nuget add package SourceFlow.Net
 > dotnet add package SourceFlow.Net.SqlServer  # or your preferred storage
 
-### Quick Setup
+### 💼 Quick Setup
 ``` csharp
 // Program.cs
 builder.Services.AddSourceFlow()
