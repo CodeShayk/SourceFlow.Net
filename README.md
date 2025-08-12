@@ -28,7 +28,8 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 ## 🏁 Getting Started
 ### 🏢 Installation
 nuget add package SourceFlow.Net
-> dotnet add package SourceFlow.Net.SqlServer  # or your preferred storage
+> dotnet add package SourceFlow.Net
+> dotnet add package SourceFlow.Net (to be released) # or your preferred storage
 ### Developer Guide
 This comprehensive guide provides detailed information about the SourceFlow.Net framework, covering everything from basic concepts to advanced implementation patterns and troubleshooting guidelines.
 
