@@ -16,7 +16,7 @@
 
 ## 🚀 Overview
 
-SourceFlow.Net empowers developers to build scalable, maintainable applications by providing a complete toolkit for event sourcing, domain modeling, and command/query separation. Built from the ground up for .NET 8+ with **performance** and **developer experience** as core priorities.
+SourceFlow.Net empowers developers to build scalable, maintainable applications by providing a complete toolkit for event sourcing, domain modeling, and command/query separation. Built from the ground up for .NET 9.0 with **performance** and **developer experience** as core priorities.
 
 ## 🌟 Why SourceFlow.Net?
 ### ✨ Key Features
