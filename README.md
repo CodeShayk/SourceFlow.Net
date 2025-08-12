@@ -55,7 +55,7 @@ We welcome contributions! Please see our Contributing Guide for details.
 <div align="center">
   <h3>🚀 Build better software with events as your foundation</h3>
   <p><strong>Start your journey with SourceFlow.Net today!</strong></p>
-  <a href="https://sourceflow.net/quick-start">
+  <a href="https://github.com/CodeShayk/SourceFlow.Net/wiki">
     <img src="https://img.shields.io/badge/Get%20Started-blue?style=for-the-badge&logo=rocket" alt="Get Started" />
   </a>
   <a href="https://github.com/CodeShayk/sourceflow.net">
