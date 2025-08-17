@@ -1,39 +1,19 @@
-name: pr-ci
+permissions:
+  contents: read
+name: pre-release-ci
 on:
-  pull_request:
-    types: [opened, reopened, edited, synchronize]
-    paths-ignore:
-    - "**/*.md"
-    - "**/*.gitignore"
-    - "**/*.gitattributes"
+  push:
+    branches:
+    - pre-release/**
+    - pre-release
 
 jobs:
-  Run-Lint:
+  Build-Test-Publish:
     runs-on: ubuntu-latest
-    env:
-      github-token: '${{ secrets.GH_Packages }}'
-    steps:
-      - name: Step-01 Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Step-02 Lint Code Base
-        uses: github/super-linter@v4
-        env:
-          VALIDATE_ALL_CODEBASE: false
-          FILTER_REGEX_INCLUDE: .*src/.*
-          DEFAULT_BRANCH: master
-          GITHUB_TOKEN: '${{ env.github-token }}'
-  
-  Build-Test:
-    runs-on: ubuntu-latest
-    outputs:
-      nuGetVersion: ${{ steps.gitversion.outputs.NuGetVersion }}
-      majorMinorPatch: ${{ steps.gitversion.outputs.MajorMinorPatch }}
-      fullSemVer: ${{ steps.gitversion.outputs.FullSemVer }}
-      branchName: ${{ steps.gitversion.outputs.BranchName }}
     env:
       working-directory: ${{ github.workspace }}
+      github-token: '${{ secrets.GH_Packages }}'
+      nuget-token: '${{ secrets.NUGET_API_KEY }}'
 
     steps:
       - name: Step-01 Install GitVersion
@@ -45,7 +25,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Step-03 Calculate Version
         id: gitversion
@@ -68,7 +47,7 @@ jobs:
         run: dotnet restore
         working-directory: '${{ env.working-directory }}'
 
-      - name: Step-07 Build Version (Beta)
+      - name: Step-07 Build Version (Alpha)
         run: dotnet build --configuration Release --no-restore -p:PackageVersion=${{ steps.gitversion.outputs.NuGetVersion }}
         working-directory: '${{ env.working-directory }}'
 
@@ -76,9 +55,18 @@ jobs:
         run: dotnet test --configuration Release --no-build --no-restore --verbosity normal
         working-directory: '${{ env.working-directory }}'
 
-      - name: Step-09 Upload Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-artifact
-          path: ${{ env.working-directory }}
-          retention-days: 1
+      - name: Step-09 Create NuGet Package
+        run: dotnet pack --configuration Release --no-build --output ./packages -p:PackageVersion=${{ steps.gitversion.outputs.NuGetVersion }}
+        working-directory: '${{ env.working-directory }}'
+
+      - name: Step-10 Publish to Github Packages
+        run: |
+          dotnet tool install gpr --global
+          find ./packages -name "*.nupkg" -print -exec gpr push -k ${{ env.github-token }} {} \;
+        working-directory: '${{ env.working-directory }}'
+
+      - name: Step-11 Publish to NuGet.org (for release pre-releases)
+        if: ${{ env.nuget-token != '' && contains(github.ref, 'pre-release/v') }}
+        run: |
+          find ./packages -name "*.nupkg" -print -exec dotnet nuget push {} --skip-duplicate --api-key ${{ env.nuget-token }} --source https://api.nuget.org/v3/index.json \;
+        working-directory: '${{ env.working-directory }}'

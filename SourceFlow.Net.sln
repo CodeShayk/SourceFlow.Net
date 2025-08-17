@@ -10,6 +10,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{4F977993-F413-4BA5-809B-6688EC654606}"
 	ProjectSection(SolutionItems) = preProject
 		.gitignore = .gitignore
+		GitVersion.yml = GitVersion.yml
 		LICENSE = LICENSE
 		README.md = README.md
 	EndProjectSection
@@ -26,6 +27,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "github", "github", "{F81A2C
 		.github\workflows\Master-CodeQL.yml = .github\workflows\Master-CodeQL.yml
 		.github\workflows\PR-CI.yml = .github\workflows\PR-CI.yml
 		.github\workflows\PR-CodeQL.yml = .github\workflows\PR-CodeQL.yml
+		.github\workflows\Pre-release-CI.yml = .github\workflows\Pre-release-CI.yml
+		.github\workflows\Release-CI.yml = .github\workflows\Release-CI.yml
 	EndProjectSection
 EndProject
 Global
