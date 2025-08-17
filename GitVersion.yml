@@ -7,8 +7,7 @@ branches:
     tag: ''
     source-branches: ['develop']
   release:
-    mode: ManualDeployment
-    regex: ^releases?[\/-]
+    mode: ContinuousDelivery
     tag: beta
     increment: Minor
     prevent-increment-of-merged-branch-version: true
@@ -29,7 +28,6 @@ branches:
     regex: ^(pull|pull\-requests|pr)[/-]
     source-branches: ['master', 'develop', 'release', 'pre-release']
   feature:
-    regex: ^features?[\/-]
     tag: '{BranchName}'
     increment: Inherit
     source-branches: ['master', 'develop', 'release']
