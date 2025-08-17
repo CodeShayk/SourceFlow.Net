@@ -1,0 +1,18 @@
+next-version: 1.0.0
+tag-prefix: '[vV]'
+mode: ContinuousDeployment
+branches:
+  master:
+    regex: ^master$
+  release:
+    regex: ^release$
+  pre-release:
+    regex: ^pre-release$
+    tag: alpha
+  develop:
+    regex: ^develop$|^dev$
+    tag: beta
+  pull-request:
+    tag: beta
+ignore:
+  sha: []
