@@ -4,15 +4,21 @@ mode: ContinuousDeployment
 branches:
   master:
     regex: ^master$
+    tag: ''
   release:
     regex: ^release$
+    tag: ''
   pre-release:
-    regex: ^pre-release$
+    regex: ^pre-release$|^pre-release/.*$
     tag: alpha
+    increment: Minor
+    prevent-increment-of-merged-branch-version: true
   develop:
     regex: ^develop$|^dev$
     tag: beta
+    increment: Minor
   pull-request:
     tag: beta
+    regex: ^(pull|pull\-requests|pr)[/-]
 ignore:
   sha: []
