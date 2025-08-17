@@ -3,19 +3,21 @@ tag-prefix: '[vV]'
 mode: ContinuousDeployment
 branches:
   master:
-    regex: ^master$
+    regex: ^master$|^main$
     tag: ''
     source-branches: ['develop']
+    is-main-branch: true
   release:
-    regex: ^release$
+    regex: ^releases?[\/-]
     tag: ''
-    source-branches: ['develop', 'master']
+    source-branches: ['master', 'develop']
+    is-release-branch: true
   pre-release:
-    regex: ^pre-release$|^pre-release/.*$
+    regex: ^pre-release$|^pre-release/.*
     tag: alpha
     increment: Minor
     prevent-increment-of-merged-branch-version: true
-    source-branches: ['develop', 'master']
+    source-branches: ['master', 'develop']
   develop:
     regex: ^develop$|^dev$
     tag: beta
@@ -24,6 +26,11 @@ branches:
   pull-request:
     tag: beta
     regex: ^(pull|pull\-requests|pr)[/-]
-    source-branches: ['develop', 'master', 'release', 'pre-release']
+    source-branches: ['master', 'develop', 'release', 'pre-release']
+  feature:
+    regex: ^features?[\/-]
+    tag: '{BranchName}'
+    increment: Inherit
+    source-branches: ['master', 'develop', 'release']
 ignore:
   sha: []
