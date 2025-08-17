@@ -6,12 +6,13 @@ branches:
     regex: ^master$|^main$
     tag: ''
     source-branches: ['develop']
-    is-main-branch: true
   release:
+    mode: ManualDeployment
     regex: ^releases?[\/-]
-    tag: ''
+    tag: beta
+    increment: Minor
+    prevent-increment-of-merged-branch-version: true
     source-branches: ['master', 'develop']
-    is-release-branch: true
   pre-release:
     regex: ^pre-release$|^pre-release/.*
     tag: alpha
