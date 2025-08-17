@@ -5,6 +5,8 @@ on:
     - release/**
     - release
 
+permissions:
+  contents: read
 jobs:
   Build-Test-Publish:
     runs-on: ubuntu-latest
