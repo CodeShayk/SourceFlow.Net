@@ -48,7 +48,7 @@ This project is licensed with the [MIT license](LICENSE).
 ## Contributing
 We welcome contributions! Please see our Contributing Guide for details.
 - 🐛 Bug Reports - Create an [issue](https://github.com/CodeShayk/sourceflow.net/issues/new/choose)
-- 💡 Feature Requests - Start a discussion
+- 💡 Feature Requests - Start a [discussion](https://github.com/CodeShayk/SourceFlow.Net/discussions)
 - 📝 Documentation - Help improve our [docs](https://github.com/CodeShayk/SourceFlow.Net/wiki)
 - 💻 Code - Submit pull requests
 
