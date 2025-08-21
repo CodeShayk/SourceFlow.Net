@@ -50,7 +50,7 @@ We welcome contributions! Please see our Contributing Guide for details.
 - 🐛 Bug Reports - Create an [issue](https://github.com/CodeShayk/sourceflow.net/issues/new/choose)
 - 💡 Feature Requests - Start a [discussion](https://github.com/CodeShayk/SourceFlow.Net/discussions)
 - 📝 Documentation - Help improve our [docs](https://github.com/CodeShayk/SourceFlow.Net/wiki)
-- 💻 Code - Submit pull requests
+- 💻 Code - Submit [pull](https://github.com/CodeShayk/SourceFlow.Net/pulls) requests
 
 ## Credits
 Thank you for reading. Please fork, explore, contribute and report. Happy Coding !! :)
