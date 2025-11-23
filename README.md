@@ -24,7 +24,20 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 * ⚡ CQRS Implementation with Command/Query Segregation 
 * 📊 Event-First Design with Event Sourcing Foundation  
 * 🧱 Clean Architecture
-  
+
+### Concept
+- `Aggregate` wraps the root entity to manage changes to the root aggregate by publishing commands. 
+- `Saga` is a long running transaction and subscribes to `commands` to manage the actual updates to root aggregate within the domain bounded context.
+- Saga basically `orchestrates` the success and failure flows to `update` the `state` of `root aggregate` accordingly.
+- Saga can also publish `commands` to `itself` or `other` saga's.
+- Saga can be defined to raise `events` when handling commands.
+- `Events` are published to `subscribers`.
+- There are two subscribers to event - ie. i. `Aggregates` ii. `Views`
+- `Aggregate` subscribe to `events` to manage `changes` to root aggregate based upon `external` stimulus. ie. changes in any saga workflow
+- `View` subscribe to `events` to `write` data to `view model`, views source `transformed` data for viewers. ie. `UI` could read data from view model (with eventual consistency).  
+
+<img src="https://github.com/CodeShayk/SourceFlow.Net/blob/master/Images/architecture.png" alt="arcitecture" style="width:30px;"/>
+
 ## Getting Started
 ### Installation
 nuget add package SourceFlow.Net
