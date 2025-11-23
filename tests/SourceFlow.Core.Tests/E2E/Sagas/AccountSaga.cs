@@ -15,7 +15,7 @@ namespace SourceFlow.Core.Tests.E2E.Sagas
                                IHandlesWithEvent<CloseAccount, AccountUpdated>,
                                IHandles<ActivateAccount>
     {
-        public AccountSaga(ICommandPublisher commandPublisher, IEventQueue eventQueue, IRepository repository, ILogger<ISaga> logger) :
+        public AccountSaga(Lazy<ICommandPublisher> commandPublisher, IEventQueue eventQueue, IRepository repository, ILogger<ISaga> logger) :
             base(commandPublisher, eventQueue, repository, logger)
         {
         }

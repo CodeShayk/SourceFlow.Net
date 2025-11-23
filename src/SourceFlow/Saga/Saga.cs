@@ -21,7 +21,7 @@ namespace SourceFlow.Saga
         /// </summary>
         /// <remarks>The command publisher is typically used to dispatch commands to their respective
         /// handlers. Derived classes can use this member to publish commands as part of their functionality.</remarks>
-        protected ICommandPublisher commandPublisher;
+        protected Lazy<ICommandPublisher> commandPublisher;
 
         /// <summary>
         /// Represents the queue used to manage and process events.
@@ -44,7 +44,7 @@ namespace SourceFlow.Saga
         /// <summary>
         /// Initializes a new instance of the <see cref="Saga{TAggregate}"/> class.
         /// </summary>
-        public Saga(ICommandPublisher commandPublisher, IEventQueue eventQueue, IRepository repository, ILogger<ISaga> logger)
+        public Saga(Lazy<ICommandPublisher> commandPublisher, IEventQueue eventQueue, IRepository repository, ILogger<ISaga> logger)
         {
             this.commandPublisher = commandPublisher ?? throw new ArgumentNullException(nameof(commandPublisher));
             this.eventQueue = eventQueue ?? throw new ArgumentNullException(nameof(eventQueue));
@@ -81,7 +81,14 @@ namespace SourceFlow.Saga
         {
 
             if (!(this is IHandles<TCommand> handles))
+            {
+                logger?.LogWarning("Action=Saga_CannotHandle, Saga={Saga}, Command={Command}, Reason=NotImplementingIHandles",
+                    GetType().Name, typeof(TCommand).Name);
                 return;
+            }
+
+            logger?.LogInformation("Action=Saga_Starting, Saga={Saga}, Command={Command}",
+                GetType().Name, typeof(TCommand).Name);
 
             TAggregate entity;
             if (command.Entity.IsNew)
@@ -100,7 +107,7 @@ namespace SourceFlow.Saga
             await RaiseEvent(command, entity);
         }
 
-        private async Task RaiseEvent<TCommand>(TCommand command, TAggregate entity) where TCommand : ICommand
+        private Task RaiseEvent<TCommand>(TCommand command, TAggregate entity) where TCommand : ICommand
         {
             try
             {
@@ -143,17 +150,22 @@ namespace SourceFlow.Saga
                     {
                         // Ensure payload set
                         if (ev.Payload == null && entity != null)
-                            ev.Payload = entity;                       
+                            ev.Payload = entity;
 
-                        await Raise(ev);
+                        // Call Raise with the concrete event type to preserve generics
+                        var raiseMethod = this.GetType().GetMethod(nameof(Raise), BindingFlags.NonPublic | BindingFlags.Instance);
+                        var genericRaiseMethod = raiseMethod.MakeGenericMethod(eventType);
+                        return (Task)genericRaiseMethod.Invoke(this, new object[] { ev });
                     }
-                }
+                }                
             }
             catch (Exception ex)
             {
                 // Don't break saga processing if raising event fails; log the error.
                 logger?.LogError(ex, "Action=Saga_RaiseEventFailed, Saga={Saga}, Command={Command}", GetType().Name, command.GetType().Name);
             }
+
+            return Task.CompletedTask;
         }
 
 
@@ -190,7 +202,7 @@ namespace SourceFlow.Saga
             if (command.Entity?.Id == null)
                 throw new InvalidOperationException(nameof(command) + "requires entity reference with id");
 
-            return commandPublisher.Publish(command);
+            return commandPublisher.Value.Publish(command);
         }
 
         /// <summary>

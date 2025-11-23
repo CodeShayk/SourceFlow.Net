@@ -9,7 +9,7 @@ namespace SourceFlow.ConsoleApp.Aggregates
     public class AccountAggregate : Aggregate<BankAccount>,
                                     ISubscribes<AccountCreated>, IAccountAggregate
     {
-        public AccountAggregate(ICommandPublisher commandPublisher, ILogger<AccountAggregate> logger)
+        public AccountAggregate(Lazy<ICommandPublisher> commandPublisher, ILogger<AccountAggregate> logger)
             : base(commandPublisher, logger)
         {
         }
@@ -58,7 +58,7 @@ namespace SourceFlow.ConsoleApp.Aggregates
         }
 
         public Task RepayHistory(int accountId) {
-            return commandPublisher.ReplayCommands(accountId);
+            return commandPublisher.Value.ReplayCommands(accountId);
         }
     }
 }

@@ -39,14 +39,14 @@ namespace SourceFlow.Saga
         /// <typeparam name="TCommand"></typeparam>
         /// <param name="event"></param>
         /// <returns></returns>
-        public async Task Subscribe<TCommand>(TCommand command) where TCommand : ICommand
+        public Task Subscribe<TCommand>(TCommand command) where TCommand : ICommand
         {
             if (!sagas.Any())
             {
                 logger?.LogInformation("Action=Command_Dispatcher, Command={Command}, Payload={Payload}, SequenceNo={No}, Message=No Sagas Found",
                 command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo);
 
-                return;
+                return Task.CompletedTask;
             }
 
             var tasks = new List<Task>();
@@ -58,7 +58,7 @@ namespace SourceFlow.Saga
                 tasks.Add(Send(saga, command));
             }
 
-            await Task.WhenAll(tasks);
+            return Task.WhenAll(tasks);
         }
 
         /// <summary>
@@ -68,14 +68,14 @@ namespace SourceFlow.Saga
         /// <param name="saga"></param>
         /// <param name="event"></param>
         /// <returns></returns>
-        private async Task Send<TCommand>(ISaga saga, TCommand command) where TCommand : ICommand
+        private Task Send<TCommand>(ISaga saga, TCommand command) where TCommand : ICommand
         {
             // 4. Log event.
             logger?.LogInformation("Action=Command_Dispatcher_Send, Command={Command}, Payload={Payload}, SequenceNo={No}, Saga={Saga}",
                 command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo, saga.GetType().Name);
 
             // 2. handle event by Saga?
-            await saga.Handle(command);
+            return saga.Handle(command);
         }
 
         ///// <summary>

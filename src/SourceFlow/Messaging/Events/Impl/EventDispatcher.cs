@@ -36,7 +36,7 @@ namespace SourceFlow.Messaging.Events.Impl
         /// <typeparam name="TEvent"></typeparam>
         /// <param name="event"></param>
         /// <returns></returns>
-        public Task Dispatch(IEvent @event)
+        public Task Dispatch<TEvent>(TEvent @event) where TEvent : IEvent
         {
             var tasks = new List<Task>();
 

@@ -15,14 +15,14 @@ namespace SourceFlow.Aggregate
         /// <summary>
         /// The command publisher used to publish commands.
         /// </summary>
-        protected ICommandPublisher commandPublisher;
+        protected Lazy<ICommandPublisher> commandPublisher;
 
         /// <summary>
         /// Logger for the aggregate root to log events and errors.
         /// </summary>
         protected ILogger<IAggregate> logger;
 
-        protected Aggregate(ICommandPublisher commandPublisher, ILogger<IAggregate> logger)
+        protected Aggregate(Lazy<ICommandPublisher> commandPublisher, ILogger<IAggregate> logger)
         {
             this.commandPublisher = commandPublisher;
             this.logger = logger;
@@ -35,7 +35,7 @@ namespace SourceFlow.Aggregate
         /// <returns></returns>
         public Task ReplayCommands(int entityId)
         {
-            return commandPublisher.ReplayCommands(entityId);
+            return commandPublisher.Value.ReplayCommands(entityId);
         }
 
         /// <summary>
@@ -45,12 +45,12 @@ namespace SourceFlow.Aggregate
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
         /// <exception cref="InvalidOperationException"></exception>
-        protected Task Send(ICommand command)
+        protected Task Send<TCommand>(TCommand command) where TCommand : ICommand
         {
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
 
-            return commandPublisher.Publish(command);
+            return commandPublisher.Value.Publish(command);
         }
     }
 }

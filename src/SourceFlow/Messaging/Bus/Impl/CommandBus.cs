@@ -46,12 +46,12 @@ namespace SourceFlow.Messaging.Bus.Impl
         /// <param name="event"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
-        async Task ICommandBus.Publish<TCommand>(TCommand command)
+        Task ICommandBus.Publish<TCommand>(TCommand command)
         {
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
 
-            await Dispatch(command);
+            return Dispatch(command);
         }
 
         private async Task Dispatch<TCommand>(TCommand command) where TCommand : ICommand
@@ -64,7 +64,7 @@ namespace SourceFlow.Messaging.Bus.Impl
             await commandDispatcher.Dispatch(command);
 
             // 3. Log event.
-            logger?.LogInformation("Action=Command_Dispatched, Command={Command}, Payload={Payload}, SequenceNo={No}, Saga={Saga}",
+            logger?.LogInformation("Action=Command_Dispatched, Command={Command}, Payload={Payload}, SequenceNo={No}",
                 command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo);
 
             // 4. When event is not replayed
@@ -88,7 +88,13 @@ namespace SourceFlow.Messaging.Bus.Impl
             foreach (var command in commands.ToList())
             {
                 command.Metadata.IsReplay = true;
-                await Dispatch(command);
+
+                // Call Dispatch with the concrete command type to preserve generics
+                var commandType = command.GetType();
+                var dispatchMethod = this.GetType().GetMethod(nameof(Dispatch),
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var genericDispatchMethod = dispatchMethod.MakeGenericMethod(commandType);
+                await (Task)genericDispatchMethod.Invoke(this, new object[] { command });
             }
         }
     }

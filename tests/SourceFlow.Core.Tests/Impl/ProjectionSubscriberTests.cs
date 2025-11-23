@@ -12,14 +12,14 @@ namespace SourceFlow.Core.Tests.Impl
         public void Constructor_NullProjections_ThrowsArgumentNullException()
         {
             var logger = new Mock<ILogger<IEventSubscriber>>().Object;
-            Assert.Throws<ArgumentNullException>(() => new Projections.EventSubscriber(null, logger));
+            Assert.Throws<ArgumentNullException>(() => new SourceFlow.Projections.EventSubscriber(null, logger));
         }
 
         [Test]
         public void Constructor_NullLogger_ThrowsArgumentNullException()
         {
             var projections = new List<IProjection>();
-            Assert.Throws<ArgumentNullException>(() => new Projections.EventSubscriber(projections, null));
+            Assert.Throws<ArgumentNullException>(() => new SourceFlow.Projections.EventSubscriber(projections, null));
         }
 
         [Test]
@@ -34,7 +34,7 @@ namespace SourceFlow.Core.Tests.Impl
                 .Setup(p => p.Apply(It.IsAny<IEvent>()))
                 .Returns(Task.CompletedTask);
             var projections = new List<IProjection> { projectionMock.Object };
-            var dispatcher = new Projections.EventSubscriber(projections, loggerMock.Object);
+            var dispatcher = new SourceFlow.Projections.EventSubscriber(projections, loggerMock.Object);
             await dispatcher.Subscribe(eventMock.Object);
             loggerMock.Verify(l => l.Log(
                 It.IsAny<LogLevel>(),

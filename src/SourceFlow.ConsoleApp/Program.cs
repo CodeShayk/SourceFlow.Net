@@ -15,7 +15,7 @@ services.AddLogging(builder =>
     builder.SetMinimumLevel(LogLevel.Information);
 });
 
-services.UseSourceFlow();
+services.UseSourceFlow(typeof(AccountAggregate).Assembly);
 
 var serviceProvider = services.BuildServiceProvider();
 

@@ -50,17 +50,10 @@ namespace SourceFlow.Projections
 
             foreach (var projection in projections)
             {
-                var projectionType = typeof(IProjectOn<>).MakeGenericType(typeof(TEvent));
-                if (!projectionType.IsAssignableFrom(projection.GetType()))
+               if (!(projection is IProjectOn<TEvent> eventSubscriber))
                     continue;
 
-                var method = typeof(IProjectOn<>)
-                           .MakeGenericType(typeof(TEvent))
-                           .GetMethod(nameof(IProjectOn<TEvent>.Apply));
-
-                var task = (Task)method.Invoke(projection, new object[] { @event });
-
-                tasks.Add(task);
+                tasks.Add(eventSubscriber.Apply(@event));
 
                 logger?.LogInformation("Action=Event_Dispatcher_View, Event={Event}, Apply:{Apply}",
                         @event.Name, projection.GetType().Name);

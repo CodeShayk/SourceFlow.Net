@@ -36,16 +36,16 @@ namespace SourceFlow.Messaging.Events.Impl
         /// <typeparam name="TEvent"></typeparam>
         /// <param name="event"></param>
         /// <returns></returns>
-        public async Task Enqueue<TEvent>(TEvent @event)
+        public Task Enqueue<TEvent>(TEvent @event)
             where TEvent : IEvent
         {
             if (@event == null)
                 throw new ArgumentNullException(nameof(@event));
 
-            await eventDispatcher.Dispatch(@event);
-
             logger?.LogInformation("Action=Event_Enqueue, Event={Event}, Payload={Payload}",
-                @event.GetType().Name, @event.Payload.GetType().Name);
+              @event.GetType().Name, @event.Payload.GetType().Name);
+
+            return eventDispatcher.Dispatch(@event);          
         }
     }
 }

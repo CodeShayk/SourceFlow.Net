@@ -35,8 +35,9 @@ namespace SourceFlow.Core.Tests.E2E
 
             _serviceProvider = services.BuildServiceProvider();
 
-            _accountAggregate = _serviceProvider.GetRequiredService<IAccountAggregate>();
             _saga = _serviceProvider.GetRequiredService<ISaga>();
+            _accountAggregate = _serviceProvider.GetRequiredService<IAccountAggregate>();
+           
             _logger = _serviceProvider.GetRequiredService<ILogger<ProgramIntegrationTests>>();
             _viewRepository = _serviceProvider.GetRequiredService<IViewProvider>();
         }

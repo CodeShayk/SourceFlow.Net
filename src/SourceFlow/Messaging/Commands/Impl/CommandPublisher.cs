@@ -41,7 +41,7 @@ namespace SourceFlow.Messaging.Commands.Impl
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
         /// <exception cref="InvalidOperationException"></exception>
-        async Task ICommandPublisher.Publish<TCommand>(TCommand command)
+        Task ICommandPublisher.Publish<TCommand>(TCommand command)
         {
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
@@ -52,7 +52,7 @@ namespace SourceFlow.Messaging.Commands.Impl
             if (!command.Entity.IsNew && command.Entity?.Id == null)
                 throw new InvalidOperationException(nameof(command) + " requires entity id when not new entity.");
 
-            await commandBus.Publish(command);
+            return commandBus.Publish(command);
         }
     }
 }

@@ -4,6 +4,6 @@ namespace SourceFlow.Messaging.Events
 {
     public interface IEventDispatcher
     {
-        Task Dispatch(IEvent @event);
+        Task Dispatch<TEvent>(TEvent @event) where TEvent : IEvent;
     }
 }

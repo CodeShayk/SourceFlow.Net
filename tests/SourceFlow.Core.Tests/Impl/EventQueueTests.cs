@@ -60,7 +60,7 @@ namespace SourceFlow.Core.Tests.Impl
             await eventQueue.Enqueue(@event);
 
             // Assert
-            eventDispatcherMock.Verify(ed => ed.Dispatch(@event), Times.Once);
+            eventDispatcherMock.Verify(ed => ed.Dispatch<DummyEvent>(@event), Times.Once);
         }
 
         [Test]
@@ -83,13 +83,13 @@ namespace SourceFlow.Core.Tests.Impl
         }
 
         [Test]
-        public async Task Enqueue_ValidEvent_DispatchesBeforeLogging()
+        public async Task Enqueue_ValidEvent_DispatchesAfterLogging()
         {
             // Arrange
             var @event = new DummyEvent();
             var callSequence = new System.Collections.Generic.List<string>();
 
-            eventDispatcherMock.Setup(ed => ed.Dispatch(It.IsAny<IEvent>()))
+            eventDispatcherMock.Setup(ed => ed.Dispatch(It.IsAny<DummyEvent>()))
                 .Callback(() => callSequence.Add("Dispatch"))
                 .Returns(Task.CompletedTask);
 
@@ -105,8 +105,8 @@ namespace SourceFlow.Core.Tests.Impl
             await eventQueue.Enqueue(@event);
 
             // Assert
-            Assert.That(callSequence[0], Is.EqualTo("Dispatch"));
-            Assert.That(callSequence[1], Is.EqualTo("Log"));
+            Assert.That(callSequence[0], Is.EqualTo("Log"));
+            Assert.That(callSequence[1], Is.EqualTo("Dispatch"));
         }
 
         [Test]
@@ -123,7 +123,7 @@ namespace SourceFlow.Core.Tests.Impl
             await eventQueue.Enqueue(event3);
 
             // Assert
-            eventDispatcherMock.Verify(ed => ed.Dispatch(It.IsAny<IEvent>()), Times.Exactly(3));
+            eventDispatcherMock.Verify(ed => ed.Dispatch(It.IsAny<DummyEvent>()), Times.Exactly(3));
         }
     }
 }

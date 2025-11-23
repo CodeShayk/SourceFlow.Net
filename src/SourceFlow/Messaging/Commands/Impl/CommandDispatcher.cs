@@ -36,7 +36,7 @@ namespace SourceFlow.Messaging.Commands.Impl
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="command"></param>
-        public Task Dispatch(ICommand command)
+        public Task Dispatch<TCommand>(TCommand command) where TCommand : ICommand
         {
             return Send(command);
         }

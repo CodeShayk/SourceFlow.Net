@@ -33,9 +33,9 @@ namespace SourceFlow.Tests.Ioc
         public Metadata Metadata { get; set; } = new Metadata();
     }
 
-    public class TestAggregate : Aggregate<TestEntity>, ITestAggregate, IHandles<TestCommand>
+    internal class TestAggregate : Aggregate<TestEntity>, ITestAggregate, IHandles<TestCommand>
     {
-        public TestAggregate(ICommandPublisher commandPublisher, ILogger<IAggregate> logger) 
+        public TestAggregate(Lazy<ICommandPublisher> commandPublisher, ILogger<IAggregate> logger)
             : base(commandPublisher, logger) { }
 
         public Task Handle(IEntity entity, TestCommand command)
@@ -45,10 +45,10 @@ namespace SourceFlow.Tests.Ioc
         }
     }
 
-    public class TestSaga : Saga<TestEntity>, ITestSaga, IHandles<TestCommand>
+    internal class TestSaga : Saga<TestEntity>, ITestSaga, IHandles<TestCommand>
     {
-        public TestSaga(ICommandPublisher commandPublisher, IEventQueue eventQueue, 
-            IRepository repository, ILogger<ISaga> logger) 
+        public TestSaga(Lazy<ICommandPublisher> commandPublisher, IEventQueue eventQueue,
+            IRepository repository, ILogger<ISaga> logger)
             : base(commandPublisher, eventQueue, repository, logger) { }
 
         public Task Handle(IEntity entity, TestCommand command)

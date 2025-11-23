@@ -9,7 +9,7 @@ namespace SourceFlow.Core.Tests.E2E.Aggregates
     public class AccountAggregate : Aggregate<BankAccount>,
                                     ISubscribes<AccountCreated>, IAccountAggregate
     {
-        public AccountAggregate(ICommandPublisher commandPublisher, ILogger<IAggregate> logger) :
+        public AccountAggregate(Lazy<ICommandPublisher> commandPublisher, ILogger<IAggregate> logger) :
             base(commandPublisher, logger)
         {
         }
@@ -55,10 +55,9 @@ namespace SourceFlow.Core.Tests.E2E.Aggregates
 
         public Task Handle(AccountCreated @event)
         {
-            return Send(new ActivateAccount(@event.Payload.Id, new ActivationPayload
-            {
-                ActiveOn = DateTime.UtcNow,
-            }));
+            // To prevent infinite loops, this method does nothing
+            // Activation should happen through commands, not through event handling cycles
+            return Task.CompletedTask;
         }
 
         public Task RepayHistory(int accountId)

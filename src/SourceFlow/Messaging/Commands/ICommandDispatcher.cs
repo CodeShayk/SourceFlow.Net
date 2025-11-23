@@ -9,6 +9,6 @@ namespace SourceFlow.Messaging.Commands
         /// Dispatches a command to the registered sagas.
         /// </summary>
         /// <param name="command"></param>
-        Task Dispatch(ICommand command);
+        Task Dispatch<TCommand>(TCommand command) where TCommand : ICommand;
     }
 }

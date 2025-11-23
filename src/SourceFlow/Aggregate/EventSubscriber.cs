@@ -44,29 +44,22 @@ namespace SourceFlow.Aggregate
         /// <typeparam name="TEvent"></typeparam>
         /// <param name="event"></param>
         /// <returns></returns>
-        public async Task Subscribe<TEvent>(TEvent @event) where TEvent : IEvent
+        public Task Subscribe<TEvent>(TEvent @event) where TEvent : IEvent
         {
             var tasks = new List<Task>();
 
             foreach (var aggregate in aggregates)
             {
-                var handlerType = typeof(ISubscribes<>).MakeGenericType(typeof(TEvent));
-                if (!handlerType.IsAssignableFrom(aggregate.GetType()))
+                if (!(aggregate is ISubscribes<TEvent> eventSubscriber))
                     continue;
 
-                var method = typeof(ISubscribes<>)
-                            .MakeGenericType(typeof(TEvent))
-                            .GetMethod(nameof(ISubscribes<TEvent>.Handle));
+                tasks.Add(eventSubscriber.Handle(@event));
 
-                var task = (Task)method.Invoke(aggregate, new object[] { @event });
-
-                tasks.Add(task);
-
-                logger?.LogInformation("Action=Event_Disptcher_Aggregate, Event={Event}, Aggregate={Aggregate}, Handler:{Handler}",
-                       typeof(TEvent).Name, aggregate.GetType().Name, method.Name);
+                logger?.LogInformation("Action=Event_Disptcher_Aggregate, Event={Event}, Aggregate={Aggregate}",
+                       typeof(TEvent).Name, aggregate.GetType().Name);
             }
 
-            await Task.WhenAll(tasks);
+            return Task.WhenAll(tasks);
         }        
     }
 }

@@ -62,57 +62,28 @@ namespace SourceFlow
             // Register factories
             services.Add(ServiceDescriptor.Describe(typeof(IAggregateFactory), typeof(AggregateFactory), lifetime));
 
+            // Register infrastructure services that will be used by Sagas/Aggregates
+            services.AddSingleton<ICommandSubscriber, CommandSubscriber>();
+            services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
+            services.AddSingleton<ICommandBus, CommandBus>();
+            services.AddSingleton<ICommandPublisher, CommandPublisher>();
+
+            // Register Lazy<ICommandPublisher> to break circular dependency
+            // Sagas and Aggregates will receive this instead of direct ICommandPublisher
+            services.AddSingleton<Lazy<ICommandPublisher>>(provider =>
+                new Lazy<ICommandPublisher>(() => provider.GetRequiredService<ICommandPublisher>()));
+
             // Register Sagas and Aggregates with proper constructor injection
+            // They now depend on Lazy<ICommandPublisher> which defers resolution
             RegisterSagasWithConstructorInjection(services, assemblies, lifetime);
             RegisterAggregatesWithConstructorInjection(services, assemblies, lifetime);
 
-            // Register infrastructure services that depend on Sagas/Aggregates
-            services.AddSingleton<ICommandSubscriber>(provider =>
-                new CommandSubscriber(
-                    provider.GetServices<ISaga>(),
-                    provider.GetService<ILogger<ICommandSubscriber>>()));
+            // Register event subscribers as singleton services
+            services.AddSingleton<IEventSubscriber, Aggregate.EventSubscriber>();
+            services.AddSingleton<IEventSubscriber, Projections.EventSubscriber>();
 
-            services.AddSingleton<ICommandDispatcher>(provider =>
-                new CommandDispatcher(
-                    provider.GetServices<ICommandSubscriber>(),
-                    provider.GetService<ILogger<ICommandDispatcher>>()));
-
-            services.AddSingleton<ICommandBus>(provider =>
-                new CommandBus(
-                    provider.GetService<ICommandDispatcher>(),
-                    provider.GetService<ICommandStore>(),
-                    provider.GetService<ILogger<ICommandBus>>()));
-
-            services.AddSingleton<ICommandPublisher>(provider =>
-                new CommandPublisher(provider.GetService<ICommandBus>()));
-
-            // Register the concrete EventSubscriber implementations
-            services.AddSingleton<Aggregate.EventSubscriber>(provider =>
-                new Aggregate.EventSubscriber(
-                    provider.GetServices<IAggregate>(),
-                    provider.GetService<ILogger<Aggregate.EventSubscriber>>()));
-
-            services.AddSingleton<Projections.EventSubscriber>(provider =>
-                new Projections.EventSubscriber(
-                    provider.GetServices<IProjection>(),
-                    provider.GetService<ILogger<Projections.EventSubscriber>>()));
-
-            // Register factory methods to get each implementation as IEventSubscriber
-            // This allows the DI container to collect both when requesting IEnumerable<IEventSubscriber>
-            services.AddSingleton<IEventSubscriber>(provider =>
-                provider.GetRequiredService<Aggregate.EventSubscriber>());
-            services.AddSingleton<IEventSubscriber>(provider =>
-                provider.GetRequiredService<Projections.EventSubscriber>());
-
-            services.AddSingleton<IEventDispatcher>(provider =>
-                new EventDispatcher(
-                    provider.GetServices<IEventSubscriber>(),
-                    provider.GetService<ILogger<IEventDispatcher>>()));
-
-            services.AddSingleton<IEventQueue>(provider =>
-                new EventQueue(
-                    provider.GetService<IEventDispatcher>(),
-                    provider.GetService<ILogger<IEventQueue>>()));
+            services.AddSingleton<IEventDispatcher, EventDispatcher>();
+            services.AddSingleton<IEventQueue, EventQueue>();
         }
 
         private static void RegisterSagasWithConstructorInjection(IServiceCollection services, Assembly[] assemblies, ServiceLifetime lifetime)
@@ -126,7 +97,7 @@ namespace SourceFlow
                 // Register as concrete type for direct access
                 services.Add(ServiceDescriptor.Describe(sagaType, sagaType, lifetime));
 
-                // Register as all other interfaces the saga implements
+                // Register as all other interfaces the saga implements (needed for IHandles<TCommand> resolution)
                 var interfaces = sagaType.GetInterfaces()
                     .Where(i => i != typeof(ISaga) && i.IsPublic);
                 foreach (var iface in interfaces)
@@ -149,7 +120,7 @@ namespace SourceFlow
 
                 // Register as all other interfaces the aggregate implements
                 var interfaces = aggregateType.GetInterfaces()
-                    .Where(i => i != typeof(IAggregate) && i.IsPublic);
+                    .Where(i => i != typeof(IAggregate) && i != typeof(ISubscribes<>) && i.IsPublic);
                 foreach (var iface in interfaces)
                 {
                     services.Add(ServiceDescriptor.Describe(iface, aggregateType, lifetime));
@@ -205,6 +176,7 @@ namespace SourceFlow
                             .Where(t => interfaceType.IsAssignableFrom(t) &&
                                        t.IsClass &&
                                        !t.IsAbstract &&
+                                       t.IsPublic &&
                                        !t.IsGenericType &&
                                        !t.ContainsGenericParameters);
                     }
@@ -216,6 +188,7 @@ namespace SourceFlow
                                        interfaceType.IsAssignableFrom(t) &&
                                        t.IsClass &&
                                        !t.IsAbstract &&
+                                       t.IsPublic &&
                                        !t.IsGenericType &&
                                        !t.ContainsGenericParameters);
                     }

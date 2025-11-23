@@ -15,6 +15,7 @@ namespace SourceFlow.Core.Tests.Aggregates
     {
         private Mock<ICommandPublisher> commandPublisherMock;
         private Mock<ILogger<IAggregate>> loggerMock;
+        private Lazy<ICommandPublisher> lazyCommandPublisher;
         private TestAggregate aggregate;
 
         [SetUp]
@@ -22,14 +23,15 @@ namespace SourceFlow.Core.Tests.Aggregates
         {
             commandPublisherMock = new Mock<ICommandPublisher>();
             loggerMock = new Mock<ILogger<IAggregate>>();
-            aggregate = new TestAggregate(commandPublisherMock.Object, loggerMock.Object);
+            lazyCommandPublisher = new Lazy<ICommandPublisher>(() => commandPublisherMock.Object);
+            aggregate = new TestAggregate(lazyCommandPublisher, loggerMock.Object);
         }
 
         [Test]
         public void Constructor_SetsCommandPublisher()
         {
             // Assert
-            Assert.That(aggregate.GetCommandPublisher(), Is.EqualTo(commandPublisherMock.Object));
+            Assert.That(aggregate.GetCommandPublisher().Value, Is.EqualTo(commandPublisherMock.Object));
         }
 
         [Test]
@@ -89,13 +91,13 @@ namespace SourceFlow.Core.Tests.Aggregates
         // Test aggregate concrete implementation
         private class TestAggregate : Aggregate<TestEntity>
         {
-            public TestAggregate(ICommandPublisher commandPublisher, ILogger<IAggregate> logger)
+            public TestAggregate(Lazy<ICommandPublisher> commandPublisher, ILogger<IAggregate> logger)
                 : base(commandPublisher, logger)
             {
             }
 
             // Expose protected members for testing
-            public ICommandPublisher GetCommandPublisher() => commandPublisher;
+            public Lazy<ICommandPublisher> GetCommandPublisher() => commandPublisher;
             public ILogger<IAggregate> GetLogger() => logger;
 
             // Expose Send method for testing

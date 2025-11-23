@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SourceFlow\SourceFlow.csproj" />
+    <ProjectReference Include="..\..\src\SourceFlow.ConsoleApp\SourceFlow.ConsoleApp.csproj" />
   </ItemGroup>
 
   <ItemGroup>
