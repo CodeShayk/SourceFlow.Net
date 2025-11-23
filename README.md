@@ -36,7 +36,7 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 - `Aggregate` subscribe to `events` to manage `changes` to root aggregate based upon `external` stimulus. ie. changes in any saga workflow
 - `View` subscribe to `events` to `write` data to `view model`, views source `transformed` data for viewers. ie. `UI` could read data from view model (with eventual consistency).  
 
-<img src="https://github.com/CodeShayk/SourceFlow.Net/blob/master/Images/architecture.png" alt="arcitecture" style="width:30px;"/>
+<img src="https://github.com/CodeShayk/SourceFlow.Net/blob/v1.0.0/Images/Architecture.png" alt="arcitecture" style="width:700px; hieght:1000px"/>
 
 ## Getting Started
 ### Installation
