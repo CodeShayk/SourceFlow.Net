@@ -1,10 +1,10 @@
-using SourceFlow.Messaging;
+using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.ConsoleApp.Commands
 {
     public class CreateAccount : Command<Payload>
     {
-        public CreateAccount(Payload payload) : base(payload)
+        public CreateAccount(Payload payload) : base(true, payload)
         {
         }
     }

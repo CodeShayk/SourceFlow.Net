@@ -1,5 +1,3 @@
-using SourceFlow.Aggregate;
-
 namespace SourceFlow.Core.Tests.E2E.Aggregates
 {
     public class BankAccount : IEntity

@@ -1,9 +1,11 @@
 using System;
+using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Aggregate;
 using SourceFlow.Messaging;
-using SourceFlow.Messaging.Bus;
+using SourceFlow.Messaging.Commands;
+using SourceFlow.Messaging.Events;
 
 namespace SourceFlow.Saga
 {
@@ -37,28 +39,32 @@ namespace SourceFlow.Saga
         /// <summary>
         /// Logger for the saga to log events and errors.
         /// </summary>
-        protected ILogger logger;
+        protected ILogger<ISaga> logger;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Saga{TAggregate}"/> class.
         /// </summary>
-        protected Saga()
+        public Saga(ICommandPublisher commandPublisher, IEventQueue eventQueue, IRepository repository, ILogger<ISaga> logger)
         {
+            this.commandPublisher = commandPublisher ?? throw new ArgumentNullException(nameof(commandPublisher));
+            this.eventQueue = eventQueue ?? throw new ArgumentNullException(nameof(eventQueue));
+            this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
+            this.logger = logger;
         }
 
         /// <summary>
         /// Determines whether the specified saga instance can handle the given event type.
         /// </summary>
         /// <param name="instance">The saga instance to evaluate. Must not be <see langword="null"/>.</param>
-        /// <param name="eventType">The type of the event to check. Must not be <see langword="null"/>.</param>
+        /// <param name="commandType">The type of the command to check. Must not be <see langword="null"/>.</param>
         /// <returns><see langword="true"/> if the saga instance can handle the specified event type; otherwise, <see
         /// langword="false"/>.</returns>
-        internal static bool CanHandle(ISaga instance, Type eventType)
+        internal static bool CanHandle(ISaga instance, Type commandType)
         {
-            if (instance == null || eventType == null)
+            if (instance == null || commandType == null)
                 return false;
 
-            var handlerType = typeof(IHandles<>).MakeGenericType(eventType);
+            var handlerType = typeof(IHandles<>).MakeGenericType(commandType);
             return handlerType.IsAssignableFrom(instance.GetType());
         }
 
@@ -73,26 +79,102 @@ namespace SourceFlow.Saga
         /// <returns></returns>
         async Task ISaga.Handle<TCommand>(TCommand command)
         {
-            if (!CanHandle(this, command.GetType()))
+
+            if (!(this is IHandles<TCommand> handles))
                 return;
 
-            var method = typeof(IHandles<>)
-                        .MakeGenericType(command.GetType())
-                        .GetMethod(nameof(IHandles<TCommand>.Handle));
+            TAggregate entity;
+            if (command.Entity.IsNew)
+                entity = InitialiseEntity(command.Entity.Id);
+            else
+                entity = await repository.Get<TAggregate>(command.Entity.Id);
+            
+            await handles.Handle(entity, command);
 
-            var task = (Task)method.Invoke(this, new object[] { command });
+            logger?.LogInformation("Action=Saga_Handled, Command={Command}, Payload={Payload}, SequenceNo={No}, Saga={Saga}",
+                    command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo, GetType().Name);                       
 
-            logger?.LogInformation("Action=Saga_Handled, Command={Command}, Payload={Payload}, SequenceNo={No}, Saga={Saga}, Handler:{Handler}",
-                    command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo, GetType().Name, method.Name);
+            if (entity != null)
+                await repository.Persist(entity);
+            
+            await RaiseEvent(command, entity);
+        }
 
-            await Task.Run(() => task);
+        private async Task RaiseEvent<TCommand>(TCommand command, TAggregate entity) where TCommand : ICommand
+        {
+            try
+            {
+                var handlesWithEventInterface = this.GetType()
+                    .GetInterfaces()
+                    .FirstOrDefault(i =>
+                        i.IsGenericType &&
+                        i.GetGenericTypeDefinition() == typeof(IHandlesWithEvent<,>) &&
+                        i.GetGenericArguments()[0].IsAssignableFrom(typeof(TCommand))
+                    );
+
+                if (handlesWithEventInterface != null)
+                {
+                    var eventType = handlesWithEventInterface.GetGenericArguments()[1];
+
+                    object eventInstance = null;
+
+                    // Try parameterless constructor first
+                    try
+                    {
+                        eventInstance = Activator.CreateInstance(eventType);
+                    }
+                    catch
+                    {
+                        // Try constructor that accepts the aggregate/entity payload
+                        var ctor = eventType.GetConstructors()
+                            .FirstOrDefault(c =>
+                            {
+                                var ps = c.GetParameters();
+                                return ps.Length == 1 && ps[0].ParameterType.IsAssignableFrom(entity.GetType());
+                            });
+
+                        if (ctor != null)
+                        {
+                            eventInstance = ctor.Invoke(new object[] { entity });
+                        }
+                    }
+
+                    if (eventInstance is IEvent ev)
+                    {
+                        // Ensure payload set
+                        if (ev.Payload == null && entity != null)
+                            ev.Payload = entity;                       
+
+                        await Raise(ev);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Don't break saga processing if raising event fails; log the error.
+                logger?.LogError(ex, "Action=Saga_RaiseEventFailed, Saga={Saga}, Command={Command}", GetType().Name, command.GetType().Name);
+            }
+        }
+
+
+        /// <summary>
+        /// Initialises a new instance of the aggregate entity with the specified ID.
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        /// 
+        private TAggregate InitialiseEntity(int id)
+        {
+            var entity = Activator.CreateInstance(typeof(TAggregate), true);
+            ((IEntity)entity).Id = id;
+            return (TAggregate)entity;
         }
 
         /// <summary>
         /// Publishes the specified command to the command bus.
         /// </summary>
         /// <remarks>If the <paramref name="command"/> does not have an entity type specified, it will be
-        /// automatically set to the type of <c>TAggregate</c>.</remarks>
+        /// automatically set to the type of <c>TEntity</c>.</remarks>
         /// <typeparam name="TCommand">The type of the command to publish. Must implement <see cref="ICommand"/>.</typeparam>
         /// <param name="command">The command to be published. Cannot be <see langword="null"/>.</param>
         /// <returns>A task that represents the asynchronous operation of publishing the command.</returns>
@@ -105,8 +187,8 @@ namespace SourceFlow.Saga
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
 
-            if (command.Payload?.Id == null)
-                throw new InvalidOperationException(nameof(command) + "requires source entity id");
+            if (command.Entity?.Id == null)
+                throw new InvalidOperationException(nameof(command) + "requires entity reference with id");
 
             return commandPublisher.Publish(command);
         }

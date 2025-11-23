@@ -1,59 +1,69 @@
+using Microsoft.Extensions.Logging;
 using SourceFlow.Aggregate;
 using SourceFlow.Core.Tests.E2E.Commands;
 using SourceFlow.Core.Tests.E2E.Events;
+using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Core.Tests.E2E.Aggregates
 {
     public class AccountAggregate : Aggregate<BankAccount>,
-                                    ISubscribes<AccountCreated>
-
+                                    ISubscribes<AccountCreated>, IAccountAggregate
     {
-        public void CreateAccount(int accountId, string holder, decimal amount)
+        public AccountAggregate(ICommandPublisher commandPublisher, ILogger<IAggregate> logger) :
+            base(commandPublisher, logger)
         {
-            Send(new CreateAccount(new Payload
-            {
-                Id = accountId,
-                AccountName = holder,
-                InitialAmount = amount
-            }));
         }
 
-        public void Deposit(int accountId, decimal amount)
+        public Task CreateAccount(int accountId, string holder, decimal amount)
         {
-            Send(new DepositMoney(new TransactPayload
+            var command = new CreateAccount(new Payload
             {
-                Id = accountId,
+                AccountName = holder,
+                InitialAmount = amount
+            });
+
+            command.Entity.Id = accountId;
+
+            return Send(command);
+        }
+
+        public Task Deposit(int accountId, decimal amount)
+        {
+            return Send(new DepositMoney(accountId, new TransactPayload
+            {
                 Amount = amount,
                 Type = TransactionType.Deposit
             }));
         }
 
-        public void Withdraw(int accountId, decimal amount)
+        public Task Withdraw(int accountId, decimal amount)
         {
-            Send(new WithdrawMoney(new TransactPayload
+            return Send(new WithdrawMoney(accountId, new TransactPayload
             {
-                Id = accountId,
                 Amount = amount,
                 Type = TransactionType.Withdrawal
             }));
         }
 
-        public void Close(int accountId, string reason)
+        public Task CloseAccount(int accountId, string reason)
         {
-            Send(new CloseAccount(new ClosurePayload
+            return Send(new CloseAccount(accountId, new ClosurePayload
             {
-                Id = accountId,
                 ClosureReason = reason
             }));
         }
 
         public Task Handle(AccountCreated @event)
         {
-            return Send(new ActivateAccount(new ActivationPayload
+            return Send(new ActivateAccount(@event.Payload.Id, new ActivationPayload
             {
-                Id = @event.Payload.Id,
                 ActiveOn = DateTime.UtcNow,
             }));
+        }
+
+        public Task RepayHistory(int accountId)
+        {
+            return ReplayCommands(accountId);
         }
     }
 }

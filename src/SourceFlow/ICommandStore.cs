@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using SourceFlow.Messaging;
+using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow
 {

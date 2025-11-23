@@ -1,10 +1,11 @@
 using SourceFlow.Messaging;
+using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.ConsoleApp.Commands
 {
     public class CloseAccount : Command<ClosurePayload>
     {
-        public CloseAccount(ClosurePayload payload) : base(payload)
+        public CloseAccount(int entityId, ClosurePayload payload) : base(entityId, payload)
         {
         }
     }

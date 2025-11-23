@@ -1,5 +1,4 @@
-using SourceFlow.Aggregate;
-using SourceFlow.Messaging;
+using SourceFlow.Messaging.Events;
 
 namespace SourceFlow.Core.Tests.Messaging
 {

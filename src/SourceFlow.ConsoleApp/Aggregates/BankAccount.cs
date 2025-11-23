@@ -1,5 +1,3 @@
-using SourceFlow.Aggregate;
-
 namespace SourceFlow.ConsoleApp.Aggregates
 {
     public class BankAccount : IEntity

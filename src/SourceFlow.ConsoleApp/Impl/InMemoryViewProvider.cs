@@ -24,7 +24,10 @@ namespace SourceFlow.ConsoleApp.Impl
 
             var success = _cache.TryGetValue(id, out var model);
 
-            return Task.FromResult<TViewModel>(success ? (TViewModel)model : null);
+            if (!success || model == null)
+                throw new InvalidOperationException($"ViewModel not found for ID: {id}");
+
+            return Task.FromResult((TViewModel)model);
         }
 
         public Task Push<TViewModel>(TViewModel model) where TViewModel : IViewModel

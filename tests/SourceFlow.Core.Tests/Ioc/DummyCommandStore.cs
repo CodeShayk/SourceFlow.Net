@@ -1,4 +1,4 @@
-using SourceFlow.Messaging;
+using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Core.Tests.Ioc
 {
@@ -13,7 +13,7 @@ namespace SourceFlow.Core.Tests.Ioc
         public Task<IEnumerable<ICommand>> Load(int aggregateId)
         {
             // Simulate loading commands
-            return Task.FromResult<IEnumerable<ICommand>>(null);
+            return Task.FromResult<IEnumerable<ICommand>>(null!);
         }
 
         public Task<int> GetNextSequenceNo(int aggregateId)

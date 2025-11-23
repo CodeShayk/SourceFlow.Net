@@ -1,5 +1,5 @@
 using System.Threading.Tasks;
-using SourceFlow.Messaging;
+using SourceFlow.Messaging.Events;
 
 namespace SourceFlow.Aggregate
 {

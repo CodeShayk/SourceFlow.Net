@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using SourceFlow.Aggregate;
 
 namespace SourceFlow.ConsoleApp.Impl
 {
@@ -24,7 +23,10 @@ namespace SourceFlow.ConsoleApp.Impl
 
             var success = _cache.TryGetValue(id, out var entity);
 
-            return Task.FromResult<TEntity>(success ? (TEntity)entity : null);
+            if (!success || entity == null)
+                throw new InvalidOperationException($"Entity not found for ID: {id}");
+
+            return Task.FromResult((TEntity)entity);
         }
 
         public Task Persist<TEntity>(TEntity entity) where TEntity : IEntity

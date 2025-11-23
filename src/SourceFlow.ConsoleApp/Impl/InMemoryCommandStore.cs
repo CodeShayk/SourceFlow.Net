@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using SourceFlow.Messaging;
+using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.ConsoleApp.Impl
 {
@@ -7,26 +8,26 @@ namespace SourceFlow.ConsoleApp.Impl
     {
         private readonly ConcurrentDictionary<int, List<ICommand>> _store = new();
 
-        public Task Append(ICommand @event)
+        public Task Append(ICommand command)
         {
-            if (!_store.ContainsKey(@event.Payload.Id))
-                _store[@event.Payload.Id] = new List<ICommand>();
+            if (!_store.ContainsKey(command.Entity.Id))
+                _store[command.Entity.Id] = new List<ICommand>();
 
-            _store[@event.Payload.Id].Add(@event);
+            _store[command.Entity.Id].Add(command);
 
             return Task.CompletedTask;
         }
 
-        public async Task<IEnumerable<ICommand>> Load(int aggregateId)
+        public async Task<IEnumerable<ICommand>> Load(int entityId)
         {
-            return await Task.FromResult(_store.TryGetValue(aggregateId, out var events)
+            return await Task.FromResult(_store.TryGetValue(entityId, out var events)
                ? events
                : Enumerable.Empty<ICommand>());
         }
 
-        public Task<int> GetNextSequenceNo(int aggregateId)
+        public Task<int> GetNextSequenceNo(int entityId)
         {
-            if (_store.TryGetValue(aggregateId, out var events))
+            if (_store.TryGetValue(entityId, out var events))
             {
                 return Task.FromResult(events.Max<ICommand, int>(c => ((IMetadata)c).Metadata.SequenceNo) + 1);
             }

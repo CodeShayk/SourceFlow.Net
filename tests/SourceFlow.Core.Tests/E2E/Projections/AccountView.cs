@@ -24,7 +24,7 @@ namespace SourceFlow.Core.Tests.E2E.Projections
                 CreatedDate = @event.Payload.CreatedOn,
                 LastUpdated = DateTime.UtcNow,
                 TransactionCount = 0,
-                ClosureReason = null,
+                ClosureReason = null!,
                 Version = 1
             };
 
@@ -34,9 +34,6 @@ namespace SourceFlow.Core.Tests.E2E.Projections
         public async Task Apply(AccountUpdated @event)
         {
             var view = await provider.Find<AccountViewModel>(@event.Payload.Id);
-
-            if (view == null)
-                throw new InvalidOperationException($"Account view not found for ID: {@event.Payload.Id}");
 
             view.CurrentBalance = @event.Payload.Balance;
             view.LastUpdated = DateTime.UtcNow;
