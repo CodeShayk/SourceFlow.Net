@@ -27,7 +27,7 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 
 ### Concept
 - `Aggregate` wraps the root aggregate entity that you wish to manage changes by publishing commands. 
-- `Saga` is a long running transaction that subscribes to `commands` to apply actual updates to root aggregate within the domain bounded context. Saga basically `orchestrates` the success and failure flows to `update` the `state` of `root aggregate` accordingly. Saga can also publish `commands` to `itself` or `other` saga's. Saga can be defined to raise `events` when handling commands.
+- `Saga` is a long running transaction that subscribes to `commands` to apply actual updates to root aggregate within the domain bounded context. Saga basically `orchestrates` the success and failure flows to `preserve` the `state` of `root aggregate` accordingly. Saga can also publish `commands` to `itself` or `other` saga's. Saga can be defined to raise `events` when handling commands.
 - `Events` are published to `subscribers`. There are two subscribers to event - ie. i. `Aggregates` ii. `Views`
 - `Aggregate` subscribes to `events` to publish `changes` to root aggregate based upon `external` stimulus. ie. potential changes from any other saga workflow that could affect the state of Aggregate in context.
 - `View` subscribes to `events` to `write` data to `view model`, view sources `transformed` data for interested viewers. ie. `UI` (viewer) could read data from view model (with eventual consistency).  
