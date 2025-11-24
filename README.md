@@ -1,5 +1,4 @@
 # <img src="https://github.com/CodeShayk/SourceFlow.Net/blob/master/Images/ninja-icon-16.png" alt="ninja" style="width:30px;"/> SourceFlow.Net 
-[![NuGet version](https://badge.fury.io/nu/SourceFlow.Net.svg)](https://badge.fury.io/nu/SourceFlow.Net) 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/CodeShayk/SourceFlow.Net/blob/master/LICENSE.md) 
 [![GitHub Release](https://img.shields.io/github/v/release/CodeShayk/SourceFlow.Net?logo=github&sort=semver)](https://github.com/CodeShayk/SourceFlow.Net/releases/latest)
 [![master-build](https://github.com/CodeShayk/SourceFlow.Net/actions/workflows/Master-Build.yml/badge.svg)](https://github.com/CodeShayk/SourceFlow.Net/actions/workflows/Master-Build.yml)
@@ -38,8 +37,8 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 
 | Package | Version | Release Date |Details | Frameworks|
 |------|---------|--------------|--------|-----------|
-|SourceFlow|v1.0.0|29th Oct 2025|Core functionality for event sourcing and CQRS|net462; .net standard 2.0; .net standard 2.1; net9.0; net10|
-|SourceFlow.Stores.EntityFramework|v1.0.0|29th Oct 2025|Provides store implementation using EF. Can configure different (types of ) databases for each store.|net8.0; net9.0; net10|
+|SourceFlow|[![NuGet version](https://badge.fury.io/nu/SourceFlow.svg)](https://badge.fury.io/nu/SourceFlow)|29th Oct 2025|Core functionality for event sourcing and CQRS|net462; .net standard 2.0; .net standard 2.1; net9.0; net10|
+|SourceFlow.Stores.EntityFramework|[![NuGet version](https://badge.fury.io/nu/SourceFlow.Stores.EntityFramework.svg)](https://badge.fury.io/nu/SourceFlow.Stores.EntityFramework)|29th Oct 2025|Provides store implementation using EF. Can configure different (types of ) databases for each store.|net8.0; net9.0; net10|
 |SourceFlow.Cloud.AWS|v2.0.0 |(TBC) |Provides support for AWS cloud with cross domain boundary command and Event publishing & subscription.|net8.0; net9.0; net10|
 |SourceFlow.Cloud.Azure|v2.0.0 |(TBC) |Provides support for Azure cloud with cross domain boundary command and Event publishing & subscription.|net8.0; net9.0; net10|
 ## Getting Started
