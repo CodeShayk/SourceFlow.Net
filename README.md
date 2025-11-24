@@ -34,6 +34,13 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 #### Architecture
 <img src="https://github.com/CodeShayk/SourceFlow.Net/blob/v1.0.0/Images/Architecture.png" alt="arcitecture" style="width:1200px; hieght:700px"/>
 
+### Nuget Packages
+
+| Package | Version | Release Date |Details | Frameworks|
+|------|---------|--------------|--------|-----------|
+|SourceFlow|v1.0.0|29th Oct 2025|Core functionality for event sourcing and CQRS|net462; .net standard 2.0; .net standard 2.1; net9.0; net10|
+|SourceFlow.Stores.EntityFramework|v1.0.0|29th Oct 2025|Provides store implementation using EF. Can configure diffrent (types of ) databases for each store.|net8.0; net9.0; net10|
+|SourceFlow.Cloud.AWS|v2.0.0 |(TBC) |Provides support for AWS cloud with cross domain boundary command and Event publish.|net8.0; net9.0; net10|
 ## Getting Started
 ### Installation
 nuget add package SourceFlow.Net
