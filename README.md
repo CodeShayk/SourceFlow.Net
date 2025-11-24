@@ -31,7 +31,7 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 - `Events` are published to `subscribers`. There are two subscribers to event - ie. i. `Aggregates` ii. `Views`
 - `Aggregate` subscribes to `events` to publish `changes` to root aggregate based upon `external` stimulus. ie. potential changes from any other saga workflow that could affect the state of Aggregate in context.
 - `View` subscribes to `events` to `write` data to `view model`, view sources `transformed` data for interested viewers. ie. `UI` (viewer) could read data from view model (with eventual consistency).  
-
+#### Architecture
 <img src="https://github.com/CodeShayk/SourceFlow.Net/blob/v1.0.0/Images/Architecture.png" alt="arcitecture" style="width:1200px; hieght:700px"/>
 
 ## Getting Started
