@@ -71,7 +71,7 @@ namespace SourceFlow.Core.Tests.E2E
             _logger.LogInformation("Action=Test_Deposit, Amount={Amount}", amount);
             await _accountAggregate.Deposit(_accountId, amount);
 
-            // Find current state and assertions
+            // Get current state and assertions
             var account = await _viewRepository.Find<AccountViewModel>(_accountId);
             Assert.That(account, Is.Not.Null);
             Assert.That(_accountId, Is.EqualTo(account.Id));

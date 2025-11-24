@@ -77,14 +77,5 @@ namespace SourceFlow.Saga
             // 2. handle event by Saga?
             return saga.Handle(command);
         }
-
-        ///// <summary>
-        ///// Registers a saga with the dispatcher.
-        ///// </summary>
-        ///// <param name="saga"></param>
-        //public void Register(ISaga saga)
-        //{
-        //    sagas.Add(saga);
-        //}
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Reflection;
 using SourceFlow.Projections;
 
 namespace SourceFlow.Core.Tests.E2E.Impl
@@ -7,7 +8,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
     {
         private readonly ConcurrentDictionary<int, IViewModel> _cache = new();
 
-        public Task<TViewModel> Find<TViewModel>(int id) where TViewModel : class, IViewModel
+        public Task<TViewModel> Get<TViewModel>(int id) where TViewModel : class, IViewModel
         {
             if (id == 0)
                 throw new ArgumentNullException(nameof(id));
@@ -32,5 +33,21 @@ namespace SourceFlow.Core.Tests.E2E.Impl
 
             return Task.CompletedTask;
         }
+
+        public Task Delete<TViewModel>(TViewModel model) where TViewModel : IViewModel
+        {
+            if (model?.Id == null)
+                throw new ArgumentNullException(nameof(model));
+
+            var success = _cache.Remove(model.Id, out var rmodel);
+
+            if (!success || rmodel == null)
+                throw new InvalidOperationException($"ViewModel not found for ID: {model.Id}");
+
+
+            return Task.CompletedTask;
+
+        }
+
     }
 }

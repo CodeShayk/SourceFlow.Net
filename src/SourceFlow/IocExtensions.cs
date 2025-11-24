@@ -53,12 +53,11 @@ namespace SourceFlow
                 };
             }
 
-            // Register foundational services first - these have no dependencies on aggregates/sagas
-            services.AddAsImplementationsOfInterface<IEntityStore>(assemblies, lifetime);
-            services.AddAsImplementationsOfInterface<IViewModelStore>(assemblies, lifetime);
-            services.AddAsImplementationsOfInterface<ICommandStore>(assemblies, lifetime);
-            services.AddAsImplementationsOfInterface<IView>(assemblies, lifetime);
-
+            // Register single implementation of stores.
+            services.AddFirstImplementationAsInterface<IEntityStore>(assemblies, lifetime);
+            services.AddFirstImplementationAsInterface<IViewModelStore>(assemblies, lifetime);
+            services.AddFirstImplementationAsInterface<ICommandStore>(assemblies, lifetime);
+   
             // Register factories
             services.Add(ServiceDescriptor.Describe(typeof(IAggregateFactory), typeof(AggregateFactory), lifetime));
 
@@ -79,10 +78,10 @@ namespace SourceFlow
             services.AddSingleton<Lazy<ICommandPublisher>>(provider =>
                 new Lazy<ICommandPublisher>(() => provider.GetRequiredService<ICommandPublisher>()));
 
-            // Register Sagas and Aggregates with proper constructor injection
-            // They now depend on Lazy<ICommandPublisher> which defers resolution
-            RegisterSagasWithConstructorInjection(services, assemblies, lifetime);
-            RegisterAggregatesWithConstructorInjection(services, assemblies, lifetime);
+
+            services.AddImplementationAsInterfaces<IAggregate>(assemblies, lifetime);
+            services.AddImplementationAsInterfaces<ISaga>(assemblies, lifetime);
+            services.AddImplementationAsInterfaces<IView>(assemblies, lifetime);
 
             // Register event subscribers as singleton services
             services.AddSingleton<IEventSubscriber, Aggregate.EventSubscriber>();
@@ -92,41 +91,27 @@ namespace SourceFlow
             services.AddSingleton<IEventQueue, EventQueue>();
         }
 
-        private static void RegisterSagasWithConstructorInjection(IServiceCollection services, Assembly[] assemblies, ServiceLifetime lifetime)
+        /// <summary>
+        /// Add Implementations of an interfaces by all their other interfaces. 
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="services"></param>
+        /// <param name="assemblies"></param>
+        /// <param name="lifetime"></param>
+        private static void AddImplementationAsInterfaces<T>(this IServiceCollection services, Assembly[] assemblies, ServiceLifetime lifetime)
         {
-            var sagaTypes = GetImplementedTypes<ISaga>(assemblies);
-            foreach (var sagaType in sagaTypes)
-            {
-                // Register as interface ISaga
-                services.Add(ServiceDescriptor.Describe(typeof(ISaga), sagaType, lifetime));
-
-                // Register as concrete type for direct access
-                services.Add(ServiceDescriptor.Describe(sagaType, sagaType, lifetime));
-
-                // Register as all other interfaces the saga implements (needed for IHandles<TCommand> resolution)
-                var interfaces = sagaType.GetInterfaces()
-                    .Where(i => i != typeof(ISaga) && i.IsPublic);
-                foreach (var iface in interfaces)
-                {
-                    services.Add(ServiceDescriptor.Describe(iface, sagaType, lifetime));
-                }
-            }
-        }
-
-        private static void RegisterAggregatesWithConstructorInjection(IServiceCollection services, Assembly[] assemblies, ServiceLifetime lifetime)
-        {
-            var aggregateTypes = GetImplementedTypes<IAggregate>(assemblies);
+            var aggregateTypes = GetImplementedTypes<T>(assemblies);
             foreach (var aggregateType in aggregateTypes)
             {
                 // Register as interface IAggregate
-                services.Add(ServiceDescriptor.Describe(typeof(IAggregate), aggregateType, lifetime));
+                services.Add(ServiceDescriptor.Describe(typeof(T), aggregateType, lifetime));
 
                 // Register as concrete type for direct access
                 services.Add(ServiceDescriptor.Describe(aggregateType, aggregateType, lifetime));
 
                 // Register as all other interfaces the aggregate implements
                 var interfaces = aggregateType.GetInterfaces()
-                    .Where(i => i != typeof(IAggregate) && i != typeof(ISubscribes<>) && i.IsPublic);
+                    .Where(i => i != typeof(T) && i.IsPublic);
                 foreach (var iface in interfaces)
                 {
                     services.Add(ServiceDescriptor.Describe(iface, aggregateType, lifetime));
@@ -142,25 +127,16 @@ namespace SourceFlow
         /// <param name="assemblies">The assemblies to scan for implementations.</param>
         /// <param name="lifetime">The service lifetime for registered implementations.</param>
         /// <returns>The service collection for chaining.</returns>
-        private static IServiceCollection AddAsImplementationsOfInterface<TInterface>(this IServiceCollection services, Assembly[] assemblies, ServiceLifetime lifetime = ServiceLifetime.Singleton)
+        private static IServiceCollection AddFirstImplementationAsInterface<TInterface>(this IServiceCollection services, Assembly[] assemblies, ServiceLifetime lifetime = ServiceLifetime.Singleton)
         {
             var interfaceType = typeof(TInterface);
             var implementationTypes = GetImplementedTypes(interfaceType, assemblies);
 
-            foreach (var implType in implementationTypes)
-            {
-                services.Add(ServiceDescriptor.Describe(interfaceType, implType, lifetime));
+            if (!implementationTypes.Any())
+                return services;
 
-                // Register implementation as all of its interfaces (except the main one)
-                var interfaces = implType.GetInterfaces()
-                    .Where(i => i != interfaceType && i.IsPublic)
-                    .Distinct(); // Avoid duplicate registrations
-
-                foreach (var iface in interfaces)
-                {
-                    services.Add(ServiceDescriptor.Describe(iface, implType, lifetime));
-                }
-            }
+            var implType = implementationTypes.First();
+            services.TryAdd(ServiceDescriptor.Describe(interfaceType, implType, lifetime));
 
             return services;
         }
