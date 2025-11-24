@@ -16,8 +16,12 @@ namespace SourceFlow.Core.Tests.Projections
         public DummyProjectionEvent(DummyProjectionEntity payload) : base(payload) { }
     }
 
-    public class TestProjection : IProjectOn<DummyProjectionEvent>, IProjection
+    public class TestProjection : View, IProjectOn<DummyProjectionEvent>
     {
+        public TestProjection() : base(new Mock<IViewModelStoreAdapter>().Object, new Mock<ILogger<IView>>().Object)
+        {
+        }
+
         public bool Applied { get; private set; } = false;
 
         public Task Apply(DummyProjectionEvent @event)
@@ -27,8 +31,11 @@ namespace SourceFlow.Core.Tests.Projections
         }
     }
 
-    public class NonMatchingProjection : IProjection
+    public class NonMatchingProjection : View
     {
+        public NonMatchingProjection() : base(new Mock<IViewModelStoreAdapter>().Object, new Mock<ILogger<IView>>().Object)
+        {
+        }
         // This projection does not implement IProjectOn<TEvent> so won't handle DummyProjectionEvent
     }
 
@@ -49,7 +56,7 @@ namespace SourceFlow.Core.Tests.Projections
         public void Constructor_WithNullProjections_ThrowsArgumentNullException()
         {
             // Arrange
-            IEnumerable<IProjection> nullProjections = null;
+            IEnumerable<IView> nullProjections = null;
 
             // Act & Assert
             Assert.Throws<ArgumentNullException>(() => 
@@ -60,7 +67,7 @@ namespace SourceFlow.Core.Tests.Projections
         public void Constructor_WithNullLogger_ThrowsArgumentNullException()
         {
             // Arrange
-            var projections = new List<IProjection> { new TestProjection() };
+            var projections = new List<IView> { new TestProjection() };
 
             // Act & Assert
             Assert.Throws<ArgumentNullException>(() => 
@@ -71,7 +78,7 @@ namespace SourceFlow.Core.Tests.Projections
         public void Constructor_WithValidParameters_Succeeds()
         {
             // Arrange
-            var projections = new List<IProjection> { new TestProjection() };
+            var projections = new List<IView> { new TestProjection() };
 
             // Act
             var subscriber = new EventSubscriber(projections, _mockLogger.Object);
@@ -85,7 +92,7 @@ namespace SourceFlow.Core.Tests.Projections
         {
             // Arrange
             var testProjection = new TestProjection();
-            var projections = new List<IProjection> { testProjection };
+            var projections = new List<IView> { testProjection };
             var subscriber = new EventSubscriber(projections, _mockLogger.Object);
 
             // Act
@@ -100,7 +107,7 @@ namespace SourceFlow.Core.Tests.Projections
         {
             // Arrange
             var nonMatchingProjection = new NonMatchingProjection();
-            var projections = new List<IProjection> { nonMatchingProjection };
+            var projections = new List<IView> { nonMatchingProjection };
             var subscriber = new EventSubscriber(projections, _mockLogger.Object);
 
             // Act
@@ -118,7 +125,7 @@ namespace SourceFlow.Core.Tests.Projections
             var matchingProjection1 = new TestProjection();
             var matchingProjection2 = new TestProjection();
             var nonMatchingProjection = new NonMatchingProjection();
-            var projections = new List<IProjection> { matchingProjection1, nonMatchingProjection, matchingProjection2 };
+            var projections = new List<IView> { matchingProjection1, nonMatchingProjection, matchingProjection2 };
             var subscriber = new EventSubscriber(projections, _mockLogger.Object);
 
             // Act
@@ -134,7 +141,7 @@ namespace SourceFlow.Core.Tests.Projections
         {
             // Arrange
             var nonMatchingProjection = new NonMatchingProjection();
-            var projections = new List<IProjection> { nonMatchingProjection };
+            var projections = new List<IView> { nonMatchingProjection };
             var subscriber = new EventSubscriber(projections, _mockLogger.Object);
 
             // Act & Assert
@@ -145,7 +152,7 @@ namespace SourceFlow.Core.Tests.Projections
         public async Task Subscribe_WithEmptyProjectionsCollection_DoesNotThrow()
         {
             // Arrange
-            var projections = new List<IProjection>();
+            var projections = new List<IView>();
             var subscriber = new EventSubscriber(projections, _mockLogger.Object);
 
             // Act & Assert

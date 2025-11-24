@@ -12,7 +12,7 @@ using SourceFlow.Saga;
 namespace SourceFlow.Tests.Ioc
 {
     // Test implementations for required interfaces
-    public class TestRepository : IRepository
+    public class TestRepository : IEntityStoreAdapter
     {
         public Task<TEntity> Get<TEntity>(int id) where TEntity : class, IEntity
         {
@@ -30,7 +30,7 @@ namespace SourceFlow.Tests.Ioc
         }
     }
 
-    public class TestCommandStore : ICommandStore
+    public class TestCommandStore : ICommandStoreAdapter
     {
         public Task Append(ICommand command)
         {
@@ -48,14 +48,14 @@ namespace SourceFlow.Tests.Ioc
         }
     }
 
-    public class TestViewProvider : IViewProvider
+    public class TestViewProvider : IViewModelStoreAdapter
     {
         public Task<TViewModel> Find<TViewModel>(int id) where TViewModel : class, IViewModel
         {
             return Task.FromResult<TViewModel>(null);
         }
 
-        public Task Push<TViewModel>(TViewModel model) where TViewModel : IViewModel
+        public Task Persist<TViewModel>(TViewModel model) where TViewModel : IViewModel
         {
             return Task.CompletedTask;
         }
@@ -74,9 +74,9 @@ namespace SourceFlow.Tests.Ioc
             _services.AddLogging(); // Add logging services
 
             // Register test implementations for required interfaces
-            _services.AddSingleton<IRepository, TestRepository>();
-            _services.AddSingleton<ICommandStore, TestCommandStore>();
-            _services.AddSingleton<IViewProvider, TestViewProvider>();
+            _services.AddSingleton<IEntityStoreAdapter, TestRepository>();
+            _services.AddSingleton<ICommandStoreAdapter, TestCommandStore>();
+            _services.AddSingleton<IViewModelStoreAdapter, TestViewProvider>();
         }
 
         [TearDown]
@@ -213,9 +213,9 @@ namespace SourceFlow.Tests.Ioc
             _serviceProvider = _services.BuildServiceProvider();
             
             // Check that all infrastructure services are registered
-            Assert.That(_serviceProvider.GetService<IRepository>(), Is.Not.Null, "IRepository should be registered");
-            Assert.That(_serviceProvider.GetService<ICommandStore>(), Is.Not.Null, "ICommandStore should be registered");
-            Assert.That(_serviceProvider.GetService<IViewProvider>(), Is.Not.Null, "IViewProvider should be registered");
+            Assert.That(_serviceProvider.GetService<IEntityStoreAdapter>(), Is.Not.Null, "IEntityStore should be registered");
+            Assert.That(_serviceProvider.GetService<ICommandStoreAdapter>(), Is.Not.Null, "ICommandStore should be registered");
+            Assert.That(_serviceProvider.GetService<IViewModelStoreAdapter>(), Is.Not.Null, "IViewModelStore should be registered");
         }
 
         [Test]

@@ -14,7 +14,7 @@ namespace SourceFlow.Core.Tests.E2E
         private IAccountAggregate _accountAggregate;
         private ISaga _saga;
         private ILogger _logger;
-        private IViewProvider _viewRepository;
+        private IViewModelStoreAdapter _viewRepository;
         private int _accountId = 999;
 
         [SetUp]
@@ -39,7 +39,7 @@ namespace SourceFlow.Core.Tests.E2E
             _accountAggregate = _serviceProvider.GetRequiredService<IAccountAggregate>();
            
             _logger = _serviceProvider.GetRequiredService<ILogger<ProgramIntegrationTests>>();
-            _viewRepository = _serviceProvider.GetRequiredService<IViewProvider>();
+            _viewRepository = _serviceProvider.GetRequiredService<IViewModelStoreAdapter>();
         }
 
         [TearDown]

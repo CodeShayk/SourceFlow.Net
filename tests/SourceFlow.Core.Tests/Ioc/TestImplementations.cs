@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Moq;
 using SourceFlow.Aggregate;
 using SourceFlow.Messaging;
 using SourceFlow.Messaging.Commands;
@@ -48,7 +49,7 @@ namespace SourceFlow.Tests.Ioc
     internal class TestSaga : Saga<TestEntity>, ITestSaga, IHandles<TestCommand>
     {
         public TestSaga(Lazy<ICommandPublisher> commandPublisher, IEventQueue eventQueue,
-            IRepository repository, ILogger<ISaga> logger)
+            IEntityStoreAdapter repository, ILogger<ISaga> logger)
             : base(commandPublisher, eventQueue, repository, logger) { }
 
         public Task Handle(IEntity entity, TestCommand command)
@@ -62,10 +63,15 @@ namespace SourceFlow.Tests.Ioc
 
     public interface ITestSaga { }
 
-    public class TestProjection : IProjection, IProjectOn<TestEvent>
+    public class TestProjection : View, IProjectOn<TestEvent>
     {
+        public TestProjection() : base(new Mock<IViewModelStoreAdapter>().Object, new Mock<ILogger<IView>>().Object)
+        {
+        }
+
         public Task Apply(TestEvent @event)
         {
+            
             // Implementation not needed for test
             return Task.CompletedTask;
         }

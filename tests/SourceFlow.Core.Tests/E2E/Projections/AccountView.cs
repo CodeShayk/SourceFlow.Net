@@ -1,16 +1,16 @@
+using Microsoft.Extensions.Logging;
 using SourceFlow.Core.Tests.E2E.Events;
 using SourceFlow.Projections;
 
 namespace SourceFlow.Core.Tests.E2E.Projections
 {
-    public class AccountView : IProjectOn<AccountCreated>,
+    public class AccountView : View,
+                               IProjectOn<AccountCreated>,
                                IProjectOn<AccountUpdated>
     {
-        private readonly IViewProvider provider;
-
-        public AccountView(IViewProvider provider)
+        public AccountView(IViewModelStoreAdapter viewModelStore, ILogger<IView> logger): base(viewModelStore, logger)
         {
-            this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
+            
         }
 
         public async Task Apply(AccountCreated @event)
@@ -28,12 +28,12 @@ namespace SourceFlow.Core.Tests.E2E.Projections
                 Version = 1
             };
 
-            await provider.Push(view);
+            await viewModelStore.Persist(view);
         }
 
         public async Task Apply(AccountUpdated @event)
         {
-            var view = await provider.Find<AccountViewModel>(@event.Payload.Id);
+            var view = await viewModelStore.Find<AccountViewModel>(@event.Payload.Id);
 
             view.CurrentBalance = @event.Payload.Balance;
             view.LastUpdated = DateTime.UtcNow;
@@ -44,7 +44,7 @@ namespace SourceFlow.Core.Tests.E2E.Projections
             view.Version++;
             view.TransactionCount++;
 
-            await provider.Push(view);
+            await viewModelStore.Persist(view);
         }
     }
 }

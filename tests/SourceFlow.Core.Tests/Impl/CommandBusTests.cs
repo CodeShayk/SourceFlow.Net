@@ -15,7 +15,7 @@ namespace SourceFlow.Core.Tests.Impl
     [TestFixture]
     public class CommandBusTests
     {
-        private Mock<ICommandStore> commandStoreMock;
+        private Mock<ICommandStoreAdapter> commandStoreMock;
         private Mock<ILogger<ICommandBus>> loggerMock;
         private Mock<ICommandDispatcher> commandDispatcherMock;
         private CommandBus commandBus;
@@ -23,7 +23,7 @@ namespace SourceFlow.Core.Tests.Impl
         [SetUp]
         public void Setup()
         {
-            commandStoreMock = new Mock<ICommandStore>();
+            commandStoreMock = new Mock<ICommandStoreAdapter>();
             loggerMock = new Mock<ILogger<ICommandBus>>();
             commandDispatcherMock = new Mock<ICommandDispatcher>();
             commandBus = new CommandBus(

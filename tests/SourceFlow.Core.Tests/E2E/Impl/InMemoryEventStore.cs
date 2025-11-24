@@ -23,14 +23,6 @@ namespace SourceFlow.Core.Tests.E2E.Impl
             return await Task.FromResult(_store.TryGetValue(entityId, out var events)
                ? events
                : Enumerable.Empty<ICommand>());
-        }
-
-        public Task<int> GetNextSequenceNo(int entityId)
-        {
-            if (_store.TryGetValue(entityId, out var events))
-                return Task.FromResult(events.Max<ICommand, int>(c => ((IMetadata)c).Metadata.SequenceNo) + 1);
-
-            return Task.FromResult(1);
-        }
+        }        
     }
 }

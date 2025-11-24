@@ -15,7 +15,7 @@ namespace SourceFlow.Messaging.Bus.Impl
         /// <summary>
         /// The command store used to persist commands.
         /// </summary>
-        private readonly ICommandStore commandStore;
+        private readonly ICommandStoreAdapter commandStore;
 
         /// <summary>
         /// Logger for the command bus to log events and errors.
@@ -32,7 +32,7 @@ namespace SourceFlow.Messaging.Bus.Impl
         /// </summary>
         /// <param name="commandStore"></param>
         /// <param name="logger"></param>
-        public CommandBus(ICommandDispatcher commandDispatcher, ICommandStore commandStore, ILogger<ICommandBus> logger)
+        public CommandBus(ICommandDispatcher commandDispatcher, ICommandStoreAdapter commandStore, ILogger<ICommandBus> logger)
         {
             this.commandStore = commandStore ?? throw new ArgumentNullException(nameof(commandStore));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));            

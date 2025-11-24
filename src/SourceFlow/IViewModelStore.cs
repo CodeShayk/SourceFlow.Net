@@ -3,7 +3,7 @@ using SourceFlow.Projections;
 
 namespace SourceFlow
 {
-    public interface IViewProvider
+    public interface IViewModelStore
     {
         /// <summary>
         /// Retrieves an view model by unique identifier.
@@ -13,10 +13,10 @@ namespace SourceFlow
         Task<TViewModel> Find<TViewModel>(int id) where TViewModel : class, IViewModel;
 
         /// <summary>
-        /// Creates or updates an view model to the repository, persisting its state.
+        /// Creates or updates an view model to the entityStore, persisting its state.
         /// </summary>
         /// <param name="entity">ViewModel Instance.</param>
         /// <returns></returns>
-        Task Push<TViewModel>(TViewModel model) where TViewModel : IViewModel;
+        Task Persist<TViewModel>(TViewModel model) where TViewModel : IViewModel;
     }
 }

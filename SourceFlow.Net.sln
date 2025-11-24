@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.13.35828.75
+# Visual Studio Version 18
+VisualStudioVersion = 18.0.11205.157 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
 EndProject
@@ -16,8 +16,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{4F977993-F
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceFlow.Core.Tests", "tests\SourceFlow.Core.Tests\SourceFlow.Core.Tests.csproj", "{60461B85-D00F-4A09-9AA6-A9D566FA6EA4}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceFlow.ConsoleApp", "src\SourceFlow.ConsoleApp\SourceFlow.ConsoleApp.csproj", "{43C0A7B4-6682-4A49-B932-010F0383942A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceFlow", "src\SourceFlow\SourceFlow.csproj", "{C0724CCD-8965-4BE3-B66C-458973D5EFA1}"
 EndProject
@@ -41,10 +39,6 @@ Global
 		{60461B85-D00F-4A09-9AA6-A9D566FA6EA4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{60461B85-D00F-4A09-9AA6-A9D566FA6EA4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{60461B85-D00F-4A09-9AA6-A9D566FA6EA4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{43C0A7B4-6682-4A49-B932-010F0383942A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{43C0A7B4-6682-4A49-B932-010F0383942A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{43C0A7B4-6682-4A49-B932-010F0383942A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{43C0A7B4-6682-4A49-B932-010F0383942A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{C0724CCD-8965-4BE3-B66C-458973D5EFA1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C0724CCD-8965-4BE3-B66C-458973D5EFA1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C0724CCD-8965-4BE3-B66C-458973D5EFA1}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -55,7 +49,6 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{60461B85-D00F-4A09-9AA6-A9D566FA6EA4} = {653DCB25-EC82-421B-86F7-1DD8879B3926}
-		{43C0A7B4-6682-4A49-B932-010F0383942A} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 		{C0724CCD-8965-4BE3-B66C-458973D5EFA1} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution

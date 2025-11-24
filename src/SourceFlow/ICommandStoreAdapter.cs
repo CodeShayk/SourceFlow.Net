@@ -7,7 +7,7 @@ namespace SourceFlow
     /// <summary>
     /// Interface for the command store in the event-driven architecture.
     /// </summary>
-    public interface ICommandStore
+    public interface ICommandStoreAdapter
     {
         /// <summary>
         /// Appends a command to the store. Commands serve as units of auditable change in the event-driven architecture,
@@ -22,5 +22,12 @@ namespace SourceFlow
         /// <param name="aggregateId">Unique aggregate entity id.</param>
         /// <returns></returns>
         Task<IEnumerable<ICommand>> Load(int aggregateId);
+
+        /// <summary>
+        /// Gets the next sequence number for an event.
+        /// </summary>
+        /// <param name="aggregateId">Unique aggregate entity id.</param>
+        /// <returns></returns>
+        Task<int> GetNextSequenceNo(int aggregateId);
     }
 }

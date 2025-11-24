@@ -3,7 +3,7 @@ using SourceFlow.Projections;
 
 namespace SourceFlow.Core.Tests.E2E.Impl
 {
-    public class InMemoryViewProvider : IViewProvider
+    public class InMemoryViewModelStore : IViewModelStore
     {
         private readonly ConcurrentDictionary<int, IViewModel> _cache = new();
 
@@ -20,7 +20,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
             return Task.FromResult((TViewModel)model);
         }
 
-        public Task Push<TViewModel>(TViewModel model) where TViewModel : IViewModel
+        public Task Persist<TViewModel>(TViewModel model) where TViewModel : IViewModel
         {
             if (model?.Id == null)
                 throw new ArgumentNullException(nameof(model));

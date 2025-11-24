@@ -30,11 +30,11 @@ namespace SourceFlow.Saga
         protected IEventQueue eventQueue;
 
         /// <summary>
-        /// Represents the repository used for accessing and managing domain entities.
+        /// Represents the entityStore used for accessing and managing domain entities.
         /// </summary>
-        /// <remarks>This field is intended for internal use to interact with the domain repository. It
+        /// <remarks>This field is intended for internal use to interact with the domain entityStore. It
         /// provides access to the underlying data storage and retrieval mechanisms.</remarks>
-        protected IRepository repository;
+        protected IEntityStoreAdapter entityStore;
 
         /// <summary>
         /// Logger for the saga to log events and errors.
@@ -44,11 +44,11 @@ namespace SourceFlow.Saga
         /// <summary>
         /// Initializes a new instance of the <see cref="Saga{TAggregate}"/> class.
         /// </summary>
-        public Saga(Lazy<ICommandPublisher> commandPublisher, IEventQueue eventQueue, IRepository repository, ILogger<ISaga> logger)
+        public Saga(Lazy<ICommandPublisher> commandPublisher, IEventQueue eventQueue, IEntityStoreAdapter entityStore, ILogger<ISaga> logger)
         {
             this.commandPublisher = commandPublisher ?? throw new ArgumentNullException(nameof(commandPublisher));
             this.eventQueue = eventQueue ?? throw new ArgumentNullException(nameof(eventQueue));
-            this.repository = repository ?? throw new ArgumentNullException(nameof(repository));
+            this.entityStore = entityStore ?? throw new ArgumentNullException(nameof(entityStore));
             this.logger = logger;
         }
 
@@ -94,7 +94,7 @@ namespace SourceFlow.Saga
             if (command.Entity.IsNew)
                 entity = InitialiseEntity(command.Entity.Id);
             else
-                entity = await repository.Get<TAggregate>(command.Entity.Id);
+                entity = await entityStore.Get<TAggregate>(command.Entity.Id);
             
             await handles.Handle(entity, command);
 
@@ -102,7 +102,7 @@ namespace SourceFlow.Saga
                     command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo, GetType().Name);                       
 
             if (entity != null)
-                await repository.Persist(entity);
+                await entityStore.Persist(entity);
             
             await RaiseEvent(command, entity);
         }

@@ -54,13 +54,19 @@ namespace SourceFlow
             }
 
             // Register foundational services first - these have no dependencies on aggregates/sagas
-            services.AddAsImplementationsOfInterface<IRepository>(assemblies, lifetime);
-            services.AddAsImplementationsOfInterface<IViewProvider>(assemblies, lifetime);
+            services.AddAsImplementationsOfInterface<IEntityStore>(assemblies, lifetime);
+            services.AddAsImplementationsOfInterface<IViewModelStore>(assemblies, lifetime);
             services.AddAsImplementationsOfInterface<ICommandStore>(assemblies, lifetime);
-            services.AddAsImplementationsOfInterface<IProjection>(assemblies, lifetime);
+            services.AddAsImplementationsOfInterface<IView>(assemblies, lifetime);
 
             // Register factories
             services.Add(ServiceDescriptor.Describe(typeof(IAggregateFactory), typeof(AggregateFactory), lifetime));
+
+            // Only register adapters if they haven't been registered yet
+            // This allows tests and consumers to provide their own adapter implementations
+            services.TryAddSingleton<IEntityStoreAdapter, EntityStoreAdapter>();
+            services.TryAddSingleton<IViewModelStoreAdapter, ViewModelStoreAdapter>();
+            services.TryAddSingleton<ICommandStoreAdapter, CommandStoreAdapter>();
 
             // Register infrastructure services that will be used by Sagas/Aggregates
             services.AddSingleton<ICommandSubscriber, CommandSubscriber>();

@@ -2,7 +2,7 @@ using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Core.Tests.Ioc
 {
-    public class DummyCommandStore : ICommandStore
+    public class DummyCommandStore : ICommandStoreAdapter
     {
         public Task Append(ICommand command)
         {

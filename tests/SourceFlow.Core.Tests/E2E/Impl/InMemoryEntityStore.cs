@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 
-namespace SourceFlow.ConsoleApp.Impl
+namespace SourceFlow.Core.Tests.E2E.Impl
 {
-    public class InMemoryRepository : IRepository
+    public class InMemoryEntityStore : IEntityStore
     {
         private readonly ConcurrentDictionary<int, IEntity> _cache = new();
 

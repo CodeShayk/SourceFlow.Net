@@ -27,7 +27,7 @@ namespace SourceFlow.Aggregate
         private readonly IEnumerable<IAggregate> aggregates;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="EventDispatcher"/> class with the specified aggregates and view projections.
+        /// Initializes a new instance of the <see cref="EventDispatcher"/> class with the specified aggregates and view views.
         /// </summary>
         /// <param name="aggregates"></param>
         /// <param name="logger"></param>

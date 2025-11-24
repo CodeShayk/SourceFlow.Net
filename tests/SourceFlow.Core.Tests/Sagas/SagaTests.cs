@@ -12,15 +12,15 @@ namespace SourceFlow.Core.Tests.Sagas
     {
         public class TestSaga : Saga<IEntity>, IHandles<ICommand>
         {
-            public TestSaga() : base(new Lazy<ICommandPublisher>(() => new Mock<ICommandPublisher>().Object), new Mock<IEventQueue>().Object, new Mock<IRepository>().Object, new Mock<ILogger<ISaga>>().Object)
+            public TestSaga() : base(new Lazy<ICommandPublisher>(() => new Mock<ICommandPublisher>().Object), new Mock<IEventQueue>().Object, new Mock<IEntityStoreAdapter>().Object, new Mock<ILogger<ISaga>>().Object)
             {
             }
 
-            public TestSaga(Lazy<ICommandPublisher> publisher, IEventQueue queue, IRepository repo, ILogger<ISaga> logger):base(publisher, queue, repo, logger)
+            public TestSaga(Lazy<ICommandPublisher> publisher, IEventQueue queue, IEntityStoreAdapter repo, ILogger<ISaga> logger):base(publisher, queue, repo, logger)
             {
                 commandPublisher = publisher;
                 eventQueue = queue;
-                repository = repo;
+                entityStore = repo;
                 this.logger = logger;
             }
 
@@ -67,7 +67,7 @@ namespace SourceFlow.Core.Tests.Sagas
         {
             var publisherMock = new Mock<ICommandPublisher>();
             publisherMock.Setup(p => p.Publish(It.IsAny<ICommand>())).Returns(Task.CompletedTask);
-            var saga = new TestSaga(new Lazy<ICommandPublisher>(() => publisherMock.Object), new Mock<IEventQueue>().Object, new Mock<IRepository>().Object, new Mock<ILogger<ISaga>>().Object);
+            var saga = new TestSaga(new Lazy<ICommandPublisher>(() => publisherMock.Object), new Mock<IEventQueue>().Object, new Mock<IEntityStoreAdapter>().Object, new Mock<ILogger<ISaga>>().Object);
             var payloadMock = new Mock<IPayload>();
 
             var commandMock = new Mock<ICommand>();
@@ -98,7 +98,7 @@ namespace SourceFlow.Core.Tests.Sagas
         {
             var queueMock = new Mock<IEventQueue>();
             queueMock.Setup(q => q.Enqueue(It.IsAny<IEvent>())).Returns(Task.CompletedTask);
-            var saga = new TestSaga(new Lazy<ICommandPublisher>(() => new Mock<ICommandPublisher>().Object), queueMock.Object, new Mock<IRepository>().Object, new Mock<ILogger<ISaga>>().Object);
+            var saga = new TestSaga(new Lazy<ICommandPublisher>(() => new Mock<ICommandPublisher>().Object), queueMock.Object, new Mock<IEntityStoreAdapter>().Object, new Mock<ILogger<ISaga>>().Object);
             var payloadMock = new Mock<IEntity>();
             var eventMock = new Mock<IEvent>();
             eventMock.Setup(e => e.Payload).Returns(payloadMock.Object);
