@@ -30,7 +30,7 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 
 ### Nuget Packages
 
-| Package | Version | Release Date |Details | Frameworks|
+| Package | Version | Release Date |Details |.Net Frameworks|
 |------|---------|--------------|--------|-----------|
 |SourceFlow|[![NuGet version](https://badge.fury.io/nu/SourceFlow.svg)](https://badge.fury.io/nu/SourceFlow)|29th Oct 2025|Core functionality for event sourcing and CQRS|[![.Net 10](https://img.shields.io/badge/.Net-10-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/10) [![.Net 9.0](https://img.shields.io/badge/.Net-9.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/9.0) [![.Net Standard 2.1](https://img.shields.io/badge/.NetStandard-2.1-blue)](https://github.com/dotnet/standard/blob/v2.1.0/docs/versions/netstandard2.1.md) [![.Net Standard 2.0](https://img.shields.io/badge/.NetStandard-2.0-blue)](https://github.com/dotnet/standard/blob/v2.0.0/docs/versions/netstandard2.0.md) [![.Net Framework 4.6.2](https://img.shields.io/badge/.Net-4.6.2-blue)](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net46)|
 |SourceFlow.Stores.EntityFramework|[![NuGet version](https://badge.fury.io/nu/SourceFlow.Stores.EntityFramework.svg)](https://badge.fury.io/nu/SourceFlow.Stores.EntityFramework)|29th Oct 2025|Provides store implementation using EF. Can configure different (types of ) databases for each store.|[![.Net 10](https://img.shields.io/badge/.Net-10-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/10) [![.Net 9.0](https://img.shields.io/badge/.Net-9.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/9.0) [![.Net 8.0](https://img.shields.io/badge/.Net-8.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) |
