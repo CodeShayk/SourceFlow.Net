@@ -63,19 +63,21 @@ namespace SourceFlow
 
             // Only register adapters if they haven't been registered yet
             // This allows tests and consumers to provide their own adapter implementations
-            services.TryAddSingleton<IEntityStoreAdapter, EntityStoreAdapter>();
-            services.TryAddSingleton<IViewModelStoreAdapter, ViewModelStoreAdapter>();
-            services.TryAddSingleton<ICommandStoreAdapter, CommandStoreAdapter>();
+            // Store adapters must be Scoped to match the lifetime of the underlying stores
+            services.TryAddScoped<IEntityStoreAdapter, EntityStoreAdapter>();
+            services.TryAddScoped<IViewModelStoreAdapter, ViewModelStoreAdapter>();
+            services.TryAddScoped<ICommandStoreAdapter, CommandStoreAdapter>();
 
             // Register infrastructure services that will be used by Sagas/Aggregates
-            services.AddSingleton<ICommandSubscriber, CommandSubscriber>();
-            services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
-            services.AddSingleton<ICommandBus, CommandBus>();
-            services.AddSingleton<ICommandPublisher, CommandPublisher>();
+            // Command pipeline services must be Scoped to work with scoped store adapters
+            services.AddScoped<ICommandSubscriber, CommandSubscriber>();
+            services.AddScoped<ICommandDispatcher, CommandDispatcher>();
+            services.AddScoped<ICommandBus, CommandBus>();
+            services.AddScoped<ICommandPublisher, CommandPublisher>();
 
             // Register Lazy<ICommandPublisher> to break circular dependency
             // Sagas and Aggregates will receive this instead of direct ICommandPublisher
-            services.AddSingleton<Lazy<ICommandPublisher>>(provider =>
+            services.AddScoped<Lazy<ICommandPublisher>>(provider =>
                 new Lazy<ICommandPublisher>(() => provider.GetRequiredService<ICommandPublisher>()));
 
 

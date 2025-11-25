@@ -1,8 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net462;netstandard2.0;netstandard2.1;net9.0</TargetFrameworks>
-    <Version>1.0.0-alpha.1</Version>
+    <TargetFrameworks>net462;netstandard2.0;netstandard2.1;net9.0;net10.0</TargetFrameworks>
+    <Version>1.0.0</Version>
     <RepositoryUrl>https://github.com/CodeShayk/SourceFlow.Net</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageProjectUrl>https://github.com/CodeShayk/SourceFlow.Net/wiki</PackageProjectUrl>
@@ -44,6 +44,7 @@
     <Optimize>True</Optimize>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="9.0.6" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.6" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.6" />
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">

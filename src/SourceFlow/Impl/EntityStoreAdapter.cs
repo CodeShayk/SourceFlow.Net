@@ -8,7 +8,7 @@ namespace SourceFlow.Impl
 
         public EntityStoreAdapter(IEntityStore store) => this.store = store;
 
-        public Task Delete<TEntity>(TEntity entity) where TEntity : IEntity
+        public Task Delete<TEntity>(TEntity entity) where TEntity : class, IEntity
         {
             return store.Delete<TEntity>(entity);
         }
@@ -18,7 +18,7 @@ namespace SourceFlow.Impl
             return store.Get<TEntity>(id);
         }
 
-        public Task Persist<TEntity>(TEntity entity) where TEntity : IEntity
+        public Task Persist<TEntity>(TEntity entity) where TEntity : class, IEntity
         {
             return store?.Persist<TEntity>(entity);
         }

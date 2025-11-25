@@ -6,7 +6,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
     {
         private readonly ConcurrentDictionary<int, IEntity> _cache = new();
 
-        public Task Delete<TEntity>(TEntity entity) where TEntity : IEntity
+        public Task Delete<TEntity>(TEntity entity) where TEntity : class, IEntity
         {
             if (entity?.Id == null)
                 throw new ArgumentNullException(nameof(entity));
@@ -29,7 +29,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
             return Task.FromResult((TEntity)entity);
         }
 
-        public Task Persist<TEntity>(TEntity entity) where TEntity : IEntity
+        public Task Persist<TEntity>(TEntity entity) where TEntity : class, IEntity
         {
             if (entity?.Id == null)
                 throw new ArgumentNullException(nameof(entity));

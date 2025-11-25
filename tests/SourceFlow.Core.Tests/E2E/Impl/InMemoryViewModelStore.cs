@@ -21,7 +21,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
             return Task.FromResult((TViewModel)model);
         }
 
-        public Task Persist<TViewModel>(TViewModel model) where TViewModel : IViewModel
+        public Task Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
         {
             if (model?.Id == null)
                 throw new ArgumentNullException(nameof(model));
@@ -34,7 +34,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
             return Task.CompletedTask;
         }
 
-        public Task Delete<TViewModel>(TViewModel model) where TViewModel : IViewModel
+        public Task Delete<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
         {
             if (model?.Id == null)
                 throw new ArgumentNullException(nameof(model));

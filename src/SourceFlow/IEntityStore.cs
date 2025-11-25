@@ -20,13 +20,13 @@ namespace SourceFlow
         /// </summary>
         /// <param name="entity">Entity Instance.</param>
         /// <returns></returns>
-        Task Persist<TEntity>(TEntity entity) where TEntity : IEntity;
+        Task Persist<TEntity>(TEntity entity) where TEntity : class, IEntity;
 
         /// <summary>
         /// Deletes an entity from the entityStore.
         /// </summary>
         /// <param name="entity">Entity Instance.</param>
         /// <returns></returns>
-        Task Delete<TEntity>(TEntity entity) where TEntity : IEntity;
+        Task Delete<TEntity>(TEntity entity) where TEntity : class, IEntity;
     }
 }

@@ -14,12 +14,12 @@ namespace SourceFlow.Impl
             return store.Get<TViewModel>(id);
         }
 
-        public Task Persist<TViewModel>(TViewModel model) where TViewModel : IViewModel
+        public Task Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
         {
             return store.Persist<TViewModel>(model);
         }
 
-        public Task Delete<TViewModel>(TViewModel entity) where TViewModel : IViewModel
+        public Task Delete<TViewModel>(TViewModel entity) where TViewModel : class, IViewModel
         {
             return store.Delete<TViewModel>(entity);
         }

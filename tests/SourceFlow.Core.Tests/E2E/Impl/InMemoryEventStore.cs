@@ -1,28 +1,28 @@
 using System.Collections.Concurrent;
-using SourceFlow.Messaging;
 using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Core.Tests.E2E.Impl
 {
     public class InMemoryEventStore : ICommandStore
     {
-        private readonly ConcurrentDictionary<int, List<ICommand>> _store = new();
+        private readonly ConcurrentDictionary<int, List<CommandData>> _store = new();
 
-        public Task Append(ICommand command)
+        public Task Append(CommandData command)
         {
-            if (!_store.ContainsKey(command.Entity.Id))
-                _store[command.Entity.Id] = new List<ICommand>();
+            if (!_store.ContainsKey(command.EntityId))
+                _store[command.EntityId] = new List<CommandData>();
 
-            _store[command.Entity.Id].Add(command);
+            _store[command.EntityId].Add(command);
 
             return Task.CompletedTask;
         }
 
-        public async Task<IEnumerable<ICommand>> Load(int entityId)
+        
+        public async Task<IEnumerable<CommandData>> Load(int entityId)
         {
             return await Task.FromResult(_store.TryGetValue(entityId, out var events)
                ? events
-               : Enumerable.Empty<ICommand>());
-        }        
+               : Enumerable.Empty<CommandData>());
+        }
     }
 }

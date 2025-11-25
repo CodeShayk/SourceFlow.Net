@@ -19,12 +19,12 @@ namespace SourceFlow.Tests.Ioc
             return Task.FromResult<TEntity>(null);
         }
 
-        public Task Persist<TEntity>(TEntity entity) where TEntity : IEntity
+        public Task Persist<TEntity>(TEntity entity) where TEntity : class, IEntity
         {
             return Task.CompletedTask;
         }
 
-        public Task Delete<TEntity>(TEntity entity) where TEntity : IEntity
+        public Task Delete<TEntity>(TEntity entity) where TEntity : class, IEntity
         {
             return Task.CompletedTask;
         }
@@ -55,7 +55,12 @@ namespace SourceFlow.Tests.Ioc
             return Task.FromResult<TViewModel>(null);
         }
 
-        public Task Persist<TViewModel>(TViewModel model) where TViewModel : IViewModel
+        public Task Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task Delete<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
         {
             return Task.CompletedTask;
         }
