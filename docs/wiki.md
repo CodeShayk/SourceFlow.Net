@@ -165,7 +165,7 @@ public class AccountProjection : IProjectOn<AccountCreated>, IProjectOn<MoneyDep
 
 ### High-Level Architecture
 
-<img src="https://github.com/CodeShayk/SourceFlow.Net/blob/v1.0.0/Images/Architecture.png" alt="architecture" style="width:1200px; height:700px"/>
+<img src="https://github.com/CodeShayk/SourceFlow.Net/blob/v1.0.0/Images/Architecture.png" alt="architecture" style="width:1100px; height:400px"/>
 
 ### Component Interactions
 
