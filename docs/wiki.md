@@ -175,9 +175,12 @@ public class AccountProjection : IProjectOn<AccountCreated>, IProjectOn<MoneyDep
 4. **Sagas** persist entities to the **Entity Store**
 5. **Sagas** raise events to the **Event Queue**
 6. **Event Queue** dispatches events to subscribers
-7. **Projections** update read models (ViewModels) based on events
+7. **Views** Projections that update read models (ViewModels) based on events
 8. **Command Store** persists commands for replay capability
-9. **Entity Framework Stores** provide persistence using EF Core with support for multiple databases
+9. **Entity Store** persists root aggregates (entities) within bounded context
+10. **ViewModel Store** persists transformed view models from events
+  
+**Entity Framework Stores** provide persistence using EF Core with support for multiple databases
 
 ---
 
