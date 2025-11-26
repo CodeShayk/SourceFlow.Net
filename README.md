@@ -21,20 +21,22 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 
 ### Concept
 **v1.0.0**
-- `Aggregate` wraps the root aggregate entity that you wish to manage changes by publishing commands. 
-- `Saga` is a long running transaction that subscribes to `commands` to apply actual updates to root aggregate within the domain bounded context. Saga basically `orchestrates` the success and failure flows to `preserve` the `state` of `root aggregate` accordingly. Saga can also publish `commands` to `itself` or `other` saga's. Saga can be defined to raise `events` when handling commands.
+- `Aggregate` wraps the root aggregate entity that you wish to manage within a domain context (microservice). Changes are applied to aggregate entity by publishing commands. 
+- `Saga` is a long running transaction that subscribes to `commands` to apply actual updates to aggregate entity. Saga basically `orchestrates` the success and failure flows to `preserve` the `state` of `root aggregate` accordingly. Saga can also publish `commands` to `itself` or `other` saga's. Saga can be defined to raise `events` when handling commands.
 - `Events` are published to `subscribers`. There are two subscribers to event - ie. i. `Aggregates` ii. `Views`
 - `Aggregate` subscribes to `events` to publish `changes` to root aggregate based upon `external` stimulus. ie. potential changes from any other saga workflow that could affect the state of Aggregate in context.
 - `View` subscribes to `events` to `write` data to `view model`, view sources `transformed` data for interested viewers. ie. `UI` (viewer) could read data from view model (with eventual consistency).
 
 **v2.0.0**
-- `Dispatcher` will dispatch commands and events to `Cloud`.
-- `Listeners` will route events and commands to `subscribers` within domain context.
+- `Command Dispatcher` will dispatch commands to `Cloud`. It basically targets a specific command queue.
+- `Command Queue` is the queue designated for the whole of domain context (microservice). When command is sent to this queue it gets dispatched to subscribing Saga's in the domain context.
+- Event Disptacher` will dispatch events to the `Cloud`. It basically publishes to certain topic.
+- `Event Listeners` is a bootstrap component listening to subscribed topics. When it receives the event for the topic then it dispatches to subscribing Aggregates and Views within the domain context.
    
 #### Architecture
 <img src="https://github.com/CodeShayk/SourceFlow.Net/blob/v1.0.0/Images/Architecture-Complete.png" alt="arcitecture" style="width:1200px; hieght:700px"/>
 
-### Nuget Packages
+### RoadMap
 
 | Package | Version | Release Date |Details |.Net Frameworks|
 |------|---------|--------------|--------|-----------|
