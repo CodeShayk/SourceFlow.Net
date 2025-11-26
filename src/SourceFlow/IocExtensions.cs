@@ -13,6 +13,7 @@ using SourceFlow.Messaging.Commands;
 using SourceFlow.Messaging.Commands.Impl;
 using SourceFlow.Messaging.Events;
 using SourceFlow.Messaging.Events.Impl;
+using SourceFlow.Observability;
 using SourceFlow.Projections;
 using SourceFlow.Saga;
 
@@ -60,6 +61,12 @@ namespace SourceFlow
    
             // Register factories
             services.Add(ServiceDescriptor.Describe(typeof(IAggregateFactory), typeof(AggregateFactory), lifetime));
+
+            // Register observability options (disabled by default to avoid breaking changes)
+            services.TryAddSingleton(new DomainObservabilityOptions { Enabled = false });
+
+            // Register domain telemetry service as Singleton (it's stateless and thread-safe)
+            services.TryAddSingleton<IDomainTelemetryService, DomainTelemetryService>();
 
             // Only register adapters if they haven't been registered yet
             // This allows tests and consumers to provide their own adapter implementations

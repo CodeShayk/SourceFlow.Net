@@ -5,6 +5,7 @@ using Moq;
 using NUnit.Framework;
 using SourceFlow.Messaging.Events;
 using SourceFlow.Messaging.Events.Impl;
+using SourceFlow.Observability;
 
 namespace SourceFlow.Core.Tests.Impl
 {
@@ -13,6 +14,7 @@ namespace SourceFlow.Core.Tests.Impl
     {
         private Mock<ILogger<IEventQueue>> loggerMock;
         private Mock<IEventDispatcher> eventDispatcherMock;
+        private Mock<IDomainTelemetryService> telemetryMock;
         private EventQueue eventQueue;
 
         [SetUp]
@@ -20,21 +22,27 @@ namespace SourceFlow.Core.Tests.Impl
         {
             loggerMock = new Mock<ILogger<IEventQueue>>();
             eventDispatcherMock = new Mock<IEventDispatcher>();
-            eventQueue = new EventQueue(eventDispatcherMock.Object, loggerMock.Object);
+            telemetryMock = new Mock<IDomainTelemetryService>();
+
+            // Setup telemetry mock to execute operations directly
+            telemetryMock.Setup(t => t.TraceAsync(It.IsAny<string>(), It.IsAny<Func<Task>>(), It.IsAny<Action<System.Diagnostics.Activity>>()))
+                .Returns((string name, Func<Task> operation, Action<System.Diagnostics.Activity> enrich) => operation());
+
+            eventQueue = new EventQueue(eventDispatcherMock.Object, loggerMock.Object, telemetryMock.Object);
         }
 
         [Test]
         public void Constructor_NullLogger_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new EventQueue(eventDispatcherMock.Object, null));
+                new EventQueue(eventDispatcherMock.Object, null, telemetryMock.Object));
         }
 
         [Test]
         public void Constructor_NullEventDispatcher_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new EventQueue(null, loggerMock.Object));
+                new EventQueue(null, loggerMock.Object, telemetryMock.Object));
         }
 
         [Test]

@@ -3,7 +3,11 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
+using SourceFlow.Projections;
 using SourceFlow.Stores.EntityFramework.Extensions;
+using SourceFlow.Stores.EntityFramework.Options;
+using SourceFlow.Stores.EntityFramework.Services;
+using SourceFlow.Stores.EntityFramework.Stores;
 using SourceFlow.Stores.EntityFramework.Tests.TestModels;
 
 namespace SourceFlow.Stores.EntityFramework.Tests.Stores
@@ -33,17 +37,29 @@ namespace SourceFlow.Stores.EntityFramework.Tests.Stores
             var services = new ServiceCollection();
 
             // Configure SQLite in-memory database for testing - using shared connection for all contexts
+            // Use EnableServiceProviderCaching(false) to avoid EF Core 9.0 multiple provider conflicts
             services.AddDbContext<ViewModelDbContext>(options =>
-                options.UseSqlite(connection));
+                options.UseSqlite(connection)
+                    .EnableServiceProviderCaching(false));
 
             // Register all contexts for testing (even though only ViewModelDbContext is used by the store)
             services.AddDbContext<CommandDbContext>(options =>
-                options.UseSqlite(connection));
+                options.UseSqlite(connection)
+                    .EnableServiceProviderCaching(false));
             services.AddDbContext<EntityDbContext>(options =>
-                options.UseSqlite(connection));
+                options.UseSqlite(connection)
+                    .EnableServiceProviderCaching(false));
 
-            // Use the overload that takes a single connection string
-            services.AddSourceFlowEfStores("DataSource=:memory:");
+            // Register SourceFlowEfOptions with default settings for tests
+            var efOptions = new SourceFlowEfOptions();
+            services.AddSingleton(efOptions);
+
+            // Register common services manually (don't use AddSourceFlowEfStores as it would add SQL Server)
+            services.AddScoped<IDatabaseResiliencePolicy, DatabaseResiliencePolicy>();
+            services.AddScoped<IDatabaseTelemetryService, DatabaseTelemetryService>();
+            services.AddScoped<ICommandStore, EfCommandStore>();
+            services.AddScoped<IEntityStore, EfEntityStore>();
+            services.AddScoped<IViewModelStore, EfViewModelStore>();
 
             _serviceProvider = services.BuildServiceProvider();
 

@@ -1,3 +1,5 @@
+#nullable enable
+
 using System;
 using System.ComponentModel.DataAnnotations;
 
@@ -42,6 +44,16 @@ namespace SourceFlow.Stores.EntityFramework.Options
         /// Table naming convention for command tables.
         /// </summary>
         public TableNamingConvention CommandTableNaming { get; set; } = new TableNamingConvention();
+
+        /// <summary>
+        /// Resilience options for fault tolerance (retry, circuit breaker, timeout).
+        /// </summary>
+        public ResilienceOptions Resilience { get; set; } = new ResilienceOptions();
+
+        /// <summary>
+        /// Observability options for OpenTelemetry tracing and metrics.
+        /// </summary>
+        public ObservabilityOptions Observability { get; set; } = new ObservabilityOptions();
 
         /// <summary>
         /// Gets the connection string for a specific store type

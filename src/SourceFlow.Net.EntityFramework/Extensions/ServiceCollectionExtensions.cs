@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 using SourceFlow.Stores.EntityFramework.Options;
+using SourceFlow.Stores.EntityFramework.Services;
 using SourceFlow.Stores.EntityFramework.Stores;
 
 namespace SourceFlow.Stores.EntityFramework.Extensions
@@ -54,10 +55,8 @@ namespace SourceFlow.Stores.EntityFramework.Extensions
             services.AddDbContext<ViewModelDbContext>(optionsBuilder =>
                 optionsBuilder.UseSqlServer(connectionString));
 
-            // Register EF stores
-            services.TryAddScoped<ICommandStore, EfCommandStore>();
-            services.TryAddScoped<IEntityStore, EfEntityStore>();
-            services.TryAddScoped<IViewModelStore, EfViewModelStore>();
+            // Register common services (resilience, telemetry, stores)
+            RegisterCommonServices(services);
 
             return services;
         }
@@ -102,10 +101,8 @@ namespace SourceFlow.Stores.EntityFramework.Extensions
             services.AddDbContext<ViewModelDbContext>(optionsBuilder =>
                 optionsBuilder.UseSqlServer(viewModelConnectionString));
 
-            // Register EF stores
-            services.TryAddScoped<ICommandStore, EfCommandStore>();
-            services.TryAddScoped<IEntityStore, EfEntityStore>();
-            services.TryAddScoped<IViewModelStore, EfViewModelStore>();
+            // Register common services (resilience, telemetry, stores)
+            RegisterCommonServices(services);
 
             return services;
         }
@@ -172,10 +169,8 @@ namespace SourceFlow.Stores.EntityFramework.Extensions
                 optionsBuilder.UseSqlServer(connectionString);
             });
 
-            // Register EF stores
-            services.TryAddScoped<ICommandStore, EfCommandStore>();
-            services.TryAddScoped<IEntityStore, EfEntityStore>();
-            services.TryAddScoped<IViewModelStore, EfViewModelStore>();
+            // Register common services (resilience, telemetry, stores)
+            RegisterCommonServices(services);
 
             return services;
         }
@@ -226,10 +221,8 @@ namespace SourceFlow.Stores.EntityFramework.Extensions
                 optionsBuilder.UseSqlServer(connectionString);
             });
 
-            // Register EF stores
-            services.TryAddScoped<ICommandStore, EfCommandStore>();
-            services.TryAddScoped<IEntityStore, EfEntityStore>();
-            services.TryAddScoped<IViewModelStore, EfViewModelStore>();
+            // Register common services (resilience, telemetry, stores)
+            RegisterCommonServices(services);
 
             return services;
         }
@@ -280,10 +273,8 @@ namespace SourceFlow.Stores.EntityFramework.Extensions
             services.AddDbContext<EntityDbContext>(configureContext);
             services.AddDbContext<ViewModelDbContext>(configureContext);
 
-            // Register EF stores
-            services.TryAddScoped<ICommandStore, EfCommandStore>();
-            services.TryAddScoped<IEntityStore, EfEntityStore>();
-            services.TryAddScoped<IViewModelStore, EfViewModelStore>();
+            // Register common services (resilience, telemetry, stores)
+            RegisterCommonServices(services);
 
             return services;
         }
@@ -334,12 +325,26 @@ namespace SourceFlow.Stores.EntityFramework.Extensions
             services.AddDbContext<EntityDbContext>(entityContextConfig);
             services.AddDbContext<ViewModelDbContext>(viewModelContextConfig);
 
+            // Register common services (resilience, telemetry, stores)
+            RegisterCommonServices(services);
+
+            return services;
+        }
+
+        /// <summary>
+        /// Registers common SourceFlow services (resilience policy, telemetry service, stores).
+        /// </summary>
+        /// <param name="services">The service collection</param>
+        private static void RegisterCommonServices(IServiceCollection services)
+        {
+            // Register resilience policy and telemetry service as Scoped (same lifetime as stores)
+            services.TryAddScoped<IDatabaseResiliencePolicy, DatabaseResiliencePolicy>();
+            services.TryAddScoped<IDatabaseTelemetryService, DatabaseTelemetryService>();
+
             // Register EF stores
             services.TryAddScoped<ICommandStore, EfCommandStore>();
             services.TryAddScoped<IEntityStore, EfEntityStore>();
             services.TryAddScoped<IViewModelStore, EfViewModelStore>();
-
-            return services;
         }
 
         /// <summary>

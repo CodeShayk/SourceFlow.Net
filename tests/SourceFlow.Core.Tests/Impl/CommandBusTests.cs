@@ -9,6 +9,7 @@ using SourceFlow.Messaging;
 using SourceFlow.Messaging.Bus;
 using SourceFlow.Messaging.Bus.Impl;
 using SourceFlow.Messaging.Commands;
+using SourceFlow.Observability;
 
 namespace SourceFlow.Core.Tests.Impl
 {
@@ -18,6 +19,7 @@ namespace SourceFlow.Core.Tests.Impl
         private Mock<ICommandStoreAdapter> commandStoreMock;
         private Mock<ILogger<ICommandBus>> loggerMock;
         private Mock<ICommandDispatcher> commandDispatcherMock;
+        private Mock<IDomainTelemetryService> telemetryMock;
         private CommandBus commandBus;
 
         [SetUp]
@@ -26,31 +28,38 @@ namespace SourceFlow.Core.Tests.Impl
             commandStoreMock = new Mock<ICommandStoreAdapter>();
             loggerMock = new Mock<ILogger<ICommandBus>>();
             commandDispatcherMock = new Mock<ICommandDispatcher>();
+            telemetryMock = new Mock<IDomainTelemetryService>();
+
+            // Setup telemetry mock to execute operations directly
+            telemetryMock.Setup(t => t.TraceAsync(It.IsAny<string>(), It.IsAny<Func<Task>>(), It.IsAny<Action<System.Diagnostics.Activity>>()))
+                .Returns((string name, Func<Task> operation, Action<System.Diagnostics.Activity> enrich) => operation());
+
             commandBus = new CommandBus(
                 commandDispatcherMock.Object,
                 commandStoreMock.Object,
-                loggerMock.Object);
+                loggerMock.Object,
+                telemetryMock.Object);
         }
 
         [Test]
         public void Constructor_NullCommandStore_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new CommandBus(commandDispatcherMock.Object, null, loggerMock.Object));
+                new CommandBus(commandDispatcherMock.Object, null, loggerMock.Object, telemetryMock.Object));
         }
 
         [Test]
         public void Constructor_NullLogger_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new CommandBus(commandDispatcherMock.Object, commandStoreMock.Object, null));
+                new CommandBus(commandDispatcherMock.Object, commandStoreMock.Object, null, telemetryMock.Object));
         }
 
         [Test]
         public void Constructor_NullCommandDispatcher_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new CommandBus(null, commandStoreMock.Object, loggerMock.Object));
+                new CommandBus(null, commandStoreMock.Object, loggerMock.Object, telemetryMock.Object));
         }
 
         [Test]

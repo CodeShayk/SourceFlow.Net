@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using SourceFlow.Observability;
+using SourceFlow.Performance;
+
 namespace SourceFlow.Messaging.Events.Impl
 {
     internal class EventDispatcher : IEventDispatcher
@@ -19,15 +22,22 @@ namespace SourceFlow.Messaging.Events.Impl
         private readonly ILogger<IEventDispatcher> logger;
 
         /// <summary>
+        /// Telemetry service for observability.
+        /// </summary>
+        private readonly IDomainTelemetryService telemetry;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="EventDispatcher"/> class with the specified subscribers and logger.
         /// </summary>
         /// <param name="subscribers"></param>
         /// <param name="logger"></param>
+        /// <param name="telemetry"></param>
         /// <exception cref="ArgumentNullException"></exception>
-        public EventDispatcher(IEnumerable<IEventSubscriber> subscribers, ILogger<IEventDispatcher> logger)
+        public EventDispatcher(IEnumerable<IEventSubscriber> subscribers, ILogger<IEventDispatcher> logger, IDomainTelemetryService telemetry)
         {
             this.subscribers = subscribers ?? throw new ArgumentNullException(nameof(subscribers));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            this.telemetry = telemetry ?? throw new ArgumentNullException(nameof(telemetry));
         }
 
         /// <summary>
@@ -38,20 +48,27 @@ namespace SourceFlow.Messaging.Events.Impl
         /// <returns></returns>
         public Task Dispatch<TEvent>(TEvent @event) where TEvent : IEvent
         {
-            var tasks = new List<Task>();
+            return telemetry.TraceAsync(
+                "sourceflow.eventdispatcher.dispatch",
+                async () =>
+                {
+                    // Use ArrayPool-based optimization for task collection
+                    await TaskBufferPool.ExecuteAsync(
+                        subscribers,
+                        subscriber =>
+                        {
+                            logger?.LogInformation("Action=Event_Dispatcher, Event={Event}, Subscriber:{subscriber}",
+                                    @event.Name, subscribers.GetType().Name);
 
-            foreach (var subscriber in subscribers)
-            {
-                tasks.Add(subscriber.Subscribe(@event));
-
-                logger?.LogInformation("Action=Event_Dispatcher, Event={Event}, Subscriber:{subscriber}",
-                        @event.Name, subscribers.GetType().Name);
-            }
-
-            if (!tasks.Any())
-                return Task.CompletedTask;
-
-            return Task.WhenAll(tasks);
+                            return subscriber.Subscribe(@event);
+                        });
+                },
+                activity =>
+                {
+                    activity?.SetTag("event.type", @event.GetType().Name);
+                    activity?.SetTag("event.name", @event.Name);
+                    activity?.SetTag("subscribers.count", subscribers.Count());
+                });
         }
     }
 }

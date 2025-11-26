@@ -6,6 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 using SourceFlow.Messaging;
 using SourceFlow.Messaging.Commands;
+using SourceFlow.Stores.EntityFramework.Options;
+using SourceFlow.Stores.EntityFramework.Services;
 using SourceFlow.Stores.EntityFramework.Stores;
 using SourceFlow.Stores.EntityFramework.Tests.TestModels;
 
@@ -36,14 +38,30 @@ namespace SourceFlow.Stores.EntityFramework.Tests.Stores
             var services = new ServiceCollection();
 
             // Configure and register the specific DbContext instances with shared connection
+            // Use EnableServiceProviderCaching(false) to avoid EF Core 9.0 multiple provider conflicts
             services.AddDbContext<CommandDbContext>(options =>
-                options.UseSqlite(connection));
+                options.UseSqlite(connection)
+                    .EnableServiceProviderCaching(false));
 
             services.AddDbContext<EntityDbContext>(options =>
-                options.UseSqlite(connection));
+                options.UseSqlite(connection)
+                    .EnableServiceProviderCaching(false));
 
             services.AddDbContext<ViewModelDbContext>(options =>
-                options.UseSqlite(connection));
+                options.UseSqlite(connection)
+                    .EnableServiceProviderCaching(false));
+
+            // Register SourceFlowEfOptions with resilience and observability disabled for tests
+            var options = new SourceFlowEfOptions
+            {
+                Resilience = { Enabled = false },
+                Observability = { Enabled = false }
+            };
+            services.AddSingleton(options);
+
+            // Register required services (resilience policy and telemetry service)
+            services.AddScoped<IDatabaseResiliencePolicy, DatabaseResiliencePolicy>();
+            services.AddScoped<IDatabaseTelemetryService, DatabaseTelemetryService>();
 
             // Register the stores that will use these specific DbContext instances
             services.AddScoped<ICommandStore, EfCommandStore>();

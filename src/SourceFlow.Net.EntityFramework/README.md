@@ -15,6 +15,14 @@ Entity Framework Core persistence provider for SourceFlow.Net. Provides implemen
 - **Optimized change tracking** with `AsNoTracking()` and entity detachment
 - **Mix and match databases**: Use different databases for commands, entities, and view models
 
+### Production-Ready Enhancements
+
+- **🛡️ Resilience with Polly**: Retry policies, circuit breakers, and timeouts for fault tolerance
+- **📊 Observability with OpenTelemetry**: Distributed tracing, metrics, and performance monitoring
+- **⚡ Memory Optimization with ArrayPool**: Reduced GC pressure for high-throughput scenarios
+
+**[See ENHANCEMENTS.md for detailed configuration and usage →](ENHANCEMENTS.md)**
+
 ## Architecture
 
 ### Layered Design

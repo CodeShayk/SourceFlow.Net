@@ -1,3 +1,5 @@
+#nullable enable
+
 using System;
 using Microsoft.EntityFrameworkCore;
 using SourceFlow.Stores.EntityFramework.Models;
