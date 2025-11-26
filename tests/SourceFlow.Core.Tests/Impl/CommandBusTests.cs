@@ -35,7 +35,7 @@ namespace SourceFlow.Core.Tests.Impl
                 .Returns((string name, Func<Task> operation, Action<System.Diagnostics.Activity> enrich) => operation());
 
             commandBus = new CommandBus(
-                commandDispatcherMock.Object,
+                new[] { commandDispatcherMock.Object },
                 commandStoreMock.Object,
                 loggerMock.Object,
                 telemetryMock.Object);
@@ -45,14 +45,14 @@ namespace SourceFlow.Core.Tests.Impl
         public void Constructor_NullCommandStore_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new CommandBus(commandDispatcherMock.Object, null, loggerMock.Object, telemetryMock.Object));
+                new CommandBus(new[] { commandDispatcherMock.Object }, null, loggerMock.Object, telemetryMock.Object));
         }
 
         [Test]
         public void Constructor_NullLogger_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new CommandBus(commandDispatcherMock.Object, commandStoreMock.Object, null, telemetryMock.Object));
+                new CommandBus(new[] { commandDispatcherMock.Object }, commandStoreMock.Object, null, telemetryMock.Object));
         }
 
         [Test]
@@ -65,7 +65,7 @@ namespace SourceFlow.Core.Tests.Impl
         [Test]
         public void Constructor_SetsDependencies()
         {
-            Assert.That(commandBus.commandDispatcher, Is.EqualTo(commandDispatcherMock.Object));
+            Assert.That(commandBus.commandDispatchers.ElementAt(0), Is.EqualTo(commandDispatcherMock.Object));
         }
 
         [Test]

@@ -165,47 +165,7 @@ public class AccountProjection : IProjectOn<AccountCreated>, IProjectOn<MoneyDep
 
 ### High-Level Architecture
 
-```
-┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
-│     Aggregate       │    │        Sagas        │    │    Projections      │
-│                     │    │                     │    │                     │
-│ ┌─────────────────┐ │    │ ┌─────────────────┐ │    │ ┌─────────────────┐ │
-│ │ AccountAggregate│ │    │ │ AccountSaga     │ │    │ │   AccountView   │ │
-│ └─────────────────┘ │    │ └─────────────────┘ │    │ └─────────────────┘ │
-└─────────────────────┘    └─────────────────────┘    └─────────────────────┘
-           │                       │                            │
-        Commands               Commands                    ViewData
-           ▼                       ▼                            ▼
-┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
-│   Command Bus       │    │     Event Queue     │    │   ViewModel Store   │
-│  ┌───────────────┐  │    │  ┌──────────────┐  │    │  ┌──────────────┐   │
-│  │CommandPublisher│ │    │  │EventDispatcher│ │    │  │ EfViewStore  │   │
-│  └───────────────┘  │    │  └──────────────┘  │    │  └──────────────┘   │
-└─────────────────────┘    └─────────────────────┘    └─────────────────────┘
-           │                       │
-           │                    Events
-           ▼                       │
-┌─────────────────────┐           │
-│   Command Store     │           │
-│  ┌──────────────┐   │           │
-│  │EfCommandStore│   │           │
-│  └──────────────┘   │           │
-└─────────────────────┘           │
-           │                       │
-           │                       │
-           ▼                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Entity Framework Core DbContexts                │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │CommandDbCtx  │  │ EntityDbCtx  │  │ViewModelDbCtx    │  │
-│  └──────────────┘  └──────────────┘  └──────────────────┘  │
-│           │               │                   │              │
-│           ▼               ▼                   ▼              │
-│    ┌─────────────────────────────────────────────┐          │
-│    │      SQL Server / PostgreSQL / SQLite       │          │
-│    └─────────────────────────────────────────────┘          │
-└─────────────────────────────────────────────────────────────┘
-```
+<img src="https://github.com/CodeShayk/SourceFlow.Net/blob/v1.0.0/Images/Architecture.png" alt="architecture" style="width:1200px; height:700px"/>
 
 ### Component Interactions
 

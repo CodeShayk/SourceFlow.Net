@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -26,7 +27,7 @@ namespace SourceFlow.Messaging.Bus.Impl
         /// <summary>
         /// Represents command dispathers that can handle the publishing of commands.
         /// </summary>
-        public ICommandDispatcher commandDispatcher;
+        public IEnumerable<ICommandDispatcher> commandDispatchers;
 
         /// <summary>
         /// Telemetry service for observability.
@@ -36,15 +37,15 @@ namespace SourceFlow.Messaging.Bus.Impl
         /// <summary>
         /// Initializes a new instance of the <see cref="CommandBus"/> class.
         /// </summary>
-        /// <param name="commandDispatcher"></param>
+        /// <param name="commandDispatchers"></param>
         /// <param name="commandStore"></param>
         /// <param name="logger"></param>
         /// <param name="telemetry"></param>
-        public CommandBus(ICommandDispatcher commandDispatcher, ICommandStoreAdapter commandStore, ILogger<ICommandBus> logger, IDomainTelemetryService telemetry)
+        public CommandBus(IEnumerable<ICommandDispatcher> commandDispatchers, ICommandStoreAdapter commandStore, ILogger<ICommandBus> logger, IDomainTelemetryService telemetry)
         {
             this.commandStore = commandStore ?? throw new ArgumentNullException(nameof(commandStore));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            this.commandDispatcher = commandDispatcher ?? throw new ArgumentNullException(nameof(commandDispatcher));
+            this.commandDispatchers = commandDispatchers ?? throw new ArgumentNullException(nameof(commandDispatchers));
             this.telemetry = telemetry ?? throw new ArgumentNullException(nameof(telemetry));
         }
 
@@ -73,16 +74,18 @@ namespace SourceFlow.Messaging.Bus.Impl
                     if (!((IMetadata)command).Metadata.IsReplay)
                         ((IMetadata)command).Metadata.SequenceNo = await commandStore.GetNextSequenceNo(command.Entity.Id);
 
+                    var tasks = new List<Task>();
+
                     // 2. Dispatch command to handlers.
-                    await commandDispatcher.Dispatch(command);
+                    foreach (var dispatcher in commandDispatchers)                    
+                        tasks.Add(DispatchCommand(command, dispatcher));
 
-                    // 3. Log event.
-                    logger?.LogInformation("Action=Command_Dispatched, Command={Command}, Payload={Payload}, SequenceNo={No}",
-                        command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo);
+                    if(tasks.Any())
+                        await Task.WhenAll(tasks);
 
-                    // 4. When event is not replayed
+                    // 3. When event is not replayed
                     if (!((IMetadata)command).Metadata.IsReplay)
-                        // 4.1. Append event to event store.
+                        // 3.1. Append event to event store.
                         await commandStore.Append(command);
                 },
                 activity =>
@@ -96,6 +99,22 @@ namespace SourceFlow.Messaging.Bus.Impl
             // Record metric
             telemetry.RecordCommandExecuted(command.GetType().Name, command.Entity.Id);
         }
+        /// <summary>
+        /// Dispatches a command to a specific dispatcher.
+        /// </summary>
+        /// <typeparam name="TCommand"></typeparam>
+        /// <param name="command"></param>
+        /// <param name="dispatcher"></param>
+        /// <returns></returns>
+        private Task DispatchCommand<TCommand>(TCommand command, ICommandDispatcher dispatcher) where TCommand : ICommand
+        {
+            // 2.2 Log event.
+            logger?.LogInformation("Action=Command_Dispatched, Dispatcher={Dispatcher}, Command={Command}, Payload={Payload}, SequenceNo={No}",
+               dispatcher.GetType().Name, command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo);
+
+            // 2.1 Dispatch to each dispatcher
+            return dispatcher.Dispatch(command);
+        }       
 
         /// <summary>
         /// Replays commands for a given aggregate.

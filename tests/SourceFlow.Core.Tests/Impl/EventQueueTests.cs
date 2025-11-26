@@ -28,14 +28,14 @@ namespace SourceFlow.Core.Tests.Impl
             telemetryMock.Setup(t => t.TraceAsync(It.IsAny<string>(), It.IsAny<Func<Task>>(), It.IsAny<Action<System.Diagnostics.Activity>>()))
                 .Returns((string name, Func<Task> operation, Action<System.Diagnostics.Activity> enrich) => operation());
 
-            eventQueue = new EventQueue(eventDispatcherMock.Object, loggerMock.Object, telemetryMock.Object);
+            eventQueue = new EventQueue(new[] { eventDispatcherMock.Object }, loggerMock.Object, telemetryMock.Object);
         }
 
         [Test]
         public void Constructor_NullLogger_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new EventQueue(eventDispatcherMock.Object, null, telemetryMock.Object));
+                new EventQueue(new[] { eventDispatcherMock.Object }, null, telemetryMock.Object));
         }
 
         [Test]
@@ -48,7 +48,7 @@ namespace SourceFlow.Core.Tests.Impl
         [Test]
         public void Constructor_SetsDependencies()
         {
-            Assert.That(eventQueue.eventDispatcher, Is.EqualTo(eventDispatcherMock.Object));
+            Assert.That(eventQueue.eventDispatchers.ElementAt(0), Is.EqualTo(eventDispatcherMock.Object));
         }
 
         [Test]

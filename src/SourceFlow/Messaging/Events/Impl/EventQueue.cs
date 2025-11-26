@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Observability;
@@ -16,9 +18,9 @@ namespace SourceFlow.Messaging.Events.Impl
         private readonly ILogger<IEventQueue> logger;
 
         /// <summary>
-        /// Represents event dispather that can handle the dequeuing of events.
+        /// Represents event dispathers that can handle the dequeuing of events.
         /// </summary>
-        public IEventDispatcher eventDispatcher;
+        public IEnumerable<IEventDispatcher> eventDispatchers;
 
         /// <summary>
         /// Telemetry service for observability.
@@ -32,10 +34,10 @@ namespace SourceFlow.Messaging.Events.Impl
         /// <param name="logger"></param>
         /// <param name="telemetry"></param>
         /// <exception cref="ArgumentNullException"></exception>
-        public EventQueue(IEventDispatcher eventDispatcher, ILogger<IEventQueue> logger, IDomainTelemetryService telemetry)
+        public EventQueue(IEnumerable<IEventDispatcher> eventDispatchers, ILogger<IEventQueue> logger, IDomainTelemetryService telemetry)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            this.eventDispatcher = eventDispatcher ?? throw new ArgumentNullException(nameof(eventDispatcher));
+            this.eventDispatchers = eventDispatchers ?? throw new ArgumentNullException(nameof(eventDispatchers));
             this.telemetry = telemetry ?? throw new ArgumentNullException(nameof(telemetry));
         }
 
@@ -55,16 +57,24 @@ namespace SourceFlow.Messaging.Events.Impl
                 "sourceflow.eventqueue.enqueue",
                 async () =>
                 {
-                    logger?.LogInformation("Action=Event_Enqueue, Event={Event}, Payload={Payload}",
-                      @event.GetType().Name, @event.Payload.GetType().Name);
+                    var tasks = new List<Task>();
+                    foreach (var eventDispatcher in eventDispatchers)                    
+                        tasks.Add(DispatchEvent(@event, eventDispatcher));                    
 
-                    await eventDispatcher.Dispatch(@event);
+                    if (tasks.Any())
+                        await Task.WhenAll(tasks);
                 },
                 activity =>
                 {
                     activity?.SetTag("event.type", @event.GetType().Name);
                     activity?.SetTag("event.name", @event.Name);
                 });
+        }
+
+        private Task DispatchEvent<TEvent>(TEvent @event, IEventDispatcher eventDispatcher) where TEvent : IEvent
+        {
+            logger?.LogInformation("Action=Event_Enqueue, Dispatcher={Dispatcher}, Event={Event}, Payload={Payload}", eventDispatcher.GetType().Name, @event.GetType().Name, @event.Payload.GetType().Name);
+            return eventDispatcher.Dispatch(@event);
         }
     }
 }
