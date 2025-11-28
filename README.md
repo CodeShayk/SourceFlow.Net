@@ -44,17 +44,19 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 |SourceFlow.Stores.EntityFramework|v1.0.0 [![NuGet version](https://badge.fury.io/nu/SourceFlow.Stores.EntityFramework.svg)](https://badge.fury.io/nu/SourceFlow.Stores.EntityFramework)|29th Oct 2025|Provides store implementation using EF. Can configure different (types of ) databases for each store.|[![.Net 10](https://img.shields.io/badge/.Net-10-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) [![.Net 9.0](https://img.shields.io/badge/.Net-9.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/9.0) [![.Net 8.0](https://img.shields.io/badge/.Net-8.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) |
 |SourceFlow.Cloud.AWS|v2.0.0 |(TBC) |Provides support for AWS cloud with cross domain boundary command and Event publishing & subscription.|[![.Net 10](https://img.shields.io/badge/.Net-10-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) [![.Net 9.0](https://img.shields.io/badge/.Net-9.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/9.0) [![.Net 8.0](https://img.shields.io/badge/.Net-8.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)|
 |SourceFlow.Cloud.Azure|v2.0.0 |(TBC) |Provides support for Azure cloud with cross domain boundary command and Event publishing & subscription.|[![.Net 10](https://img.shields.io/badge/.Net-10-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) [![.Net 9.0](https://img.shields.io/badge/.Net-9.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/9.0) [![.Net 8.0](https://img.shields.io/badge/.Net-8.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)|
+
 ## Getting Started
 ### Installation
-nuget add package SourceFlow.Net
-> - dotnet add package SourceFlow.Net
-> - dotnet add package SourceFlow.Net.SqlServer (to be released)
-> - or your preferred storage
+add nuget packages for SourceFlow.Net
+> - dotnet add package SourceFlow
+> - dotnet add package SourceFlow.Stores.EntityFramework 
+> - dotnet add package SourceFlow.Cloud.Aws (to be released)
+> - Your custom implementation for stores, and cloud.
+
 ### Developer Guide
 This comprehensive guide provides detailed information about the SourceFlow.Net framework, covering everything from basic concepts to advanced implementation patterns and troubleshooting guidelines.
 
 Please click on [Developer Guide](https://github.com/CodeShayk/SourceFlow.Net/wiki) for complete details.
-
 
 ## Support
 
