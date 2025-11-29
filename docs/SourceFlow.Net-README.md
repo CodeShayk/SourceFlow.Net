@@ -561,7 +561,7 @@ public class BankingService
 
 ## 🏗️ Architecture Flow
 
-![Architecture]("https://github.com/CodeShayk/SourceFlow.Net/blob/v1.0.0/Images/Architecture.png" "Architecture")
+<img width="1959" height="649" alt="Architecture" src="https://github.com/user-attachments/assets/3ceb5df2-f01c-4316-829a-0350b399cba2" />
 
 ---
 
@@ -657,12 +657,10 @@ public class CustomEntityStore : IEntityStore
 ## 🔧 Troubleshooting
 
 ### Common Issues
-
-1. **Circular Dependencies**: Use `Lazy<ICommandPublisher>` in sagas and aggregates to break cycles
-2. **Service Registration**: Ensure all aggregates, sagas, and views are properly discovered
-3. **Event Handling**: Verify interfaces (`IHandles<T>`, `IHandlesWithEvent<T,U>`, `IProjectOn<T>`) are implemented correctly
-4. **Enhanced Return Types**: Remember that `Persist<T>()` methods now return `Task<T>`, providing access to the persisted entity which may have been modified by the store (e.g., with database-generated IDs)
-
+1. **Service Registration**: Ensure all aggregates, sagas, and views are properly discovered
+2. **Event Handling**: Verify interfaces (`IHandles<T>`, `IHandlesWithEvent<T,U>`, `IProjectOn<T>`) are implemented correctly
+3. **Stores**: Ensure store implementations are properly registered.
+   
 ### Debugging Commands
 
 ```csharp
@@ -707,7 +705,4 @@ We welcome contributions! Please see our [Contributing Guide](../CONTRIBUTING.md
 This project is licensed under the [MIT License](../LICENSE).
 
 ---
-
-<p align="center">
 Made with ❤️ by the SourceFlow.Net team to empower developers building event-sourced applications
-</p>
