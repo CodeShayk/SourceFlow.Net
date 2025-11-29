@@ -36,6 +36,9 @@ namespace SourceFlow.Stores.EntityFramework.Stores
 
         public async Task<TViewModel> Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
         {
+            if (model == null)
+                throw new ArgumentNullException(nameof(model));
+
             return await PersistCore(
                 model,
                 model.Id,

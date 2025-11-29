@@ -35,6 +35,9 @@ namespace SourceFlow.Stores.EntityFramework.Stores
 
         public async Task<TEntity> Persist<TEntity>(TEntity entity) where TEntity : class, IEntity
         {
+            if (entity == null)
+                throw new ArgumentNullException(nameof(entity));
+
             return await PersistCore(
                 entity,
                 entity.Id,
