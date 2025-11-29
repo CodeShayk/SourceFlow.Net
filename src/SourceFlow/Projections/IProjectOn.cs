@@ -7,7 +7,7 @@ namespace SourceFlow.Projections
     /// Interface for applying an event to view model for data projection.
     /// </summary>
     /// <typeparam name="TEvent"></typeparam>
-    public interface IProjectOn<TEvent> 
+    public interface IProjectOn<TEvent>
         where TEvent : IEvent
     {
         /// <summary>

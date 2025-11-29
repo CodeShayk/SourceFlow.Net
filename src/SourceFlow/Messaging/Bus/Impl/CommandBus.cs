@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Messaging.Bus;
 using SourceFlow.Messaging.Commands;
 using SourceFlow.Observability;
 
@@ -77,10 +76,10 @@ namespace SourceFlow.Messaging.Bus.Impl
                     var tasks = new List<Task>();
 
                     // 2. Dispatch command to handlers.
-                    foreach (var dispatcher in commandDispatchers)                    
+                    foreach (var dispatcher in commandDispatchers)
                         tasks.Add(DispatchCommand(command, dispatcher));
 
-                    if(tasks.Any())
+                    if (tasks.Any())
                         await Task.WhenAll(tasks);
 
                     // 3. When event is not replayed
@@ -99,6 +98,7 @@ namespace SourceFlow.Messaging.Bus.Impl
             // Record metric
             telemetry.RecordCommandExecuted(command.GetType().Name, command.Entity.Id);
         }
+
         /// <summary>
         /// Dispatches a command to a specific dispatcher.
         /// </summary>
@@ -114,7 +114,7 @@ namespace SourceFlow.Messaging.Bus.Impl
 
             // 2.1 Dispatch to each dispatcher
             return dispatcher.Dispatch(command);
-        }       
+        }
 
         /// <summary>
         /// Replays commands for a given aggregate.

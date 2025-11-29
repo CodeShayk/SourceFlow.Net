@@ -8,10 +8,9 @@ namespace SourceFlow.Saga
     /// </summary>
     /// <typeparam name="TCommand">On the Command of type TCommand.</typeparam>
     /// <typeparam name="TEvent">Raises event of type TEvent upon success.</typeparam>
-    public interface IHandlesWithEvent<in TCommand, TEvent>: IHandles<TCommand>
+    public interface IHandlesWithEvent<in TCommand, TEvent> : IHandles<TCommand>
         where TCommand : ICommand
         where TEvent : IEvent
     {
-        
     }
 }

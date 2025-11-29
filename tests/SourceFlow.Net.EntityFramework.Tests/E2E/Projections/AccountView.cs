@@ -10,9 +10,8 @@ namespace SourceFlow.Stores.EntityFramework.Tests.E2E.Projections
                                IProjectOn<AccountCreated>,
                                IProjectOn<AccountUpdated>
     {
-        public AccountView(IViewModelStoreAdapter viewModelStore, ILogger<IView> logger): base(viewModelStore, logger)
+        public AccountView(IViewModelStoreAdapter viewModelStore, ILogger<IView> logger) : base(viewModelStore, logger)
         {
-
         }
 
         public async Task<IViewModel> On(AccountCreated @event)

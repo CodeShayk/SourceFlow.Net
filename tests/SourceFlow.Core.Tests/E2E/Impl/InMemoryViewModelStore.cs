@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Reflection;
 using SourceFlow.Projections;
 
 namespace SourceFlow.Core.Tests.E2E.Impl
@@ -44,10 +43,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
             if (!success || rmodel == null)
                 throw new InvalidOperationException($"ViewModel not found for ID: {model.Id}");
 
-
             return Task.CompletedTask;
-
         }
-
     }
 }

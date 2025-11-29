@@ -7,7 +7,6 @@ using SourceFlow.Messaging.Commands;
 using SourceFlow.Stores.EntityFramework.Models;
 using SourceFlow.Stores.EntityFramework.Services;
 
-
 namespace SourceFlow.Stores.EntityFramework.Stores
 {
     public class EfCommandStore : ICommandStore

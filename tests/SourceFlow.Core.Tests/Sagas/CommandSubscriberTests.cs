@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using NUnit.Framework;
 using SourceFlow.Messaging;
 using SourceFlow.Messaging.Commands;
 using SourceFlow.Saga;

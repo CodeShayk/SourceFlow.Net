@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Reflection;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Messaging;
@@ -80,7 +79,6 @@ namespace SourceFlow.Saga
         /// <returns></returns>
         async Task ISaga.Handle<TCommand>(TCommand command)
         {
-
             if (!(this is IHandles<TCommand> handles))
             {
                 logger?.LogWarning("Action=Saga_CannotHandle, Saga={Saga}, Command={Command}, Reason=NotImplementingIHandles",
@@ -96,8 +94,8 @@ namespace SourceFlow.Saga
                 entity = InitialiseEntity(command.Entity.Id);
             else
                 entity = await entityStore.Get<TAggregate>(command.Entity.Id);
-            
-             entity = (TAggregate) await handles.Handle(entity, command);
+
+            entity = (TAggregate)await handles.Handle(entity, command);
 
             logger?.LogInformation("Action=Saga_Handled, Command={Command}, Payload={Payload}, SequenceNo={No}, Saga={Saga}",
                     command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo, GetType().Name);
@@ -158,7 +156,7 @@ namespace SourceFlow.Saga
                         var genericRaiseMethod = raiseMethod.MakeGenericMethod(eventType);
                         return (Task)genericRaiseMethod.Invoke(this, new object[] { ev });
                     }
-                }                
+                }
             }
             catch (Exception ex)
             {
@@ -169,13 +167,12 @@ namespace SourceFlow.Saga
             return Task.CompletedTask;
         }
 
-
         /// <summary>
         /// Initialises a new instance of the aggregate entity with the specified ID.
         /// </summary>
         /// <param name="id"></param>
         /// <returns></returns>
-        /// 
+        ///
         private TAggregate InitialiseEntity(int id)
         {
             var entity = Activator.CreateInstance(typeof(TAggregate), true);

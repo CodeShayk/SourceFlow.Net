@@ -19,7 +19,6 @@ namespace SourceFlow
         /// <returns>The persisted view model</returns>
         Task<TViewModel> Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel;
 
-
         /// <summary>
         /// Deletes a ViewModel, could implement soft or hard delete.
         /// </summary>

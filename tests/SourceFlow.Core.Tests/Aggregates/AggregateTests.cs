@@ -1,11 +1,7 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Moq;
-using NUnit.Framework;
 using SourceFlow.Aggregate;
 using SourceFlow.Core.Tests.Impl;
-using SourceFlow.Messaging;
 using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Core.Tests.Aggregates
@@ -98,6 +94,7 @@ namespace SourceFlow.Core.Tests.Aggregates
 
             // Expose protected members for testing
             public Lazy<ICommandPublisher> GetCommandPublisher() => commandPublisher;
+
             public ILogger<IAggregate> GetLogger() => logger;
 
             // Expose Send method for testing

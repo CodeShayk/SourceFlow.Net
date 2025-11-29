@@ -9,6 +9,7 @@ namespace SourceFlow.Messaging.Commands
         /// Payload of the command, which is an entity that contains the data associated with the command.
         /// </summary>
         IPayload Payload { get; set; }
+
         /// <summary>
         /// Reference to the entity associated with the command.
         /// </summary>

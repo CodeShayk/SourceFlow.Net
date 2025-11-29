@@ -36,10 +36,10 @@
 
 //            // Command store using SQLite
 //            var commandConnectionString = "DataSource=:memory:command.db";
-            
+
 //            // Entity store using a different SQLite database
 //            var entityConnectionString = "DataSource=:memory:entity.db";
-            
+
 //            // View model store using another SQLite database
 //            var viewModelConnectionString = "DataSource=:memory:viewmodel.db";
 
@@ -94,7 +94,7 @@
 //            // This is the original method that uses SQL Server
 //            services.AddSourceFlowEfStores(connectionString);
 //        }
-        
+
 //        /// <summary>
 //        /// Example: Using SQL Server with different connection strings per store
 //        /// </summary>

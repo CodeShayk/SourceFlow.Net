@@ -4,9 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Messaging;
-using SourceFlow.Messaging.Commands;
 using SourceFlow.Messaging.Events;
-using SourceFlow.Saga;
 
 namespace SourceFlow.Projections
 {
@@ -49,7 +47,6 @@ namespace SourceFlow.Projections
         public Task Subscribe<TEvent>(TEvent @event)
            where TEvent : IEvent
         {
-
             if (!views.Any())
             {
                 logger?.LogInformation("Action=Command_Dispatcher, Command={Command}, Payload={Payload}, SequenceNo={No}, Message=No Sagas Found",
@@ -70,7 +67,7 @@ namespace SourceFlow.Projections
                 tasks.Add(view.Apply(@event));
             }
 
-            return Task.WhenAll(tasks);            
-        }        
+            return Task.WhenAll(tasks);
+        }
     }
 }

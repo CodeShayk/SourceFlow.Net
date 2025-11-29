@@ -81,6 +81,6 @@ namespace SourceFlow.Messaging.Commands.Impl
                     activity?.SetTag("command.entity_id", command.Entity.Id);
                     activity?.SetTag("subscribers.count", commandSubscribers.Count());
                 });
-        }       
+        }
     }
 }

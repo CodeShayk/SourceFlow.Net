@@ -1,5 +1,4 @@
 using Moq;
-using SourceFlow.Impl;
 using SourceFlow.Messaging;
 using SourceFlow.Messaging.Bus;
 using SourceFlow.Messaging.Commands;
@@ -42,10 +41,10 @@ namespace SourceFlow.Core.Tests.Impl
             var busMock = new Mock<ICommandBus>();
             busMock.Setup(b => b.Publish(It.IsAny<ICommand>())).Returns(Task.CompletedTask);
             var publisher = (ICommandPublisher)new CommandPublisher(busMock.Object);
-            var payloadMock = new Mock<IPayload>();           
+            var payloadMock = new Mock<IPayload>();
             var commandMock = new Mock<ICommand>();
             commandMock.Setup(c => c.Payload).Returns(payloadMock.Object);
-            commandMock.Setup(p => p.Entity).Returns(new EntityRef { Id= 1});
+            commandMock.Setup(p => p.Entity).Returns(new EntityRef { Id = 1 });
             await publisher.Publish(commandMock.Object);
             busMock.Verify(b => b.Publish(commandMock.Object), Times.Once);
         }

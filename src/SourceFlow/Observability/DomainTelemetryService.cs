@@ -20,12 +20,14 @@ namespace SourceFlow.Observability
 
         // Counters
         private readonly Counter<long>? _commandsExecuted;
+
         private readonly Counter<long>? _sagasExecuted;
         private readonly Counter<long>? _entitiesCreated;
         private readonly Counter<long>? _serializationOperations;
 
         // Histograms
         private readonly Histogram<double>? _operationDuration;
+
         private readonly Histogram<double>? _serializationDuration;
 
         public DomainTelemetryService(DomainObservabilityOptions options)
@@ -280,7 +282,7 @@ namespace SourceFlow.Observability
         /// <summary>
         /// Gets or sets the service name for telemetry.
         /// </summary>
-        public string ServiceName { get; set;} = "SourceFlow.Domain";
+        public string ServiceName { get; set; } = "SourceFlow.Domain";
 
         /// <summary>
         /// Gets or sets the service version for telemetry.

@@ -20,6 +20,7 @@ namespace SourceFlow.Stores.EntityFramework.Services
 
         // Counters
         private readonly Counter<long>? _commandsAppended;
+
         private readonly Counter<long>? _commandsLoaded;
         private readonly Counter<long>? _entitiesPersisted;
         private readonly Counter<long>? _viewModelsPersisted;

@@ -5,6 +5,5 @@ namespace SourceFlow.Messaging
     /// </summary>
     public interface IPayload
     {
-       
     }
 }

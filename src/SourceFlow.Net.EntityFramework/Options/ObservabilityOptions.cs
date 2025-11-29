@@ -1,5 +1,3 @@
-using System;
-
 namespace SourceFlow.Stores.EntityFramework.Options
 {
     /// <summary>

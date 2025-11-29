@@ -59,9 +59,11 @@ namespace SourceFlow.Tests.Ioc
         }
     }
 
-    public interface ITestAggregate { }
+    public interface ITestAggregate
+    { }
 
-    public interface ITestSaga { }
+    public interface ITestSaga
+    { }
 
     public class TestProjection : View<TestViewModel>, IProjectOn<TestEvent>
     {

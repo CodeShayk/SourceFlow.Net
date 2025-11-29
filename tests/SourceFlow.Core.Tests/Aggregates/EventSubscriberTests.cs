@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using NUnit.Framework;
 using SourceFlow.Aggregate;
 using SourceFlow.Messaging.Events;
 
@@ -13,7 +12,9 @@ namespace SourceFlow.Core.Tests.Aggregates
 
     public class DummyAggregateEvent : Event<DummyAggregateEntity>
     {
-        public DummyAggregateEvent(DummyAggregateEntity payload) : base(payload) { }
+        public DummyAggregateEvent(DummyAggregateEntity payload) : base(payload)
+        {
+        }
     }
 
     public class TestAggregate : IAggregate, ISubscribes<DummyAggregateEvent>
@@ -63,7 +64,7 @@ namespace SourceFlow.Core.Tests.Aggregates
             var aggregates = new List<IAggregate> { new TestAggregate() };
 
             // Act & Assert
-            Assert.Throws<ArgumentNullException>(() => 
+            Assert.Throws<ArgumentNullException>(() =>
                 new EventSubscriber(aggregates, null));
         }
 

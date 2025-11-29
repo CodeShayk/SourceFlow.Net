@@ -58,8 +58,8 @@ namespace SourceFlow.Messaging.Events.Impl
                 async () =>
                 {
                     var tasks = new List<Task>();
-                    foreach (var eventDispatcher in eventDispatchers)                    
-                        tasks.Add(DispatchEvent(@event, eventDispatcher));                    
+                    foreach (var eventDispatcher in eventDispatchers)
+                        tasks.Add(DispatchEvent(@event, eventDispatcher));
 
                     if (tasks.Any())
                         await Task.WhenAll(tasks);

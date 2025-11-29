@@ -1,6 +1,5 @@
 using System.Threading.Tasks;
 using SourceFlow.Messaging.Commands;
-using SourceFlow.Messaging.Events;
 
 namespace SourceFlow.Saga
 {

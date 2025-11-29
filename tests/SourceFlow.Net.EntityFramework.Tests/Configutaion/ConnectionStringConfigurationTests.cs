@@ -1,10 +1,9 @@
 #nullable enable
-using System;
+
 using System.Collections.Generic;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
-using SourceFlow.Stores.EntityFramework;
 using SourceFlow.Stores.EntityFramework.Extensions;
 
 namespace SourceFlow.Stores.EntityFramework.Tests.Configutaion

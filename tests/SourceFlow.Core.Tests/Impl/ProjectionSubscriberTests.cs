@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Moq;
+using SourceFlow.Messaging;
 using SourceFlow.Messaging.Events;
 using SourceFlow.Projections;
-using SourceFlow.Messaging;
 
 namespace SourceFlow.Core.Tests.Impl
 {

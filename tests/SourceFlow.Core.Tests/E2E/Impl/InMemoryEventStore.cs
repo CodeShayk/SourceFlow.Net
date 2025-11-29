@@ -17,7 +17,6 @@ namespace SourceFlow.Core.Tests.E2E.Impl
             return Task.CompletedTask;
         }
 
-        
         public async Task<IEnumerable<CommandData>> Load(int entityId)
         {
             return await Task.FromResult(_store.TryGetValue(entityId, out var events)

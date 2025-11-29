@@ -1,4 +1,3 @@
-using SourceFlow.Messaging;
 using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Core.Tests.E2E.Commands

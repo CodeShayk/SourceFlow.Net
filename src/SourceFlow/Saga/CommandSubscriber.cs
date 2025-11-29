@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Messaging;
 using SourceFlow.Messaging.Commands;
-using SourceFlow.Messaging.Commands.Impl;
 
 namespace SourceFlow.Saga
 {
@@ -33,7 +32,7 @@ namespace SourceFlow.Saga
             this.sagas = sagas;
         }
 
-             /// <summary>
+        /// <summary>
         /// Publishes a command to all sagas that are registered with the command dispatcher.
         /// </summary>
         /// <typeparam name="TCommand"></typeparam>

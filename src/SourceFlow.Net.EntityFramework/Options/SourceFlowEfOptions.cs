@@ -1,7 +1,6 @@
 #nullable enable
 
 using System;
-using System.ComponentModel.DataAnnotations;
 
 namespace SourceFlow.Stores.EntityFramework.Options
 {
@@ -14,17 +13,17 @@ namespace SourceFlow.Stores.EntityFramework.Options
         /// Connection string for command store
         /// </summary>
         public string? CommandConnectionString { get; set; }
-        
+
         /// <summary>
         /// Connection string for entity store
         /// </summary>
         public string? EntityConnectionString { get; set; }
-        
+
         /// <summary>
         /// Connection string for view model store
         /// </summary>
         public string? ViewModelConnectionString { get; set; }
-        
+
         /// <summary>
         /// If true, a single connection string will be used for all stores
         /// </summary>
@@ -64,17 +63,17 @@ namespace SourceFlow.Stores.EntityFramework.Options
         {
             return storeType switch
             {
-                StoreType.Command => CommandConnectionString ?? DefaultConnectionString 
+                StoreType.Command => CommandConnectionString ?? DefaultConnectionString
                     ?? throw new InvalidOperationException("Command connection string not configured"),
-                StoreType.Entity => EntityConnectionString ?? DefaultConnectionString 
+                StoreType.Entity => EntityConnectionString ?? DefaultConnectionString
                     ?? throw new InvalidOperationException("Entity connection string not configured"),
-                StoreType.ViewModel => ViewModelConnectionString ?? DefaultConnectionString 
+                StoreType.ViewModel => ViewModelConnectionString ?? DefaultConnectionString
                     ?? throw new InvalidOperationException("ViewModel connection string not configured"),
                 _ => throw new ArgumentException($"Unknown store type: {storeType}", nameof(storeType))
             };
         }
     }
-    
+
     /// <summary>
     /// Enum representing different store types
     /// </summary>

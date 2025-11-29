@@ -46,7 +46,7 @@
 
 //            // Reads connection strings from configuration:
 //            // ConnectionStrings:SourceFlow.Command
-//            // ConnectionStrings:SourceFlow.Entity  
+//            // ConnectionStrings:SourceFlow.Entity
 //            // ConnectionStrings:SourceFlow.ViewModel
 //            services.AddSourceFlowEfStores(configuration);
 //        }

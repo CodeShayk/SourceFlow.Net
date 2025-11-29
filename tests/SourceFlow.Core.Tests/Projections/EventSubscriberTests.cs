@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using NUnit.Framework;
 using SourceFlow.Messaging.Events;
 using SourceFlow.Projections;
 
@@ -13,7 +12,9 @@ namespace SourceFlow.Core.Tests.Projections
 
     public class DummyProjectionEvent : Event<DummyProjectionEntity>
     {
-        public DummyProjectionEvent(DummyProjectionEntity payload) : base(payload) { }
+        public DummyProjectionEvent(DummyProjectionEntity payload) : base(payload)
+        {
+        }
     }
 
     public class TestProjection : View<TestProjectionViewModel>, IProjectOn<DummyProjectionEvent>
@@ -41,6 +42,7 @@ namespace SourceFlow.Core.Tests.Projections
         public NonMatchingProjection() : base(new Mock<IViewModelStoreAdapter>().Object, new Mock<ILogger<IView>>().Object)
         {
         }
+
         // This projection does not implement IProjectOn<TEvent> so won't handle DummyProjectionEvent
     }
 
@@ -75,7 +77,7 @@ namespace SourceFlow.Core.Tests.Projections
             var projections = new List<IView> { new TestProjection() };
 
             // Act & Assert
-            Assert.Throws<ArgumentNullException>(() => 
+            Assert.Throws<ArgumentNullException>(() =>
                 new EventSubscriber(projections, null));
         }
 

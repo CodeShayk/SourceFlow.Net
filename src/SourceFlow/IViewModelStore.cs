@@ -4,8 +4,7 @@ using SourceFlow.Projections;
 namespace SourceFlow
 {
     public interface IViewModelStore
-    {      
-
+    {
         /// <summary>
         /// Retrieves an view model by unique identifier.
         /// </summary>

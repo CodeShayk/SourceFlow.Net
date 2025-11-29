@@ -6,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NUnit.Framework;
 using SourceFlow.Saga;
-using SourceFlow.Stores.EntityFramework;
 using SourceFlow.Stores.EntityFramework.Extensions;
 using SourceFlow.Stores.EntityFramework.Tests.E2E.Aggregates;
 using SourceFlow.Stores.EntityFramework.Tests.E2E.Projections;

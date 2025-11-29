@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Messaging;
 
-
 namespace SourceFlow.Projections
 {
     public abstract class View<TViewModel> : IView where TViewModel : class, IViewModel
@@ -13,10 +12,9 @@ namespace SourceFlow.Projections
 
         protected View(IViewModelStoreAdapter viewModelStore, ILogger<IView> logger)
         {
-            this.viewModelStore = viewModelStore ?? throw new ArgumentNullException(nameof(viewModelStore));            ;
+            this.viewModelStore = viewModelStore ?? throw new ArgumentNullException(nameof(viewModelStore)); ;
             this.logger = logger;
         }
-
 
         /// <summary>
         /// Determines whether the specified view instance can handle the given event type.
@@ -46,8 +44,8 @@ namespace SourceFlow.Projections
             }
 
             logger?.LogInformation("Action=View_Starting, View={View}, Event={Event}", viewType, eventName);
-                        
-            var viewModel = (TViewModel) await handles.On(@event);
+
+            var viewModel = (TViewModel)await handles.On(@event);
 
             logger?.LogInformation("Action=View_Handled, View={View}, Event={Event}, Payload={Payload}, SequenceNo={No}",
                     viewType, eventName, @event.Payload.GetType().Name, ((IMetadata)@event).Metadata?.SequenceNo);
@@ -66,6 +64,7 @@ namespace SourceFlow.Projections
         {
             return viewModelStore.Find<TViewModel>(id);
         }
+
         /// <summary>
         /// Projects the specified view model.
         /// </summary>

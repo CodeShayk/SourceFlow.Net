@@ -1,11 +1,7 @@
-using System;
-using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using Moq;
-using NUnit.Framework;
-using SourceFlow.Saga;
 using SourceFlow.Messaging.Commands;
-using SourceFlow.Messaging.Commands.Impl;
+using SourceFlow.Saga;
 
 namespace SourceFlow.Core.Tests.Impl
 {
@@ -21,7 +17,6 @@ namespace SourceFlow.Core.Tests.Impl
             Assert.IsNotNull(dispatcher);
         }
 
-       
         [Test]
         public async Task Dispatch_WithNoSagas_LogsInformation()
         {

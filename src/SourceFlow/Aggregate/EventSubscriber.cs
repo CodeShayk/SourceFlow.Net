@@ -60,6 +60,6 @@ namespace SourceFlow.Aggregate
             }
 
             return Task.WhenAll(tasks);
-        }        
+        }
     }
 }

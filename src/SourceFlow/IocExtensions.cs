@@ -4,7 +4,6 @@ using System.Linq;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Logging;
 using SourceFlow.Aggregate;
 using SourceFlow.Impl;
 using SourceFlow.Messaging.Bus;
@@ -58,7 +57,7 @@ namespace SourceFlow
             services.AddFirstImplementationAsInterface<IEntityStore>(assemblies, lifetime);
             services.AddFirstImplementationAsInterface<IViewModelStore>(assemblies, lifetime);
             services.AddFirstImplementationAsInterface<ICommandStore>(assemblies, lifetime);
-   
+
             // Register factories
             services.Add(ServiceDescriptor.Describe(typeof(IAggregateFactory), typeof(AggregateFactory), lifetime));
 
@@ -87,7 +86,6 @@ namespace SourceFlow
             services.AddScoped<Lazy<ICommandPublisher>>(provider =>
                 new Lazy<ICommandPublisher>(() => provider.GetRequiredService<ICommandPublisher>()));
 
-
             services.AddImplementationAsInterfaces<IAggregate>(assemblies, lifetime);
             services.AddImplementationAsInterfaces<ISaga>(assemblies, lifetime);
             services.AddImplementationAsInterfaces<IView>(assemblies, lifetime);
@@ -101,7 +99,7 @@ namespace SourceFlow
         }
 
         /// <summary>
-        /// Add Implementations of an interfaces by all their other interfaces. 
+        /// Add Implementations of an interfaces by all their other interfaces.
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="services"></param>

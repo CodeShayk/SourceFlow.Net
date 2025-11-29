@@ -16,7 +16,7 @@ namespace SourceFlow.Core.Tests.Sagas
             {
             }
 
-            public TestSaga(Lazy<ICommandPublisher> publisher, IEventQueue queue, IEntityStoreAdapter repo, ILogger<ISaga> logger):base(publisher, queue, repo, logger)
+            public TestSaga(Lazy<ICommandPublisher> publisher, IEventQueue queue, IEntityStoreAdapter repo, ILogger<ISaga> logger) : base(publisher, queue, repo, logger)
             {
                 commandPublisher = publisher;
                 eventQueue = queue;
@@ -72,7 +72,7 @@ namespace SourceFlow.Core.Tests.Sagas
 
             var commandMock = new Mock<ICommand>();
             commandMock.Setup(c => c.Payload).Returns(payloadMock.Object);
-            commandMock.Setup(p => p.Entity).Returns(new EntityRef { Id=1});
+            commandMock.Setup(p => p.Entity).Returns(new EntityRef { Id = 1 });
             await saga.TestPublish(commandMock.Object);
             publisherMock.Verify(p => p.Publish(commandMock.Object), Times.Once);
         }

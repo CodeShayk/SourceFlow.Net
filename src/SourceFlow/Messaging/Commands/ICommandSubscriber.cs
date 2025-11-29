@@ -1,5 +1,4 @@
 using System.Threading.Tasks;
-using SourceFlow.Saga;
 
 namespace SourceFlow.Messaging.Commands
 {
@@ -15,7 +14,7 @@ namespace SourceFlow.Messaging.Commands
         //void Register(ISaga saga);
 
         /// <summary>
-        /// Subscribes a command 
+        /// Subscribes a command
         /// </summary>
         /// <typeparam name="TCommand"></typeparam>
         /// <param name="command"></param>

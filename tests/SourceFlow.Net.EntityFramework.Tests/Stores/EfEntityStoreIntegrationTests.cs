@@ -1,10 +1,10 @@
 #nullable enable
+
 using System;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
-using SourceFlow.Stores.EntityFramework.Extensions;
 using SourceFlow.Stores.EntityFramework.Options;
 using SourceFlow.Stores.EntityFramework.Services;
 using SourceFlow.Stores.EntityFramework.Stores;

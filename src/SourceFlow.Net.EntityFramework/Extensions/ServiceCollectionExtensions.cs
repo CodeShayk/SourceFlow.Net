@@ -1,10 +1,8 @@
 using System;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Primitives;
 using SourceFlow.Stores.EntityFramework.Options;
 using SourceFlow.Stores.EntityFramework.Services;
 using SourceFlow.Stores.EntityFramework.Stores;

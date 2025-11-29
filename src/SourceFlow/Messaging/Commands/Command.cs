@@ -1,6 +1,5 @@
 namespace SourceFlow.Messaging.Commands
-{   
-
+{
     /// <summary>
     /// Base class for command in the command-driven architecture.
     /// </summary>
@@ -17,6 +16,7 @@ namespace SourceFlow.Messaging.Commands
             Payload = new TPayload();
             Entity = new EntityRef();
         }
+
         /// <summary>
         /// Initializes a new instance of the <see cref="Command{TPayload}"/> class with a new payload.
         /// </summary>
@@ -28,6 +28,7 @@ namespace SourceFlow.Messaging.Commands
             Payload = payload;
             Entity = new EntityRef { Id = entityId };
         }
+
         /// <summary>
         /// Initializes a new instance of the Command class with the specified entity state and payload.
         /// </summary>
@@ -38,8 +39,9 @@ namespace SourceFlow.Messaging.Commands
             Metadata = new Metadata();
             Name = GetType().Name;
             Payload = payload;
-            Entity = new EntityRef { Id = 0, IsNew= newEntity };
+            Entity = new EntityRef { Id = 0, IsNew = newEntity };
         }
+
         /// <summary>
         /// Initializes a new instance of the Command class with the specified entity ID, new entity state, and payload.
         /// </summary>
@@ -53,6 +55,7 @@ namespace SourceFlow.Messaging.Commands
             Payload = payload;
             Entity = new EntityRef { Id = entityId, IsNew = newEntity };
         }
+
         /// <summary>
         /// Metadata associated with the command, which includes information such as event ID, occurrence time, and sequence number.
         /// </summary>
@@ -84,7 +87,5 @@ namespace SourceFlow.Messaging.Commands
                 Payload = (TPayload)value;
             }
         }
-
-       
     }
 }

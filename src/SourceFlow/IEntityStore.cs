@@ -2,7 +2,6 @@ using System.Threading.Tasks;
 
 namespace SourceFlow
 {
-
     /// <summary>
     /// Interface for a entityStore that provides methods for managing domain entities.
     /// </summary>
