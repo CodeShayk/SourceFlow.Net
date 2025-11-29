@@ -4,7 +4,7 @@ using SourceFlow.Projections;
 
 namespace SourceFlow.Core.Tests.E2E.Projections
 {
-    public class AccountView : View,
+    public class AccountView : View<AccountViewModel>,
                                IProjectOn<AccountCreated>,
                                IProjectOn<AccountUpdated>
     {
@@ -13,9 +13,9 @@ namespace SourceFlow.Core.Tests.E2E.Projections
             
         }
 
-        public async Task Apply(AccountCreated @event)
+        public async Task<IViewModel> On(AccountCreated @event)
         {
-            var view = new AccountViewModel
+            var viewModel = new AccountViewModel
             {
                 Id = @event.Payload.Id,
                 AccountName = @event.Payload.AccountName,
@@ -28,23 +28,23 @@ namespace SourceFlow.Core.Tests.E2E.Projections
                 Version = 1
             };
 
-            await viewModelStore.Persist(view);
+            return viewModel;
         }
 
-        public async Task Apply(AccountUpdated @event)
+        public async Task<IViewModel> On(AccountUpdated @event)
         {
-            var view = await viewModelStore.Find<AccountViewModel>(@event.Payload.Id);
+            var viewModel = await Find<AccountViewModel>(@event.Payload.Id);
 
-            view.CurrentBalance = @event.Payload.Balance;
-            view.LastUpdated = DateTime.UtcNow;
-            view.AccountName = @event.Payload.AccountName;
-            view.IsClosed = @event.Payload.IsClosed;
-            view.ClosureReason = @event.Payload.ClosureReason;
-            view.ActiveOn = @event.Payload.ActiveOn;
-            view.Version++;
-            view.TransactionCount++;
+            viewModel.CurrentBalance = @event.Payload.Balance;
+            viewModel.LastUpdated = DateTime.UtcNow;
+            viewModel.AccountName = @event.Payload.AccountName;
+            viewModel.IsClosed = @event.Payload.IsClosed;
+            viewModel.ClosureReason = @event.Payload.ClosureReason;
+            viewModel.ActiveOn = @event.Payload.ActiveOn;
+            viewModel.Version++;
+            viewModel.TransactionCount++;
 
-            await viewModelStore.Persist(view);
+            return viewModel;
         }
     }
 }

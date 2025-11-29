@@ -16,12 +16,12 @@ namespace SourceFlow.Tests.Ioc
     {
         public Task<TEntity> Get<TEntity>(int id) where TEntity : class, IEntity
         {
-            return Task.FromResult<TEntity>(null);
+            return Task.FromResult<TEntity>(null!);
         }
 
-        public Task Persist<TEntity>(TEntity entity) where TEntity : class, IEntity
+        public Task<TEntity> Persist<TEntity>(TEntity entity) where TEntity : class, IEntity
         {
-            return Task.CompletedTask;
+            return Task.FromResult(entity);
         }
 
         public Task Delete<TEntity>(TEntity entity) where TEntity : class, IEntity
@@ -52,12 +52,12 @@ namespace SourceFlow.Tests.Ioc
     {
         public Task<TViewModel> Find<TViewModel>(int id) where TViewModel : class, IViewModel
         {
-            return Task.FromResult<TViewModel>(null);
+            return Task.FromResult<TViewModel>(null!);
         }
 
-        public Task Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
+        public Task<TViewModel> Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
         {
-            return Task.CompletedTask;
+            return Task.FromResult(model);
         }
 
         public Task Delete<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
@@ -69,8 +69,8 @@ namespace SourceFlow.Tests.Ioc
     [TestFixture]
     public class IocExtensionsTests
     {
-        private ServiceCollection _services;
-        private ServiceProvider _serviceProvider;
+        private ServiceCollection _services = null!;
+        private ServiceProvider _serviceProvider = null!;
 
         [SetUp]
         public void SetUp()

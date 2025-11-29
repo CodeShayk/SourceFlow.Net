@@ -8,7 +8,7 @@ namespace SourceFlow.Stores.EntityFramework.Tests.E2E.Aggregates
         Task CloseAccount(int accountId, string reason);
         Task CreateAccount(int accountId, string holder, decimal amount);
         Task Deposit(int accountId, decimal amount);
-        Task Handle(AccountCreated @event);
+        Task On(AccountCreated @event);
         Task Withdraw(int accountId, decimal amount);
         Task RepayHistory(int accountId);
     }

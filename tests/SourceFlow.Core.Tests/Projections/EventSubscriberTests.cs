@@ -16,7 +16,7 @@ namespace SourceFlow.Core.Tests.Projections
         public DummyProjectionEvent(DummyProjectionEntity payload) : base(payload) { }
     }
 
-    public class TestProjection : View, IProjectOn<DummyProjectionEvent>
+    public class TestProjection : View<TestProjectionViewModel>, IProjectOn<DummyProjectionEvent>
     {
         public TestProjection() : base(new Mock<IViewModelStoreAdapter>().Object, new Mock<ILogger<IView>>().Object)
         {
@@ -24,14 +24,19 @@ namespace SourceFlow.Core.Tests.Projections
 
         public bool Applied { get; private set; } = false;
 
-        public Task Apply(DummyProjectionEvent @event)
+        public Task<IViewModel> On(DummyProjectionEvent @event)
         {
             Applied = true;
-            return Task.CompletedTask;
+            return Task.FromResult<IViewModel>(new TestProjectionViewModel { Id = 1 });
         }
     }
 
-    public class NonMatchingProjection : View
+    public class TestProjectionViewModel : IViewModel
+    {
+        public int Id { get; set; }
+    }
+
+    public class NonMatchingProjection : View<TestProjectionViewModel>
     {
         public NonMatchingProjection() : base(new Mock<IViewModelStoreAdapter>().Object, new Mock<ILogger<IView>>().Object)
         {
@@ -56,10 +61,10 @@ namespace SourceFlow.Core.Tests.Projections
         public void Constructor_WithNullProjections_ThrowsArgumentNullException()
         {
             // Arrange
-            IEnumerable<IView> nullProjections = null;
+            IEnumerable<IView> nullProjections = null!;
 
             // Act & Assert
-            Assert.Throws<ArgumentNullException>(() => 
+            Assert.Throws<ArgumentNullException>(() =>
                 new EventSubscriber(nullProjections, _mockLogger.Object));
         }
 

@@ -48,7 +48,7 @@ namespace SourceFlow.Impl
             return store.Get<TEntity>(id);
         }
 
-        public Task Persist<TEntity>(TEntity entity) where TEntity : class, IEntity
+        public Task<TEntity> Persist<TEntity>(TEntity entity) where TEntity : class, IEntity
         {
             if (telemetry != null)
             {

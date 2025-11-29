@@ -16,7 +16,7 @@ namespace SourceFlow.Saga
         /// </summary>
         /// <param name="entity"></param>
         /// <param name="command"></param>
-        /// <returns></returns>
-        Task Handle(IEntity entity, TCommand command);
+        /// <returns>updated entity.</returns>
+        Task<IEntity> Handle(IEntity entity, TCommand command);
     }
 }

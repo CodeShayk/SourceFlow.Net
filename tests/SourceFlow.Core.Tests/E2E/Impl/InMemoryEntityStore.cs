@@ -29,7 +29,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
             return Task.FromResult((TEntity)entity);
         }
 
-        public Task Persist<TEntity>(TEntity entity) where TEntity : class, IEntity
+        public Task<TEntity> Persist<TEntity>(TEntity entity) where TEntity : class, IEntity
         {
             if (entity?.Id == null)
                 throw new ArgumentNullException(nameof(entity));
@@ -39,7 +39,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
 
             _cache[entity.Id] = entity;
 
-            return Task.CompletedTask;
+            return Task.FromResult(entity);
         }
     }
 }

@@ -41,7 +41,7 @@ namespace SourceFlow.Stores.EntityFramework.Stores
             });
         }
 
-        public async Task Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
+        public async Task<TViewModel> Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
         {
             if (model == null)
                 throw new ArgumentNullException(nameof(model));
@@ -78,6 +78,8 @@ namespace SourceFlow.Stores.EntityFramework.Stores
                     activity?.SetTag("sourceflow.viewmodel_id", model.Id);
                     activity?.SetTag("sourceflow.viewmodel_type", typeof(TViewModel).Name);
                 });
+
+            return model;
         }
 
         public async Task Delete<TViewModel>(TViewModel model) where TViewModel : class, IViewModel

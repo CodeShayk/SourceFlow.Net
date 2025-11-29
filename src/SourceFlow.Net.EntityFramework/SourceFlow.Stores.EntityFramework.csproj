@@ -12,12 +12,13 @@
     <Title>SourceFlow.Stores.EntityFramework</Title>
     <PackageId>SourceFlow.Stores.EntityFramework</PackageId>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Description>Entity Framework Core persistence provider for SourceFlow.Net. Provides implementations of ICommandStore, IEntityStore, and IViewModelStore using Entity Framework Core with full support for separate or shared connection strings per store type.</Description>
+    <Description>Entity Framework Core persistence provider for SourceFlow.Net. Provides production-ready implementations of ICommandStore, IEntityStore, and IViewModelStore using Entity Framework Core 9.0. Features include flexible configuration with separate or shared connection strings per store type, SQL Server support, Polly-based resilience and retry policies, OpenTelemetry instrumentation for database operations, and full support for .NET 8.0, .NET 9.0, and .NET 10.0. Seamlessly integrates with SourceFlow.Net core framework for complete event sourcing persistence.</Description>
     <Copyright>Copyright (c) 2025 CodeShayk</Copyright>
+    <PackageReadmeFile>docs\SourceFlow.Stores.EntityFramework-README.md</PackageReadmeFile>
     <AssemblyVersion>1.0.0</AssemblyVersion>
     <FileVersion>1.0.0</FileVersion>
     <IncludeSymbols>True</IncludeSymbols>
-    <PackageReleaseNotes>Entity Framework Core support for command, entity, and view model stores with configurable connection strings per store type.</PackageReleaseNotes>
+    <PackageReleaseNotes>v1.0.0 - Initial stable release! Complete Entity Framework Core 9.0 persistence layer for SourceFlow.Net including CommandStore, EntityStore, and ViewModelStore implementations. Features configurable connection strings per store type, SQL Server database provider, Polly resilience policies, OpenTelemetry instrumentation, and support for .NET 8.0, 9.0, and 10.0. Production-ready with comprehensive test coverage.</PackageReleaseNotes>
     <PackageTags>SourceFlow;EntityFramework;Entity Framework;Persistence;EFCore;CQRS;Event-Sourcing;CommandStore;EntityStore;ViewModelStore;Connection-Strings</PackageTags>
     <EnableNETAnalyzers>True</EnableNETAnalyzers>
     <LangVersion>latest</LangVersion>
@@ -42,6 +43,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SourceFlow\SourceFlow.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\docs\SourceFlow.Stores.EntityFramework-README.md">
+      <Pack>True</Pack>
+      <PackagePath>\docs</PackagePath>
+    </None>
   </ItemGroup>
 
 </Project>

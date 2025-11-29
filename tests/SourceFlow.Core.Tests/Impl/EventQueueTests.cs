@@ -55,7 +55,7 @@ namespace SourceFlow.Core.Tests.Impl
         public async Task Enqueue_NullEvent_ThrowsArgumentNullException()
         {
             Assert.ThrowsAsync<ArgumentNullException>(async () =>
-                await eventQueue.Enqueue<DummyEvent>(null));
+                await eventQueue.Enqueue<DummyEvent>(null!));
         }
 
         [Test]
@@ -85,8 +85,8 @@ namespace SourceFlow.Core.Tests.Impl
                 It.IsAny<LogLevel>(),
                 It.IsAny<EventId>(),
                 It.IsAny<It.IsAnyType>(),
-                It.IsAny<Exception>(),
-                (Func<It.IsAnyType, Exception, string>)It.IsAny<object>()),
+                It.IsAny<Exception?>(),
+                (Func<It.IsAnyType, Exception?, string>)It.IsAny<object>()),
                 Times.AtLeastOnce);
         }
 
@@ -105,8 +105,8 @@ namespace SourceFlow.Core.Tests.Impl
                 It.IsAny<LogLevel>(),
                 It.IsAny<EventId>(),
                 It.IsAny<It.IsAnyType>(),
-                It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception, string>>()))
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()))
                 .Callback(() => callSequence.Add("Log"));
 
             // Act

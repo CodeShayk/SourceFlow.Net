@@ -22,7 +22,7 @@ namespace SourceFlow.Stores.EntityFramework.Tests.E2E.Sagas
         {
         }
 
-        public Task Handle(IEntity entity, CreateAccount command)
+        public Task<IEntity> Handle(IEntity entity, CreateAccount command)
         {
             logger.LogInformation("Action=Account_Created, Account={AccountId}, Holder={AccountName}, Initial_Balance={InitialBalance}",
                 command.Entity.Id, command.Payload.AccountName, command.Payload.InitialAmount);
@@ -38,10 +38,10 @@ namespace SourceFlow.Stores.EntityFramework.Tests.E2E.Sagas
             account.AccountName = command.Payload.AccountName;
             account.Balance = command.Payload.InitialAmount;
 
-            return Task.CompletedTask;
+            return Task.FromResult<IEntity>(account);
         }
 
-        public Task Handle(IEntity entity, ActivateAccount command)
+        public Task<IEntity> Handle(IEntity entity, ActivateAccount command)
         {
             logger.LogInformation("Action=Account_Activate, ActivatedOn={ActiveOn}, Account={AccountId}", command.Payload.ActiveOn, command.Entity.Id);
 
@@ -55,10 +55,10 @@ namespace SourceFlow.Stores.EntityFramework.Tests.E2E.Sagas
 
             account.ActiveOn = command.Payload.ActiveOn;
 
-            return Task.CompletedTask;
+            return Task.FromResult<IEntity>(account);
         }
 
-        public Task Handle(IEntity entity, DepositMoney command)
+        public Task<IEntity> Handle(IEntity entity, DepositMoney command)
         {
             logger.LogInformation("Action=Money_Deposited, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Entity.Id);
 
@@ -73,10 +73,10 @@ namespace SourceFlow.Stores.EntityFramework.Tests.E2E.Sagas
             command.Payload.CurrentBalance = account.Balance + command.Payload.Amount;
             account.Balance = command.Payload.CurrentBalance;
 
-            return Task.CompletedTask;
+            return Task.FromResult<IEntity>(account);
         }
 
-        public Task Handle(IEntity entity, WithdrawMoney command)
+        public Task<IEntity> Handle(IEntity entity, WithdrawMoney command)
         {
             logger.LogInformation("Action=Money_Withdrawn, Amount={Amount}, Account={AccountId}", command.Payload.Amount, command.Entity.Id);
 
@@ -91,10 +91,10 @@ namespace SourceFlow.Stores.EntityFramework.Tests.E2E.Sagas
             command.Payload.CurrentBalance = account.Balance - command.Payload.Amount;
             account.Balance = command.Payload.CurrentBalance;
 
-            return Task.CompletedTask;
+            return Task.FromResult<IEntity>(account);
         }
 
-        public Task Handle(IEntity entity, CloseAccount command)
+        public Task<IEntity> Handle(IEntity entity, CloseAccount command)
         {
             logger.LogInformation("Action=Account_Closed, Account={AccountId}, Reason={Reason}", command.Entity.Id, command.Payload.ClosureReason);
 
@@ -109,7 +109,7 @@ namespace SourceFlow.Stores.EntityFramework.Tests.E2E.Sagas
             account.ClosureReason = command.Payload.ClosureReason;
             account.IsClosed = command.Payload.IsClosed = true;
 
-            return Task.CompletedTask;
+            return Task.FromResult<IEntity>(account);
         }
     }
 }

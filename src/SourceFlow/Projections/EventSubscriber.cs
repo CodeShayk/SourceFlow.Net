@@ -61,7 +61,7 @@ namespace SourceFlow.Projections
             var tasks = new List<Task>();
             foreach (var view in views)
             {
-                if (view == null || !View.CanHandle(view, @event.GetType()))
+                if (view == null || !View<IViewModel>.CanHandle(view, @event.GetType()))
                     continue;
 
                 logger?.LogInformation("Action=Projection_Apply, Event={Event}, Projection={Projection}, SequenceNo={No}",

@@ -148,7 +148,7 @@ namespace SourceFlow.Stores.EntityFramework
                 var entity = modelBuilder.Entity(viewModelType);
                 entity.HasKey("Id");
 
-                // Apply naming convention if configured
+                // On naming convention if configured
                 if (_namingConvention != null)
                 {
                     var tableName = _namingConvention.ApplyConvention(viewModelType.Name);

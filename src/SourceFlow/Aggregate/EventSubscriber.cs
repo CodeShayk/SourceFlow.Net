@@ -53,7 +53,7 @@ namespace SourceFlow.Aggregate
                 if (!(aggregate is ISubscribes<TEvent> eventSubscriber))
                     continue;
 
-                tasks.Add(eventSubscriber.Handle(@event));
+                tasks.Add(eventSubscriber.On(@event));
 
                 logger?.LogInformation("Action=Event_Disptcher_Aggregate, Event={Event}, Aggregate={Aggregate}",
                        typeof(TEvent).Name, aggregate.GetType().Name);

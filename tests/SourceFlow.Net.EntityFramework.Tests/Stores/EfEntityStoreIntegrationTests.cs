@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -68,11 +69,11 @@ namespace SourceFlow.Stores.EntityFramework.Tests.Stores
 
             _context = _serviceProvider.GetRequiredService<EntityDbContext>();
             _context.Database.EnsureCreated(); // This creates the Entities schema
-            _context.ApplyMigrations(); // Apply migrations for registered entity types
+            _context.ApplyMigrations(); // On migrations for registered entity types
 
             var viewModelContext = _serviceProvider.GetRequiredService<ViewModelDbContext>();
             viewModelContext.Database.EnsureCreated(); // This creates the ViewModels schema
-            viewModelContext.ApplyMigrations(); // Apply migrations for registered view model types
+            viewModelContext.ApplyMigrations(); // On migrations for registered view model types
 
             _store = _serviceProvider.GetRequiredService<IEntityStore>();
         }

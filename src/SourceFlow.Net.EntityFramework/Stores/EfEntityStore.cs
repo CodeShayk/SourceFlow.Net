@@ -41,7 +41,7 @@ namespace SourceFlow.Stores.EntityFramework.Stores
             });
         }
 
-        public async Task Persist<TEntity>(TEntity entity) where TEntity : class, IEntity
+        public async Task<TEntity> Persist<TEntity>(TEntity entity) where TEntity : class, IEntity
         {
             if (entity == null)
                 throw new ArgumentNullException(nameof(entity));
@@ -78,6 +78,8 @@ namespace SourceFlow.Stores.EntityFramework.Stores
                     activity?.SetTag("sourceflow.entity_id", entity.Id);
                     activity?.SetTag("sourceflow.entity_type", typeof(TEntity).Name);
                 });
+
+            return entity;
         }
 
         public async Task Delete<TEntity>(TEntity entity) where TEntity : class, IEntity

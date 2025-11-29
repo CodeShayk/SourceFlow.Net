@@ -6,16 +6,16 @@ using SourceFlow.Stores.EntityFramework.Tests.E2E.Events;
 
 namespace SourceFlow.Stores.EntityFramework.Tests.E2E.Projections
 {
-    public class AccountView : View,
+    public class AccountView : View<AccountViewModel>,
                                IProjectOn<AccountCreated>,
                                IProjectOn<AccountUpdated>
     {
         public AccountView(IViewModelStoreAdapter viewModelStore, ILogger<IView> logger): base(viewModelStore, logger)
         {
-            
+
         }
 
-        public async Task Apply(AccountCreated @event)
+        public async Task<IViewModel> On(AccountCreated @event)
         {
             var view = new AccountViewModel
             {
@@ -30,10 +30,10 @@ namespace SourceFlow.Stores.EntityFramework.Tests.E2E.Projections
                 Version = 1
             };
 
-            await viewModelStore.Persist(view);
+            return await viewModelStore.Persist(view);
         }
 
-        public async Task Apply(AccountUpdated @event)
+        public async Task<IViewModel> On(AccountUpdated @event)
         {
             var view = await viewModelStore.Find<AccountViewModel>(@event.Payload.Id);
 
@@ -46,7 +46,7 @@ namespace SourceFlow.Stores.EntityFramework.Tests.E2E.Projections
             view.Version++;
             view.TransactionCount++;
 
-            await viewModelStore.Persist(view);
+            return await viewModelStore.Persist(view);
         }
     }
 }

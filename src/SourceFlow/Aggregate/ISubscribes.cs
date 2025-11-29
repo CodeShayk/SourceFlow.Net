@@ -15,6 +15,6 @@ namespace SourceFlow.Aggregate
         /// </summary>
         /// <param name="event"></param>
         /// <returns></returns>
-        Task Handle(TEvent @event);
+        Task On(TEvent @event);
     }
 }

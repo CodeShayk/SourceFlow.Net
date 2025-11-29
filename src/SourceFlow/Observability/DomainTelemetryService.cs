@@ -15,18 +15,18 @@ namespace SourceFlow.Observability
     public class DomainTelemetryService : IDomainTelemetryService
     {
         private readonly DomainObservabilityOptions _options;
-        private readonly ActivitySource _activitySource;
-        private readonly Meter _meter;
+        private readonly ActivitySource? _activitySource;
+        private readonly Meter? _meter;
 
         // Counters
-        private readonly Counter<long> _commandsExecuted;
-        private readonly Counter<long> _sagasExecuted;
-        private readonly Counter<long> _entitiesCreated;
-        private readonly Counter<long> _serializationOperations;
+        private readonly Counter<long>? _commandsExecuted;
+        private readonly Counter<long>? _sagasExecuted;
+        private readonly Counter<long>? _entitiesCreated;
+        private readonly Counter<long>? _serializationOperations;
 
         // Histograms
-        private readonly Histogram<double> _operationDuration;
-        private readonly Histogram<double> _serializationDuration;
+        private readonly Histogram<double>? _operationDuration;
+        private readonly Histogram<double>? _serializationDuration;
 
         public DomainTelemetryService(DomainObservabilityOptions options)
         {
@@ -76,7 +76,7 @@ namespace SourceFlow.Observability
         public async Task<T> TraceAsync<T>(
             string operationName,
             Func<Task<T>> operation,
-            Action<Activity> enrichActivity = null)
+            Action<Activity>? enrichActivity = null)
         {
             if (!_options.Enabled || _activitySource == null)
             {
@@ -107,7 +107,7 @@ namespace SourceFlow.Observability
             {
                 stopwatch.Stop();
                 _operationDuration?.Record(stopwatch.Elapsed.TotalMilliseconds,
-                    new KeyValuePair<string, object>("operation", operationName));
+                    new KeyValuePair<string, object?>("operation", operationName));
             }
         }
 
@@ -117,7 +117,7 @@ namespace SourceFlow.Observability
         public async Task TraceAsync(
             string operationName,
             Func<Task> operation,
-            Action<Activity> enrichActivity = null)
+            Action<Activity>? enrichActivity = null)
         {
             if (!_options.Enabled || _activitySource == null)
             {
@@ -147,7 +147,7 @@ namespace SourceFlow.Observability
             {
                 stopwatch.Stop();
                 _operationDuration?.Record(stopwatch.Elapsed.TotalMilliseconds,
-                    new KeyValuePair<string, object>("operation", operationName));
+                    new KeyValuePair<string, object?>("operation", operationName));
             }
         }
 
@@ -157,7 +157,7 @@ namespace SourceFlow.Observability
         public T TraceSerialization<T>(
             string operationType,
             Func<T> operation,
-            Action<Activity> enrichActivity = null)
+            Action<Activity>? enrichActivity = null)
         {
             if (!_options.Enabled || _activitySource == null)
             {
@@ -174,7 +174,7 @@ namespace SourceFlow.Observability
                 var result = operation();
 
                 activity?.SetStatus(ActivityStatusCode.Ok);
-                _serializationOperations?.Add(1, new KeyValuePair<string, object>("operation", operationType));
+                _serializationOperations?.Add(1, new KeyValuePair<string, object?>("operation", operationType));
 
                 return result;
             }
@@ -239,17 +239,17 @@ namespace SourceFlow.Observability
         /// <summary>
         /// Executes an async operation with telemetry tracking.
         /// </summary>
-        Task<T> TraceAsync<T>(string operationName, Func<Task<T>> operation, Action<Activity> enrichActivity = null);
+        Task<T> TraceAsync<T>(string operationName, Func<Task<T>> operation, Action<Activity>? enrichActivity = null);
 
         /// <summary>
         /// Executes an async operation with telemetry tracking.
         /// </summary>
-        Task TraceAsync(string operationName, Func<Task> operation, Action<Activity> enrichActivity = null);
+        Task TraceAsync(string operationName, Func<Task> operation, Action<Activity>? enrichActivity = null);
 
         /// <summary>
         /// Traces a serialization operation with duration tracking.
         /// </summary>
-        T TraceSerialization<T>(string operationType, Func<T> operation, Action<Activity> enrichActivity = null);
+        T TraceSerialization<T>(string operationType, Func<T> operation, Action<Activity>? enrichActivity = null);
 
         /// <summary>
         /// Records a command execution metric.

@@ -34,7 +34,7 @@ namespace SourceFlow.Stores.EntityFramework
             base.OnModelCreating(modelBuilder);
             modelBuilder.ApplyConfiguration(new CommandRecordConfiguration());
 
-            // Apply naming convention to CommandRecord table if configured
+            // On naming convention to CommandRecord table if configured
             if (_namingConvention != null)
             {
                 var tableName = _namingConvention.ApplyConvention(nameof(CommandRecord));

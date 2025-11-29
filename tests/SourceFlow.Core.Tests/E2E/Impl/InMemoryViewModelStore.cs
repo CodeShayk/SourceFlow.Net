@@ -21,7 +21,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
             return Task.FromResult((TViewModel)model);
         }
 
-        public Task Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
+        public Task<TViewModel> Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
         {
             if (model?.Id == null)
                 throw new ArgumentNullException(nameof(model));
@@ -31,7 +31,7 @@ namespace SourceFlow.Core.Tests.E2E.Impl
 
             _cache[model.Id] = model;
 
-            return Task.CompletedTask;
+            return Task.FromResult(model);
         }
 
         public Task Delete<TViewModel>(TViewModel model) where TViewModel : class, IViewModel

@@ -53,7 +53,7 @@ namespace SourceFlow.Stores.EntityFramework.Tests.E2E.Aggregates
             }));
         }
 
-        public Task Handle(AccountCreated @event)
+        public Task On(AccountCreated @event)
         {
             // To prevent infinite loops, this method does nothing
             // Activation should happen through commands, not through event handling cycles

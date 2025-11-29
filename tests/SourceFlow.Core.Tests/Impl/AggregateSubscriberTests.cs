@@ -32,7 +32,7 @@ namespace SourceFlow.Core.Tests.Impl
             var aggregateMock = new Mock<IAggregate>();
             // Make the aggregate implement ISubscribes<DummyEvent> so it gets called
             aggregateMock.As<ISubscribes<DummyEvent>>()
-                .Setup(a => a.Handle(It.IsAny<DummyEvent>()))
+                .Setup(a => a.On(It.IsAny<DummyEvent>()))
                 .Returns(Task.CompletedTask);
             var aggregates = new List<IAggregate> { aggregateMock.Object };
             var dispatcher = new Aggregate.EventSubscriber(aggregates, loggerMock.Object);

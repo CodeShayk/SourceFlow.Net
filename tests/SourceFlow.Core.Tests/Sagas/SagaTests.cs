@@ -24,7 +24,7 @@ namespace SourceFlow.Core.Tests.Sagas
                 this.logger = logger;
             }
 
-            public Task Handle(IEntity entity, ICommand command) => Task.CompletedTask;
+            public Task<IEntity> Handle(IEntity entity, ICommand command) => Task.FromResult(entity);
 
             public Task TestPublish(ICommand command) => Publish(command);
 

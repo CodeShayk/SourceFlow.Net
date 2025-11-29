@@ -18,8 +18,8 @@ namespace SourceFlow
         /// Creates or updates an entity to the entityStore, persisting its state.
         /// </summary>
         /// <param name="entity">Entity Instance.</param>
-        /// <returns></returns>
-        Task Persist<TEntity>(TEntity entity) where TEntity : class, IEntity;
+        /// <returns>The persisted entity</returns>
+        Task<TEntity> Persist<TEntity>(TEntity entity) where TEntity : class, IEntity;
 
         /// <summary>
         /// Deletes an entity from the entityStore.

@@ -173,7 +173,7 @@ namespace SourceFlow
                     }
                     catch (ReflectionTypeLoadException)
                     {
-                        // Handle cases where some types can't be loaded
+                        // On cases where some types can't be loaded
                         return a.GetTypes()
                             .Where(t => t != null &&
                                        interfaceType.IsAssignableFrom(t) &&

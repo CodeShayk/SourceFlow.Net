@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Messaging;
@@ -72,7 +73,7 @@ namespace SourceFlow.Saga
         /// Handles the specified command as part of the saga's workflow.
         /// </summary>
         /// <remarks>This method dynamically resolves the appropriate command handler for the given
-        /// command type and invokes its <c>Handle</c> method. If the saga cannot handle the specified command, the
+        /// command type and invokes its <c>On</c> method. If the saga cannot handle the specified command, the
         /// method returns without performing any action.</remarks>
         /// <typeparam name="TCommand">The type of the command to handle.</typeparam>
         /// <param name="command">The command to be processed by the saga. Must not be <see langword="null"/>.</param>
@@ -96,14 +97,14 @@ namespace SourceFlow.Saga
             else
                 entity = await entityStore.Get<TAggregate>(command.Entity.Id);
             
-            await handles.Handle(entity, command);
+             entity = (TAggregate) await handles.Handle(entity, command);
 
             logger?.LogInformation("Action=Saga_Handled, Command={Command}, Payload={Payload}, SequenceNo={No}, Saga={Saga}",
-                    command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo, GetType().Name);                       
+                    command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo, GetType().Name);
 
             if (entity != null)
-                await entityStore.Persist(entity);
-            
+                entity = await entityStore.Persist(entity);
+
             await RaiseEvent(command, entity);
         }
 

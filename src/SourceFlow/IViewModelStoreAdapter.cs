@@ -16,8 +16,8 @@ namespace SourceFlow
         /// Creates or updates an view model to the entityStore, persisting its state.
         /// </summary>
         /// <param name="entity">ViewModel Instance.</param>
-        /// <returns></returns>
-        Task Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel;
+        /// <returns>The persisted view model</returns>
+        Task<TViewModel> Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel;
 
 
         /// <summary>

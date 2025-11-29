@@ -63,23 +63,27 @@ namespace SourceFlow.Core.Tests.Impl
         // Test event implementation
         private class TestEvent : IEvent
         {
-            public string Name { get; set; }
-            public IEntity Payload { get; set; }
-            public Metadata Metadata { get; set; }
+            public string Name { get; set; } = string.Empty;
+            public IEntity Payload { get; set; } = null!;
+            public Metadata Metadata { get; set; } = null!;
         }
 
         // Test projection implementation
-        private class TestProjection : IView, IProjectOn<TestEvent>
+        private class TestProjection : View<TestProjectionViewModel>, IProjectOn<TestEvent>
         {
-            public Task Apply<TEvent>(TEvent @event) where TEvent : IEvent
+            public TestProjection() : base(new Mock<IViewModelStoreAdapter>().Object, new Mock<ILogger<IView>>().Object)
             {
-                return Task.CompletedTask;
             }
 
-            public Task Apply(TestEvent @event)
+            public Task<IViewModel> On(TestEvent @event)
             {
-                return Task.CompletedTask;
+                return Task.FromResult<IViewModel>(new TestProjectionViewModel { Id = 1 });
             }
+        }
+
+        private class TestProjectionViewModel : IViewModel
+        {
+            public int Id { get; set; }
         }
     }
 }

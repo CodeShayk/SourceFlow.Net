@@ -6,7 +6,7 @@ using SourceFlow.Messaging;
 
 namespace SourceFlow.Projections
 {
-    public abstract class View : IView
+    public abstract class View<TViewModel> : IView where TViewModel : class, IViewModel
     {
         protected IViewModelStoreAdapter viewModelStore;
         protected ILogger<IView> logger;
@@ -47,11 +47,34 @@ namespace SourceFlow.Projections
 
             logger?.LogInformation("Action=View_Starting, View={View}, Event={Event}", viewType, eventName);
                         
-            await handles.Apply(@event);
+            var viewModel = (TViewModel) await handles.On(@event);
 
             logger?.LogInformation("Action=View_Handled, View={View}, Event={Event}, Payload={Payload}, SequenceNo={No}",
                     viewType, eventName, @event.Payload.GetType().Name, ((IMetadata)@event).Metadata?.SequenceNo);
 
+            if (viewModel != null)
+                await viewModelStore.Persist(viewModel);
+        }
+
+        /// <summary>
+        /// Finds the view model by identifier.
+        /// </summary>
+        /// <typeparam name="TViewModel"></typeparam>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        protected Task<TViewModel> Find<TViewModel>(int id) where TViewModel : class, IViewModel
+        {
+            return viewModelStore.Find<TViewModel>(id);
+        }
+        /// <summary>
+        /// Projects the specified view model.
+        /// </summary>
+        /// <typeparam name="TViewModel"></typeparam>
+        /// <param name="viewModel"></param>
+        /// <returns>The persisted view model</returns>
+        protected Task<TViewModel> Persist<TViewModel>(TViewModel viewModel) where TViewModel : class, IViewModel
+        {
+            return viewModelStore.Persist<TViewModel>(viewModel);
         }
     }
 }

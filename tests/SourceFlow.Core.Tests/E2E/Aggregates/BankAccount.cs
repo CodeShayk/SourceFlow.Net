@@ -7,7 +7,7 @@ namespace SourceFlow.Core.Tests.E2E.Aggregates
         public string AccountName { get; set; } = string.Empty;
         public decimal Balance { get; set; }
         public bool IsClosed { get; set; }
-        public string ClosureReason { get; internal set; }
+        public string ClosureReason { get; internal set; } = string.Empty;
         public DateTime ActiveOn { get; internal set; }
     }
 }

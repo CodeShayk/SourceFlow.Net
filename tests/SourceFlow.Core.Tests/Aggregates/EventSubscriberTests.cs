@@ -20,7 +20,7 @@ namespace SourceFlow.Core.Tests.Aggregates
     {
         public bool Handled { get; private set; } = false;
 
-        public Task Handle(DummyAggregateEvent @event)
+        public Task On(DummyAggregateEvent @event)
         {
             Handled = true;
             return Task.CompletedTask;
@@ -49,10 +49,10 @@ namespace SourceFlow.Core.Tests.Aggregates
         public void Constructor_WithNullAggregates_ThrowsArgumentNullException()
         {
             // Arrange
-            IEnumerable<IAggregate> nullAggregates = null;
+            IEnumerable<IAggregate> nullAggregates = null!;
 
             // Act & Assert
-            Assert.Throws<ArgumentNullException>(() => 
+            Assert.Throws<ArgumentNullException>(() =>
                 new EventSubscriber(nullAggregates, _mockLogger.Object));
         }
 

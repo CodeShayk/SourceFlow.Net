@@ -64,11 +64,11 @@ namespace SourceFlow.Stores.EntityFramework.Tests.E2E
 
             var entityContext = _serviceProvider.GetRequiredService<EntityDbContext>();
             entityContext.Database.EnsureCreated();
-            entityContext.ApplyMigrations(); // Apply migrations for registered entity types
+            entityContext.ApplyMigrations(); // On migrations for registered entity types
 
             var viewModelContext = _serviceProvider.GetRequiredService<ViewModelDbContext>();
             viewModelContext.Database.EnsureCreated();
-            viewModelContext.ApplyMigrations(); // Apply migrations for registered view model types
+            viewModelContext.ApplyMigrations(); // On migrations for registered view model types
 
             _saga = _serviceProvider.GetRequiredService<ISaga>();
             _accountAggregate = _serviceProvider.GetRequiredService<IAccountAggregate>();

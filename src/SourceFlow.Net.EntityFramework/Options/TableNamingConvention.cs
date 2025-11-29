@@ -52,7 +52,7 @@ namespace SourceFlow.Stores.EntityFramework.Options
 
             var tableName = typeName;
 
-            // Apply casing
+            // On casing
             tableName = Casing switch
             {
                 TableNameCasing.PascalCase => ToPascalCase(tableName),
@@ -63,13 +63,13 @@ namespace SourceFlow.Stores.EntityFramework.Options
                 _ => tableName
             };
 
-            // Apply pluralization
+            // On pluralization
             if (Pluralize)
             {
                 tableName = PluralizeName(tableName);
             }
 
-            // Apply prefix and suffix
+            // On prefix and suffix
             if (!string.IsNullOrEmpty(Prefix))
             {
                 tableName = Prefix + tableName;

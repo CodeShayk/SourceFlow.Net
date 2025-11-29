@@ -32,7 +32,7 @@ namespace SourceFlow.Impl
             return store.Get<TViewModel>(id);
         }
 
-        public Task Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
+        public Task<TViewModel> Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
         {
             if (telemetry != null)
             {

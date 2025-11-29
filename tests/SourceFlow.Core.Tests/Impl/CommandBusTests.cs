@@ -73,7 +73,7 @@ namespace SourceFlow.Core.Tests.Impl
         {
             ICommandBus bus = commandBus;
             Assert.ThrowsAsync<ArgumentNullException>(async () =>
-                await bus.Publish<DummyCommand>(null));
+                await bus.Publish<DummyCommand>(null!));
         }
 
         [Test]
@@ -125,8 +125,8 @@ namespace SourceFlow.Core.Tests.Impl
                 It.IsAny<LogLevel>(),
                 It.IsAny<EventId>(),
                 It.IsAny<It.IsAnyType>(),
-                It.IsAny<Exception>(),
-                (Func<It.IsAnyType, Exception, string>)It.IsAny<object>()),
+                It.IsAny<Exception?>(),
+                (Func<It.IsAnyType, Exception?, string>)It.IsAny<object>()),
                 Times.AtLeastOnce);
         }
 
@@ -183,7 +183,7 @@ namespace SourceFlow.Core.Tests.Impl
         {
             // Arrange
             commandStoreMock.Setup(cs => cs.Load(It.IsAny<int>()))
-                .ReturnsAsync((IEnumerable<ICommand>)null);
+                .ReturnsAsync((IEnumerable<ICommand>)null!);
 
             // Act
             ICommandBus bus = commandBus;

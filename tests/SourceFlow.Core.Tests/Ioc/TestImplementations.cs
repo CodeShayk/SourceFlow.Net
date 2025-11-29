@@ -39,10 +39,10 @@ namespace SourceFlow.Tests.Ioc
         public TestAggregate(Lazy<ICommandPublisher> commandPublisher, ILogger<IAggregate> logger)
             : base(commandPublisher, logger) { }
 
-        public Task Handle(IEntity entity, TestCommand command)
+        public Task<IEntity> Handle(IEntity entity, TestCommand command)
         {
             // Implementation not needed for test
-            return Task.CompletedTask;
+            return Task.FromResult(entity);
         }
     }
 
@@ -52,10 +52,10 @@ namespace SourceFlow.Tests.Ioc
             IEntityStoreAdapter repository, ILogger<ISaga> logger)
             : base(commandPublisher, eventQueue, repository, logger) { }
 
-        public Task Handle(IEntity entity, TestCommand command)
+        public Task<IEntity> Handle(IEntity entity, TestCommand command)
         {
             // Implementation not needed for test
-            return Task.CompletedTask;
+            return Task.FromResult(entity);
         }
     }
 
@@ -63,17 +63,21 @@ namespace SourceFlow.Tests.Ioc
 
     public interface ITestSaga { }
 
-    public class TestProjection : View, IProjectOn<TestEvent>
+    public class TestProjection : View<TestViewModel>, IProjectOn<TestEvent>
     {
         public TestProjection() : base(new Mock<IViewModelStoreAdapter>().Object, new Mock<ILogger<IView>>().Object)
         {
         }
 
-        public Task Apply(TestEvent @event)
+        public Task<IViewModel> On(TestEvent @event)
         {
-            
             // Implementation not needed for test
-            return Task.CompletedTask;
+            return Task.FromResult<IViewModel>(new TestViewModel { Id = 1 });
         }
+    }
+
+    public class TestViewModel : IViewModel
+    {
+        public int Id { get; set; }
     }
 }

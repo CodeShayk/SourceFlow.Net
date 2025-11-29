@@ -19,22 +19,54 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 * 📊 Event-First Design with Event Sourcing Foundation  
 * 🧱 Clean Architecture
 
-### Concept
-**v1.0.0**
-- `Aggregate` wraps the `root aggregate` entity that you wish to manage within a domain bounded context (microservice). Changes are applied to aggregate entity by publishing commands. 
-- `Saga` is a long running transaction that subscribes to `commands` to apply actual updates to aggregate entity. Saga basically `orchestrates` the success and failure flows to `preserve` the `state` of `root aggregate` accordingly. Saga can also publish `commands` to `itself` or `other` saga's. Saga can be defined to raise `events` when handling commands.
-- `Events` are published to `subscribers`. There are two subscribers to event - ie. i. `Aggregates` ii. `Views`
-- `Aggregate` subscribes to `events` to publish `changes` to root aggregate based upon `external` stimulus. ie. potential changes from any other saga workflow that could affect the state of Aggregate in context.
-- `View` subscribes to `events` to `write` data to `view model`, view sources `transformed` data for interested viewers. ie. `UI` (viewer) could read data from view model (with eventual consistency).
+### Core Concepts
 
-**v2.0.0**
-- `Command Dispatcher` will dispatch `commands` to `Cloud`. It basically targets a specific command `queue`.
-- `Command Queue` is the queue designated for the `bounded context` (microservice). When command is sent to this queue it gets dispatched to subscribing `Saga's` in the domain context.
-- `Event Disptacher` will dispatch `events` to the `Cloud`. It basically publishes to certain `Topic`.
-- `Event Listeners` is a bootstrap component `listening` to subscribed `topics`. When it receives the `event` for the topic then it dispatches to subscribing `Aggregates` and `Views` within the domain context.
+#### v1.0.0 Architecture
+
+**Aggregates**
+- An `Aggregate` encapsulates a root domain entity within a bounded context (microservice)
+- Changes to aggregates are initiated by publishing commands
+- Aggregates subscribe to events to react to external changes from other sagas or workflows that may affect their state
+
+**Sagas**
+- A `Saga` represents a long-running transaction that orchestrates complex business processes
+- Sagas subscribe to commands and execute the actual updates to aggregate entities
+- They manage both success and failure flows to ensure data consistency and preserve aggregate state
+- Sagas can publish commands to themselves or other sagas to coordinate multi-step workflows
+- Events can be raised by sagas during command handling to notify other components of state changes
+
+**Events**
+- Events are published to interested subscribers when state changes occur
+- Two primary event subscribers exist in the framework:
+  - **Aggregates**: React to events from external workflows that impact their domain state
+  - **Views**: Project event data into optimized read models for query operations
+
+**Views**
+- Views subscribe to events and transform domain data into denormalized view models
+- View models provide optimized read access for consumers such as UIs or reporting systems
+- Data in view models follows eventual consistency patterns
+
+#### v2.0.0 Roadmap (Cloud Integration)
+
+**Command Dispatcher**
+- Dispatches commands to cloud-based message queues for distributed processing
+- Targets specific command queues based on bounded context routing
+
+**Command Queue**
+- A dedicated queue for each bounded context (microservice)
+- Routes incoming commands to the appropriate subscribing sagas within the domain
+
+**Event Dispatcher**
+- Publishes domain events to cloud-based topics for cross-service communication
+- Enables event-driven architecture across distributed systems
+
+**Event Listeners**
+- Bootstrap components that listen to subscribed event topics
+- Dispatch received events to the appropriate aggregates and views within each domain context
+- Enable seamless integration across bounded contexts
    
 #### Architecture
-<img src="https://github.com/CodeShayk/SourceFlow.Net/blob/v1.0.0/Images/Architecture-Complete.png" alt="arcitecture" style="width:1200px; hieght:700px"/>
+<img src="https://github.com/CodeShayk/SourceFlow.Net/blob/master/Images/Architecture-Complete.png" alt="architecture" style="width:1200px; hieght:700px"/>
 
 ### RoadMap
 

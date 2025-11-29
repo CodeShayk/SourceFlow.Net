@@ -13,15 +13,15 @@
     <Title>SourceFlow.Net</Title>
     <PackageId>SourceFlow.Net</PackageId>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Description>A modern, lightweight, and extensible framework for building event-sourced applications using Domain-Driven Design (DDD) principles and Command Query Responsibility Segregation (CQRS) patterns.</Description>
+    <Description>SourceFlow.Net is a modern, lightweight, and extensible framework for building event-sourced applications using Domain-Driven Design (DDD) principles and Command Query Responsibility Segregation (CQRS) patterns. Build scalable, maintainable applications with complete event sourcing, aggregate pattern implementation, saga orchestration for long-running transactions, and view model projections. Supports .NET Framework 4.6.2, .NET Standard 2.0/2.1, .NET 9.0, and .NET 10.0 with built-in OpenTelemetry observability.</Description>
     <Copyright>Copyright (c) 2025 CodeShayk</Copyright>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReadmeFile>docs\SourceFlow.Net-README.md</PackageReadmeFile>
     <PackageIcon>ninja-icon-16.png</PackageIcon>
     <AssemblyVersion>1.0.0</AssemblyVersion>
     <FileVersion>1.0.0</FileVersion>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <IncludeSymbols>True</IncludeSymbols>
-    <PackageReleaseNotes>Includes Core Event sourcing &amp; CQRS functionality.</PackageReleaseNotes>
+    <PackageReleaseNotes>v1.0.0 - Initial stable release! Complete event sourcing and CQRS implementation with Aggregate pattern for managing root entities, Saga orchestration for long-running transactions, event-driven communication, view model projection system, multi-framework support (.NET 4.6.2, .NET Standard 2.0/2.1, .NET 9.0, .NET 10.0), OpenTelemetry integration for observability, and dependency injection support. Production-ready with comprehensive test coverage.</PackageReleaseNotes>
     <PackageTags>Events;Commands;DDD;CQRS;Event-Sourcing;ViewModel;Aggregates;EventStore;Domain driven design; Event Sourcing; Command Query Responsibility Segregation; Command Pattern; Publisher Subscriber; PuB-Sub</PackageTags>
     <EnableNETAnalyzers>False</EnableNETAnalyzers>
   </PropertyGroup>
@@ -67,9 +67,9 @@
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
-    <None Include="..\..\README.md">
+    <None Include="..\..\docs\SourceFlow.Net-README.md">
       <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
+      <PackagePath>\docs</PackagePath>
     </None>
   </ItemGroup>
 

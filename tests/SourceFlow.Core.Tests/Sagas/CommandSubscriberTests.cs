@@ -23,8 +23,8 @@ namespace SourceFlow.Core.Tests.Sagas
     public class TestSaga : ISaga, IHandles<DummyCommand>
     {
         public bool Handled { get; private set; } = false;
-        public Type LastHandledCommandType { get; private set; }
-        public DummyCommand LastHandledCommand { get; private set; }
+        public Type LastHandledCommandType { get; private set; } = null!;
+        public DummyCommand LastHandledCommand { get; private set; } = null!;
 
         public Task Handle<TCommand>(TCommand command) where TCommand : ICommand
         {
@@ -40,12 +40,12 @@ namespace SourceFlow.Core.Tests.Sagas
             return Task.CompletedTask;
         }
 
-        public Task Handle(IEntity entity, DummyCommand command)
+        public Task<IEntity> Handle(IEntity entity, DummyCommand command)
         {
             Handled = true;
             LastHandledCommandType = typeof(DummyCommand);
             LastHandledCommand = command;
-            return Task.CompletedTask;
+            return Task.FromResult(entity);
         }
     }
 
@@ -57,7 +57,7 @@ namespace SourceFlow.Core.Tests.Sagas
         {
             // This saga doesn't implement IHandles<DummyCommand>, so it won't handle the command
             // But we still want to track if this method was called
-            Handled = true; // This will be true if the ISaga.Handle method is called
+            Handled = true; // This will be true if the ISaga.On method is called
             return Task.CompletedTask;
         }
     }

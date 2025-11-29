@@ -15,6 +15,6 @@ namespace SourceFlow.Projections
         /// </summary>
         /// <param name="event"></param>
         /// <returns></returns>
-        Task Apply(TEvent @event);
+        Task<IViewModel> On(TEvent @event);
     }
 }
