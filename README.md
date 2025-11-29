@@ -87,7 +87,7 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 ## Getting Started
 ### Installation
 add nuget packages for SourceFlow.Net
-> - dotnet add package SourceFlow
+> - dotnet add package SourceFlow.Net
 > - dotnet add package SourceFlow.Stores.EntityFramework 
 > - dotnet add package SourceFlow.Cloud.Aws (to be released)
 > - add custom implementation for stores, and extend for your cloud.
