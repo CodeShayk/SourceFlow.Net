@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
-using SourceFlow.Messaging;
+using SourceFlow.Messaging.Commands;
+using SourceFlow.Messaging.Events;
 
 namespace SourceFlow.Saga
 {
@@ -11,10 +12,11 @@ namespace SourceFlow.Saga
         where TCommand : ICommand
     {
         /// <summary>
-        /// Handles the specified command.
+        /// Handles the specified command against entity.
         /// </summary>
+        /// <param name="entity"></param>
         /// <param name="command"></param>
-        /// <returns></returns>
-        Task Handle(TCommand command);
+        /// <returns>updated entity.</returns>
+        Task<IEntity> Handle(IEntity entity, TCommand command);
     }
 }

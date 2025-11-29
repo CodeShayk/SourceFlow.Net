@@ -1,41 +1,41 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Messaging;
-using SourceFlow.Messaging.Bus;
+using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Aggregate
 {
     /// <summary>
     /// Base class for aggregate roots in the event-driven architecture.
     /// </summary>
-    /// <typeparam name="TAggregate"></typeparam>
-    public abstract class Aggregate<TAggregate> : IAggregate
-        where TAggregate : class, IEntity
+    /// <typeparam name="TEntity">Aggregate Entity type</typeparam>
+    public abstract class Aggregate<TEntity> : IAggregate
+        where TEntity : class, IEntity
     {
         /// <summary>
         /// The command publisher used to publish commands.
         /// </summary>
-        protected ICommandPublisher commandPublisher;
-
-        /// <summary>
-        /// The events replayer used to replay event stream for given aggregate.
-        /// </summary>
-        protected ICommandReplayer commandReplayer;
+        protected Lazy<ICommandPublisher> commandPublisher;
 
         /// <summary>
         /// Logger for the aggregate root to log events and errors.
         /// </summary>
-        protected ILogger logger;
+        protected ILogger<IAggregate> logger;
+
+        protected Aggregate(Lazy<ICommandPublisher> commandPublisher, ILogger<IAggregate> logger)
+        {
+            this.commandPublisher = commandPublisher;
+            this.logger = logger;
+        }
 
         /// <summary>
-        /// Replays the event stream for the aggregate root, restoring its state from past events.
+        /// Replays the command stream for the aggregate root, restoring its state from past history.
         /// </summary>
-        /// <param name="AggregateId">Unique Aggregate entity identifier.</param>
+        /// <param name="entityId">Unique Aggregate entity identifier.</param>
         /// <returns></returns>
-        public Task Replay(int AggregateId)
+        public Task ReplayCommands(int entityId)
         {
-            return commandReplayer.Replay(AggregateId);
+            return commandPublisher.Value.ReplayCommands(entityId);
         }
 
         /// <summary>
@@ -45,15 +45,12 @@ namespace SourceFlow.Aggregate
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
         /// <exception cref="InvalidOperationException"></exception>
-        protected Task Send(ICommand command)
+        protected Task Send<TCommand>(TCommand command) where TCommand : ICommand
         {
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
 
-            if (command.Payload?.Id == null)
-                throw new InvalidOperationException(nameof(command) + "requires Payload");
-
-            return commandPublisher.Publish(command);
+            return commandPublisher.Value.Publish(command);
         }
     }
 }

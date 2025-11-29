@@ -11,19 +11,19 @@ namespace SourceFlow.Core.Tests.Interfaces
         [Test]
         public async Task GetByIdAsync_ReturnsModel()
         {
-            var mock = new Mock<IViewProvider>();
+            var mock = new Mock<IViewModelStoreAdapter>();
             mock.Setup(r => r.Find<DummyViewModel>(1)).ReturnsAsync(new DummyViewModel { Id = 1 });
             var result = await mock.Object.Find<DummyViewModel>(1);
             Assert.That(result, Is.Not.Null);
-            Assert.That(1, Is.EqualTo(result.Id));
+            Assert.That(result.Id, Is.EqualTo(1));
         }
 
         [Test]
         public async Task PersistAsync_DoesNotThrow()
         {
-            var mock = new Mock<IViewProvider>();
-            mock.Setup(r => r.Push(It.IsAny<DummyViewModel>())).Returns(Task.CompletedTask);
-            Assert.DoesNotThrowAsync(async () => await mock.Object.Push(new DummyViewModel()));
+            var mock = new Mock<IViewModelStoreAdapter>();
+            mock.Setup(r => r.Persist(It.IsAny<DummyViewModel>())).Returns<DummyViewModel>(vm => Task.FromResult(vm));
+            Assert.DoesNotThrowAsync(async () => await mock.Object.Persist(new DummyViewModel()));
         }
     }
 }

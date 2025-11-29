@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Messaging.Bus
 {
@@ -23,10 +24,5 @@ namespace SourceFlow.Messaging.Bus
         /// <param name="aggregateId">Unique aggregate entity id.</param>
         /// <returns></returns>
         Task Replay(int aggregateId);
-
-        /// <summary>
-        /// Represents command dispathers that can handle the publishing of commands.
-        /// </summary>
-        event EventHandler<ICommand> Dispatchers;
     }
 }

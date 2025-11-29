@@ -1,21 +1,21 @@
+using Microsoft.Extensions.Logging;
 using SourceFlow.Core.Tests.E2E.Events;
 using SourceFlow.Projections;
 
 namespace SourceFlow.Core.Tests.E2E.Projections
 {
-    public class AccountView : IProjectOn<AccountCreated>,
+    public class AccountView : View<AccountViewModel>,
+                               IProjectOn<AccountCreated>,
                                IProjectOn<AccountUpdated>
     {
-        private readonly IViewProvider provider;
-
-        public AccountView(IViewProvider provider)
+        public AccountView(IViewModelStoreAdapter viewModelStore, ILogger<IView> logger): base(viewModelStore, logger)
         {
-            this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
+            
         }
 
-        public async Task Apply(AccountCreated @event)
+        public async Task<IViewModel> On(AccountCreated @event)
         {
-            var view = new AccountViewModel
+            var viewModel = new AccountViewModel
             {
                 Id = @event.Payload.Id,
                 AccountName = @event.Payload.AccountName,
@@ -24,30 +24,27 @@ namespace SourceFlow.Core.Tests.E2E.Projections
                 CreatedDate = @event.Payload.CreatedOn,
                 LastUpdated = DateTime.UtcNow,
                 TransactionCount = 0,
-                ClosureReason = null,
+                ClosureReason = null!,
                 Version = 1
             };
 
-            await provider.Push(view);
+            return viewModel;
         }
 
-        public async Task Apply(AccountUpdated @event)
+        public async Task<IViewModel> On(AccountUpdated @event)
         {
-            var view = await provider.Find<AccountViewModel>(@event.Payload.Id);
+            var viewModel = await Find<AccountViewModel>(@event.Payload.Id);
 
-            if (view == null)
-                throw new InvalidOperationException($"Account view not found for ID: {@event.Payload.Id}");
+            viewModel.CurrentBalance = @event.Payload.Balance;
+            viewModel.LastUpdated = DateTime.UtcNow;
+            viewModel.AccountName = @event.Payload.AccountName;
+            viewModel.IsClosed = @event.Payload.IsClosed;
+            viewModel.ClosureReason = @event.Payload.ClosureReason;
+            viewModel.ActiveOn = @event.Payload.ActiveOn;
+            viewModel.Version++;
+            viewModel.TransactionCount++;
 
-            view.CurrentBalance = @event.Payload.Balance;
-            view.LastUpdated = DateTime.UtcNow;
-            view.AccountName = @event.Payload.AccountName;
-            view.IsClosed = @event.Payload.IsClosed;
-            view.ClosureReason = @event.Payload.ClosureReason;
-            view.ActiveOn = @event.Payload.ActiveOn;
-            view.Version++;
-            view.TransactionCount++;
-
-            await provider.Push(view);
+            return viewModel;
         }
     }
 }

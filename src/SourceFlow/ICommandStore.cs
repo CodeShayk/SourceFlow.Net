@@ -1,33 +1,27 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using SourceFlow.Messaging;
+using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow
 {
     /// <summary>
     /// Interface for the command store in the event-driven architecture.
+    /// Stores work with serialized CommandData for persistence.
     /// </summary>
     public interface ICommandStore
     {
         /// <summary>
-        /// Appends a command to the store. Commands serve as units of auditable change in the event-driven architecture,
+        /// Appends serialized command data to the store.
         /// </summary>
-        /// <param name="command"></param>
+        /// <param name="commandData">Serialized command data</param>
         /// <returns></returns>
-        Task Append(ICommand command);
+        Task Append(CommandData commandData);
 
         /// <summary>
-        /// Loads all events for a given aggregate from the event store.
+        /// Loads all serialized command data for a given aggregate from the store.
         /// </summary>
         /// <param name="aggregateId">Unique aggregate entity id.</param>
-        /// <returns></returns>
-        Task<IEnumerable<ICommand>> Load(int aggregateId);
-
-        /// <summary>
-        /// Gets the next sequence number for an event.
-        /// </summary>
-        /// <param name="aggregateId">Unique aggregate entity id.</param>
-        /// <returns></returns>
-        Task<int> GetNextSequenceNo(int aggregateId);
+        /// <returns>Collection of serialized command data</returns>
+        Task<IEnumerable<CommandData>> Load(int aggregateId);
     }
 }

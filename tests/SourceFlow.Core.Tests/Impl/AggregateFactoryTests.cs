@@ -24,7 +24,7 @@ namespace SourceFlow.Core.Tests.Impl
             var factory = new AggregateFactory(spMock.Object);
             var result = await factory.Create<IAggregate>();
             Assert.IsNotNull(result);
-            Assert.AreSame(aggregateMock.Object, result);
+            Assert.That(result, Is.SameAs(aggregateMock.Object));
         }
     }
 }

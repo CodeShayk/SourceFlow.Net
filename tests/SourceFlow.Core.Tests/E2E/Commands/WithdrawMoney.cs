@@ -1,10 +1,10 @@
-using SourceFlow.Messaging;
+using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Core.Tests.E2E.Commands
 {
     public class WithdrawMoney : Command<TransactPayload>
     {
-        public WithdrawMoney(TransactPayload payload) : base(payload)
+        public WithdrawMoney(int entityId, TransactPayload payload) : base(entityId, payload)
         {
         }
     }

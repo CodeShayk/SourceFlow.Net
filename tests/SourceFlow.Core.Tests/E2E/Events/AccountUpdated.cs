@@ -1,5 +1,5 @@
 using SourceFlow.Core.Tests.E2E.Aggregates;
-using SourceFlow.Messaging;
+using SourceFlow.Messaging.Events;
 
 namespace SourceFlow.Core.Tests.E2E.Events
 {

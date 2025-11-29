@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Moq;
-using SourceFlow.Aggregate;
 using SourceFlow.Messaging;
-using SourceFlow.Messaging.Bus;
+using SourceFlow.Messaging.Commands;
+using SourceFlow.Messaging.Events;
 using SourceFlow.Saga;
 
 namespace SourceFlow.Core.Tests.Sagas
@@ -12,19 +12,19 @@ namespace SourceFlow.Core.Tests.Sagas
     {
         public class TestSaga : Saga<IEntity>, IHandles<ICommand>
         {
-            public TestSaga() : this(new Mock<ICommandPublisher>().Object, new Mock<IEventQueue>().Object, new Mock<IRepository>().Object, new Mock<ILogger>().Object)
+            public TestSaga() : base(new Lazy<ICommandPublisher>(() => new Mock<ICommandPublisher>().Object), new Mock<IEventQueue>().Object, new Mock<IEntityStoreAdapter>().Object, new Mock<ILogger<ISaga>>().Object)
             {
             }
 
-            public TestSaga(ICommandPublisher publisher, IEventQueue queue, IRepository repo, ILogger logger)
+            public TestSaga(Lazy<ICommandPublisher> publisher, IEventQueue queue, IEntityStoreAdapter repo, ILogger<ISaga> logger):base(publisher, queue, repo, logger)
             {
                 commandPublisher = publisher;
                 eventQueue = queue;
-                repository = repo;
+                entityStore = repo;
                 this.logger = logger;
             }
 
-            public Task Handle(ICommand command) => Task.CompletedTask;
+            public Task<IEntity> Handle(IEntity entity, ICommand command) => Task.FromResult(entity);
 
             public Task TestPublish(ICommand command) => Publish(command);
 
@@ -34,7 +34,7 @@ namespace SourceFlow.Core.Tests.Sagas
         [Test]
         public void CanHandle_ReturnsTrueForMatchingType()
         {
-            var saga = new TestSaga(null, null, null, null);
+            var saga = new TestSaga();
             Assert.IsTrue(Saga<IEntity>.CanHandle(saga, typeof(ICommand)));
         }
 
@@ -42,24 +42,23 @@ namespace SourceFlow.Core.Tests.Sagas
         public void CanHandle_ReturnsFalseForNulls()
         {
             Assert.IsFalse(Saga<IEntity>.CanHandle(null, typeof(ICommand)));
-            var saga = new TestSaga(null, null, null, null);
+            var saga = new TestSaga();
             Assert.IsFalse(Saga<IEntity>.CanHandle(saga, null));
         }
 
         [Test]
         public void Publish_NullCommand_ThrowsArgumentNullException()
         {
-            var saga = new TestSaga(new Mock<ICommandPublisher>().Object, null, null, null);
-            Assert.ThrowsAsync<ArgumentNullException>(async () => await saga.TestPublish(null));
+            var saga = new TestSaga();
+            Assert.ThrowsAsync<ArgumentNullException>(async () => await saga.TestPublish(null!));
         }
 
         [Test]
         public void Publish_NullPayload_ThrowsInvalidOperationException()
         {
-            var publisher = new Mock<ICommandPublisher>().Object;
-            var saga = new TestSaga(publisher, null, null, null);
+            var saga = new TestSaga();
             var commandMock = new Mock<ICommand>();
-            commandMock.Setup(c => c.Payload).Returns((IPayload)null);
+            commandMock.Setup(c => c.Payload).Returns((IPayload?)null!);
             Assert.ThrowsAsync<InvalidOperationException>(async () => await saga.TestPublish(commandMock.Object));
         }
 
@@ -68,11 +67,12 @@ namespace SourceFlow.Core.Tests.Sagas
         {
             var publisherMock = new Mock<ICommandPublisher>();
             publisherMock.Setup(p => p.Publish(It.IsAny<ICommand>())).Returns(Task.CompletedTask);
-            var saga = new TestSaga(publisherMock.Object, null, null, null);
+            var saga = new TestSaga(new Lazy<ICommandPublisher>(() => publisherMock.Object), new Mock<IEventQueue>().Object, new Mock<IEntityStoreAdapter>().Object, new Mock<ILogger<ISaga>>().Object);
             var payloadMock = new Mock<IPayload>();
-            payloadMock.Setup(p => p.Id).Returns(1);
+
             var commandMock = new Mock<ICommand>();
             commandMock.Setup(c => c.Payload).Returns(payloadMock.Object);
+            commandMock.Setup(p => p.Entity).Returns(new EntityRef { Id=1});
             await saga.TestPublish(commandMock.Object);
             publisherMock.Verify(p => p.Publish(commandMock.Object), Times.Once);
         }
@@ -80,17 +80,16 @@ namespace SourceFlow.Core.Tests.Sagas
         [Test]
         public void Raise_NullEvent_ThrowsArgumentNullException()
         {
-            var saga = new TestSaga(null, new Mock<IEventQueue>().Object, null, null);
-            Assert.ThrowsAsync<ArgumentNullException>(async () => await saga.TestRaise(null));
+            var saga = new TestSaga();
+            Assert.ThrowsAsync<ArgumentNullException>(async () => await saga.TestRaise(null!));
         }
 
         [Test]
         public void Raise_NullPayload_ThrowsInvalidOperationException()
         {
-            var queue = new Mock<IEventQueue>().Object;
-            var saga = new TestSaga(null, queue, null, null);
+            var saga = new TestSaga();
             var eventMock = new Mock<IEvent>();
-            eventMock.Setup(e => e.Payload).Returns((IEntity)null);
+            eventMock.Setup(e => e.Payload).Returns((IEntity?)null!);
             Assert.ThrowsAsync<InvalidOperationException>(async () => await saga.TestRaise(eventMock.Object));
         }
 
@@ -99,7 +98,7 @@ namespace SourceFlow.Core.Tests.Sagas
         {
             var queueMock = new Mock<IEventQueue>();
             queueMock.Setup(q => q.Enqueue(It.IsAny<IEvent>())).Returns(Task.CompletedTask);
-            var saga = new TestSaga(null, queueMock.Object, null, null);
+            var saga = new TestSaga(new Lazy<ICommandPublisher>(() => new Mock<ICommandPublisher>().Object), queueMock.Object, new Mock<IEntityStoreAdapter>().Object, new Mock<ILogger<ISaga>>().Object);
             var payloadMock = new Mock<IEntity>();
             var eventMock = new Mock<IEvent>();
             eventMock.Setup(e => e.Payload).Returns(payloadMock.Object);

@@ -1,5 +1,4 @@
-using SourceFlow.Aggregate;
-using SourceFlow.Messaging;
+using SourceFlow.Messaging.Events;
 
 namespace SourceFlow.Core.Tests.Messaging
 {
@@ -24,8 +23,8 @@ namespace SourceFlow.Core.Tests.Messaging
             var payload = new DummyEntity { Id = 99 };
             var ev = new DummyEvent(payload);
             Assert.IsNotNull(ev.Metadata);
-            Assert.AreEqual("DummyEvent", ev.Name);
-            Assert.AreSame(payload, ev.Payload);
+            Assert.That(ev.Name, Is.EqualTo("DummyEvent"));
+            Assert.That(ev.Payload, Is.SameAs(payload));
         }
 
         [Test]
@@ -34,8 +33,8 @@ namespace SourceFlow.Core.Tests.Messaging
             var payload = new DummyEntity { Id = 123 };
             var ev = new DummyEvent(new DummyEntity());
             ((IEvent)ev).Payload = payload;
-            Assert.AreSame(payload, ev.Payload);
-            Assert.AreSame(payload, ((IEvent)ev).Payload);
+            Assert.That(ev.Payload, Is.SameAs(payload));
+            Assert.That(((IEvent)ev).Payload, Is.SameAs(payload));
         }
     }
 }

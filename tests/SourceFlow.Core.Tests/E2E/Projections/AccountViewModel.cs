@@ -11,7 +11,7 @@ namespace SourceFlow.Core.Tests.E2E.Projections
         public DateTime LastUpdated { get; set; }
         public int TransactionCount { get; set; }
         public bool IsClosed { get; set; }
-        public string ClosureReason { get; set; }
+        public string ClosureReason { get; set; } = string.Empty;
         public int Version { get; set; }
         public DateTime ActiveOn { get; set; }
     }

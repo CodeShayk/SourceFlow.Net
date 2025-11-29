@@ -1,11 +1,11 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NUnit.Framework;
-using SourceFlow.Impl;
-using SourceFlow.Messaging;
-using SourceFlow.Messaging.Bus;
 using SourceFlow.Saga;
+using SourceFlow.Messaging.Commands;
+using SourceFlow.Messaging.Commands.Impl;
 
 namespace SourceFlow.Core.Tests.Impl
 {
@@ -15,36 +15,30 @@ namespace SourceFlow.Core.Tests.Impl
         [Test]
         public void Constructor_SetsLogger()
         {
-            var logger = new Mock<ILogger<ICommandDispatcher>>().Object;
-            var dispatcher = new SagaDispatcher(logger);
+            var logger = new Mock<ILogger<ICommandSubscriber>>().Object;
+            var sagas = new Mock<IEnumerable<ISaga>>().Object;
+            var dispatcher = new CommandSubscriber(sagas, logger);
             Assert.IsNotNull(dispatcher);
         }
 
+       
         [Test]
-        public void Register_AddsSaga()
+        public async Task Dispatch_WithNoSagas_LogsInformation()
         {
-            var logger = new Mock<ILogger<ICommandDispatcher>>().Object;
-            var dispatcher = new SagaDispatcher(logger);
-            var sagaMock = new Mock<ISaga>();
-            dispatcher.Register(sagaMock.Object);
-            Assert.Pass(); // No exception means success
-        }
+            var loggerMock = new Mock<ILogger<ICommandSubscriber>>();
+            // Use an empty list instead of a mock to avoid null reference issues
+            var sagas = new List<ISaga>();
 
-        [Test]
-        public void Dispatch_WithNoSagas_LogsInformation()
-        {
-            var loggerMock = new Mock<ILogger<ICommandDispatcher>>();
-            var dispatcher = new SagaDispatcher(loggerMock.Object);
+            var dispatcher = new CommandSubscriber(sagas, loggerMock.Object);
             var commandMock = new DummyCommand();
-            var metadataMock = new Mock<IMetadata>();
 
-            dispatcher.Dispatch(this, commandMock);
+            await dispatcher.Subscribe(commandMock);
             loggerMock.Verify(l => l.Log(
                 It.IsAny<LogLevel>(),
                 It.IsAny<EventId>(),
                 It.IsAny<It.IsAnyType>(),
-                It.IsAny<Exception>(),
-                (Func<It.IsAnyType, Exception, string>)It.IsAny<object>()),
+                It.IsAny<Exception?>(),
+                (Func<It.IsAnyType, Exception?, string>)It.IsAny<object>()),
                 Times.AtLeastOnce);
         }
     }
