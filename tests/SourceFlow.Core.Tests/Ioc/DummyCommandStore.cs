@@ -1,8 +1,8 @@
-using SourceFlow.Messaging;
+using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Core.Tests.Ioc
 {
-    public class DummyCommandStore : ICommandStore
+    public class DummyCommandStore : ICommandStoreAdapter
     {
         public Task Append(ICommand command)
         {
@@ -13,7 +13,7 @@ namespace SourceFlow.Core.Tests.Ioc
         public Task<IEnumerable<ICommand>> Load(int aggregateId)
         {
             // Simulate loading commands
-            return Task.FromResult<IEnumerable<ICommand>>(null);
+            return Task.FromResult<IEnumerable<ICommand>>(null!);
         }
 
         public Task<int> GetNextSequenceNo(int aggregateId)

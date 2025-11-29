@@ -1,6 +1,5 @@
 using System.Threading.Tasks;
-using SourceFlow.Aggregate;
-using SourceFlow.Messaging;
+using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Saga
 {

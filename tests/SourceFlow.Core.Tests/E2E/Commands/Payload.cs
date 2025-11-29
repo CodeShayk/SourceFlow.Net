@@ -13,7 +13,7 @@ namespace SourceFlow.Core.Tests.E2E.Commands
     {
         public int Id { get; set; }
         public decimal InitialAmount { get; set; }
-        public string AccountName { get; set; }
+        public string AccountName { get; set; } = string.Empty;
     }
 
     public class TransactPayload : IPayload

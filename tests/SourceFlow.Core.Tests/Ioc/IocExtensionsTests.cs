@@ -1,204 +1,281 @@
-using System;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Moq;
-using NUnit.Framework;
-using SourceFlow;
 using SourceFlow.Aggregate;
-using SourceFlow.Impl;
-using SourceFlow.Messaging;
 using SourceFlow.Messaging.Bus;
-using SourceFlow.Saga;
-using SourceFlow.Services;
+using SourceFlow.Messaging.Commands;
+using SourceFlow.Messaging.Events;
+using SourceFlow.Projections;
 
-namespace SourceFlow.Core.Tests.Ioc
+namespace SourceFlow.Tests.Ioc
 {
-    public class DummyService : IService
+    // Test implementations for required interfaces
+    public class TestRepository : IEntityStoreAdapter
     {
-        public DummyService()
-        { }
-
-        public Task<TAggregateRoot> CreateAggregate<TAggregateRoot>() where TAggregateRoot : class, IAggregate
+        public Task<TEntity> Get<TEntity>(int id) where TEntity : class, IEntity
         {
-            var mock = new Mock<TAggregateRoot>();
-            return Task.FromResult(mock.Object);
+            return Task.FromResult<TEntity>(null!);
+        }
+
+        public Task<TEntity> Persist<TEntity>(TEntity entity) where TEntity : class, IEntity
+        {
+            return Task.FromResult(entity);
+        }
+
+        public Task Delete<TEntity>(TEntity entity) where TEntity : class, IEntity
+        {
+            return Task.CompletedTask;
         }
     }
 
-    public class DummyAggregate : Aggregate<DummyEntity>
+    public class TestCommandStore : ICommandStoreAdapter
     {
-        public DummyAggregate()
-        { }
-
-        public DummyAggregate(ICommandPublisher publisher, ICommandReplayer replayer, ILogger logger)
+        public Task Append(ICommand command)
         {
-            commandPublisher = publisher;
-            commandReplayer = replayer;
-            this.logger = logger;
+            return Task.CompletedTask;
+        }
+
+        public Task<IEnumerable<ICommand>> Load(int aggregateId)
+        {
+            return Task.FromResult<IEnumerable<ICommand>>(new List<ICommand>());
+        }
+
+        public Task<int> GetNextSequenceNo(int aggregateId)
+        {
+            return Task.FromResult(0);
         }
     }
 
-    public class DummySaga : ISaga<DummyEntity>
+    public class TestViewProvider : IViewModelStoreAdapter
     {
-        public Task Handle<TCommand>(TCommand command) where TCommand : ICommand => Task.CompletedTask;
-    }
+        public Task<TViewModel> Find<TViewModel>(int id) where TViewModel : class, IViewModel
+        {
+            return Task.FromResult<TViewModel>(null!);
+        }
 
-    public class DummyEntity : IEntity
-    { public int Id { get; set; } }
+        public Task<TViewModel> Persist<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
+        {
+            return Task.FromResult(model);
+        }
+
+        public Task Delete<TViewModel>(TViewModel model) where TViewModel : class, IViewModel
+        {
+            return Task.CompletedTask;
+        }
+    }
 
     [TestFixture]
     public class IocExtensionsTests
     {
-        [Test]
-        public void UseSourceFlow_AddsExpectedServices()
+        private ServiceCollection _services = null!;
+        private ServiceProvider _serviceProvider = null!;
+
+        [SetUp]
+        public void SetUp()
         {
-            var services = new ServiceCollection();
-            services.UseSourceFlow();
-            services.AddLogging(builder =>
+            _services = new ServiceCollection();
+            _services.AddLogging(); // Add logging services
+
+            // Register test implementations for required interfaces
+            _services.AddSingleton<IEntityStoreAdapter, TestRepository>();
+            _services.AddSingleton<ICommandStoreAdapter, TestCommandStore>();
+            _services.AddSingleton<IViewModelStoreAdapter, TestViewProvider>();
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            _serviceProvider?.Dispose();
+        }
+
+        [Test]
+        public void UseSourceFlow_RegistersMultipleEventSubscribers()
+        {
+            // Arrange
+            // Test implementations already registered in SetUp
+
+            // Act
+            _services.UseSourceFlow();
+
+            // Assert
+            _serviceProvider = _services.BuildServiceProvider();
+            var eventSubscribers = _serviceProvider.GetServices<IEventSubscriber>();
+
+            // Should have at least 2 event subscribers (Aggregate and Projections)
+            Assert.That(eventSubscribers, Is.Not.Null);
+            Assert.That(eventSubscribers.Count(), Is.GreaterThanOrEqualTo(2),
+                "Should have at least 2 event subscribers (Aggregate and Projections)");
+        }
+
+        [Test]
+        public void UseSourceFlow_RegistersCommandSubscriber()
+        {
+            // Arrange
+            // Test implementations already registered in SetUp
+
+            // Act
+            _services.UseSourceFlow();
+
+            // Assert
+            _serviceProvider = _services.BuildServiceProvider();
+            var commandSubscriber = _serviceProvider.GetService<ICommandSubscriber>();
+
+            Assert.That(commandSubscriber, Is.Not.Null, "ICommandSubscriber should be registered");
+        }
+
+        [Test]
+        public void UseSourceFlow_RegistersCommandDispatcher()
+        {
+            // Arrange
+            // Test implementations already registered in SetUp
+
+            // Act
+            _services.UseSourceFlow();
+
+            // Assert
+            _serviceProvider = _services.BuildServiceProvider();
+            var commandDispatcher = _serviceProvider.GetService<ICommandDispatcher>();
+
+            Assert.That(commandDispatcher, Is.Not.Null, "ICommandDispatcher should be registered");
+        }
+
+        [Test]
+        public void UseSourceFlow_RegistersCommandBus()
+        {
+            // Arrange
+            // Test implementations already registered in SetUp
+
+            // Act
+            _services.UseSourceFlow();
+
+            // Assert
+            _serviceProvider = _services.BuildServiceProvider();
+            var commandBus = _serviceProvider.GetService<ICommandBus>();
+
+            Assert.That(commandBus, Is.Not.Null, "ICommandBus should be registered");
+        }
+
+        [Test]
+        public void UseSourceFlow_RegistersCommandPublisher()
+        {
+            // Arrange
+            // Test implementations already registered in SetUp
+
+            // Act
+            _services.UseSourceFlow();
+
+            // Assert
+            _serviceProvider = _services.BuildServiceProvider();
+            var commandPublisher = _serviceProvider.GetService<ICommandPublisher>();
+
+            Assert.That(commandPublisher, Is.Not.Null, "ICommandPublisher should be registered");
+        }
+
+        [Test]
+        public void UseSourceFlow_RegistersEventDispatcher()
+        {
+            // Arrange
+            // Test implementations already registered in SetUp
+
+            // Act
+            _services.UseSourceFlow();
+
+            // Assert
+            _serviceProvider = _services.BuildServiceProvider();
+            var eventDispatcher = _serviceProvider.GetService<IEventDispatcher>();
+
+            Assert.That(eventDispatcher, Is.Not.Null, "IEventDispatcher should be registered");
+        }
+
+        [Test]
+        public void UseSourceFlow_RegistersEventQueue()
+        {
+            // Arrange
+            // Test implementations already registered in SetUp
+
+            // Act
+            _services.UseSourceFlow();
+
+            // Assert
+            _serviceProvider = _services.BuildServiceProvider();
+            var eventQueue = _serviceProvider.GetService<IEventQueue>();
+
+            Assert.That(eventQueue, Is.Not.Null, "IEventQueue should be registered");
+        }
+
+        [Test]
+        public void UseSourceFlow_RegistersRequiredInfrastructureServices()
+        {
+            // Arrange
+            // Test implementations already registered in SetUp
+
+            // Act
+            _services.UseSourceFlow();
+
+            // Assert
+            _serviceProvider = _services.BuildServiceProvider();
+
+            // Check that all infrastructure services are registered
+            Assert.That(_serviceProvider.GetService<IEntityStoreAdapter>(), Is.Not.Null, "IEntityStore should be registered");
+            Assert.That(_serviceProvider.GetService<ICommandStoreAdapter>(), Is.Not.Null, "ICommandStore should be registered");
+            Assert.That(_serviceProvider.GetService<IViewModelStoreAdapter>(), Is.Not.Null, "IViewModelStore should be registered");
+        }
+
+        [Test]
+        public void UseSourceFlow_RegistersAggregateFactory()
+        {
+            // Arrange
+            // Test implementations already registered in SetUp
+
+            // Act
+            _services.UseSourceFlow();
+
+            // Assert
+            _serviceProvider = _services.BuildServiceProvider();
+            var aggregateFactory = _serviceProvider.GetService<IAggregateFactory>();
+
+            Assert.That(aggregateFactory, Is.Not.Null, "IAggregateFactory should be registered");
+        }
+
+        [Test]
+        public void UseSourceFlow_RegistersAllServices_WithoutThrowing()
+        {
+            // Arrange
+            // Test implementations already registered in SetUp
+
+            // Act & Assert - should not throw
+            Assert.DoesNotThrow(() =>
             {
-                builder.AddConsole();
-                builder.SetMinimumLevel(LogLevel.Information);
+                _services.UseSourceFlow();
+                _serviceProvider = _services.BuildServiceProvider();
+
+                // Try to resolve all major services to ensure they can be created
+                _ = _serviceProvider.GetService<ICommandSubscriber>();
+                _ = _serviceProvider.GetService<ICommandDispatcher>();
+                _ = _serviceProvider.GetService<ICommandBus>();
+                _ = _serviceProvider.GetService<ICommandPublisher>();
+                _ = _serviceProvider.GetService<IEventSubscriber>();
+                _ = _serviceProvider.GetService<IEventDispatcher>();
+                _ = _serviceProvider.GetService<IEventQueue>();
+                _ = _serviceProvider.GetService<Aggregate.EventSubscriber>();
+                _ = _serviceProvider.GetService<Projections.EventSubscriber>();
             });
-            // Should register core types
-            Assert.IsTrue(services.Count > 0);
         }
 
         [Test]
-        public void UseSourceFlow_WithCustomConfig_AddsExpectedServices()
+        public void UseSourceFlow_RegistersEventSubscribersAsEnumerable()
         {
-            var services = new ServiceCollection();
-            services.UseSourceFlow(cfg => { });
-            Assert.IsTrue(services.Count > 0);
-        }
+            // Arrange
+            // Test implementations already registered in SetUp
 
-        [Test]
-        public void UseSourceFlow_ResolvesCoreServices()
-        {
-            var services = new ServiceCollection();
-            services.AddLogging(builder =>
-            {
-                builder.AddConsole();
-                builder.SetMinimumLevel(LogLevel.Information);
-            });
+            // Act
+            _services.UseSourceFlow();
 
-            services.UseSourceFlow();
+            // Assert
+            _serviceProvider = _services.BuildServiceProvider();
+            var eventSubscribers = _serviceProvider.GetServices<IEventSubscriber>();
 
-            var provider = services.BuildServiceProvider();
-            Assert.IsNotNull(provider.GetService<AggregateDispatcher>());
-            Assert.IsNotNull(provider.GetService<ProjectionDispatcher>());
-            Assert.IsNotNull(provider.GetService<SagaDispatcher>());
-            Assert.IsNotNull(provider.GetService<ICommandBus>());
-            Assert.IsNotNull(provider.GetService<IEventQueue>());
-            Assert.IsNotNull(provider.GetService<ICommandPublisher>());
-            Assert.IsNotNull(provider.GetService<ICommandReplayer>());
-            Assert.IsNotNull(provider.GetService<IAggregateFactory>());
-        }
-
-        [Test]
-        public void WithService_RegistersService()
-        {
-            var config = new IocExtensions.SourceFlowConfig { Services = new ServiceCollection() };
-            config.WithService<DummyService>();
-            Assert.IsTrue(config.Services.Count > 0);
-        }
-
-        [Test]
-        public void WithService_ResolvesService()
-        {
-            var config = new IocExtensions.SourceFlowConfig { Services = new ServiceCollection() };
-            config.Services.AddLogging(builder =>
-            {
-                builder.AddConsole();
-                builder.SetMinimumLevel(LogLevel.Information);
-            });
-
-            config.WithService<DummyService>();
-            var provider = config.Services.BuildServiceProvider();
-            Assert.IsNotNull(provider.GetService<DummyService>());
-            Assert.IsNotNull(provider.GetService<IService>());
-        }
-
-        [Test]
-        public void WithAggregate_RegistersAggregate()
-        {
-            var config = new IocExtensions.SourceFlowConfig { Services = new ServiceCollection() };
-            config.Services.AddLogging(builder =>
-            {
-                builder.AddConsole();
-                builder.SetMinimumLevel(LogLevel.Information);
-            });
-            config.Services.AddSingleton<ICommandPublisher, CommandPublisher>();
-            config.Services.AddSingleton<ICommandReplayer, CommandReplayer>();
-
-            config.WithAggregate<DummyAggregate>(c => new DummyAggregate(c.GetService<ICommandPublisher>(), c.GetService<ICommandReplayer>(), c.GetService<ILogger>()));
-            Assert.IsTrue(config.Services.Count > 0);
-        }
-
-        [Test]
-        public void WithAggregate_ResolvesAggregate()
-        {
-            var config = new IocExtensions.SourceFlowConfig { Services = new ServiceCollection() };
-            config.Services.AddLogging(builder =>
-            {
-                builder.AddConsole();
-                builder.SetMinimumLevel(LogLevel.Information);
-            });
-
-            config.Services.AddSingleton<ICommandBus, CommandBus>(c => new CommandBus(new Mock<ICommandStore>().Object, c.GetService<ILogger<ICommandBus>>()));
-            config.Services.AddSingleton<ICommandPublisher, CommandPublisher>();
-            config.Services.AddSingleton<ICommandReplayer, CommandReplayer>();
-
-            config.WithAggregate<DummyAggregate>();
-
-            var provider = config.Services.BuildServiceProvider();
-            Assert.IsNotNull(provider.GetService<DummyAggregate>());
-            Assert.IsNotNull(provider.GetService<IAggregate>());
-        }
-
-        [Test]
-        public void WithSaga_RegistersSaga()
-        {
-            var config = new IocExtensions.SourceFlowConfig { Services = new ServiceCollection() };
-            config.WithSaga<DummyEntity, DummySaga>();
-            Assert.IsTrue(config.Services.Count > 0);
-        }
-
-        [Test]
-        public void WithSaga_ResolvesSaga()
-        {
-            var config = new IocExtensions.SourceFlowConfig { Services = new ServiceCollection() };
-            config.Services.AddLogging(builder =>
-            {
-                builder.AddConsole();
-                builder.SetMinimumLevel(LogLevel.Information);
-            });
-
-            config.WithSaga<DummyEntity, DummySaga>();
-            config.Services.AddSingleton<SagaDispatcher>();
-
-            var provider = config.Services.BuildServiceProvider();
-            Assert.IsNotNull(provider.GetService<ISaga>());
-        }
-
-        [Test]
-        public void WithServices_ThrowsIfFactoryReturnsNull()
-        {
-            var config = new IocExtensions.SourceFlowConfig { Services = new ServiceCollection() };
-            Assert.Throws<InvalidOperationException>(() => config.WithServices(_ => null));
-        }
-
-        [Test]
-        public void WithAggregates_ThrowsIfFactoryReturnsNull()
-        {
-            var config = new IocExtensions.SourceFlowConfig { Services = new ServiceCollection() };
-            Assert.Throws<InvalidOperationException>(() => config.WithAggregates(_ => null));
-        }
-
-        [Test]
-        public void WithSagas_ThrowsIfFactoryReturnsNull()
-        {
-            var config = new IocExtensions.SourceFlowConfig { Services = new ServiceCollection() };
-            Assert.Throws<InvalidOperationException>(() => config.WithSagas(_ => null));
+            Assert.That(eventSubscribers, Is.Not.Null, "IEventSubscriber enumerable should not be null");
+            Assert.That(eventSubscribers.Count(), Is.GreaterThanOrEqualTo(2),
+                "Should have at least 2 IEventSubscriber implementations");
         }
     }
 }

@@ -1,5 +1,5 @@
 using System.Threading.Tasks;
-using SourceFlow.Messaging;
+using SourceFlow.Messaging.Events;
 
 namespace SourceFlow.Aggregate
 {
@@ -15,6 +15,6 @@ namespace SourceFlow.Aggregate
         /// </summary>
         /// <param name="event"></param>
         /// <returns></returns>
-        Task Handle(TEvent @event);
+        Task On(TEvent @event);
     }
 }

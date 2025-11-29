@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <Version>1.0.0</Version>
+    <RepositoryUrl>https://github.com/CodeShayk/SourceFlow.Net</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/CodeShayk/SourceFlow.Net/wiki</PackageProjectUrl>
+    <Authors>CodeShayk</Authors>
+    <Company>CodeShayk</Company>
+    <Product>SourceFlow.Stores.EntityFramework</Product>
+    <Title>SourceFlow.Stores.EntityFramework</Title>
+    <PackageId>SourceFlow.Stores.EntityFramework</PackageId>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Description>Entity Framework Core persistence provider for SourceFlow.Net. Provides production-ready implementations of ICommandStore, IEntityStore, and IViewModelStore using Entity Framework Core 9.0. Features include flexible configuration with separate or shared connection strings per store type, SQL Server support, Polly-based resilience and retry policies, OpenTelemetry instrumentation for database operations, and full support for .NET 8.0, .NET 9.0, and .NET 10.0. Seamlessly integrates with SourceFlow.Net core framework for complete event sourcing persistence.</Description>
+    <Copyright>Copyright (c) 2025 CodeShayk</Copyright>
+    <PackageReadmeFile>docs\SourceFlow.Stores.EntityFramework-README.md</PackageReadmeFile>
+    <AssemblyVersion>1.0.0</AssemblyVersion>
+    <FileVersion>1.0.0</FileVersion>
+    <IncludeSymbols>True</IncludeSymbols>
+    <PackageReleaseNotes>v1.0.0 - Initial stable release! Complete Entity Framework Core 9.0 persistence layer for SourceFlow.Net including CommandStore, EntityStore, and ViewModelStore implementations. Features configurable connection strings per store type, SQL Server database provider, Polly resilience policies, OpenTelemetry instrumentation, and support for .NET 8.0, 9.0, and 10.0. Production-ready with comprehensive test coverage.</PackageReleaseNotes>
+    <PackageTags>SourceFlow;EntityFramework;Entity Framework;Persistence;EFCore;CQRS;Event-Sourcing;CommandStore;EntityStore;ViewModelStore;Connection-Strings</PackageTags>
+    <EnableNETAnalyzers>True</EnableNETAnalyzers>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>SourceFlow.Stores.EntityFramework</AssemblyName>
+    <AssemblyTitle>SourceFlow.Stores.EntityFramework</AssemblyTitle>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Polly" Version="8.4.2" />
+    <PackageReference Include="OpenTelemetry" Version="1.14.0" />
+    <PackageReference Include="OpenTelemetry.Api" Version="1.14.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.14.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.14.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.0.0-beta.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SourceFlow\SourceFlow.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\docs\SourceFlow.Stores.EntityFramework-README.md">
+      <Pack>True</Pack>
+      <PackagePath>\docs</PackagePath>
+    </None>
+  </ItemGroup>
+
+</Project>

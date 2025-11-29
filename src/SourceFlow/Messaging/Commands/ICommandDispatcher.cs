@@ -1,0 +1,13 @@
+using System.Threading.Tasks;
+
+namespace SourceFlow.Messaging.Commands
+{
+    public interface ICommandDispatcher
+    {
+        /// <summary>
+        /// Dispatches a command to the registered sagas.
+        /// </summary>
+        /// <param name="command"></param>
+        Task Dispatch<TCommand>(TCommand command) where TCommand : ICommand;
+    }
+}

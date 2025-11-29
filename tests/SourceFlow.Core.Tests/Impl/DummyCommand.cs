@@ -1,4 +1,5 @@
 using SourceFlow.Messaging;
+using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Core.Tests.Impl
 {
@@ -9,15 +10,17 @@ namespace SourceFlow.Core.Tests.Impl
             Payload = new DummyPayload();
             Name = "DummyCommand";
             Metadata = new Metadata();
+            Entity = new EntityRef { Id = 0 };
         }
 
         public IPayload Payload { get; set; }
         public string Name { get; set; }
         public Metadata Metadata { get; set; }
+        public EntityRef Entity { get; set; }
     }
 
     internal class DummyPayload : IPayload
     {
-        public int Id { get; set; }
+        public int EntityId { get; set; }
     }
 }

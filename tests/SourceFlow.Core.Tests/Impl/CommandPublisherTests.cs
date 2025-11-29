@@ -1,7 +1,8 @@
 using Moq;
-using SourceFlow.Impl;
 using SourceFlow.Messaging;
 using SourceFlow.Messaging.Bus;
+using SourceFlow.Messaging.Commands;
+using SourceFlow.Messaging.Commands.Impl;
 
 namespace SourceFlow.Core.Tests.Impl
 {
@@ -21,7 +22,7 @@ namespace SourceFlow.Core.Tests.Impl
         {
             var bus = new Mock<ICommandBus>().Object;
             var publisher = (ICommandPublisher)new CommandPublisher(bus);
-            Assert.ThrowsAsync<ArgumentNullException>(async () => await publisher.Publish<ICommand>(null));
+            Assert.ThrowsAsync<ArgumentNullException>(async () => await publisher.Publish<ICommand>(null!));
         }
 
         [Test]
@@ -30,7 +31,7 @@ namespace SourceFlow.Core.Tests.Impl
             var bus = new Mock<ICommandBus>().Object;
             var publisher = (ICommandPublisher)new CommandPublisher(bus);
             var commandMock = new Mock<ICommand>();
-            commandMock.Setup(c => c.Payload).Returns((IPayload)null);
+            commandMock.Setup(c => c.Payload).Returns((IPayload?)null!);
             Assert.ThrowsAsync<InvalidOperationException>(async () => await publisher.Publish(commandMock.Object));
         }
 
@@ -41,9 +42,9 @@ namespace SourceFlow.Core.Tests.Impl
             busMock.Setup(b => b.Publish(It.IsAny<ICommand>())).Returns(Task.CompletedTask);
             var publisher = (ICommandPublisher)new CommandPublisher(busMock.Object);
             var payloadMock = new Mock<IPayload>();
-            payloadMock.Setup(p => p.Id).Returns(1);
             var commandMock = new Mock<ICommand>();
             commandMock.Setup(c => c.Payload).Returns(payloadMock.Object);
+            commandMock.Setup(p => p.Entity).Returns(new EntityRef { Id = 1 });
             await publisher.Publish(commandMock.Object);
             busMock.Verify(b => b.Publish(commandMock.Object), Times.Once);
         }

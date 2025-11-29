@@ -1,26 +1,27 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net462;netstandard2.0;netstandard2.1;net9.0</TargetFrameworks>
-    <Version>1.0.0-alpha.1</Version>
+    <TargetFrameworks>net462;netstandard2.0;netstandard2.1;net9.0;net10.0</TargetFrameworks>
+    <LangVersion>9.0</LangVersion>
+    <Version>1.0.0</Version>
     <RepositoryUrl>https://github.com/CodeShayk/SourceFlow.Net</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageProjectUrl>https://github.com/CodeShayk/SourceFlow.Net/wiki</PackageProjectUrl>
-    <Authors>Code Shayk</Authors>
-    <Company>Code Shayk</Company>
+    <Authors>CodeShayk</Authors>
+    <Company>CodeShayk</Company>
     <Product>SourceFlow.Net</Product>
     <Title>SourceFlow.Net</Title>
     <PackageId>SourceFlow.Net</PackageId>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Description>A modern, lightweight, and extensible framework for building event-sourced applications using Domain-Driven Design (DDD) principles and Command Query Responsibility Segregation (CQRS) patterns.</Description>
-    <Copyright>Copyright (c) 2025 Code Shayk</Copyright>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Description>SourceFlow.Net is a modern, lightweight, and extensible framework for building event-sourced applications using Domain-Driven Design (DDD) principles and Command Query Responsibility Segregation (CQRS) patterns. Build scalable, maintainable applications with complete event sourcing, aggregate pattern implementation, saga orchestration for long-running transactions, and view model projections. Supports .NET Framework 4.6.2, .NET Standard 2.0/2.1, .NET 9.0, and .NET 10.0 with built-in OpenTelemetry observability.</Description>
+    <Copyright>Copyright (c) 2025 CodeShayk</Copyright>
+    <PackageReadmeFile>docs\SourceFlow.Net-README.md</PackageReadmeFile>
     <PackageIcon>ninja-icon-16.png</PackageIcon>
     <AssemblyVersion>1.0.0</AssemblyVersion>
     <FileVersion>1.0.0</FileVersion>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <IncludeSymbols>True</IncludeSymbols>
-    <PackageReleaseNotes>Includes Core Event sourcing &amp; CQRS functionality.</PackageReleaseNotes>
+    <PackageReleaseNotes>v1.0.0 - Initial stable release! Complete event sourcing and CQRS implementation with Aggregate pattern for managing root entities, Saga orchestration for long-running transactions, event-driven communication, view model projection system, multi-framework support (.NET 4.6.2, .NET Standard 2.0/2.1, .NET 9.0, .NET 10.0), OpenTelemetry integration for observability, and dependency injection support. Production-ready with comprehensive test coverage.</PackageReleaseNotes>
     <PackageTags>Events;Commands;DDD;CQRS;Event-Sourcing;ViewModel;Aggregates;EventStore;Domain driven design; Event Sourcing; Command Query Responsibility Segregation; Command Pattern; Publisher Subscriber; PuB-Sub</PackageTags>
     <EnableNETAnalyzers>False</EnableNETAnalyzers>
   </PropertyGroup>
@@ -44,8 +45,14 @@
     <Optimize>True</Optimize>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.6" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.6" />
+    <PackageReference Include="System.Text.Json" Version="9.0.6" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="OpenTelemetry.Api" Version="1.14.0" />
+    <PackageReference Include="OpenTelemetry" Version="1.14.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.14.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.14.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.14.0" />
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>SourceFlow.Core.Tests</_Parameter1>
     </AssemblyAttribute>
@@ -60,9 +67,9 @@
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
-    <None Include="..\..\README.md">
+    <None Include="..\..\docs\SourceFlow.Net-README.md">
       <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
+      <PackagePath>\docs</PackagePath>
     </None>
   </ItemGroup>
 
