@@ -1,0 +1,18 @@
+{
+  "threshold": 15,
+  "reporters": ["console"],
+  "ignore": [
+    "**/*.min.js",
+    "**/node_modules/**",
+    "**/bin/**",
+    "**/obj/**",
+    "**/.git/**"
+  ],
+  "format": [
+    "csharp"
+  ],
+  "minLines": 5,
+  "minTokens": 100,
+  "blame": false,
+  "silent": false
+}
