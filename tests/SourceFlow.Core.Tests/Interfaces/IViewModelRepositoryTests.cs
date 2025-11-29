@@ -15,7 +15,7 @@ namespace SourceFlow.Core.Tests.Interfaces
             mock.Setup(r => r.Find<DummyViewModel>(1)).ReturnsAsync(new DummyViewModel { Id = 1 });
             var result = await mock.Object.Find<DummyViewModel>(1);
             Assert.That(result, Is.Not.Null);
-            Assert.That(1, Is.EqualTo(result.Id));
+            Assert.That(result.Id, Is.EqualTo(1));
         }
 
         [Test]

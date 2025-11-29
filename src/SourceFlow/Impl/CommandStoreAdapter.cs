@@ -22,13 +22,14 @@ namespace SourceFlow.Impl
 
         public async Task Append(ICommand command)
         {
+            var commandData = SerializeCommand(command);
+
             if (_telemetryService != null)
             {
                 await _telemetryService.TraceAsync(
                     "sourceflow.domain.command.append",
                     async () =>
                     {
-                        var commandData = SerializeCommand(command);
                         await store.Append(commandData);
                         _telemetryService.RecordCommandExecuted(command.GetType().Name, command.Entity.Id);
                     },
@@ -41,7 +42,6 @@ namespace SourceFlow.Impl
             }
             else
             {
-                var commandData = SerializeCommand(command);
                 await store.Append(commandData);
             }
         }
@@ -55,24 +55,7 @@ namespace SourceFlow.Impl
                     async () =>
                     {
                         var commandDataList = await store.Load(entityId);
-                        var commands = new List<ICommand>();
-
-                        foreach (var commandData in commandDataList)
-                        {
-                            try
-                            {
-                                var command = DeserializeCommand(commandData);
-                                if (command != null)
-                                    commands.Add(command);
-                            }
-                            catch
-                            {
-                                // Skip commands that can't be deserialized
-                                continue;
-                            }
-                        }
-
-                        return commands;
+                        return DeserializeCommands(commandDataList);
                     },
                     activity =>
                     {
@@ -82,25 +65,30 @@ namespace SourceFlow.Impl
             else
             {
                 var commandDataList = await store.Load(entityId);
-                var commands = new List<ICommand>();
-
-                foreach (var commandData in commandDataList)
-                {
-                    try
-                    {
-                        var command = DeserializeCommand(commandData);
-                        if (command != null)
-                            commands.Add(command);
-                    }
-                    catch
-                    {
-                        // Skip commands that can't be deserialized
-                        continue;
-                    }
-                }
-
-                return commands;
+                return DeserializeCommands(commandDataList);
             }
+        }
+
+        private List<ICommand> DeserializeCommands(IEnumerable<CommandData> commandDataList)
+        {
+            var commands = new List<ICommand>();
+
+            foreach (var commandData in commandDataList)
+            {
+                try
+                {
+                    var command = DeserializeCommand(commandData);
+                    if (command != null)
+                        commands.Add(command);
+                }
+                catch
+                {
+                    // Skip commands that can't be deserialized
+                    continue;
+                }
+            }
+
+            return commands;
         }
 
         public async Task<int> GetNextSequenceNo(int entityId)
@@ -115,36 +103,7 @@ namespace SourceFlow.Impl
 
         private CommandData SerializeCommand(ICommand command)
         {
-            if (_telemetryService != null)
-            {
-                return _telemetryService.TraceSerialization(
-                    "serialize",
-                    () =>
-                    {
-                        // Serialize using concrete type, not interface type, to capture all properties
-                        // Use ByteArrayPool for optimized serialization with reduced allocations
-                        var payloadJson = command.Payload != null
-                            ? ByteArrayPool.Serialize(command.Payload, command.Payload.GetType())
-                            : string.Empty;
-
-                        return new CommandData
-                        {
-                            EntityId = command.Entity.Id,
-                            SequenceNo = command.Metadata.SequenceNo,
-                            CommandName = command.Name ?? string.Empty,
-                            CommandType = command.GetType().AssemblyQualifiedName ?? string.Empty,
-                            PayloadType = command.Payload?.GetType().AssemblyQualifiedName ?? string.Empty,
-                            PayloadData = payloadJson,
-                            Metadata = ByteArrayPool.Serialize(command.Metadata),
-                            Timestamp = command.Metadata.OccurredOn
-                        };
-                    },
-                    activity =>
-                    {
-                        activity?.SetTag("sourceflow.command_type", command.GetType().Name);
-                    });
-            }
-            else
+            CommandData SerializeCore()
             {
                 // Serialize using concrete type, not interface type, to capture all properties
                 // Use ByteArrayPool for optimized serialization with reduced allocations
@@ -163,6 +122,21 @@ namespace SourceFlow.Impl
                     Metadata = ByteArrayPool.Serialize(command.Metadata),
                     Timestamp = command.Metadata.OccurredOn
                 };
+            }
+
+            if (_telemetryService != null)
+            {
+                return _telemetryService.TraceSerialization(
+                    "serialize",
+                    SerializeCore,
+                    activity =>
+                    {
+                        activity?.SetTag("sourceflow.command_type", command.GetType().Name);
+                    });
+            }
+            else
+            {
+                return SerializeCore();
             }
         }
 

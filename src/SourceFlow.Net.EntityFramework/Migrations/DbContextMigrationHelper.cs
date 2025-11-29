@@ -21,45 +21,7 @@ namespace SourceFlow.Stores.EntityFramework.Migrations
         /// </summary>
         public static void CreateEntityTables(EntityDbContext context, IEnumerable<Type> entityTypes)
         {
-            var databaseCreator = context.Database.GetService<IRelationalDatabaseCreator>();
-
-            // Ensure database exists
-            context.Database.EnsureCreated();
-
-            foreach (var entityType in entityTypes)
-            {
-                var tableName = entityType.Name;
-                var properties = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                    .Where(p => p.CanRead && p.CanWrite);
-
-                var columns = new List<string>();
-                foreach (var prop in properties)
-                {
-                    var columnDef = GetColumnDefinition(prop);
-                    if (columnDef != null)
-                    {
-                        columns.Add(columnDef);
-                    }
-                }
-
-                if (columns.Any())
-                {
-                    var createTableSql = $@"
-                        CREATE TABLE IF NOT EXISTS ""{tableName}"" (
-                            {string.Join(",\n                            ", columns)},
-                            PRIMARY KEY (""Id"")
-                        )";
-
-                    try
-                    {
-                        context.Database.ExecuteSqlRaw(createTableSql);
-                    }
-                    catch
-                    {
-                        // Table might already exist, ignore
-                    }
-                }
-            }
+            CreateTablesCore(context, entityTypes);
         }
 
         /// <summary>
@@ -67,15 +29,20 @@ namespace SourceFlow.Stores.EntityFramework.Migrations
         /// </summary>
         public static void CreateViewModelTables(ViewModelDbContext context, IEnumerable<Type> viewModelTypes)
         {
+            CreateTablesCore(context, viewModelTypes);
+        }
+
+        private static void CreateTablesCore(DbContext context, IEnumerable<Type> types)
+        {
             var databaseCreator = context.Database.GetService<IRelationalDatabaseCreator>();
 
             // Ensure database exists
             context.Database.EnsureCreated();
 
-            foreach (var viewModelType in viewModelTypes)
+            foreach (var type in types)
             {
-                var tableName = viewModelType.Name;
-                var properties = viewModelType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                var tableName = type.Name;
+                var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                     .Where(p => p.CanRead && p.CanWrite);
 
                 var columns = new List<string>();

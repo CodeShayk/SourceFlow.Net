@@ -75,8 +75,8 @@ namespace SourceFlow.Core.Tests.E2E
             var account = await _viewRepository.Find<AccountViewModel>(_accountId);
             Assert.That(account, Is.Not.Null);
             Assert.That(_accountId, Is.EqualTo(account.Id));
-            Assert.That("John Doe", Is.EqualTo(account.AccountName));
-            Assert.That(1000m + 500m - 200m + 100m, Is.EqualTo(account.CurrentBalance));
+            Assert.That(account.AccountName, Is.EqualTo("John Doe"));
+            Assert.That(account.CurrentBalance, Is.EqualTo(1000m + 500m - 200m + 100m));
             Assert.That(account.TransactionCount, Is.GreaterThanOrEqualTo(3));
             Assert.That(account.IsClosed, Is.False);
 

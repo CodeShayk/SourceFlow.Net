@@ -100,7 +100,7 @@ namespace SourceFlow.Core.Tests.Sagas
 
             // Assert
             Assert.IsTrue(testSaga.Handled);
-            Assert.AreEqual(typeof(DummyCommand), testSaga.LastHandledCommandType);
+            Assert.That(testSaga.LastHandledCommandType, Is.EqualTo(typeof(DummyCommand)));
         }
 
         [Test]
@@ -136,8 +136,8 @@ namespace SourceFlow.Core.Tests.Sagas
             Assert.IsTrue(testSaga1.Handled);
             Assert.IsTrue(testSaga2.Handled);
             Assert.IsFalse(nonHandlingSaga.Handled); // This saga doesn't implement IHandles<DummyCommand>
-            Assert.AreEqual(typeof(DummyCommand), testSaga1.LastHandledCommandType);
-            Assert.AreEqual(typeof(DummyCommand), testSaga2.LastHandledCommandType);
+            Assert.That(testSaga1.LastHandledCommandType, Is.EqualTo(typeof(DummyCommand)));
+            Assert.That(testSaga2.LastHandledCommandType, Is.EqualTo(typeof(DummyCommand)));
         }
 
         [Test]

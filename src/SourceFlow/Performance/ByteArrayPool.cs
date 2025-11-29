@@ -24,19 +24,13 @@ namespace SourceFlow.Performance
             if (value == null)
                 return string.Empty;
 
-            using (var bufferWriter = new PooledBufferWriter(Pool))
+            return SerializeCore(writer =>
             {
-                using (var writer = new Utf8JsonWriter(bufferWriter))
-                {
-                    if (options != null)
-                        JsonSerializer.Serialize(writer, value, options);
-                    else
-                        JsonSerializer.Serialize(writer, value);
-                }
-
-                var writtenSpan = bufferWriter.WrittenSpan;
-                return System.Text.Encoding.UTF8.GetString(writtenSpan.ToArray());
-            }
+                if (options != null)
+                    JsonSerializer.Serialize(writer, value, options);
+                else
+                    JsonSerializer.Serialize(writer, value);
+            });
         }
 
         /// <summary>
@@ -51,14 +45,22 @@ namespace SourceFlow.Performance
             if (value == null)
                 return string.Empty;
 
+            return SerializeCore(writer =>
+            {
+                if (options != null)
+                    JsonSerializer.Serialize(writer, value, inputType, options);
+                else
+                    JsonSerializer.Serialize(writer, value, inputType);
+            });
+        }
+
+        private static string SerializeCore(Action<Utf8JsonWriter> writeAction)
+        {
             using (var bufferWriter = new PooledBufferWriter(Pool))
             {
                 using (var writer = new Utf8JsonWriter(bufferWriter))
                 {
-                    if (options != null)
-                        JsonSerializer.Serialize(writer, value, inputType, options);
-                    else
-                        JsonSerializer.Serialize(writer, value, inputType);
+                    writeAction(writer);
                 }
 
                 var writtenSpan = bufferWriter.WrittenSpan;

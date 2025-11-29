@@ -24,8 +24,8 @@ namespace SourceFlow.Core.Tests.Messaging
             var payload = new DummyPayload { EntityId = 42 };
             var command = new DummyCommand(42, payload);
             Assert.IsNotNull(command.Metadata);
-            Assert.AreEqual("DummyCommand", command.Name);
-            Assert.AreSame(payload, command.Payload);
+            Assert.That(command.Name, Is.EqualTo("DummyCommand"));
+            Assert.That(command.Payload, Is.SameAs(payload));
         }
 
         [Test]
@@ -34,8 +34,8 @@ namespace SourceFlow.Core.Tests.Messaging
             var payload = new DummyPayload { EntityId = 7 };
             var command = new DummyCommand(7, new DummyPayload());
             ((ICommand)command).Payload = payload;
-            Assert.AreSame(payload, command.Payload);
-            Assert.AreSame(payload, ((ICommand)command).Payload);
+            Assert.That(command.Payload, Is.SameAs(payload));
+            Assert.That(((ICommand)command).Payload, Is.SameAs(payload));
         }
     }
 }

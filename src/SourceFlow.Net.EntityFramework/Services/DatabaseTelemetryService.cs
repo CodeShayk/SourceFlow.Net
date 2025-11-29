@@ -28,6 +28,13 @@ namespace SourceFlow.Stores.EntityFramework.Services
         // Histograms
         private readonly Histogram<double>? _operationDuration;
 
+        private static void SetActivityException(Activity? activity, Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetTag("exception.type", ex.GetType().FullName);
+            activity?.SetTag("exception.message", ex.Message);
+        }
+
         public DatabaseTelemetryService(SourceFlowEfOptions options)
         {
             if (options == null)
@@ -100,9 +107,7 @@ namespace SourceFlow.Stores.EntityFramework.Services
             }
             catch (Exception ex)
             {
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                activity?.SetTag("exception.type", ex.GetType().FullName);
-                activity?.SetTag("exception.message", ex.Message);
+                SetActivityException(activity, ex);
                 throw;
             }
             finally
@@ -141,9 +146,7 @@ namespace SourceFlow.Stores.EntityFramework.Services
             }
             catch (Exception ex)
             {
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                activity?.SetTag("exception.type", ex.GetType().FullName);
-                activity?.SetTag("exception.message", ex.Message);
+                SetActivityException(activity, ex);
                 throw;
             }
             finally

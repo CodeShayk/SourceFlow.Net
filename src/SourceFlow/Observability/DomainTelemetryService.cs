@@ -30,6 +30,13 @@ namespace SourceFlow.Observability
 
         private readonly Histogram<double>? _serializationDuration;
 
+        private static void SetActivityException(Activity? activity, Exception ex)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetTag("exception.type", ex.GetType().FullName);
+            activity?.SetTag("exception.message", ex.Message);
+        }
+
         public DomainTelemetryService(DomainObservabilityOptions options)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
@@ -100,9 +107,7 @@ namespace SourceFlow.Observability
             }
             catch (Exception ex)
             {
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                activity?.SetTag("exception.type", ex.GetType().FullName);
-                activity?.SetTag("exception.message", ex.Message);
+                SetActivityException(activity, ex);
                 throw;
             }
             finally
@@ -140,9 +145,7 @@ namespace SourceFlow.Observability
             }
             catch (Exception ex)
             {
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                activity?.SetTag("exception.type", ex.GetType().FullName);
-                activity?.SetTag("exception.message", ex.Message);
+                SetActivityException(activity, ex);
                 throw;
             }
             finally
@@ -182,9 +185,7 @@ namespace SourceFlow.Observability
             }
             catch (Exception ex)
             {
-                activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                activity?.SetTag("exception.type", ex.GetType().FullName);
-                activity?.SetTag("exception.message", ex.Message);
+                SetActivityException(activity, ex);
                 throw;
             }
             finally
