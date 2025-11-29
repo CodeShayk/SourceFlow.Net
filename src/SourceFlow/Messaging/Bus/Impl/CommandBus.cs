@@ -110,7 +110,7 @@ namespace SourceFlow.Messaging.Bus.Impl
         {
             // 2.2 Log event.
             logger?.LogInformation("Action=Command_Dispatched, Dispatcher={Dispatcher}, Command={Command}, Payload={Payload}, SequenceNo={No}",
-               dispatcher.GetType().Name, command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo);
+                dispatcher.GetType().Name, command.GetType().Name, command.Payload.GetType().Name, ((IMetadata)command).Metadata.SequenceNo);
 
             // 2.1 Dispatch to each dispatcher
             return dispatcher.Dispatch(command);

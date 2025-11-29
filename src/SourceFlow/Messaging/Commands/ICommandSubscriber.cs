@@ -20,6 +20,6 @@ namespace SourceFlow.Messaging.Commands
         /// <param name="command"></param>
         /// <returns></returns>
         Task Subscribe<TCommand>(TCommand command)
-              where TCommand : ICommand;
+            where TCommand : ICommand;
     }
 }

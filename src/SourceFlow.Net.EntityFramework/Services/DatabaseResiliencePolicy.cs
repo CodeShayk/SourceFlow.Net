@@ -80,10 +80,10 @@ namespace SourceFlow.Stores.EntityFramework.Services
                 {
                     MaxRetryAttempts = options.Retry.MaxRetryAttempts,
                     ShouldHandle = new PredicateBuilder().Handle<DbUpdateException>()
-                                                          .Handle<TimeoutException>()
-                                                          .Handle<InvalidOperationException>(ex =>
-                                                              ex.Message.Contains("connection", StringComparison.OrdinalIgnoreCase) ||
-                                                              ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase)),
+                        .Handle<TimeoutException>()
+                        .Handle<InvalidOperationException>(ex =>
+                            ex.Message.Contains("connection", StringComparison.OrdinalIgnoreCase) ||
+                            ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase)),
                     BackoffType = options.Retry.UseExponentialBackoff
                         ? DelayBackoffType.Exponential
                         : DelayBackoffType.Constant,
@@ -104,10 +104,10 @@ namespace SourceFlow.Stores.EntityFramework.Services
                     MinimumThroughput = options.CircuitBreaker.FailureThreshold,
                     BreakDuration = TimeSpan.FromMilliseconds(options.CircuitBreaker.BreakDurationMs),
                     ShouldHandle = new PredicateBuilder().Handle<DbUpdateException>()
-                                                          .Handle<TimeoutException>()
-                                                          .Handle<InvalidOperationException>(ex =>
-                                                              ex.Message.Contains("connection", StringComparison.OrdinalIgnoreCase) ||
-                                                              ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
+                        .Handle<TimeoutException>()
+                        .Handle<InvalidOperationException>(ex =>
+                            ex.Message.Contains("connection", StringComparison.OrdinalIgnoreCase) ||
+                            ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase))
                 };
 
                 pipelineBuilder.AddCircuitBreaker(circuitBreakerOptions);

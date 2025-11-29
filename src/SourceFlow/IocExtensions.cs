@@ -163,23 +163,23 @@ namespace SourceFlow
                     {
                         return a.GetTypes()
                             .Where(t => interfaceType.IsAssignableFrom(t) &&
-                                       t.IsClass &&
-                                       !t.IsAbstract &&
-                                       t.IsPublic &&
-                                       !t.IsGenericType &&
-                                       !t.ContainsGenericParameters);
+                                t.IsClass &&
+                                !t.IsAbstract &&
+                                t.IsPublic &&
+                                !t.IsGenericType &&
+                                !t.ContainsGenericParameters);
                     }
                     catch (ReflectionTypeLoadException)
                     {
                         // On cases where some types can't be loaded
                         return a.GetTypes()
                             .Where(t => t != null &&
-                                       interfaceType.IsAssignableFrom(t) &&
-                                       t.IsClass &&
-                                       !t.IsAbstract &&
-                                       t.IsPublic &&
-                                       !t.IsGenericType &&
-                                       !t.ContainsGenericParameters);
+                                interfaceType.IsAssignableFrom(t) &&
+                                t.IsClass &&
+                                !t.IsAbstract &&
+                                t.IsPublic &&
+                                !t.IsGenericType &&
+                                !t.ContainsGenericParameters);
                     }
                     catch
                     {

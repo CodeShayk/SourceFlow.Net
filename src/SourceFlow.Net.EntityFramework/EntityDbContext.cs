@@ -74,7 +74,7 @@ namespace SourceFlow.Stores.EntityFramework
                 {
                     var assemblyTypes = assembly.GetTypes()
                         .Where(t => t.IsClass && !t.IsAbstract &&
-                                   t.GetInterfaces().Any(i => i.Name == "IEntity"));
+                            t.GetInterfaces().Any(i => i.Name == "IEntity"));
                     foreach (var type in assemblyTypes)
                     {
                         types.Add(type);
@@ -113,7 +113,7 @@ namespace SourceFlow.Stores.EntityFramework
                 {
                     var types = assembly.GetTypes()
                         .Where(t => t.IsClass && !t.IsAbstract &&
-                                   t.GetInterfaces().Any(i => i.Name == "IEntity"));
+                            t.GetInterfaces().Any(i => i.Name == "IEntity"));
                     foreach (var type in types)
                     {
                         entityTypes.Add(type);
@@ -125,15 +125,15 @@ namespace SourceFlow.Stores.EntityFramework
             // Auto-discover from loaded assemblies (fallback)
             var discoveredTypes = AppDomain.CurrentDomain.GetAssemblies()
                 .Where(a => !a.IsDynamic && !a.FullName?.StartsWith("Microsoft.") == true
-                           && !a.FullName?.StartsWith("System.") == true
-                           && !a.FullName?.StartsWith("netstandard") == true)
+                    && !a.FullName?.StartsWith("System.") == true
+                    && !a.FullName?.StartsWith("netstandard") == true)
                 .SelectMany(a =>
                 {
                     try { return a.GetTypes(); }
                     catch { return Enumerable.Empty<Type>(); }
                 })
                 .Where(t => t.IsClass && !t.IsAbstract &&
-                           t.GetInterfaces().Any(i => i.Name == "IEntity"));
+                    t.GetInterfaces().Any(i => i.Name == "IEntity"));
 
             foreach (var type in discoveredTypes)
             {

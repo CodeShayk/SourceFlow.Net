@@ -45,7 +45,7 @@ namespace SourceFlow.Projections
         /// <param name="event"></param>
         /// <returns></returns>
         public Task Subscribe<TEvent>(TEvent @event)
-           where TEvent : IEvent
+            where TEvent : IEvent
         {
             if (!views.Any())
             {

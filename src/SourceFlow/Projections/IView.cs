@@ -9,6 +9,6 @@ namespace SourceFlow.Projections
     public interface IView
     {
         Task Apply<TEvent>(TEvent @event)
-           where TEvent : IEvent;
+            where TEvent : IEvent;
     }
 }

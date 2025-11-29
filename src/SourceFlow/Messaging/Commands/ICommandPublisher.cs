@@ -14,7 +14,7 @@ namespace SourceFlow.Messaging.Commands
         /// <param name="event"></param>
         /// <returns></returns>
         Task Publish<TCommand>(TCommand command)
-              where TCommand : ICommand;
+            where TCommand : ICommand;
 
         /// <summary>
         /// Replays commands for the specified entity Id.

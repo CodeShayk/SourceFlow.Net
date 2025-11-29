@@ -56,7 +56,7 @@ namespace SourceFlow.Aggregate
                 tasks.Add(eventSubscriber.On(@event));
 
                 logger?.LogInformation("Action=Event_Disptcher_Aggregate, Event={Event}, Aggregate={Aggregate}",
-                       typeof(TEvent).Name, aggregate.GetType().Name);
+                    typeof(TEvent).Name, aggregate.GetType().Name);
             }
 
             return Task.WhenAll(tasks);

@@ -124,10 +124,10 @@ namespace SourceFlow.Stores.EntityFramework.Options
                 return input.Substring(0, input.Length - 1) + "ies";
             }
             else if (input.EndsWith("s", StringComparison.OrdinalIgnoreCase) ||
-                     input.EndsWith("x", StringComparison.OrdinalIgnoreCase) ||
-                     input.EndsWith("z", StringComparison.OrdinalIgnoreCase) ||
-                     input.EndsWith("ch", StringComparison.OrdinalIgnoreCase) ||
-                     input.EndsWith("sh", StringComparison.OrdinalIgnoreCase))
+                input.EndsWith("x", StringComparison.OrdinalIgnoreCase) ||
+                input.EndsWith("z", StringComparison.OrdinalIgnoreCase) ||
+                input.EndsWith("ch", StringComparison.OrdinalIgnoreCase) ||
+                input.EndsWith("sh", StringComparison.OrdinalIgnoreCase))
             {
                 // class -> classes, box -> boxes
                 return input + "es";

@@ -101,7 +101,7 @@ namespace SourceFlow.Stores.EntityFramework.Migrations
                 return null; // Skip complex types
 
             var nullable = Nullable.GetUnderlyingType(property.PropertyType) != null ||
-                          (!propertyType.IsValueType && columnName != "Id");
+                (!propertyType.IsValueType && columnName != "Id");
             var nullConstraint = nullable ? "" : " NOT NULL";
 
             return $@"""{columnName}"" {sqlType}{nullConstraint}";
