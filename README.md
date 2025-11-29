@@ -14,10 +14,17 @@
 SourceFlow.Net empowers developers to build scalable, maintainable applications by providing a complete toolkit for event sourcing, domain modeling, and command/query separation. Built from the ground up for .NET 9.0 with **performance** and **developer experience** as core priorities.
 
 ### Key Features
-* 🏗️ Domain-Driven Design Support
-* ⚡ CQRS Implementation with Command/Query Segregation 
-* 📊 Event-First Design with Event Sourcing Foundation  
-* 🧱 Clean Architecture
+* 🏗️ **Domain-Driven Design Support** - First-class support for aggregates, entities, value objects
+* ⚡ **CQRS Implementation** - Complete command/query separation with optimized read models
+* 📊 **Event Sourcing Foundation** - Event-first design with full audit trail
+* 🧱 **Clean Architecture** - Clear separation of concerns and dependency management
+* 💾 **Flexible Persistence** - Multiple storage options including Entity Framework Core
+* 🔄 **Event Replay** - Built-in command replay for debugging and state reconstruction
+* 🎯 **Type Safety** - Strongly-typed commands, events, and projections
+* 📦 **Dependency Injection** - Seamless integration with .NET DI container
+* 📈 **OpenTelemetry Integration** - Built-in distributed tracing and metrics for operations at scale
+* ⚡ **Memory Optimization** - ArrayPool-based optimization for extreme throughput scenarios
+* 🛡️ **Resilience Patterns** - Polly integration for fault tolerance with retry policies and circuit breakers
 
 ### Core Concepts
 
