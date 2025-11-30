@@ -29,7 +29,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "github", "github", "{F81A2C
 		.github\workflows\Release-CI.yml = .github\workflows\Release-CI.yml
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceFlow.Stores.EntityFramework", "src\SourceFlow.Net.EntityFramework\SourceFlow.Stores.EntityFramework.csproj", "{C8765CB0-C453-0848-D98B-B0CF4E5D986F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceFlow.Stores.EntityFramework", "src\SourceFlow.Stores.EntityFramework\SourceFlow.Stores.EntityFramework.csproj", "{C8765CB0-C453-0848-D98B-B0CF4E5D986F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceFlow.Stores.EntityFramework.Tests", "tests\SourceFlow.Net.EntityFramework.Tests\SourceFlow.Stores.EntityFramework.Tests.csproj", "{C56C4BC2-6BDC-EB3D-FC92-F9633530A501}"
 EndProject

@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\SourceFlow.Net.EntityFramework\SourceFlow.Stores.EntityFramework.csproj" />
+    <ProjectReference Include="..\..\src\SourceFlow.Stores.EntityFramework\SourceFlow.Stores.EntityFramework.csproj" />
   </ItemGroup>
 
 </Project>
