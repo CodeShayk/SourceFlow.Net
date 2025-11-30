@@ -75,6 +75,9 @@ SourceFlow.Net empowers developers to build scalable, maintainable applications 
 #### Architecture
 <img src="https://github.com/CodeShayk/SourceFlow.Net/blob/master/Images/Architecture-Complete.png" alt="architecture" style="width:1200px; hieght:700px"/>
 
+Click on **[Architecture](https://github.com/CodeShayk/SourceFlow.Net/blob/master/docs/Architecture/README.md)** for  more details on how to extend SourceFlow.Net for bespoke requirements.
+
+
 ### RoadMap
 
 | Package | Version | Release Date |Details |.Net Frameworks|
