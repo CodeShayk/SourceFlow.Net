@@ -977,12 +977,21 @@ services.UseSourceFlow(ServiceLifetime.Singleton, assemblies);
 ✅ **Performance** - Parallel processing and pooling optimizations
 ✅ **Observability** - Built-in telemetry and tracing
 ✅ **Cloud Ready** - Easy to add AWS, Azure, or multi-cloud support
+✅ **Comprehensive Testing** - Property-based testing, performance benchmarks, security validation, and resilience testing for cloud integrations
 
 **Extension Points**:
 - Add new dispatchers (cloud messaging)
 - Implement custom stores (NoSQL, cloud storage)
 - Create sagas (business workflows)
 - Create views (read model projections)
+
+**Testing Capabilities**:
+- Property-based testing with FsCheck for universal correctness properties
+- LocalStack and Azurite integration for local development
+- Performance benchmarking with BenchmarkDotNet
+- Security validation including IAM, KMS, and Key Vault testing
+- Resilience testing with circuit breakers and retry policies
+- End-to-end integration testing across cloud services
 
 **Zero Core Modifications Required** for extensions!
 
