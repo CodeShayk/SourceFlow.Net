@@ -23,7 +23,7 @@ public class AwsSnsEventListenerEnhanced : BackgroundService
 {
     private readonly IAmazonSQS _sqsClient;
     private readonly IServiceProvider _serviceProvider;
-    private readonly IAwsEventRoutingConfiguration _routingConfig;
+    private readonly IEventRoutingConfiguration _routingConfig;
     private readonly ILogger<AwsSnsEventListenerEnhanced> _logger;
     private readonly IDomainTelemetryService _domainTelemetry;
     private readonly CloudTelemetry _cloudTelemetry;
@@ -38,7 +38,7 @@ public class AwsSnsEventListenerEnhanced : BackgroundService
     public AwsSnsEventListenerEnhanced(
         IAmazonSQS sqsClient,
         IServiceProvider serviceProvider,
-        IAwsEventRoutingConfiguration routingConfig,
+        IEventRoutingConfiguration routingConfig,
         ILogger<AwsSnsEventListenerEnhanced> logger,
         IDomainTelemetryService domainTelemetry,
         CloudTelemetry cloudTelemetry,

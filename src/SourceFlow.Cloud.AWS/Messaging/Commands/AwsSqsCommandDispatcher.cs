@@ -1,7 +1,7 @@
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Cloud.AWS.Configuration;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Cloud.AWS.Observability;
 using SourceFlow.Messaging.Commands;
 using SourceFlow.Observability;
@@ -12,14 +12,14 @@ namespace SourceFlow.Cloud.AWS.Messaging.Commands;
 public class AwsSqsCommandDispatcher : ICommandDispatcher
 {
     private readonly IAmazonSQS _sqsClient;
-    private readonly IAwsCommandRoutingConfiguration _routingConfig;
+    private readonly ICommandRoutingConfiguration _routingConfig;
     private readonly ILogger<AwsSqsCommandDispatcher> _logger;
     private readonly IDomainTelemetryService _telemetry;
     private readonly JsonSerializerOptions _jsonOptions;
 
     public AwsSqsCommandDispatcher(
         IAmazonSQS sqsClient,
-        IAwsCommandRoutingConfiguration routingConfig,
+        ICommandRoutingConfiguration routingConfig,
         ILogger<AwsSqsCommandDispatcher> logger,
         IDomainTelemetryService telemetry)
     {

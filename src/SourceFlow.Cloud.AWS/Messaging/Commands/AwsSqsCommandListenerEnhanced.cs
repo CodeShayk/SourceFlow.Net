@@ -23,7 +23,7 @@ public class AwsSqsCommandListenerEnhanced : BackgroundService
 {
     private readonly IAmazonSQS _sqsClient;
     private readonly IServiceProvider _serviceProvider;
-    private readonly IAwsCommandRoutingConfiguration _routingConfig;
+    private readonly ICommandRoutingConfiguration _routingConfig;
     private readonly ILogger<AwsSqsCommandListenerEnhanced> _logger;
     private readonly IDomainTelemetryService _domainTelemetry;
     private readonly CloudTelemetry _cloudTelemetry;
@@ -38,7 +38,7 @@ public class AwsSqsCommandListenerEnhanced : BackgroundService
     public AwsSqsCommandListenerEnhanced(
         IAmazonSQS sqsClient,
         IServiceProvider serviceProvider,
-        IAwsCommandRoutingConfiguration routingConfig,
+        ICommandRoutingConfiguration routingConfig,
         ILogger<AwsSqsCommandListenerEnhanced> logger,
         IDomainTelemetryService domainTelemetry,
         CloudTelemetry cloudTelemetry,
@@ -105,7 +105,10 @@ public class AwsSqsCommandListenerEnhanced : BackgroundService
                     MaxNumberOfMessages = _options.SqsMaxNumberOfMessages,
                     WaitTimeSeconds = _options.SqsReceiveWaitTimeSeconds,
                     MessageAttributeNames = new List<string> { "All" },
-                    AttributeNames = new List<string> { "ApproximateReceiveCount" }
+                    AttributeNames = new List<string> { "ApproximateReceiveCount" },
+                    VisibilityTimeout = _options.SqsVisibilityTimeoutSeconds,
+                    MessageSystemAttributeNames = new List<string> { "All" },
+                    ReceiveRequestAttemptId = Guid.NewGuid().ToString() // For FIFO queues to ensure exactly-once processing
                 };
 
                 var response = await _sqsClient.ReceiveMessageAsync(request, cancellationToken);

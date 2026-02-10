@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Cloud.AWS.Configuration;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Cloud.AWS.Observability;
 using SourceFlow.Cloud.Core.Observability;
 using SourceFlow.Cloud.Core.Resilience;
@@ -19,7 +19,7 @@ namespace SourceFlow.Cloud.AWS.Messaging.Commands;
 public class AwsSqsCommandDispatcherEnhanced : ICommandDispatcher
 {
     private readonly IAmazonSQS _sqsClient;
-    private readonly IAwsCommandRoutingConfiguration _routingConfig;
+    private readonly ICommandRoutingConfiguration _routingConfig;
     private readonly ILogger<AwsSqsCommandDispatcherEnhanced> _logger;
     private readonly IDomainTelemetryService _domainTelemetry;
     private readonly CloudTelemetry _cloudTelemetry;
@@ -31,7 +31,7 @@ public class AwsSqsCommandDispatcherEnhanced : ICommandDispatcher
 
     public AwsSqsCommandDispatcherEnhanced(
         IAmazonSQS sqsClient,
-        IAwsCommandRoutingConfiguration routingConfig,
+        ICommandRoutingConfiguration routingConfig,
         ILogger<AwsSqsCommandDispatcherEnhanced> logger,
         IDomainTelemetryService domainTelemetry,
         CloudTelemetry cloudTelemetry,
@@ -134,7 +134,15 @@ public class AwsSqsCommandDispatcherEnhanced : ICommandDispatcher
                     QueueUrl = queueUrl,
                     MessageBody = messageBody,
                     MessageAttributes = messageAttributes,
-                    MessageGroupId = command.Entity?.Id.ToString() ?? Guid.NewGuid().ToString()
+                    MessageGroupId = command.Entity?.Id.ToString() ?? Guid.NewGuid().ToString(),
+                    MessageSystemAttributes = new Dictionary<string, MessageSystemAttributeValue>
+                    {
+                        ["AWSTraceHeader"] = new MessageSystemAttributeValue
+                        {
+                            DataType = "String",
+                            StringValue = activity?.Id
+                        }
+                    }
                 };
 
                 // Send to SQS

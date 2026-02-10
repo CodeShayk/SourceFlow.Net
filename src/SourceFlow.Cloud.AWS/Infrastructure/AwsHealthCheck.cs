@@ -1,7 +1,7 @@
 using Amazon.SQS;
 using Amazon.SimpleNotificationService;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using SourceFlow.Cloud.AWS.Configuration;
+using SourceFlow.Cloud.Core.Configuration;
 
 namespace SourceFlow.Cloud.AWS.Infrastructure;
 
@@ -9,14 +9,14 @@ public class AwsHealthCheck : IHealthCheck
 {
     private readonly IAmazonSQS _sqsClient;
     private readonly IAmazonSimpleNotificationService _snsClient;
-    private readonly IAwsCommandRoutingConfiguration _commandRoutingConfig;
-    private readonly IAwsEventRoutingConfiguration _eventRoutingConfig;
+    private readonly ICommandRoutingConfiguration _commandRoutingConfig;
+    private readonly IEventRoutingConfiguration _eventRoutingConfig;
 
     public AwsHealthCheck(
         IAmazonSQS sqsClient,
         IAmazonSimpleNotificationService snsClient,
-        IAwsCommandRoutingConfiguration commandRoutingConfig,
-        IAwsEventRoutingConfiguration eventRoutingConfig)
+        ICommandRoutingConfiguration commandRoutingConfig,
+        IEventRoutingConfiguration eventRoutingConfig)
     {
         _sqsClient = sqsClient;
         _snsClient = snsClient;

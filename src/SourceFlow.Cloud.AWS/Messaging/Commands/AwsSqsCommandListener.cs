@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Cloud.AWS.Configuration;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Messaging.Commands;
 using System.Text.Json;
 
@@ -13,7 +14,7 @@ public class AwsSqsCommandListener : BackgroundService
 {
     private readonly IAmazonSQS _sqsClient;
     private readonly IServiceProvider _serviceProvider;
-    private readonly IAwsCommandRoutingConfiguration _routingConfig;
+    private readonly ICommandRoutingConfiguration _routingConfig;
     private readonly ILogger<AwsSqsCommandListener> _logger;
     private readonly AwsOptions _options;
     private readonly JsonSerializerOptions _jsonOptions;
@@ -21,7 +22,7 @@ public class AwsSqsCommandListener : BackgroundService
     public AwsSqsCommandListener(
         IAmazonSQS sqsClient,
         IServiceProvider serviceProvider,
-        IAwsCommandRoutingConfiguration routingConfig,
+        ICommandRoutingConfiguration routingConfig,
         ILogger<AwsSqsCommandListener> logger,
         AwsOptions options)
     {
@@ -70,7 +71,8 @@ public class AwsSqsCommandListener : BackgroundService
                     QueueUrl = queueUrl,
                     MaxNumberOfMessages = _options.SqsMaxNumberOfMessages,
                     WaitTimeSeconds = _options.SqsReceiveWaitTimeSeconds,
-                    MessageAttributeNames = new List<string> { "All" }
+                    MessageAttributeNames = new List<string> { "All" },
+                    VisibilityTimeout = _options.SqsVisibilityTimeoutSeconds,                    
                 };
 
                 var response = await _sqsClient.ReceiveMessageAsync(request, cancellationToken);

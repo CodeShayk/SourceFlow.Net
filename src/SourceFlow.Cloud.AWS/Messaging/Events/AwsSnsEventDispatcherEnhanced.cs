@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Cloud.AWS.Configuration;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Cloud.AWS.Observability;
 using SourceFlow.Cloud.Core.Observability;
 using SourceFlow.Cloud.Core.Resilience;
@@ -19,7 +19,7 @@ namespace SourceFlow.Cloud.AWS.Messaging.Events;
 public class AwsSnsEventDispatcherEnhanced : IEventDispatcher
 {
     private readonly IAmazonSimpleNotificationService _snsClient;
-    private readonly IAwsEventRoutingConfiguration _routingConfig;
+    private readonly IEventRoutingConfiguration _routingConfig;
     private readonly ILogger<AwsSnsEventDispatcherEnhanced> _logger;
     private readonly IDomainTelemetryService _domainTelemetry;
     private readonly CloudTelemetry _cloudTelemetry;
@@ -31,7 +31,7 @@ public class AwsSnsEventDispatcherEnhanced : IEventDispatcher
 
     public AwsSnsEventDispatcherEnhanced(
         IAmazonSimpleNotificationService snsClient,
-        IAwsEventRoutingConfiguration routingConfig,
+        IEventRoutingConfiguration routingConfig,
         ILogger<AwsSnsEventDispatcherEnhanced> logger,
         IDomainTelemetryService domainTelemetry,
         CloudTelemetry cloudTelemetry,

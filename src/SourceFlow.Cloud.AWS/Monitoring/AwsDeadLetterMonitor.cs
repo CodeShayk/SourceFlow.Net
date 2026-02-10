@@ -125,7 +125,10 @@ public class AwsDeadLetterMonitor : BackgroundService
                 MaxNumberOfMessages = Math.Min(_options.BatchSize, 10), // AWS max is 10
                 WaitTimeSeconds = 0, // Short polling for DLQ monitoring
                 MessageAttributeNames = new List<string> { "All" },
-                AttributeNames = new List<string> { "All" }
+                AttributeNames = new List<string> { "All" },
+                VisibilityTimeout = 30, // Short visibility timeout for monitoring
+                MessageSystemAttributeNames = new List<string> { "All" },
+                ReceiveRequestAttemptId = Guid.NewGuid().ToString() // Unique ID for this receive attempt
             };
 
             var receiveResponse = await _sqsClient.ReceiveMessageAsync(receiveRequest, cancellationToken);

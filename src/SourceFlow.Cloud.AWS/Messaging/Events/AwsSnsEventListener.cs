@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Cloud.AWS.Configuration;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Messaging.Events;
 using System.Text.Json;
 
@@ -13,7 +14,7 @@ public class AwsSnsEventListener : BackgroundService
 {
     private readonly IAmazonSQS _sqsClient;
     private readonly IServiceProvider _serviceProvider;
-    private readonly IAwsEventRoutingConfiguration _routingConfig;
+    private readonly IEventRoutingConfiguration _routingConfig;
     private readonly ILogger<AwsSnsEventListener> _logger;
     private readonly AwsOptions _options;
     private readonly JsonSerializerOptions _jsonOptions;
@@ -21,7 +22,7 @@ public class AwsSnsEventListener : BackgroundService
     public AwsSnsEventListener(
         IAmazonSQS sqsClient,
         IServiceProvider serviceProvider,
-        IAwsEventRoutingConfiguration routingConfig,
+        IEventRoutingConfiguration routingConfig,
         ILogger<AwsSnsEventListener> logger,
         AwsOptions options)
     {
