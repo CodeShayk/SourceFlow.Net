@@ -1,13 +1,13 @@
-using Azure.Messaging.ServiceBus;
 using Azure.Identity;
-using Microsoft.Extensions.DependencyInjection;
+using Azure.Messaging.ServiceBus;
+using Azure.Messaging.ServiceBus.Administration;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using SourceFlow.Cloud.Azure.Configuration;
 using SourceFlow.Cloud.Azure.Infrastructure;
 using SourceFlow.Cloud.Azure.Messaging.Commands;
 using SourceFlow.Cloud.Azure.Messaging.Events;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Messaging.Commands;
 using SourceFlow.Messaging.Events;
 
@@ -17,7 +17,8 @@ public static class AzureIocExtensions
 {
     public static void UseSourceFlowAzure(
         this IServiceCollection services,
-        Action<AzureOptions> configureOptions)
+        Action<AzureOptions> configureOptions,
+        Action<BusConfigurationBuilder> configureBus)
     {
         // 1. Configure options
         services.Configure(configureOptions);
@@ -29,13 +30,11 @@ public static class AzureIocExtensions
         {
             var config = sp.GetRequiredService<IConfiguration>();
 
-            // Support both connection string and managed identity
             var connectionString = config["SourceFlow:Azure:ServiceBus:ConnectionString"];
             var fullyQualifiedNamespace = config["SourceFlow:Azure:ServiceBus:FullyQualifiedNamespace"];
 
             if (!string.IsNullOrEmpty(connectionString))
             {
-                // Use connection string
                 return new ServiceBusClient(connectionString, new ServiceBusClientOptions
                 {
                     RetryOptions = new ServiceBusRetryOptions
@@ -50,7 +49,6 @@ public static class AzureIocExtensions
             }
             else if (!string.IsNullOrEmpty(fullyQualifiedNamespace))
             {
-                // Use managed identity with DefaultAzureCredential
                 return new ServiceBusClient(
                     fullyQualifiedNamespace,
                     new DefaultAzureCredential(),
@@ -73,24 +71,54 @@ public static class AzureIocExtensions
             }
         });
 
-        // 3. Register routing configurations
-        services.AddSingleton<IAzureCommandRoutingConfiguration,
-            ConfigurationBasedAzureCommandRouting>();
-        services.AddSingleton<IAzureEventRoutingConfiguration,
-            ConfigurationBasedAzureEventRouting>();
+        // 3. Register Azure Service Bus Administration client
+        services.AddSingleton(sp =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
 
-        // 4. Register Azure dispatchers
+            var connectionString = config["SourceFlow:Azure:ServiceBus:ConnectionString"];
+            var fullyQualifiedNamespace = config["SourceFlow:Azure:ServiceBus:FullyQualifiedNamespace"];
+
+            if (!string.IsNullOrEmpty(connectionString))
+            {
+                return new ServiceBusAdministrationClient(connectionString);
+            }
+            else if (!string.IsNullOrEmpty(fullyQualifiedNamespace))
+            {
+                return new ServiceBusAdministrationClient(fullyQualifiedNamespace, new DefaultAzureCredential());
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "Either SourceFlow:Azure:ServiceBus:ConnectionString or SourceFlow:Azure:ServiceBus:FullyQualifiedNamespace must be configured");
+            }
+        });
+
+        // 4. Build BusConfiguration from the fluent builder
+        var busBuilder = new BusConfigurationBuilder();
+        configureBus(busBuilder);
+        var busConfig = busBuilder.Build();
+
+        services.AddSingleton(busConfig);
+        services.AddSingleton<ICommandRoutingConfiguration>(busConfig);
+        services.AddSingleton<IEventRoutingConfiguration>(busConfig);
+        services.AddSingleton<IBusBootstrapConfiguration>(busConfig);
+
+        // 5. Register bootstrapper as hosted service
+        services.AddHostedService<AzureBusBootstrapper>();
+
+        // 6. Register Azure dispatchers
         services.AddScoped<ICommandDispatcher, AzureServiceBusCommandDispatcher>();
         services.AddSingleton<IEventDispatcher, AzureServiceBusEventDispatcher>();
 
-        // 5. Register Azure listeners as hosted services
+        // 7. Register Azure listeners as hosted services
         if (options.EnableCommandListener)
             services.AddHostedService<AzureServiceBusCommandListener>();
 
         if (options.EnableEventListener)
             services.AddHostedService<AzureServiceBusEventListener>();
 
-        // 6. Register health check
+        // 8. Register health check
         services.AddHealthChecks()
             .AddCheck<AzureServiceBusHealthCheck>(
                 "azure-servicebus",

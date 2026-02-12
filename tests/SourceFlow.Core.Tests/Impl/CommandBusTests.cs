@@ -33,28 +33,36 @@ namespace SourceFlow.Core.Tests.Impl
                 new[] { commandDispatcherMock.Object },
                 commandStoreMock.Object,
                 loggerMock.Object,
-                telemetryMock.Object);
+                telemetryMock.Object,
+                Enumerable.Empty<ICommandDispatchMiddleware>());
         }
 
         [Test]
         public void Constructor_NullCommandStore_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new CommandBus(new[] { commandDispatcherMock.Object }, null, loggerMock.Object, telemetryMock.Object));
+                new CommandBus(new[] { commandDispatcherMock.Object }, null, loggerMock.Object, telemetryMock.Object, Enumerable.Empty<ICommandDispatchMiddleware>()));
         }
 
         [Test]
         public void Constructor_NullLogger_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new CommandBus(new[] { commandDispatcherMock.Object }, commandStoreMock.Object, null, telemetryMock.Object));
+                new CommandBus(new[] { commandDispatcherMock.Object }, commandStoreMock.Object, null, telemetryMock.Object, Enumerable.Empty<ICommandDispatchMiddleware>()));
         }
 
         [Test]
         public void Constructor_NullCommandDispatcher_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new CommandBus(null, commandStoreMock.Object, loggerMock.Object, telemetryMock.Object));
+                new CommandBus(null, commandStoreMock.Object, loggerMock.Object, telemetryMock.Object, Enumerable.Empty<ICommandDispatchMiddleware>()));
+        }
+
+        [Test]
+        public void Constructor_NullMiddleware_ThrowsArgumentNullException()
+        {
+            Assert.Throws<ArgumentNullException>(() =>
+                new CommandBus(new[] { commandDispatcherMock.Object }, commandStoreMock.Object, loggerMock.Object, telemetryMock.Object, null));
         }
 
         [Test]
@@ -246,6 +254,125 @@ namespace SourceFlow.Core.Tests.Impl
 
             // Assert
             commandStoreMock.Verify(cs => cs.Append(It.IsAny<ICommand>()), Times.Never);
+        }
+
+        [Test]
+        public async Task Publish_WithMiddleware_ExecutesMiddlewareAroundCoreLogic()
+        {
+            // Arrange
+            var callOrder = new List<string>();
+            var middlewareMock = new Mock<ICommandDispatchMiddleware>();
+            middlewareMock
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyCommand>(), It.IsAny<Func<DummyCommand, Task>>()))
+                .Returns<DummyCommand, Func<DummyCommand, Task>>(async (cmd, next) =>
+                {
+                    callOrder.Add("middleware-before");
+                    await next(cmd);
+                    callOrder.Add("middleware-after");
+                });
+
+            commandDispatcherMock.Setup(cd => cd.Dispatch(It.IsAny<DummyCommand>()))
+                .Callback(() => callOrder.Add("dispatch"))
+                .Returns(Task.CompletedTask);
+
+            commandStoreMock.Setup(cs => cs.GetNextSequenceNo(It.IsAny<int>())).ReturnsAsync(1);
+
+            var bus = new CommandBus(
+                new[] { commandDispatcherMock.Object },
+                commandStoreMock.Object,
+                loggerMock.Object,
+                telemetryMock.Object,
+                new[] { middlewareMock.Object });
+
+            // Act
+            await ((ICommandBus)bus).Publish(new DummyCommand());
+
+            // Assert
+            Assert.That(callOrder[0], Is.EqualTo("middleware-before"));
+            Assert.That(callOrder[1], Is.EqualTo("dispatch"));
+            Assert.That(callOrder[2], Is.EqualTo("middleware-after"));
+        }
+
+        [Test]
+        public async Task Publish_WithMultipleMiddleware_ExecutesInRegistrationOrder()
+        {
+            // Arrange
+            var callOrder = new List<string>();
+
+            var middleware1 = new Mock<ICommandDispatchMiddleware>();
+            middleware1
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyCommand>(), It.IsAny<Func<DummyCommand, Task>>()))
+                .Returns<DummyCommand, Func<DummyCommand, Task>>(async (cmd, next) =>
+                {
+                    callOrder.Add("m1-before");
+                    await next(cmd);
+                    callOrder.Add("m1-after");
+                });
+
+            var middleware2 = new Mock<ICommandDispatchMiddleware>();
+            middleware2
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyCommand>(), It.IsAny<Func<DummyCommand, Task>>()))
+                .Returns<DummyCommand, Func<DummyCommand, Task>>(async (cmd, next) =>
+                {
+                    callOrder.Add("m2-before");
+                    await next(cmd);
+                    callOrder.Add("m2-after");
+                });
+
+            commandStoreMock.Setup(cs => cs.GetNextSequenceNo(It.IsAny<int>())).ReturnsAsync(1);
+
+            var bus = new CommandBus(
+                new[] { commandDispatcherMock.Object },
+                commandStoreMock.Object,
+                loggerMock.Object,
+                telemetryMock.Object,
+                new ICommandDispatchMiddleware[] { middleware1.Object, middleware2.Object });
+
+            // Act
+            await ((ICommandBus)bus).Publish(new DummyCommand());
+
+            // Assert
+            Assert.That(callOrder, Is.EqualTo(new[] { "m1-before", "m2-before", "m2-after", "m1-after" }));
+        }
+
+        [Test]
+        public async Task Publish_MiddlewareShortCircuits_DoesNotCallCoreLogic()
+        {
+            // Arrange
+            var middlewareMock = new Mock<ICommandDispatchMiddleware>();
+            middlewareMock
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyCommand>(), It.IsAny<Func<DummyCommand, Task>>()))
+                .Returns(Task.CompletedTask); // Does NOT call next
+
+            var bus = new CommandBus(
+                new[] { commandDispatcherMock.Object },
+                commandStoreMock.Object,
+                loggerMock.Object,
+                telemetryMock.Object,
+                new[] { middlewareMock.Object });
+
+            // Act
+            await ((ICommandBus)bus).Publish(new DummyCommand());
+
+            // Assert
+            commandDispatcherMock.Verify(cd => cd.Dispatch(It.IsAny<DummyCommand>()), Times.Never);
+            commandStoreMock.Verify(cs => cs.Append(It.IsAny<ICommand>()), Times.Never);
+        }
+
+        [Test]
+        public async Task Publish_NoMiddleware_ExecutesCoreLogicDirectly()
+        {
+            // Arrange
+            commandStoreMock.Setup(cs => cs.GetNextSequenceNo(It.IsAny<int>())).ReturnsAsync(1);
+            var command = new DummyCommand();
+
+            // Act
+            ICommandBus bus = commandBus;
+            await bus.Publish(command);
+
+            // Assert
+            commandDispatcherMock.Verify(cd => cd.Dispatch(command), Times.Once);
+            commandStoreMock.Verify(cs => cs.Append(command), Times.Once);
         }
     }
 }

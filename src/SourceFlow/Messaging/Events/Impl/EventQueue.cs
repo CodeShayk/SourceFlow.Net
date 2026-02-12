@@ -28,17 +28,24 @@ namespace SourceFlow.Messaging.Events.Impl
         private readonly IDomainTelemetryService telemetry;
 
         /// <summary>
+        /// Middleware pipeline components for event dispatch.
+        /// </summary>
+        private readonly IEnumerable<IEventDispatchMiddleware> middlewares;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="EventQueue"/> class with the specified logger.
         /// </summary>
-        /// <param name="eventDispatcher"></param>
+        /// <param name="eventDispatchers"></param>
         /// <param name="logger"></param>
         /// <param name="telemetry"></param>
+        /// <param name="middlewares"></param>
         /// <exception cref="ArgumentNullException"></exception>
-        public EventQueue(IEnumerable<IEventDispatcher> eventDispatchers, ILogger<IEventQueue> logger, IDomainTelemetryService telemetry)
+        public EventQueue(IEnumerable<IEventDispatcher> eventDispatchers, ILogger<IEventQueue> logger, IDomainTelemetryService telemetry, IEnumerable<IEventDispatchMiddleware> middlewares)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.eventDispatchers = eventDispatchers ?? throw new ArgumentNullException(nameof(eventDispatchers));
             this.telemetry = telemetry ?? throw new ArgumentNullException(nameof(telemetry));
+            this.middlewares = middlewares ?? throw new ArgumentNullException(nameof(middlewares));
         }
 
         /// <summary>
@@ -57,18 +64,36 @@ namespace SourceFlow.Messaging.Events.Impl
                 "sourceflow.eventqueue.enqueue",
                 async () =>
                 {
-                    var tasks = new List<Task>();
-                    foreach (var eventDispatcher in eventDispatchers)
-                        tasks.Add(DispatchEvent(@event, eventDispatcher));
+                    // Build the middleware pipeline: chain from last to first,
+                    // with CoreEnqueue as the innermost delegate.
+                    Func<TEvent, Task> pipeline = CoreEnqueue;
 
-                    if (tasks.Any())
-                        await Task.WhenAll(tasks);
+                    foreach (var middleware in middlewares.Reverse())
+                    {
+                        var next = pipeline;
+                        pipeline = evt => middleware.InvokeAsync(evt, next);
+                    }
+
+                    await pipeline(@event);
                 },
                 activity =>
                 {
                     activity?.SetTag("event.type", @event.GetType().Name);
                     activity?.SetTag("event.name", @event.Name);
                 });
+        }
+
+        /// <summary>
+        /// Core enqueue logic: dispatches the event to all registered event dispatchers.
+        /// </summary>
+        private async Task CoreEnqueue<TEvent>(TEvent @event) where TEvent : IEvent
+        {
+            var tasks = new List<Task>();
+            foreach (var eventDispatcher in eventDispatchers)
+                tasks.Add(DispatchEvent(@event, eventDispatcher));
+
+            if (tasks.Any())
+                await Task.WhenAll(tasks);
         }
 
         private Task DispatchEvent<TEvent>(TEvent @event, IEventDispatcher eventDispatcher) where TEvent : IEvent

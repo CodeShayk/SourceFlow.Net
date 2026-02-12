@@ -2,10 +2,10 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging;
 using Moq;
-using SourceFlow.Cloud.AWS.Configuration;
 using SourceFlow.Cloud.AWS.Messaging.Commands;
 using SourceFlow.Cloud.AWS.Observability;
 using SourceFlow.Cloud.AWS.Tests.TestHelpers;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Observability;
 
 namespace SourceFlow.Cloud.AWS.Tests.Unit;
@@ -13,7 +13,7 @@ namespace SourceFlow.Cloud.AWS.Tests.Unit;
 public class AwsSqsCommandDispatcherTests
 {
     private readonly Mock<IAmazonSQS> _mockSqsClient;
-    private readonly Mock<IAwsCommandRoutingConfiguration> _mockRoutingConfig;
+    private readonly Mock<ICommandRoutingConfiguration> _mockRoutingConfig;
     private readonly Mock<ILogger<AwsSqsCommandDispatcher>> _mockLogger;
     private readonly Mock<IDomainTelemetryService> _mockTelemetry;
     private readonly AwsSqsCommandDispatcher _dispatcher;
@@ -21,7 +21,7 @@ public class AwsSqsCommandDispatcherTests
     public AwsSqsCommandDispatcherTests()
     {
         _mockSqsClient = new Mock<IAmazonSQS>();
-        _mockRoutingConfig = new Mock<IAwsCommandRoutingConfiguration>();
+        _mockRoutingConfig = new Mock<ICommandRoutingConfiguration>();
         _mockLogger = new Mock<ILogger<AwsSqsCommandDispatcher>>();
         _mockTelemetry = new Mock<IDomainTelemetryService>();
 
@@ -37,7 +37,7 @@ public class AwsSqsCommandDispatcherTests
     {
         // Arrange
         var command = new TestCommand();
-        _mockRoutingConfig.Setup(x => x.ShouldRouteToAws<TestCommand>()).Returns(false);
+        _mockRoutingConfig.Setup(x => x.ShouldRoute<TestCommand>()).Returns(false);
 
         // Act
         await _dispatcher.Dispatch(command);
@@ -53,8 +53,8 @@ public class AwsSqsCommandDispatcherTests
         var command = new TestCommand();
         var queueUrl = "https://sqs.us-east-1.amazonaws.com/123456/test-queue";
 
-        _mockRoutingConfig.Setup(x => x.ShouldRouteToAws<TestCommand>()).Returns(true);
-        _mockRoutingConfig.Setup(x => x.GetQueueUrl<TestCommand>()).Returns(queueUrl);
+        _mockRoutingConfig.Setup(x => x.ShouldRoute<TestCommand>()).Returns(true);
+        _mockRoutingConfig.Setup(x => x.GetQueueName<TestCommand>()).Returns(queueUrl);
 
         _mockSqsClient.Setup(x => x.SendMessageAsync(It.IsAny<SendMessageRequest>(), default))
             .ReturnsAsync(new SendMessageResponse());
@@ -80,8 +80,8 @@ public class AwsSqsCommandDispatcherTests
         var command = new TestCommand();
         var queueUrl = "https://sqs.us-east-1.amazonaws.com/123456/test-queue";
 
-        _mockRoutingConfig.Setup(x => x.ShouldRouteToAws<TestCommand>()).Returns(true);
-        _mockRoutingConfig.Setup(x => x.GetQueueUrl<TestCommand>()).Returns(queueUrl);
+        _mockRoutingConfig.Setup(x => x.ShouldRoute<TestCommand>()).Returns(true);
+        _mockRoutingConfig.Setup(x => x.GetQueueName<TestCommand>()).Returns(queueUrl);
 
         _mockSqsClient.Setup(x => x.SendMessageAsync(It.IsAny<SendMessageRequest>(), default))
             .ReturnsAsync(new SendMessageResponse());
@@ -102,8 +102,8 @@ public class AwsSqsCommandDispatcherTests
         var command = new TestCommand();
         var queueUrl = "https://sqs.us-east-1.amazonaws.com/123456/test-queue";
 
-        _mockRoutingConfig.Setup(x => x.ShouldRouteToAws<TestCommand>()).Returns(true);
-        _mockRoutingConfig.Setup(x => x.GetQueueUrl<TestCommand>()).Returns(queueUrl);
+        _mockRoutingConfig.Setup(x => x.ShouldRoute<TestCommand>()).Returns(true);
+        _mockRoutingConfig.Setup(x => x.GetQueueName<TestCommand>()).Returns(queueUrl);
 
         _mockSqsClient.Setup(x => x.SendMessageAsync(It.IsAny<SendMessageRequest>(), default))
             .ThrowsAsync(new Exception("SQS error"));

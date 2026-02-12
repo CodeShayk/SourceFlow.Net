@@ -7,12 +7,12 @@ public interface IEventRoutingConfiguration
     /// <summary>
     /// Determines if an event type should be routed to a remote broker.
     /// </summary>
-    bool ShouldRouteToAws<TEvent>() where TEvent : IEvent;
+    bool ShouldRoute<TEvent>() where TEvent : IEvent;
 
     /// <summary>
-    /// Gets the topic ARN for an event type.
+    /// Gets the topic name (or full ARN after bootstrap resolution) for an event type.
     /// </summary>
-    string GetTopicArn<TEvent>() where TEvent : IEvent;
+    string GetTopicName<TEvent>() where TEvent : IEvent;
 
     /// <summary>
     /// Gets all queue URLs this service listens to for inbound events.

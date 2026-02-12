@@ -4,7 +4,6 @@ using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
-using SourceFlow.Cloud.Azure.Configuration;
 using SourceFlow.Cloud.Azure.Messaging.Serialization;
 using SourceFlow.Cloud.Azure.Observability;
 using SourceFlow.Cloud.Core.Configuration;
@@ -17,13 +16,14 @@ using SourceFlow.Observability;
 namespace SourceFlow.Cloud.Azure.Messaging.Events;
 
 /// <summary>
-/// Enhanced Azure Service Bus Event Listener with idempotency, tracing, metrics, and dead letter handling
+/// Enhanced Azure Service Bus Event Listener with idempotency, tracing, metrics, and dead letter handling.
+/// Listens on queues that receive auto-forwarded messages from topic subscriptions.
 /// </summary>
 public class AzureServiceBusEventListenerEnhanced : BackgroundService
 {
     private readonly ServiceBusClient _serviceBusClient;
     private readonly IServiceProvider _serviceProvider;
-    private readonly IAzureEventRoutingConfiguration _routingConfig;
+    private readonly IEventRoutingConfiguration _routingConfig;
     private readonly ILogger<AzureServiceBusEventListenerEnhanced> _logger;
     private readonly CloudTelemetry _cloudTelemetry;
     private readonly CloudMetrics _cloudMetrics;
@@ -37,7 +37,7 @@ public class AzureServiceBusEventListenerEnhanced : BackgroundService
     public AzureServiceBusEventListenerEnhanced(
         ServiceBusClient serviceBusClient,
         IServiceProvider serviceProvider,
-        IAzureEventRoutingConfiguration routingConfig,
+        IEventRoutingConfiguration routingConfig,
         ILogger<AzureServiceBusEventListenerEnhanced> logger,
         CloudTelemetry cloudTelemetry,
         CloudMetrics cloudMetrics,
@@ -62,20 +62,20 @@ public class AzureServiceBusEventListenerEnhanced : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var subscriptions = _routingConfig.GetListeningSubscriptions();
+        var queueNames = _routingConfig.GetListeningQueues();
 
-        if (!subscriptions.Any())
+        if (!queueNames.Any())
         {
-            _logger.LogWarning("No Azure Service Bus subscriptions configured for listening");
+            _logger.LogWarning("No Azure Service Bus queues configured for event listening");
             return;
         }
 
-        _logger.LogInformation("Starting Azure Service Bus event listener for {Count} subscriptions",
-            subscriptions.Count());
+        _logger.LogInformation("Starting Azure Service Bus event listener for {Count} queues",
+            queueNames.Count());
 
-        foreach (var (topicName, subscriptionName) in subscriptions)
+        foreach (var queueName in queueNames)
         {
-            var processor = _serviceBusClient.CreateProcessor(topicName, subscriptionName,
+            var processor = _serviceBusClient.CreateProcessor(queueName,
                 new ServiceBusProcessorOptions
                 {
                     MaxConcurrentCalls = 10,
@@ -85,21 +85,20 @@ public class AzureServiceBusEventListenerEnhanced : BackgroundService
 
             processor.ProcessMessageAsync += async args =>
             {
-                await ProcessMessage(args, topicName, subscriptionName, stoppingToken);
+                await ProcessMessage(args, queueName, stoppingToken);
             };
 
             processor.ProcessErrorAsync += async args =>
             {
                 _logger.LogError(args.Exception,
-                    "Error processing event from topic: {Topic}/{Subscription}",
-                    topicName, subscriptionName);
+                    "Error processing event from queue: {Queue}",
+                    queueName);
             };
 
             await processor.StartProcessingAsync(stoppingToken);
             _processors.Add(processor);
 
-            _logger.LogInformation("Started listening to topic: {Topic}/{Subscription}",
-                topicName, subscriptionName);
+            _logger.LogInformation("Started listening to queue for events: {Queue}", queueName);
         }
 
         await Task.Delay(Timeout.Infinite, stoppingToken);
@@ -107,8 +106,7 @@ public class AzureServiceBusEventListenerEnhanced : BackgroundService
 
     private async Task ProcessMessage(
         ProcessMessageEventArgs args,
-        string topicName,
-        string subscriptionName,
+        string queueName,
         CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
@@ -149,7 +147,7 @@ public class AzureServiceBusEventListenerEnhanced : BackgroundService
 
             activity = _cloudTelemetry.StartEventReceive(
                 eventTypeName,
-                $"{topicName}/{subscriptionName}",
+                queueName,
                 "azure",
                 traceParent,
                 sequenceNo);
@@ -218,11 +216,11 @@ public class AzureServiceBusEventListenerEnhanced : BackgroundService
 
             sw.Stop();
             _cloudTelemetry.RecordSuccess(activity, sw.ElapsedMilliseconds);
-            _cloudMetrics.RecordEventReceived(eventTypeName, $"{topicName}/{subscriptionName}", "azure");
+            _cloudMetrics.RecordEventReceived(eventTypeName, queueName, "azure");
 
             _logger.LogInformation(
-                "Event processed: {EventType} -> {Topic}/{Subscription}, Duration: {Duration}ms, Event: {Event}",
-                eventTypeName, topicName, subscriptionName, sw.ElapsedMilliseconds, _dataMasker.Mask(@event));
+                "Event processed: {EventType} -> {Queue}, Duration: {Duration}ms, Event: {Event}",
+                eventTypeName, queueName, sw.ElapsedMilliseconds, _dataMasker.Mask(@event));
         }
         catch (Exception ex)
         {
@@ -232,7 +230,7 @@ public class AzureServiceBusEventListenerEnhanced : BackgroundService
 
             if (args.Message.DeliveryCount >= 3)
             {
-                await CreateDeadLetterRecord(args.Message, topicName, subscriptionName,
+                await CreateDeadLetterRecord(args.Message, queueName,
                     "ProcessingFailure", ex.Message, ex);
             }
 
@@ -246,8 +244,7 @@ public class AzureServiceBusEventListenerEnhanced : BackgroundService
 
     private async Task CreateDeadLetterRecord(
         ServiceBusReceivedMessage message,
-        string topicName,
-        string subscriptionName,
+        string queueName,
         string reason,
         string errorDescription,
         Exception? exception = null)
@@ -263,8 +260,8 @@ public class AzureServiceBusEventListenerEnhanced : BackgroundService
                     : "Unknown",
                 Reason = reason,
                 ErrorDescription = errorDescription,
-                OriginalSource = $"{topicName}/{subscriptionName}",
-                DeadLetterSource = $"{topicName}/{subscriptionName}/$DeadLetterQueue",
+                OriginalSource = queueName,
+                DeadLetterSource = $"{queueName}/$DeadLetterQueue",
                 CloudProvider = "azure",
                 DeadLetteredAt = DateTime.UtcNow,
                 DeliveryCount = (int)message.DeliveryCount,

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using SourceFlow.Messaging.Commands;
 using SourceFlow.Saga;
+using System.Linq;
 
 namespace SourceFlow.Core.Tests.Impl
 {
@@ -13,7 +14,7 @@ namespace SourceFlow.Core.Tests.Impl
         {
             var logger = new Mock<ILogger<ICommandSubscriber>>().Object;
             var sagas = new Mock<IEnumerable<ISaga>>().Object;
-            var dispatcher = new CommandSubscriber(sagas, logger);
+            var dispatcher = new CommandSubscriber(sagas, logger, Enumerable.Empty<ICommandSubscribeMiddleware>());
             Assert.IsNotNull(dispatcher);
         }
 
@@ -24,7 +25,7 @@ namespace SourceFlow.Core.Tests.Impl
             // Use an empty list instead of a mock to avoid null reference issues
             var sagas = new List<ISaga>();
 
-            var dispatcher = new CommandSubscriber(sagas, loggerMock.Object);
+            var dispatcher = new CommandSubscriber(sagas, loggerMock.Object, Enumerable.Empty<ICommandSubscribeMiddleware>());
             var commandMock = new DummyCommand();
 
             await dispatcher.Subscribe(commandMock);

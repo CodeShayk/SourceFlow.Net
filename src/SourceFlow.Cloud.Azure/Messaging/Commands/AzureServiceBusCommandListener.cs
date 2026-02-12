@@ -3,8 +3,8 @@ using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
-using SourceFlow.Cloud.Azure.Configuration;
 using SourceFlow.Cloud.Azure.Messaging.Serialization;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Cloud.Azure.Messaging.Commands;
@@ -13,14 +13,14 @@ public class AzureServiceBusCommandListener : BackgroundService
 {
     private readonly ServiceBusClient serviceBusClient;
     private readonly IServiceProvider serviceProvider;
-    private readonly IAzureCommandRoutingConfiguration routingConfig;
+    private readonly ICommandRoutingConfiguration routingConfig;
     private readonly ILogger<AzureServiceBusCommandListener> logger;
     private readonly List<ServiceBusProcessor> processors;
 
     public AzureServiceBusCommandListener(
         ServiceBusClient serviceBusClient,
         IServiceProvider serviceProvider,
-        IAzureCommandRoutingConfiguration routingConfig,
+        ICommandRoutingConfiguration routingConfig,
         ILogger<AzureServiceBusCommandListener> logger)
     {
         this.serviceBusClient = serviceBusClient;

@@ -59,11 +59,11 @@ public class AwsSqsCommandDispatcherEnhanced : ICommandDispatcher
     public async Task Dispatch<TCommand>(TCommand command) where TCommand : ICommand
     {
         // Check if this command type should be routed to AWS
-        if (!_routingConfig.ShouldRouteToAws<TCommand>())
+        if (!_routingConfig.ShouldRoute<TCommand>())
             return;
 
         var commandType = typeof(TCommand).Name;
-        var queueUrl = _routingConfig.GetQueueUrl<TCommand>();
+        var queueUrl = _routingConfig.GetQueueName<TCommand>();
         var sw = Stopwatch.StartNew();
 
         // Start distributed trace activity

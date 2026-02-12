@@ -27,15 +27,22 @@ namespace SourceFlow.Projections
         private readonly ILogger<IEventSubscriber> logger;
 
         /// <summary>
+        /// Middleware pipeline components for event subscribe.
+        /// </summary>
+        private readonly IEnumerable<IEventSubscribeMiddleware> middlewares;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="EventSubscriber"/> class with the specified views and logger.
         /// </summary>
         /// <param name="views"></param>
         /// <param name="logger"></param>
+        /// <param name="middlewares"></param>
         /// <exception cref="ArgumentNullException"></exception>
-        public EventSubscriber(IEnumerable<IView> views, ILogger<IEventSubscriber> logger)
+        public EventSubscriber(IEnumerable<IView> views, ILogger<IEventSubscriber> logger, IEnumerable<IEventSubscribeMiddleware> middlewares)
         {
             this.views = views ?? throw new ArgumentNullException(nameof(views));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            this.middlewares = middlewares ?? throw new ArgumentNullException(nameof(middlewares));
         }
 
         /// <summary>
@@ -46,6 +53,24 @@ namespace SourceFlow.Projections
         /// <returns></returns>
         public Task Subscribe<TEvent>(TEvent @event)
             where TEvent : IEvent
+        {
+            // Build the middleware pipeline: chain from last to first,
+            // with CoreSubscribe as the innermost delegate.
+            Func<TEvent, Task> pipeline = CoreSubscribe;
+
+            foreach (var middleware in middlewares.Reverse())
+            {
+                var next = pipeline;
+                pipeline = evt => middleware.InvokeAsync(evt, next);
+            }
+
+            return pipeline(@event);
+        }
+
+        /// <summary>
+        /// Core subscribe logic: dispatches event to matching views.
+        /// </summary>
+        private Task CoreSubscribe<TEvent>(TEvent @event) where TEvent : IEvent
         {
             if (!views.Any())
             {

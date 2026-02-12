@@ -1,6 +1,7 @@
+using Amazon.SimpleNotificationService;
+using Amazon.SimpleNotificationService.Model;
 using Amazon.SQS;
 using Amazon.SQS.Model;
-using Amazon.SimpleNotificationService;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Cloud.Core.Configuration;
@@ -38,6 +39,17 @@ public sealed class AwsBusBootstrapper : IHostedService
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("AwsBusBootstrapper: resolving SQS queues and SNS topics.");
+
+        // ── 0. Validate: subscribing to topics requires at least one command queue ──
+
+        if (_busConfiguration.SubscribedTopicNames.Count > 0 &&
+            _busConfiguration.CommandListeningQueueNames.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "At least one command queue must be configured via .Listen.To.CommandQueue(...) " +
+                "when subscribing to topics via .Subscribe.To.Topic(...). " +
+                "SNS topic subscriptions require an SQS queue to receive events.");
+        }
 
         // ── 1. Collect all unique queue names ────────────────────────────────
 
@@ -91,13 +103,34 @@ public sealed class AwsBusBootstrapper : IHostedService
             .Select(name => topicArnMap[name])
             .ToList();
 
-        // ── 6. Inject resolved paths into configuration ───────────────────────
+        // ── 6. Subscribe topics to the first command queue ─────────────────
+
+        var eventListeningUrls = new List<string>();
+
+        if (resolvedSubscribedTopicArns.Count > 0)
+        {
+            var targetQueueUrl = resolvedCommandListeningUrls[0];
+            var targetQueueArn = await GetQueueArnAsync(targetQueueUrl, cancellationToken);
+
+            foreach (var topicArn in resolvedSubscribedTopicArns)
+            {
+                await SubscribeQueueToTopicAsync(topicArn, targetQueueArn, cancellationToken);
+                _logger.LogInformation(
+                    "AwsBusBootstrapper: subscribed queue '{QueueArn}' to topic '{TopicArn}'.",
+                    targetQueueArn, topicArn);
+            }
+
+            eventListeningUrls.Add(targetQueueUrl);
+        }
+
+        // ── 7. Inject resolved paths into configuration ───────────────────────
 
         _busConfiguration.Resolve(
             resolvedCommandRoutes,
             resolvedEventRoutes,
             resolvedCommandListeningUrls,
-            resolvedSubscribedTopicArns);
+            resolvedSubscribedTopicArns,
+            eventListeningUrls);
 
         _logger.LogInformation(
             "AwsBusBootstrapper: resolved {CommandCount} command route(s), " +
@@ -145,5 +178,27 @@ public sealed class AwsBusBootstrapper : IHostedService
         // CreateTopicAsync is idempotent: returns the existing ARN when the topic already exists.
         var response = await _snsClient.CreateTopicAsync(topicName, ct);
         return response.TopicArn;
+    }
+
+    private async Task<string> GetQueueArnAsync(string queueUrl, CancellationToken ct)
+    {
+        var response = await _sqsClient.GetQueueAttributesAsync(new GetQueueAttributesRequest
+        {
+            QueueUrl = queueUrl,
+            AttributeNames = new List<string> { QueueAttributeName.QueueArn }
+        }, ct);
+
+        return response.Attributes[QueueAttributeName.QueueArn];
+    }
+
+    private async Task SubscribeQueueToTopicAsync(string topicArn, string queueArn, CancellationToken ct)
+    {
+        // SubscribeAsync is idempotent: returns the existing subscription ARN if already subscribed.
+        await _snsClient.SubscribeAsync(new SubscribeRequest
+        {
+            TopicArn = topicArn,
+            Protocol = "sqs",
+            Endpoint = queueArn
+        }, ct);
     }
 }

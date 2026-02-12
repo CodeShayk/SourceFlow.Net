@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -23,13 +24,21 @@ namespace SourceFlow.Saga
         private readonly ILogger<ICommandSubscriber> logger;
 
         /// <summary>
+        /// Middleware pipeline components for command subscribe.
+        /// </summary>
+        private readonly IEnumerable<ICommandSubscribeMiddleware> middlewares;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="CommandSubscriber"/> class with the specified logger.
         /// </summary>
+        /// <param name="sagas"></param>
         /// <param name="logger"></param>
-        public CommandSubscriber(IEnumerable<ISaga> sagas, ILogger<ICommandSubscriber> logger)
+        /// <param name="middlewares"></param>
+        public CommandSubscriber(IEnumerable<ISaga> sagas, ILogger<ICommandSubscriber> logger, IEnumerable<ICommandSubscribeMiddleware> middlewares)
         {
             this.logger = logger;
             this.sagas = sagas;
+            this.middlewares = middlewares ?? throw new ArgumentNullException(nameof(middlewares));
         }
 
         /// <summary>
@@ -39,6 +48,24 @@ namespace SourceFlow.Saga
         /// <param name="event"></param>
         /// <returns></returns>
         public Task Subscribe<TCommand>(TCommand command) where TCommand : ICommand
+        {
+            // Build the middleware pipeline: chain from last to first,
+            // with CoreSubscribe as the innermost delegate.
+            Func<TCommand, Task> pipeline = CoreSubscribe;
+
+            foreach (var middleware in middlewares.Reverse())
+            {
+                var next = pipeline;
+                pipeline = cmd => middleware.InvokeAsync(cmd, next);
+            }
+
+            return pipeline(command);
+        }
+
+        /// <summary>
+        /// Core subscribe logic: dispatches command to matching sagas.
+        /// </summary>
+        private Task CoreSubscribe<TCommand>(TCommand command) where TCommand : ICommand
         {
             if (!sagas.Any())
             {

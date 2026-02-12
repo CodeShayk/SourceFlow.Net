@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using SourceFlow.Aggregate;
 using SourceFlow.Messaging.Events;
+using System.Linq;
 
 namespace SourceFlow.Core.Tests.Impl
 {
@@ -12,14 +13,14 @@ namespace SourceFlow.Core.Tests.Impl
         public void Constructor_NullAggregates_ThrowsArgumentNullException()
         {
             var loggerMock = new Mock<ILogger<IEventSubscriber>>();
-            Assert.Throws<ArgumentNullException>(() => new Aggregate.EventSubscriber(null, loggerMock.Object));
+            Assert.Throws<ArgumentNullException>(() => new Aggregate.EventSubscriber(null, loggerMock.Object, Enumerable.Empty<IEventSubscribeMiddleware>()));
         }
 
         [Test]
         public void Constructor_NullLogger_ThrowsArgumentNullException()
         {
             var aggregates = new List<IAggregate>();
-            Assert.Throws<ArgumentNullException>(() => new Aggregate.EventSubscriber(aggregates, null));
+            Assert.Throws<ArgumentNullException>(() => new Aggregate.EventSubscriber(aggregates, null, Enumerable.Empty<IEventSubscribeMiddleware>()));
         }
 
         [Test]
@@ -32,7 +33,7 @@ namespace SourceFlow.Core.Tests.Impl
                 .Setup(a => a.On(It.IsAny<DummyEvent>()))
                 .Returns(Task.CompletedTask);
             var aggregates = new List<IAggregate> { aggregateMock.Object };
-            var dispatcher = new Aggregate.EventSubscriber(aggregates, loggerMock.Object);
+            var dispatcher = new Aggregate.EventSubscriber(aggregates, loggerMock.Object, Enumerable.Empty<IEventSubscribeMiddleware>());
             var eventMock = new DummyEvent();
             await dispatcher.Subscribe(eventMock);
             loggerMock.Verify(l => l.Log(

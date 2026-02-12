@@ -1,21 +1,17 @@
-using Xunit;
 using Azure.Messaging.ServiceBus;
 using Moq;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Cloud.Azure.Configuration;
 using SourceFlow.Cloud.Azure.Messaging.Events;
-using SourceFlow.Cloud.Azure.Observability;
-using SourceFlow.Observability;
-using SourceFlow.Messaging.Events;
-using SourceFlow.Messaging;
 using SourceFlow.Cloud.Azure.Tests.TestHelpers;
+using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Observability;
 
 namespace SourceFlow.Cloud.Azure.Tests.Unit;
 
 public class AzureServiceBusEventDispatcherTests
 {
     private readonly Mock<ServiceBusClient> _mockServiceBusClient;
-    private readonly Mock<IAzureEventRoutingConfiguration> _mockRoutingConfig;
+    private readonly Mock<IEventRoutingConfiguration> _mockRoutingConfig;
     private readonly Mock<ILogger<AzureServiceBusEventDispatcher>> _mockLogger;
     private readonly Mock<IDomainTelemetryService> _mockTelemetry;
     private readonly Mock<ServiceBusSender> _mockSender;
@@ -23,7 +19,7 @@ public class AzureServiceBusEventDispatcherTests
     public AzureServiceBusEventDispatcherTests()
     {
         _mockServiceBusClient = new Mock<ServiceBusClient>();
-        _mockRoutingConfig = new Mock<IAzureEventRoutingConfiguration>();
+        _mockRoutingConfig = new Mock<IEventRoutingConfiguration>();
         _mockLogger = new Mock<ILogger<AzureServiceBusEventDispatcher>>();
         _mockTelemetry = new Mock<IDomainTelemetryService>();
         _mockSender = new Mock<ServiceBusSender>();
@@ -34,7 +30,7 @@ public class AzureServiceBusEventDispatcherTests
     }
 
     [Fact]
-    public async Task Dispatch_WhenRouteToAzureFalse_ShouldNotSendMessage()
+    public async Task Dispatch_WhenShouldRouteFalse_ShouldNotSendMessage()
     {
         // Arrange
         var dispatcher = new AzureServiceBusEventDispatcher(
@@ -46,7 +42,7 @@ public class AzureServiceBusEventDispatcherTests
         var testEvent = new TestEvent { Name = "TestEvent", Payload = new TestEntity { Id = 1 }, Metadata = new TestEventMetadata() };
 
         _mockRoutingConfig
-            .Setup(x => x.ShouldRouteToAzure<TestEvent>())
+            .Setup(x => x.ShouldRoute<TestEvent>())
             .Returns(false);
 
         // Act
@@ -58,7 +54,7 @@ public class AzureServiceBusEventDispatcherTests
     }
 
     [Fact]
-    public async Task Dispatch_WhenRouteToAzureTrue_ShouldSendMessage()
+    public async Task Dispatch_WhenShouldRouteTrue_ShouldSendMessage()
     {
         // Arrange
         var dispatcher = new AzureServiceBusEventDispatcher(
@@ -70,7 +66,7 @@ public class AzureServiceBusEventDispatcherTests
         var testEvent = new TestEvent { Name = "TestEvent", Payload = new TestEntity { Id = 1 }, Metadata = new TestEventMetadata() };
 
         _mockRoutingConfig
-            .Setup(x => x.ShouldRouteToAzure<TestEvent>())
+            .Setup(x => x.ShouldRoute<TestEvent>())
             .Returns(true);
         _mockRoutingConfig
             .Setup(x => x.GetTopicName<TestEvent>())
@@ -98,7 +94,7 @@ public class AzureServiceBusEventDispatcherTests
         var topicName = "test-topic";
 
         _mockRoutingConfig
-            .Setup(x => x.ShouldRouteToAzure<TestEvent>())
+            .Setup(x => x.ShouldRoute<TestEvent>())
             .Returns(true);
         _mockRoutingConfig
             .Setup(x => x.GetTopicName<TestEvent>())
@@ -112,7 +108,7 @@ public class AzureServiceBusEventDispatcherTests
     }
 
     [Fact]
-    public async Task Dispatch_WhenRouteToAzureTrue_ShouldSetCorrectMessageProperties()
+    public async Task Dispatch_WhenShouldRouteTrue_ShouldSetCorrectMessageProperties()
     {
         // Arrange
         var dispatcher = new AzureServiceBusEventDispatcher(
@@ -124,7 +120,7 @@ public class AzureServiceBusEventDispatcherTests
         var testEvent = new TestEvent { Name = "TestEvent", Payload = new TestEntity { Id = 1 }, Metadata = new TestEventMetadata() };
 
         _mockRoutingConfig
-            .Setup(x => x.ShouldRouteToAzure<TestEvent>())
+            .Setup(x => x.ShouldRoute<TestEvent>())
             .Returns(true);
         _mockRoutingConfig
             .Setup(x => x.GetTopicName<TestEvent>())

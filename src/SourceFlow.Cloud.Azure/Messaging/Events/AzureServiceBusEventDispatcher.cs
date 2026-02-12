@@ -2,9 +2,9 @@ using System.Text.Json;
 using System.Collections.Concurrent;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Cloud.Azure.Configuration;
 using SourceFlow.Cloud.Azure.Observability;
 using SourceFlow.Cloud.Azure.Messaging.Serialization;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Messaging.Events;
 using SourceFlow.Observability;
 
@@ -13,14 +13,14 @@ namespace SourceFlow.Cloud.Azure.Messaging.Events;
 public class AzureServiceBusEventDispatcher : IEventDispatcher, IAsyncDisposable
 {
     private readonly ServiceBusClient serviceBusClient;
-    private readonly IAzureEventRoutingConfiguration routingConfig;
+    private readonly IEventRoutingConfiguration routingConfig;
     private readonly ILogger<AzureServiceBusEventDispatcher> logger;
     private readonly IDomainTelemetryService telemetry;
     private readonly ConcurrentDictionary<string, ServiceBusSender> senderCache;
 
     public AzureServiceBusEventDispatcher(
         ServiceBusClient serviceBusClient,
-        IAzureEventRoutingConfiguration routingConfig,
+        IEventRoutingConfiguration routingConfig,
         ILogger<AzureServiceBusEventDispatcher> logger,
         IDomainTelemetryService telemetry)
     {
@@ -34,12 +34,13 @@ public class AzureServiceBusEventDispatcher : IEventDispatcher, IAsyncDisposable
     public async Task Dispatch<TEvent>(TEvent @event)
         where TEvent : IEvent
     {
-        // 1. Check if this event type should be routed to Azure
-        if (!routingConfig.ShouldRouteToAzure<TEvent>())
+        // 1. Check if this event type should be routed
+        if (!routingConfig.ShouldRoute<TEvent>())
             return; // Skip this dispatcher
 
         // 2. Get topic name for event type
         var topicName = routingConfig.GetTopicName<TEvent>();
+
 
         // 3. Get or create sender for this topic
         var sender = senderCache.GetOrAdd(topicName,

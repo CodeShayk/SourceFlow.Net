@@ -1,20 +1,19 @@
-using Xunit;
 using Azure.Messaging.ServiceBus;
 using Moq;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Cloud.Azure.Configuration;
 using SourceFlow.Cloud.Azure.Messaging.Commands;
-using SourceFlow.Cloud.Azure.Observability;
-using SourceFlow.Observability;
-using SourceFlow.Messaging.Commands;
+using SourceFlow.Cloud.Azure.Tests.TestHelpers;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Messaging;
+using SourceFlow.Messaging.Commands;
+using SourceFlow.Observability;
 
 namespace SourceFlow.Cloud.Azure.Tests.Unit;
 
 public class AzureServiceBusCommandDispatcherTests
 {
     private readonly Mock<ServiceBusClient> _mockServiceBusClient;
-    private readonly Mock<IAzureCommandRoutingConfiguration> _mockRoutingConfig;
+    private readonly Mock<ICommandRoutingConfiguration> _mockRoutingConfig;
     private readonly Mock<ILogger<AzureServiceBusCommandDispatcher>> _mockLogger;
     private readonly Mock<IDomainTelemetryService> _mockTelemetry;
     private readonly Mock<ServiceBusSender> _mockSender;
@@ -22,7 +21,7 @@ public class AzureServiceBusCommandDispatcherTests
     public AzureServiceBusCommandDispatcherTests()
     {
         _mockServiceBusClient = new Mock<ServiceBusClient>();
-        _mockRoutingConfig = new Mock<IAzureCommandRoutingConfiguration>();
+        _mockRoutingConfig = new Mock<ICommandRoutingConfiguration>();
         _mockLogger = new Mock<ILogger<AzureServiceBusCommandDispatcher>>();
         _mockTelemetry = new Mock<IDomainTelemetryService>();
         _mockSender = new Mock<ServiceBusSender>();
@@ -33,7 +32,7 @@ public class AzureServiceBusCommandDispatcherTests
     }
 
     [Fact]
-    public async Task Dispatch_WhenRouteToAzureFalse_ShouldNotSendMessage()
+    public async Task Dispatch_WhenShouldRouteFalse_ShouldNotSendMessage()
     {
         // Arrange
         var dispatcher = new AzureServiceBusCommandDispatcher(
@@ -42,10 +41,10 @@ public class AzureServiceBusCommandDispatcherTests
             _mockLogger.Object,
             _mockTelemetry.Object);
 
-        var testCommand = new TestCommand { Entity = new EntityRef { Id = 1 }, Name = "TestCommand", Metadata = new TestMetadata() };
+        var testCommand = new TestCommand { Entity = new EntityRef { Id = 1 }, Name = "TestCommand", Metadata = new TestCommandMetadata() };
 
         _mockRoutingConfig
-            .Setup(x => x.ShouldRouteToAzure<TestCommand>())
+            .Setup(x => x.ShouldRoute<TestCommand>())
             .Returns(false);
 
         // Act
@@ -57,7 +56,7 @@ public class AzureServiceBusCommandDispatcherTests
     }
 
     [Fact]
-    public async Task Dispatch_WhenRouteToAzureTrue_ShouldSendMessage()
+    public async Task Dispatch_WhenShouldRouteTrue_ShouldSendMessage()
     {
         // Arrange
         var dispatcher = new AzureServiceBusCommandDispatcher(
@@ -66,10 +65,10 @@ public class AzureServiceBusCommandDispatcherTests
             _mockLogger.Object,
             _mockTelemetry.Object);
 
-        var testCommand = new TestCommand { Entity = new EntityRef { Id = 1 }, Name = "TestCommand", Metadata = new TestMetadata() };
+        var testCommand = new TestCommand { Entity = new EntityRef { Id = 1 }, Name = "TestCommand", Metadata = new TestCommandMetadata() };
 
         _mockRoutingConfig
-            .Setup(x => x.ShouldRouteToAzure<TestCommand>())
+            .Setup(x => x.ShouldRoute<TestCommand>())
             .Returns(true);
         _mockRoutingConfig
             .Setup(x => x.GetQueueName<TestCommand>())
@@ -93,11 +92,11 @@ public class AzureServiceBusCommandDispatcherTests
             _mockLogger.Object,
             _mockTelemetry.Object);
 
-        var testCommand = new TestCommand { Entity = new EntityRef { Id = 1 }, Name = "TestCommand", Metadata = new TestMetadata() };
+        var testCommand = new TestCommand { Entity = new EntityRef { Id = 1 }, Name = "TestCommand", Metadata = new TestCommandMetadata() };
         var queueName = "test-queue";
 
         _mockRoutingConfig
-            .Setup(x => x.ShouldRouteToAzure<TestCommand>())
+            .Setup(x => x.ShouldRoute<TestCommand>())
             .Returns(true);
         _mockRoutingConfig
             .Setup(x => x.GetQueueName<TestCommand>())
@@ -111,7 +110,7 @@ public class AzureServiceBusCommandDispatcherTests
     }
 
     [Fact]
-    public async Task Dispatch_WhenRouteToAzureTrue_ShouldSetCorrectMessageProperties()
+    public async Task Dispatch_WhenShouldRouteTrue_ShouldSetCorrectMessageProperties()
     {
         // Arrange
         var dispatcher = new AzureServiceBusCommandDispatcher(
@@ -120,10 +119,10 @@ public class AzureServiceBusCommandDispatcherTests
             _mockLogger.Object,
             _mockTelemetry.Object);
 
-        var testCommand = new TestCommand { Entity = new EntityRef { Id = 1 }, Name = "TestCommand", Metadata = new TestMetadata() };
+        var testCommand = new TestCommand { Entity = new EntityRef { Id = 1 }, Name = "TestCommand", Metadata = new TestCommandMetadata() };
 
         _mockRoutingConfig
-            .Setup(x => x.ShouldRouteToAzure<TestCommand>())
+            .Setup(x => x.ShouldRoute<TestCommand>())
             .Returns(true);
         _mockRoutingConfig
             .Setup(x => x.GetQueueName<TestCommand>())
@@ -145,23 +144,5 @@ public class AzureServiceBusCommandDispatcherTests
         Assert.True(capturedMessage.ApplicationProperties.ContainsKey("CommandType"));
         Assert.True(capturedMessage.ApplicationProperties.ContainsKey("EntityId"));
         Assert.True(capturedMessage.ApplicationProperties.ContainsKey("SequenceNo"));
-    }
-
-    // Helper classes for testing
-    private class TestCommand : ICommand
-    {
-        public IPayload Payload { get; set; } = null!;
-        public EntityRef Entity { get; set; } = null!;
-        public string Name { get; set; } = null!;
-        public Metadata Metadata { get; set; } = null!;
-    }
-
-    private class TestEntity : IEntity
-    {
-        public int Id { get; set; }
-    }
-
-    private class TestMetadata : Metadata
-    {
     }
 }

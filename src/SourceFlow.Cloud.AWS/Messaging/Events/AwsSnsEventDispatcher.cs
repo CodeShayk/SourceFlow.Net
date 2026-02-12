@@ -37,13 +37,13 @@ public class AwsSnsEventDispatcher : IEventDispatcher
     public async Task Dispatch<TEvent>(TEvent @event) where TEvent : IEvent
     {
         // 1. Check if this event type should be routed to AWS
-        if (!_routingConfig.ShouldRouteToAws<TEvent>())
+        if (!_routingConfig.ShouldRoute<TEvent>())
             return; // Skip this dispatcher
 
         try
         {
             // 2. Get topic ARN for event type
-            var topicArn = _routingConfig.GetTopicArn<TEvent>();
+            var topicArn = _routingConfig.GetTopicName<TEvent>();
 
             // 3. Serialize event to JSON
             var messageBody = JsonSerializer.Serialize(@event, _jsonOptions);

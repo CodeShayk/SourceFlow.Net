@@ -3,9 +3,9 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Cloud.Azure.Configuration;
 using SourceFlow.Cloud.Azure.Messaging.Serialization;
 using SourceFlow.Cloud.Azure.Observability;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Cloud.Core.Observability;
 using SourceFlow.Cloud.Core.Resilience;
 using SourceFlow.Cloud.Core.Security;
@@ -20,7 +20,7 @@ namespace SourceFlow.Cloud.Azure.Messaging.Events;
 public class AzureServiceBusEventDispatcherEnhanced : IEventDispatcher, IAsyncDisposable
 {
     private readonly ServiceBusClient _serviceBusClient;
-    private readonly IAzureEventRoutingConfiguration _routingConfig;
+    private readonly IEventRoutingConfiguration _routingConfig;
     private readonly ILogger<AzureServiceBusEventDispatcherEnhanced> _logger;
     private readonly CloudTelemetry _cloudTelemetry;
     private readonly CloudMetrics _cloudMetrics;
@@ -32,7 +32,7 @@ public class AzureServiceBusEventDispatcherEnhanced : IEventDispatcher, IAsyncDi
 
     public AzureServiceBusEventDispatcherEnhanced(
         ServiceBusClient serviceBusClient,
-        IAzureEventRoutingConfiguration routingConfig,
+        IEventRoutingConfiguration routingConfig,
         ILogger<AzureServiceBusEventDispatcherEnhanced> logger,
         CloudTelemetry cloudTelemetry,
         CloudMetrics cloudMetrics,
@@ -54,7 +54,7 @@ public class AzureServiceBusEventDispatcherEnhanced : IEventDispatcher, IAsyncDi
 
     public async Task Dispatch<TEvent>(TEvent @event) where TEvent : IEvent
     {
-        if (!_routingConfig.ShouldRouteToAzure<TEvent>())
+        if (!_routingConfig.ShouldRoute<TEvent>())
             return;
 
         var eventType = typeof(TEvent).Name;

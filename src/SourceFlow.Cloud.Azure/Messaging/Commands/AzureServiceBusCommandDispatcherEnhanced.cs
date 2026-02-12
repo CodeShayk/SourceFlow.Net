@@ -3,9 +3,9 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Cloud.Azure.Configuration;
 using SourceFlow.Cloud.Azure.Messaging.Serialization;
 using SourceFlow.Cloud.Azure.Observability;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Cloud.Core.Observability;
 using SourceFlow.Cloud.Core.Resilience;
 using SourceFlow.Cloud.Core.Security;
@@ -20,7 +20,7 @@ namespace SourceFlow.Cloud.Azure.Messaging.Commands;
 public class AzureServiceBusCommandDispatcherEnhanced : ICommandDispatcher, IAsyncDisposable
 {
     private readonly ServiceBusClient _serviceBusClient;
-    private readonly IAzureCommandRoutingConfiguration _routingConfig;
+    private readonly ICommandRoutingConfiguration _routingConfig;
     private readonly ILogger<AzureServiceBusCommandDispatcherEnhanced> _logger;
     private readonly IDomainTelemetryService _domainTelemetry;
     private readonly CloudTelemetry _cloudTelemetry;
@@ -33,7 +33,7 @@ public class AzureServiceBusCommandDispatcherEnhanced : ICommandDispatcher, IAsy
 
     public AzureServiceBusCommandDispatcherEnhanced(
         ServiceBusClient serviceBusClient,
-        IAzureCommandRoutingConfiguration routingConfig,
+        ICommandRoutingConfiguration routingConfig,
         ILogger<AzureServiceBusCommandDispatcherEnhanced> logger,
         IDomainTelemetryService domainTelemetry,
         CloudTelemetry cloudTelemetry,
@@ -58,7 +58,7 @@ public class AzureServiceBusCommandDispatcherEnhanced : ICommandDispatcher, IAsy
     public async Task Dispatch<TCommand>(TCommand command) where TCommand : ICommand
     {
         // Check if this command type should be routed to Azure
-        if (!_routingConfig.ShouldRouteToAzure<TCommand>())
+        if (!_routingConfig.ShouldRoute<TCommand>())
             return;
 
         var commandType = typeof(TCommand).Name;

@@ -13,12 +13,16 @@ public class AwsIntegrationTests
         var services = new ServiceCollection();
 
         // Act
-        services.UseSourceFlowAws(options =>
-        {
-            options.Region = Amazon.RegionEndpoint.USEast1;
-            options.EnableCommandRouting = true;
-            options.EnableEventRouting = true;
-        });
+        services.UseSourceFlowAws(
+            options =>
+            {
+                options.Region = Amazon.RegionEndpoint.USEast1;
+                options.EnableCommandRouting = true;
+                options.EnableEventRouting = true;
+            },
+            bus => bus
+                .Send.Command<TestCommand>(q => q.Queue("test-queue.fifo"))
+                .Listen.To.CommandQueue("test-queue.fifo"));
 
         var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<AwsOptions>();

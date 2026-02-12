@@ -37,13 +37,13 @@ public class AwsSqsCommandDispatcher : ICommandDispatcher
     public async Task Dispatch<TCommand>(TCommand command) where TCommand : ICommand
     {
         // 1. Check if this command type should be routed to AWS
-        if (!_routingConfig.ShouldRouteToAws<TCommand>())
+        if (!_routingConfig.ShouldRoute<TCommand>())
             return; // Skip this dispatcher
 
         try
         {
             // 2. Get queue URL for command type
-            var queueUrl = _routingConfig.GetQueueUrl<TCommand>();
+            var queueUrl = _routingConfig.GetQueueName<TCommand>();
 
             // 3. Serialize command to JSON
             var messageBody = JsonSerializer.Serialize(command, _jsonOptions);

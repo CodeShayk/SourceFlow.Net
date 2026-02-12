@@ -2,9 +2,9 @@ using System.Text.Json;
 using System.Collections.Concurrent;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Cloud.Azure.Configuration;
 using SourceFlow.Cloud.Azure.Observability;
 using SourceFlow.Cloud.Azure.Messaging.Serialization;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Messaging.Commands;
 using SourceFlow.Observability;
 
@@ -13,14 +13,14 @@ namespace SourceFlow.Cloud.Azure.Messaging.Commands;
 public class AzureServiceBusCommandDispatcher : ICommandDispatcher, IAsyncDisposable
 {
     private readonly ServiceBusClient serviceBusClient;
-    private readonly IAzureCommandRoutingConfiguration routingConfig;
+    private readonly ICommandRoutingConfiguration routingConfig;
     private readonly ILogger<AzureServiceBusCommandDispatcher> logger;
     private readonly IDomainTelemetryService telemetry;
     private readonly ConcurrentDictionary<string, ServiceBusSender> senderCache;
 
     public AzureServiceBusCommandDispatcher(
         ServiceBusClient serviceBusClient,
-        IAzureCommandRoutingConfiguration routingConfig,
+        ICommandRoutingConfiguration routingConfig,
         ILogger<AzureServiceBusCommandDispatcher> logger,
         IDomainTelemetryService telemetry)
     {
@@ -34,8 +34,8 @@ public class AzureServiceBusCommandDispatcher : ICommandDispatcher, IAsyncDispos
     public async Task Dispatch<TCommand>(TCommand command)
         where TCommand : ICommand
     {
-        // 1. Check if this command type should be routed to Azure
-        if (!routingConfig.ShouldRouteToAzure<TCommand>())
+        // 1. Check if this command type should be routed
+        if (!routingConfig.ShouldRoute<TCommand>())
             return; // Skip this dispatcher
 
         // 2. Get queue name for command type

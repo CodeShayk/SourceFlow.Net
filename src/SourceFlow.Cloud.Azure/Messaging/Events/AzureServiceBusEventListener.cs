@@ -3,8 +3,8 @@ using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
-using SourceFlow.Cloud.Azure.Configuration;
 using SourceFlow.Cloud.Azure.Messaging.Serialization;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Messaging.Events;
 
 namespace SourceFlow.Cloud.Azure.Messaging.Events;
@@ -13,14 +13,14 @@ public class AzureServiceBusEventListener : BackgroundService
 {
     private readonly ServiceBusClient serviceBusClient;
     private readonly IServiceProvider serviceProvider;
-    private readonly IAzureEventRoutingConfiguration routingConfig;
+    private readonly IEventRoutingConfiguration routingConfig;
     private readonly ILogger<AzureServiceBusEventListener> logger;
     private readonly List<ServiceBusProcessor> processors;
 
     public AzureServiceBusEventListener(
         ServiceBusClient serviceBusClient,
         IServiceProvider serviceProvider,
-        IAzureEventRoutingConfiguration routingConfig,
+        IEventRoutingConfiguration routingConfig,
         ILogger<AzureServiceBusEventListener> logger)
     {
         this.serviceBusClient = serviceBusClient;
@@ -32,35 +32,32 @@ public class AzureServiceBusEventListener : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Get all topic subscriptions to listen to
-        var subscriptions = routingConfig.GetListeningSubscriptions();
+        // Get all queue names to listen to for events (auto-forwarded from topic subscriptions)
+        var queueNames = routingConfig.GetListeningQueues();
 
-        // Create processor for each topic/subscription pair
-        foreach (var (topicName, subscriptionName) in subscriptions)
+        // Create processor for each queue
+        foreach (var queueName in queueNames)
         {
-            var processor = serviceBusClient.CreateProcessor(
-                topicName,
-                subscriptionName,
-                new ServiceBusProcessorOptions
-                {
-                    MaxConcurrentCalls = 20, // Higher for events (read-only)
-                    AutoCompleteMessages = false,
-                    MaxAutoLockRenewalDuration = TimeSpan.FromMinutes(5),
-                    ReceiveMode = ServiceBusReceiveMode.PeekLock
-                });
+            var processor = serviceBusClient.CreateProcessor(queueName, new ServiceBusProcessorOptions
+            {
+                MaxConcurrentCalls = 20, // Higher for events (read-only)
+                AutoCompleteMessages = false,
+                MaxAutoLockRenewalDuration = TimeSpan.FromMinutes(5),
+                ReceiveMode = ServiceBusReceiveMode.PeekLock
+            });
 
             // Register message handler
             processor.ProcessMessageAsync += async args =>
             {
-                await ProcessMessage(args, topicName, subscriptionName, stoppingToken);
+                await ProcessMessage(args, queueName, stoppingToken);
             };
 
             // Register error handler
             processor.ProcessErrorAsync += async args =>
             {
                 logger.LogError(args.Exception,
-                    "Error processing event from topic: {Topic}, subscription: {Subscription}",
-                    topicName, subscriptionName);
+                    "Error processing event from queue: {Queue}, Source: {Source}",
+                    queueName, args.ErrorSource);
             };
 
             // Start processing
@@ -68,8 +65,8 @@ public class AzureServiceBusEventListener : BackgroundService
             processors.Add(processor);
 
             logger.LogInformation(
-                "Started listening to Azure Service Bus topic: {Topic}, subscription: {Subscription}",
-                topicName, subscriptionName);
+                "Started listening to Azure Service Bus queue for events: {Queue}",
+                queueName);
         }
 
         // Wait for cancellation
@@ -78,8 +75,7 @@ public class AzureServiceBusEventListener : BackgroundService
 
     private async Task ProcessMessage(
         ProcessMessageEventArgs args,
-        string topicName,
-        string subscriptionName,
+        string queueName,
         CancellationToken cancellationToken)
     {
         try
@@ -129,14 +125,14 @@ public class AzureServiceBusEventListener : BackgroundService
             await args.CompleteMessageAsync(message, cancellationToken);
 
             logger.LogInformation(
-                "Event processed from Azure Service Bus: {Event}, Topic: {Topic}, MessageId: {MessageId}",
-                eventType.Name, topicName, message.MessageId);
+                "Event processed from Azure Service Bus: {Event}, Queue: {Queue}, MessageId: {MessageId}",
+                eventType.Name, queueName, message.MessageId);
         }
         catch (Exception ex)
         {
             logger.LogError(ex,
-                "Error processing event from topic: {Topic}, subscription: {Subscription}, MessageId: {MessageId}",
-                topicName, subscriptionName, args.Message.MessageId);
+                "Error processing event from queue: {Queue}, MessageId: {MessageId}",
+                queueName, args.Message.MessageId);
 
             // Let Service Bus retry or move to dead letter queue
             throw;

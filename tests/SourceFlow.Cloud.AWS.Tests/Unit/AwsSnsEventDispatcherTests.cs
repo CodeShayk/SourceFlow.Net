@@ -2,10 +2,10 @@ using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using Microsoft.Extensions.Logging;
 using Moq;
-using SourceFlow.Cloud.AWS.Configuration;
 using SourceFlow.Cloud.AWS.Messaging.Events;
 using SourceFlow.Cloud.AWS.Observability;
 using SourceFlow.Cloud.AWS.Tests.TestHelpers;
+using SourceFlow.Cloud.Core.Configuration;
 using SourceFlow.Observability;
 
 namespace SourceFlow.Cloud.AWS.Tests.Unit;
@@ -13,7 +13,7 @@ namespace SourceFlow.Cloud.AWS.Tests.Unit;
 public class AwsSnsEventDispatcherTests
 {
     private readonly Mock<IAmazonSimpleNotificationService> _mockSnsClient;
-    private readonly Mock<IAwsEventRoutingConfiguration> _mockRoutingConfig;
+    private readonly Mock<IEventRoutingConfiguration> _mockRoutingConfig;
     private readonly Mock<ILogger<AwsSnsEventDispatcher>> _mockLogger;
     private readonly Mock<IDomainTelemetryService> _mockTelemetry;
     private readonly AwsSnsEventDispatcher _dispatcher;
@@ -21,7 +21,7 @@ public class AwsSnsEventDispatcherTests
     public AwsSnsEventDispatcherTests()
     {
         _mockSnsClient = new Mock<IAmazonSimpleNotificationService>();
-        _mockRoutingConfig = new Mock<IAwsEventRoutingConfiguration>();
+        _mockRoutingConfig = new Mock<IEventRoutingConfiguration>();
         _mockLogger = new Mock<ILogger<AwsSnsEventDispatcher>>();
         _mockTelemetry = new Mock<IDomainTelemetryService>();
 
@@ -37,7 +37,7 @@ public class AwsSnsEventDispatcherTests
     {
         // Arrange
         var @event = new TestEvent();
-        _mockRoutingConfig.Setup(x => x.ShouldRouteToAws<TestEvent>()).Returns(false);
+        _mockRoutingConfig.Setup(x => x.ShouldRoute<TestEvent>()).Returns(false);
 
         // Act
         await _dispatcher.Dispatch(@event);
@@ -53,8 +53,8 @@ public class AwsSnsEventDispatcherTests
         var @event = new TestEvent();
         var topicArn = "arn:aws:sns:us-east-1:123456:test-topic";
 
-        _mockRoutingConfig.Setup(x => x.ShouldRouteToAws<TestEvent>()).Returns(true);
-        _mockRoutingConfig.Setup(x => x.GetTopicArn<TestEvent>()).Returns(topicArn);
+        _mockRoutingConfig.Setup(x => x.ShouldRoute<TestEvent>()).Returns(true);
+        _mockRoutingConfig.Setup(x => x.GetTopicName<TestEvent>()).Returns(topicArn);
 
         _mockSnsClient.Setup(x => x.PublishAsync(It.IsAny<PublishRequest>(), default))
             .ReturnsAsync(new PublishResponse { MessageId = "msg-123" });
@@ -79,8 +79,8 @@ public class AwsSnsEventDispatcherTests
         var @event = new TestEvent();
         var topicArn = "arn:aws:sns:us-east-1:123456:test-topic";
 
-        _mockRoutingConfig.Setup(x => x.ShouldRouteToAws<TestEvent>()).Returns(true);
-        _mockRoutingConfig.Setup(x => x.GetTopicArn<TestEvent>()).Returns(topicArn);
+        _mockRoutingConfig.Setup(x => x.ShouldRoute<TestEvent>()).Returns(true);
+        _mockRoutingConfig.Setup(x => x.GetTopicName<TestEvent>()).Returns(topicArn);
 
         _mockSnsClient.Setup(x => x.PublishAsync(It.IsAny<PublishRequest>(), default))
             .ReturnsAsync(new PublishResponse { MessageId = "msg-123" });
@@ -101,8 +101,8 @@ public class AwsSnsEventDispatcherTests
         var @event = new TestEvent();
         var topicArn = "arn:aws:sns:us-east-1:123456:test-topic";
 
-        _mockRoutingConfig.Setup(x => x.ShouldRouteToAws<TestEvent>()).Returns(true);
-        _mockRoutingConfig.Setup(x => x.GetTopicArn<TestEvent>()).Returns(topicArn);
+        _mockRoutingConfig.Setup(x => x.ShouldRoute<TestEvent>()).Returns(true);
+        _mockRoutingConfig.Setup(x => x.GetTopicName<TestEvent>()).Returns(topicArn);
 
         _mockSnsClient.Setup(x => x.PublishAsync(It.IsAny<PublishRequest>(), default))
             .ThrowsAsync(new Exception("SNS error"));

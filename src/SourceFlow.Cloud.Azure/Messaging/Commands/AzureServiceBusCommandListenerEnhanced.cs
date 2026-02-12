@@ -4,7 +4,6 @@ using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
-using SourceFlow.Cloud.Azure.Configuration;
 using SourceFlow.Cloud.Azure.Messaging.Serialization;
 using SourceFlow.Cloud.Azure.Observability;
 using SourceFlow.Cloud.Core.Configuration;
@@ -23,7 +22,7 @@ public class AzureServiceBusCommandListenerEnhanced : BackgroundService
 {
     private readonly ServiceBusClient _serviceBusClient;
     private readonly IServiceProvider _serviceProvider;
-    private readonly IAzureCommandRoutingConfiguration _routingConfig;
+    private readonly ICommandRoutingConfiguration _routingConfig;
     private readonly ILogger<AzureServiceBusCommandListenerEnhanced> _logger;
     private readonly IDomainTelemetryService _domainTelemetry;
     private readonly CloudTelemetry _cloudTelemetry;
@@ -38,7 +37,7 @@ public class AzureServiceBusCommandListenerEnhanced : BackgroundService
     public AzureServiceBusCommandListenerEnhanced(
         ServiceBusClient serviceBusClient,
         IServiceProvider serviceProvider,
-        IAzureCommandRoutingConfiguration routingConfig,
+        ICommandRoutingConfiguration routingConfig,
         ILogger<AzureServiceBusCommandListenerEnhanced> logger,
         IDomainTelemetryService domainTelemetry,
         CloudTelemetry cloudTelemetry,

@@ -59,11 +59,11 @@ public class AwsSnsEventDispatcherEnhanced : IEventDispatcher
     public async Task Dispatch<TEvent>(TEvent @event) where TEvent : IEvent
     {
         // Check if this event type should be routed to AWS
-        if (!_routingConfig.ShouldRouteToAws<TEvent>())
+        if (!_routingConfig.ShouldRoute<TEvent>())
             return;
 
         var eventType = typeof(TEvent).Name;
-        var topicArn = _routingConfig.GetTopicArn<TEvent>();
+        var topicArn = _routingConfig.GetTopicName<TEvent>();
         var sw = Stopwatch.StartNew();
 
         // Start distributed trace activity

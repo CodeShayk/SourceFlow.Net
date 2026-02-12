@@ -23,6 +23,7 @@ public sealed class BusConfiguration : ICommandRoutingConfiguration, IEventRouti
     private Dictionary<Type, string>? _resolvedEventRoutes;          // type → full topic ARN
     private List<string>? _resolvedCommandListeningUrls;             // full queue URLs
     private List<string>? _resolvedSubscribedTopicArns;              // full topic ARNs
+    private List<string>? _resolvedEventListeningUrls;               // full queue URLs for event listening
 
     internal BusConfiguration(
         Dictionary<Type, string> commandTypeToQueueName,
@@ -47,12 +48,14 @@ public sealed class BusConfiguration : ICommandRoutingConfiguration, IEventRouti
         Dictionary<Type, string> commandRoutes,
         Dictionary<Type, string> eventRoutes,
         List<string> commandListeningUrls,
-        List<string> subscribedTopicArns)
+        List<string> subscribedTopicArns,
+        List<string> eventListeningUrls)
     {
         _resolvedCommandRoutes = commandRoutes;
         _resolvedEventRoutes = eventRoutes;
         _resolvedCommandListeningUrls = commandListeningUrls;
         _resolvedSubscribedTopicArns = subscribedTopicArns;
+        _resolvedEventListeningUrls = eventListeningUrls;
     }
 
     private void EnsureResolved()
@@ -60,26 +63,26 @@ public sealed class BusConfiguration : ICommandRoutingConfiguration, IEventRouti
         if (_resolvedCommandRoutes is null)
             throw new InvalidOperationException(
                 "BusConfiguration has not been bootstrapped yet. " +
-                "Ensure AwsBusBootstrapper (registered as IHostedService) completes " +
+                "Ensure the bus bootstrapper (registered as IHostedService) completes " +
                 "before dispatching commands or events.");
     }
 
     // ── ICommandRoutingConfiguration ─────────────────────────────────────────
 
-    bool ICommandRoutingConfiguration.ShouldRouteToAws<TCommand>()
+    bool ICommandRoutingConfiguration.ShouldRoute<TCommand>()
     {
         EnsureResolved();
         return _resolvedCommandRoutes!.ContainsKey(typeof(TCommand));
     }
 
-    string ICommandRoutingConfiguration.GetQueueUrl<TCommand>()
+    string ICommandRoutingConfiguration.GetQueueName<TCommand>()
     {
         EnsureResolved();
-        if (_resolvedCommandRoutes!.TryGetValue(typeof(TCommand), out var url))
-            return url;
+        if (_resolvedCommandRoutes!.TryGetValue(typeof(TCommand), out var name))
+            return name;
 
         throw new InvalidOperationException(
-            $"No SQS queue registered for command '{typeof(TCommand).Name}'. " +
+            $"No queue registered for command '{typeof(TCommand).Name}'. " +
             $"Use .Send.Command<{typeof(TCommand).Name}>(q => q.Queue(\"queue-name\")) in BusConfigurationBuilder.");
     }
 
@@ -91,25 +94,28 @@ public sealed class BusConfiguration : ICommandRoutingConfiguration, IEventRouti
 
     // ── IEventRoutingConfiguration ───────────────────────────────────────────
 
-    bool IEventRoutingConfiguration.ShouldRouteToAws<TEvent>()
+    bool IEventRoutingConfiguration.ShouldRoute<TEvent>()
     {
         EnsureResolved();
         return _resolvedEventRoutes!.ContainsKey(typeof(TEvent));
     }
 
-    string IEventRoutingConfiguration.GetTopicArn<TEvent>()
+    string IEventRoutingConfiguration.GetTopicName<TEvent>()
     {
         EnsureResolved();
-        if (_resolvedEventRoutes!.TryGetValue(typeof(TEvent), out var arn))
-            return arn;
+        if (_resolvedEventRoutes!.TryGetValue(typeof(TEvent), out var name))
+            return name;
 
         throw new InvalidOperationException(
-            $"No SNS topic registered for event '{typeof(TEvent).Name}'. " +
+            $"No topic registered for event '{typeof(TEvent).Name}'. " +
             $"Use .Raise.Event<{typeof(TEvent).Name}>(t => t.Topic(\"topic-name\")) in BusConfigurationBuilder.");
     }
 
     IEnumerable<string> IEventRoutingConfiguration.GetListeningQueues()
-        => Enumerable.Empty<string>();
+    {
+        EnsureResolved();
+        return _resolvedEventListeningUrls!;
+    }
 
     IEnumerable<string> IEventRoutingConfiguration.GetSubscribedTopics()
     {

@@ -27,5 +27,6 @@ public interface IBusBootstrapConfiguration
         Dictionary<Type, string> commandRoutes,
         Dictionary<Type, string> eventRoutes,
         List<string> commandListeningUrls,
-        List<string> subscribedTopicArns);
+        List<string> subscribedTopicArns,
+        List<string> eventListeningUrls);
 }

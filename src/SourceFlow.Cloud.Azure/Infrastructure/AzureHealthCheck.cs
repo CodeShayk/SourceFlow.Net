@@ -1,20 +1,19 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Azure.Messaging.ServiceBus;
-using Azure.Messaging.ServiceBus.Administration;
-using SourceFlow.Cloud.Azure.Configuration;
+using SourceFlow.Cloud.Core.Configuration;
 
 namespace SourceFlow.Cloud.Azure.Infrastructure;
 
 public class AzureServiceBusHealthCheck : IHealthCheck
 {
     private readonly ServiceBusClient _serviceBusClient;
-    private readonly IAzureCommandRoutingConfiguration _commandRoutingConfig;
-    private readonly IAzureEventRoutingConfiguration _eventRoutingConfig;
+    private readonly ICommandRoutingConfiguration _commandRoutingConfig;
+    private readonly IEventRoutingConfiguration _eventRoutingConfig;
 
     public AzureServiceBusHealthCheck(
         ServiceBusClient serviceBusClient,
-        IAzureCommandRoutingConfiguration commandRoutingConfig,
-        IAzureEventRoutingConfiguration eventRoutingConfig)
+        ICommandRoutingConfiguration commandRoutingConfig,
+        IEventRoutingConfiguration eventRoutingConfig)
     {
         _serviceBusClient = serviceBusClient;
         _commandRoutingConfig = commandRoutingConfig;
@@ -42,19 +41,22 @@ public class AzureServiceBusHealthCheck : IHealthCheck
                 healthData["CommandQueueStatus"] = "Accessible";
             }
 
-            // Test event topic subscriptions
-            var eventSubscriptions = _eventRoutingConfig.GetListeningSubscriptions().Take(1).ToList();
-            if (eventSubscriptions.Any())
+            // Test event queue connectivity (events are auto-forwarded to queues)
+            var eventQueues = _eventRoutingConfig.GetListeningQueues().Take(1).ToList();
+            if (eventQueues.Any())
             {
-                var (topicName, subscriptionName) = eventSubscriptions.First();
-                await using var receiver = _serviceBusClient.CreateReceiver(topicName, subscriptionName, new ServiceBusReceiverOptions
+                var queueName = eventQueues.First();
+                // Only check if not already checked as command queue
+                if (!commandQueues.Contains(queueName))
                 {
-                    ReceiveMode = ServiceBusReceiveMode.PeekLock
-                });
+                    await using var receiver = _serviceBusClient.CreateReceiver(queueName, new ServiceBusReceiverOptions
+                    {
+                        ReceiveMode = ServiceBusReceiveMode.PeekLock
+                    });
 
-                // Peek at messages (doesn't lock or remove them)
-                await receiver.PeekMessageAsync(cancellationToken: cancellationToken);
-                healthData["EventTopicStatus"] = "Accessible";
+                    await receiver.PeekMessageAsync(cancellationToken: cancellationToken);
+                }
+                healthData["EventQueueStatus"] = "Accessible";
             }
 
             return HealthCheckResult.Healthy("Azure Service Bus is accessible", healthData);
