@@ -9,6 +9,7 @@ using SourceFlow.Observability;
 namespace SourceFlow.Core.Tests.Impl
 {
     [TestFixture]
+    [Category("Unit")]
     public class CommandBusTests
     {
         private Mock<ICommandStoreAdapter> commandStoreMock;

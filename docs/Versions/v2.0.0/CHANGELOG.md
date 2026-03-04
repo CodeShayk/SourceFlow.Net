@@ -3,6 +3,8 @@
 **Release Date**: TBC  
 **Status**: In Development
 
+**Note**: This release includes AWS cloud integration support. Azure cloud integration will be available in a future release.
+
 ## 🎉 Major Changes
 
 ### Cloud Core Consolidation
@@ -162,13 +164,11 @@ services.UseSourceFlowAws(
 
 ### New Documentation
 - [Cloud Core Consolidation Guide](../Architecture/06-Cloud-Core-Consolidation.md) - Complete migration guide
-- [Idempotency Configuration Guide](../Idempotency-Configuration-Guide.md) - Comprehensive idempotency setup guide
-- [SQL-Based Idempotency Service](../SQL-Based-Idempotency-Service.md) - Multi-instance idempotency details
+- [Cloud Message Idempotency Guide](../Cloud-Message-Idempotency-Guide.md) - Comprehensive idempotency setup guide
 
 ### Updated Documentation
 - [SourceFlow Core](../SourceFlow.Net-README.md) - Updated with cloud functionality
-- [AWS Cloud Extension](.kiro/steering/sourceflow-cloud-aws.md) - Updated with idempotency configuration
-- [Azure Cloud Extension](.kiro/steering/sourceflow-cloud-azure.md) - Updated architecture references
+- [AWS Cloud Architecture](../Architecture/07-AWS-Cloud-Architecture.md) - Updated with idempotency configuration
 
 ## 🐛 Bug Fixes
 
@@ -196,15 +196,11 @@ services.UseSourceFlowAws(
 - Depends on: `SourceFlow >= 2.0.0`
 - Removed: `SourceFlow.Cloud.Core` dependency
 
-### SourceFlow.Cloud.Azure v2.0.0
-- Depends on: `SourceFlow >= 2.0.0`
-- Removed: `SourceFlow.Cloud.Core` dependency
-
 ## 🚀 Upgrade Path
 
-### For End Users (AWS/Azure Extensions)
+### For AWS Extension Users
 
-If you're using the AWS or Azure cloud extensions, **no code changes are required**. The consolidation is transparent to consumers of the cloud packages.
+If you're using the AWS cloud extension, **no code changes are required**. The consolidation is transparent to consumers of the cloud package.
 
 ### For Direct Cloud.Core Users
 
@@ -219,14 +215,14 @@ If you were directly referencing `SourceFlow.Cloud.Core` (not recommended):
 - This is a **major version** release due to breaking namespace changes
 - The consolidation improves the overall architecture and developer experience
 - All functionality from Cloud.Core is preserved in the main SourceFlow package
-- Cloud extensions (AWS, Azure) remain separate packages with simplified dependencies
+- AWS cloud extension remains a separate package with simplified dependencies
+- Azure cloud integration will be available in a future release
 
 ## 🔗 Related Documentation
 
 - [Architecture Overview](../Architecture/01-Architecture-Overview.md)
 - [Cloud Configuration Guide](../SourceFlow.Net-README.md#-cloud-configuration-with-bus-configuration-system)
-- [AWS Cloud Extension](.kiro/steering/sourceflow-cloud-aws.md)
-- [Azure Cloud Extension](.kiro/steering/sourceflow-cloud-azure.md)
+- [AWS Cloud Architecture](../Architecture/07-AWS-Cloud-Architecture.md)
 
 ---
 

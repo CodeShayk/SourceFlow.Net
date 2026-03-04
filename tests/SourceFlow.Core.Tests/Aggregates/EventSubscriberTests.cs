@@ -34,6 +34,7 @@ namespace SourceFlow.Core.Tests.Aggregates
     }
 
     [TestFixture]
+    [Category("Unit")]
     public class AggregateEventSubscriberTests
     {
         private Mock<ILogger<IEventSubscriber>> _mockLogger;

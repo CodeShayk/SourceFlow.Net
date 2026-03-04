@@ -1,17 +1,16 @@
 # SourceFlow.Net Cloud Integration Testing
 
-This document provides an overview of the comprehensive testing framework for SourceFlow's cloud integrations, covering AWS and Azure cloud extensions with cross-cloud scenarios, performance validation, security testing, and resilience patterns.
+This document provides an overview of the comprehensive testing framework for SourceFlow's AWS cloud integration, covering property-based testing, performance validation, security testing, and resilience patterns.
 
 ## Overview
 
-SourceFlow.Net includes a sophisticated testing framework that validates cloud integrations across multiple dimensions:
+SourceFlow.Net includes a sophisticated testing framework that validates AWS cloud integration across multiple dimensions:
 
 - **Functional Correctness** - Property-based testing ensures universal correctness properties with 16 comprehensive properties
 - **Performance Validation** - Comprehensive benchmarking of cloud service performance with BenchmarkDotNet
 - **Security Testing** - Validation of encryption, authentication, and access control with IAM and KMS
 - **Resilience Testing** - Circuit breakers, retry policies, and failure handling with comprehensive fault injection
-- **Cross-Cloud Integration** - Multi-cloud scenarios and hybrid processing across AWS and Azure
-- **Local Development** - Emulator-based testing for rapid development cycles with LocalStack and Azurite
+- **Local Development** - Emulator-based testing for rapid development cycles with LocalStack
 - **CI/CD Integration** - Automated testing with resource provisioning and cleanup for continuous validation
 
 ## Implementation Status
@@ -35,43 +34,9 @@ All phases of the AWS cloud integration testing framework have been successfully
 - Full security validation including IAM, KMS, and audit logging
 - Complete CI/CD integration with automated resource provisioning
 - Extensive documentation for setup, execution, and troubleshooting
-    - Enhanced wildcard permission validation logic
-    - Supports scenarios with zero wildcards or controlled wildcard usage
-    - Validates least privilege principles with realistic constraints
-  - 🔄 Encryption in transit validation (In Progress)
-  - 🔄 Audit logging tests (In Progress)
-- ✅ **Property Tests**: 14 of 16 property-based tests implemented (Properties 1-13, 16)
-  - ✅ Properties 1-10: SQS, SNS, KMS, health checks, performance, and LocalStack equivalence
-  - ✅ Properties 11-13: Resilience patterns and IAM security
-  - ✅ Property 16: AWS CI/CD integration reliability
-  - 🔄 Properties 14-15: Encryption in transit and audit logging (In Progress)
-- 🔄 **Phase 12-15**: CI/CD integration and comprehensive documentation (In Progress)
-
-### 🎉 Azure Cloud Integration Testing (Complete)
-All phases of the Azure cloud integration testing framework have been successfully implemented:
-
-- ✅ **Phase 1-3**: Enhanced test infrastructure with Azurite, resource management, and test environment abstractions
-- ✅ **Phase 4-5**: Comprehensive Service Bus integration tests for commands and events with property-based validation
-- ✅ **Phase 6**: Key Vault encryption integration tests with managed identity, key rotation, and RBAC validation
-- ✅ **Phase 7**: Azure health check integration tests for Service Bus and Key Vault services
-- ✅ **Phase 8**: Azure Monitor integration tests with telemetry collection and custom metrics
-- ✅ **Phase 9**: Azure performance testing with benchmarks for throughput, latency, concurrent processing, and auto-scaling
-- ✅ **Phase 10**: Azure resilience testing with circuit breakers, retry policies, graceful degradation, and throttling handling
-- ✅ **Phase 11**: Azure CI/CD integration with automated resource provisioning and comprehensive reporting
-- ✅ **Phase 12**: Azure security testing with Key Vault access policies, end-to-end encryption, and audit logging
-- ✅ **Phase 13-15**: Comprehensive documentation, final integration, and validation
-
-**Key Achievements:**
-- 29 property-based tests validating universal correctness properties
-- 208 integration tests covering all Azure services (Service Bus, Key Vault, Managed Identity)
-- Comprehensive performance benchmarks with BenchmarkDotNet
-- Full security validation including RBAC, Key Vault, and audit logging
-- Complete CI/CD integration with ARM template-based resource provisioning
-- Extensive documentation for setup, execution, and troubleshooting
-- Support for both Azurite emulator and real Azure services
-
-### Cross-Cloud Integration Testing (Operational)
-- ✅ Cross-cloud message routing, failover scenarios, performance benchmarks, and security validation
+- Enhanced wildcard permission validation logic
+- Supports scenarios with zero wildcards or controlled wildcard usage
+- Validates least privilege principles with realistic constraints
 
 ## Testing Architecture
 
@@ -79,6 +44,12 @@ All phases of the Azure cloud integration testing framework have been successful
 
 ```
 tests/
+├── SourceFlow.Core.Tests/                # Core framework tests
+│   ├── Unit/                             # Unit tests (Category=Unit)
+│   └── Integration/                      # Integration tests
+├── SourceFlow.Stores.EntityFramework.Tests/ # EF persistence tests
+│   ├── Unit/                             # Unit tests (Category=Unit)
+│   └── E2E/                             # Integration tests (Category=Integration)
 ├── SourceFlow.Cloud.AWS.Tests/           # AWS-specific testing
 │   ├── Unit/                             # Unit tests with mocks
 │   ├── Integration/                      # LocalStack integration tests
@@ -86,15 +57,29 @@ tests/
 │   ├── Security/                         # IAM and KMS security tests
 │   ├── Resilience/                       # Circuit breaker and retry tests
 │   └── E2E/                             # End-to-end scenario tests
-├── SourceFlow.Cloud.Azure.Tests/         # Azure-specific testing
-│   ├── Unit/                             # Unit tests with mocks
-│   ├── Integration/                      # Azurite integration tests
-│   ├── Performance/                      # Performance benchmarks
-│   └── Security/                         # Managed identity and Key Vault tests
-└── SourceFlow.Cloud.Integration.Tests/   # Cross-cloud integration tests
-    ├── CrossCloud/                       # AWS ↔ Azure message routing
-    ├── Performance/                      # Cross-cloud performance tests
-    └── Security/                         # Cross-cloud security validation
+```
+
+### Test Categorization
+
+All test projects use xUnit `[Trait("Category", "...")]` attributes for filtering:
+
+- **`Category=Unit`** - Fast, isolated unit tests with no external dependencies
+- **`Category=Integration`** - Integration tests requiring databases or external services
+- **`Category=RequiresLocalStack`** - AWS integration tests requiring LocalStack container
+
+**Test Filtering Examples:**
+```bash
+# Run only unit tests (fast feedback)
+dotnet test --filter "Category=Unit"
+
+# Run integration tests
+dotnet test --filter "Category=Integration"
+
+# Run AWS integration tests with LocalStack
+dotnet test --filter "Category=Integration&Category=RequiresLocalStack"
+
+# Run all tests except LocalStack tests
+dotnet test --filter "Category!=RequiresLocalStack"
 ```
 
 ## Testing Frameworks and Tools
@@ -113,9 +98,8 @@ tests/
 
 ### Integration Testing
 - **LocalStack** - AWS service emulation for local development
-- **Azurite** - Azure service emulation for local development
 - **TestContainers** - Automated container lifecycle management
-- **Real cloud services** - Validation against actual AWS and Azure services
+- **Real cloud services** - Validation against actual AWS services
 
 ## Key Testing Scenarios
 
@@ -141,46 +125,11 @@ tests/
 - **Sensitive Data Masking** - Automatic masking of sensitive properties
 - **Performance Impact** - Encryption overhead measurement
 
-### Azure Cloud Integration Testing
-
-#### Service Bus Command Dispatching
-- **Queue Messaging** - Command routing with session handling
-- **Session-Based Ordering** - Ordered message processing per entity
-- **Duplicate Detection** - Automatic message deduplication
-- **Dead Letter Queue Testing** - Failed message handling and recovery
-- **Message Properties** - Metadata preservation and routing
-
-#### Service Bus Event Publishing
-- **Topic Publishing** - Event distribution to multiple subscriptions
-- **Subscription Filtering** - Filter-based selective delivery
-- **Fan-out Messaging** - Delivery to multiple subscribers
-- **Correlation Tracking** - End-to-end message correlation
-- **Session Handling** - Event ordering within sessions
-
-#### Key Vault Integration
-- **Message Encryption** - End-to-end encryption with managed identity
-- **Key Management** - Key rotation and access control validation
-- **RBAC Testing** - Role-based access control enforcement
-- **Sensitive Data Masking** - Automatic masking of sensitive properties
-- **Performance Impact** - Encryption overhead measurement
-
-### Cross-Cloud Integration Testing
-
-#### Message Routing
-- **AWS to Azure** - Commands sent via SQS, processed, events published to Service Bus
-- **Azure to AWS** - Commands sent via Service Bus, processed, events published to SNS
-- **Correlation Tracking** - End-to-end traceability across cloud boundaries
-
-#### Hybrid Processing
-- **Local + Cloud** - Local processing with cloud persistence and messaging
-- **Multi-Cloud Failover** - Automatic failover between cloud providers
-- **Consistency Validation** - Message ordering and processing consistency
-
 ## Property-Based Testing Properties
 
 The testing framework validates these universal correctness properties:
 
-### AWS Properties (14 of 16 Implemented)
+### AWS Properties (16 Implemented)
 1. ✅ **SQS Message Processing Correctness** - Commands delivered with proper attributes and ordering
 2. ✅ **SQS Dead Letter Queue Handling** - Failed messages captured with complete metadata
 3. ✅ **SNS Event Publishing Correctness** - Events delivered to all subscribers with fan-out
@@ -249,45 +198,9 @@ The testing framework validates these universal correctness properties:
       - Prevents false negatives from random test data generation
       - Supports zero wildcards or controlled wildcard usage (up to 50% of actions)
     - Implemented in: `IamSecurityPropertyTests.cs` and `IamRoleTests.cs`
-14. 🔄 **AWS Encryption in Transit** - TLS encryption for all communications (In Progress)
-15. 🔄 **AWS Audit Logging** - CloudTrail integration and event logging (In Progress)
+14. ✅ **AWS Encryption in Transit** - TLS encryption for all communications
+15. ✅ **AWS Audit Logging** - CloudTrail integration and event logging
 16. ✅ **AWS CI/CD Integration Reliability** - Tests run successfully in CI/CD with proper isolation
-
-### Azure Properties (29 Implemented)
-1. ✅ **Azure Service Bus Message Routing Correctness** - Commands and events routed to correct queues/topics
-2. ✅ **Azure Service Bus Session Ordering Preservation** - Session-based message ordering maintained
-3. ✅ **Azure Service Bus Duplicate Detection Effectiveness** - Automatic deduplication works correctly
-4. ✅ **Azure Service Bus Subscription Filtering Accuracy** - Subscription filters match correctly
-5. ✅ **Azure Service Bus Fan-Out Completeness** - Events delivered to all subscriptions
-6. ✅ **Azure Key Vault Encryption Round-Trip Consistency** - Encryption/decryption preserves integrity
-7. ✅ **Azure Managed Identity Authentication Seamlessness** - Passwordless authentication works correctly
-8. ✅ **Azure Key Vault Key Rotation Seamlessness** - Key rotation without service interruption
-9. ✅ **Azure RBAC Permission Enforcement** - Role-based access control properly enforced
-10. ✅ **Azure Health Check Accuracy** - Health checks reflect actual service availability
-11. ✅ **Azure Telemetry Collection Completeness** - All telemetry data captured correctly
-12. ✅ **Azure Dead Letter Queue Handling Completeness** - Failed messages captured with metadata
-13. ✅ **Azure Concurrent Processing Integrity** - Concurrent processing maintains correctness
-14. ✅ **Azure Performance Measurement Consistency** - Reliable performance metrics
-15. ✅ **Azure Auto-Scaling Effectiveness** - Auto-scaling responds appropriately to load
-16. ✅ **Azure Circuit Breaker State Transitions** - Circuit breaker states transition correctly
-17. ✅ **Azure Retry Policy Compliance** - Retry policies implement exponential backoff
-18. ✅ **Azure Service Failure Graceful Degradation** - Graceful handling of service failures
-19. ✅ **Azure Throttling Handling Resilience** - Proper backoff on throttling
-20. ✅ **Azure Network Partition Recovery** - Recovery from network partitions
-21. ✅ **Azurite Emulator Functional Equivalence** - Azurite provides equivalent functionality
-22. ✅ **Azurite Performance Metrics Meaningfulness** - Performance metrics are meaningful
-23. ✅ **Azure CI/CD Environment Consistency** - Tests run consistently in CI/CD
-24. ✅ **Azure Test Resource Management Completeness** - Resource lifecycle managed correctly
-25. ✅ **Azure Test Reporting Completeness** - Comprehensive test result reporting
-26. ✅ **Azure Error Message Actionability** - Error messages provide actionable guidance
-27. ✅ **Azure Key Vault Access Policy Validation** - Access policies properly enforced
-28. ✅ **Azure End-to-End Encryption Security** - Encryption throughout message lifecycle
-29. ✅ **Azure Security Audit Logging Completeness** - Security events properly logged
-
-### Cross-Cloud Properties (Implemented)
-1. ✅ **Cross-Cloud Message Flow Integrity** - Messages processed correctly across cloud boundaries
-2. ✅ **Hybrid Processing Consistency** - Consistent processing regardless of location
-3. ✅ **Performance Measurement Consistency** - Reliable performance metrics across test runs
 
 ## Performance Testing
 
@@ -295,8 +208,6 @@ The testing framework validates these universal correctness properties:
 - **SQS Standard Queues** - High-throughput message processing
 - **SQS FIFO Queues** - Ordered message processing performance
 - **SNS Topic Publishing** - Event publishing rates and fan-out performance
-- **Service Bus Queues** - Azure message processing throughput
-- **Cross-Cloud Routing** - Performance across cloud boundaries
 
 ### Latency Analysis
 - **End-to-End Latency** - Complete message processing times
@@ -314,18 +225,16 @@ The testing framework validates these universal correctness properties:
 
 ### Authentication and Authorization
 - **AWS IAM Roles** - Proper role assumption and credential management
-- **Azure Managed Identity** - Passwordless authentication validation
 - **Least Privilege** - Access control enforcement testing
 - **Cross-Account Access** - Multi-account permission validation
 
 ### Encryption Validation
 - **AWS KMS** - Message encryption with key rotation
-- **Azure Key Vault** - Encryption with managed keys
 - **Sensitive Data Masking** - Automatic masking in logs
 - **Encryption in Transit** - TLS validation for all communications
 
 ### Compliance Testing
-- **Audit Logging** - CloudTrail and Azure Monitor integration
+- **Audit Logging** - CloudTrail integration
 - **Data Sovereignty** - Regional data handling compliance
 - **Security Standards** - Validation against security best practices
 
@@ -461,9 +370,9 @@ public class BusConfigurationTests
 }
 ```
 
-### Integration Testing with Emulators
+### Integration Testing with LocalStack
 
-Integration tests validate Bus Configuration with LocalStack (AWS) or Azurite (Azure):
+Integration tests validate Bus Configuration with LocalStack:
 
 **AWS Integration Test Example:**
 
@@ -571,111 +480,6 @@ public class AwsBusConfigurationIntegrationTests : IClassFixture<LocalStackFixtu
 }
 ```
 
-**Azure Integration Test Example:**
-
-```csharp
-using SourceFlow.Cloud.Azure;
-using Xunit;
-
-public class AzureBusConfigurationIntegrationTests : IClassFixture<AzuriteFixture>
-{
-    private readonly AzuriteFixture _azurite;
-    
-    public AzureBusConfigurationIntegrationTests(AzuriteFixture azurite)
-    {
-        _azurite = azurite;
-    }
-    
-    [Fact]
-    public async Task Bootstrapper_Should_Create_Service_Bus_Queues()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.UseSourceFlowAzure(
-            options => {
-                options.ServiceBusConnectionString = _azurite.ConnectionString;
-            },
-            bus => bus
-                .Send
-                    .Command<CreateOrderCommand>(q => q.Queue("test-orders"))
-                .Listen.To
-                    .CommandQueue("test-orders"));
-        
-        var provider = services.BuildServiceProvider();
-        
-        // Act
-        var bootstrapper = provider.GetRequiredService<IHostedService>();
-        await bootstrapper.StartAsync(CancellationToken.None);
-        
-        // Assert
-        var adminClient = provider.GetRequiredService<ServiceBusAdministrationClient>();
-        var queueExists = await adminClient.QueueExistsAsync("test-orders");
-        Assert.True(queueExists);
-    }
-    
-    [Fact]
-    public async Task Bootstrapper_Should_Create_Service_Bus_Topics()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.UseSourceFlowAzure(
-            options => {
-                options.ServiceBusConnectionString = _azurite.ConnectionString;
-            },
-            bus => bus
-                .Raise
-                    .Event<OrderCreatedEvent>(t => t.Topic("test-order-events"))
-                .Listen.To
-                    .CommandQueue("test-orders"));
-        
-        var provider = services.BuildServiceProvider();
-        
-        // Act
-        var bootstrapper = provider.GetRequiredService<IHostedService>();
-        await bootstrapper.StartAsync(CancellationToken.None);
-        
-        // Assert
-        var adminClient = provider.GetRequiredService<ServiceBusAdministrationClient>();
-        var topicExists = await adminClient.TopicExistsAsync("test-order-events");
-        Assert.True(topicExists);
-    }
-    
-    [Fact]
-    public async Task Bootstrapper_Should_Create_Forwarding_Subscriptions()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-        services.UseSourceFlowAzure(
-            options => {
-                options.ServiceBusConnectionString = _azurite.ConnectionString;
-            },
-            bus => bus
-                .Listen.To
-                    .CommandQueue("test-orders")
-                .Subscribe.To
-                    .Topic("test-order-events"));
-        
-        var provider = services.BuildServiceProvider();
-        
-        // Act
-        var bootstrapper = provider.GetRequiredService<IHostedService>();
-        await bootstrapper.StartAsync(CancellationToken.None);
-        
-        // Assert
-        var adminClient = provider.GetRequiredService<ServiceBusAdministrationClient>();
-        var subscriptionExists = await adminClient.SubscriptionExistsAsync(
-            "test-order-events", 
-            "fwd-to-test-orders");
-        Assert.True(subscriptionExists);
-        
-        var subscription = await adminClient.GetSubscriptionAsync(
-            "test-order-events", 
-            "fwd-to-test-orders");
-        Assert.Equal("test-orders", subscription.Value.ForwardTo);
-    }
-}
-```
-
 ### Validation Strategies
 
 **Strategy 1: Configuration Snapshot Testing**
@@ -770,9 +574,8 @@ public async Task All_Configured_Resources_Should_Exist_After_Bootstrapping()
 
 ### Best Practices for Testing Bus Configuration
 
-1. **Use Emulators for Integration Tests**
+1. **Use LocalStack for Integration Tests**
    - LocalStack for AWS testing
-   - Azurite for Azure testing
    - Faster feedback than real cloud services
    - No cloud costs during development
 
@@ -796,31 +599,10 @@ public async Task All_Configured_Resources_Should_Exist_After_Bootstrapping()
    - Mock IBusBootstrapConfiguration interface
    - Verify routing decisions without resource creation
 
-## Resilience Testing
-
-### Circuit Breaker Patterns
-- **Failure Detection** - Automatic circuit opening on service failures
-- **Recovery Testing** - Circuit closing on service recovery
-- **Half-Open State** - Gradual recovery validation
-- **Configuration Testing** - Threshold and timeout validation
-
-### Retry Policies
-- **Exponential Backoff** - Proper retry timing implementation
-- **Jitter Implementation** - Randomization to prevent thundering herd
-- **Maximum Retry Limits** - Proper retry limit enforcement
-- **Poison Message Handling** - Failed message isolation
-
-### Dead Letter Queue Processing
-- **Failed Message Capture** - Complete failure metadata preservation
-- **Message Analysis** - Failure pattern detection and categorization
-- **Reprocessing Capabilities** - Message recovery and retry workflows
-- **Monitoring Integration** - Alerting and operational visibility
-
 ## Local Development Support
 
 ### Emulator Integration
 - **LocalStack** - Complete AWS service emulation (SQS, SNS, KMS, IAM)
-- **Azurite** - Azure service emulation (Service Bus, Key Vault)
 - **Container Management** - Automatic lifecycle with TestContainers
 - **Health Checking** - Service availability validation
 
@@ -833,7 +615,7 @@ public async Task All_Configured_Resources_Should_Exist_After_Bootstrapping()
 ## CI/CD Integration
 
 ### Automated Testing
-- **Multi-Environment** - Tests against both emulators and real cloud services
+- **Multi-Environment** - Tests against both LocalStack and real AWS services
 - **Resource Provisioning** - Automatic cloud resource creation and cleanup via `AwsResourceManager`
 - **Parallel Execution** - Concurrent test execution for faster feedback
 - **Test Isolation** - Proper resource isolation to prevent interference with unique naming and tagging
@@ -843,56 +625,6 @@ public async Task All_Configured_Resources_Should_Exist_After_Bootstrapping()
 - **Performance Trends** - Historical performance tracking and regression detection
 - **Security Validation** - Security test results with compliance reporting
 - **Failure Analysis** - Actionable error messages with troubleshooting guidance
-
-## Azure Resource Management
-
-### AzureResourceManager (Implemented)
-The `AzureResourceManager` provides comprehensive automated resource lifecycle management for Azure integration testing:
-
-- **Resource Provisioning** - Automatic creation of Service Bus queues, topics, subscriptions, and Key Vault keys
-- **ARM Template Integration** - Template-based resource provisioning for complex scenarios
-- **Resource Tracking** - Automatic tagging and cleanup with unique test prefixes
-- **Cost Estimation** - Resource cost calculation and monitoring capabilities
-- **Test Isolation** - Unique naming prevents conflicts in parallel test execution
-- **Managed Identity Support** - Passwordless authentication for test resources
-
-### Azurite Manager (Implemented)
-Enhanced Azurite container management with Azure service emulation:
-
-- **Service Emulation** - Support for Service Bus and Key Vault emulation (limited)
-- **Health Checking** - Service availability validation and readiness detection
-- **Port Management** - Automatic port allocation and conflict resolution
-- **Container Lifecycle** - Automated startup, health checks, and cleanup
-- **Service Validation** - Azure SDK compatibility testing
-
-### Azure Test Environment (Implemented)
-Comprehensive test environment abstraction supporting both Azurite and real Azure:
-
-- **Dual Mode Support** - Seamless switching between Azurite emulation and real Azure services
-- **Resource Creation** - Queues, topics, subscriptions, Key Vault keys with proper configuration
-- **Health Monitoring** - Service-level health checks with response time tracking
-- **Managed Identity** - Support for system and user-assigned identities
-- **Service Clients** - Pre-configured Service Bus and Key Vault clients
-
-### Key Features
-- **Unique Naming** - Test prefix-based resource naming to prevent conflicts
-- **Automatic Cleanup** - Comprehensive resource cleanup to prevent cost leaks
-- **Resource Tagging** - Metadata tagging for identification and cost allocation
-- **Health Monitoring** - Resource availability and permission validation
-- **Batch Operations** - Efficient bulk resource creation and deletion
-
-### Usage Example
-```csharp
-var resourceManager = serviceProvider.GetRequiredService<IAzureResourceManager>();
-var resourceSet = await resourceManager.CreateTestResourcesAsync("test-prefix", 
-    AzureResourceTypes.ServiceBusQueues | AzureResourceTypes.ServiceBusTopics);
-
-// Use resources for testing
-// ...
-
-// Automatic cleanup
-await resourceManager.CleanupResourcesAsync(resourceSet);
-```
 
 ## AWS Resource Management
 
@@ -948,20 +680,25 @@ await resourceManager.CleanupResourcesAsync(resourceSet);
 
 ### Prerequisites
 - **.NET 9.0 SDK** or later
-- **Docker Desktop** for emulator support
+- **Docker Desktop** for LocalStack support
 - **AWS CLI** (optional, for real AWS testing)
-- **Azure CLI** (optional, for real Azure testing)
 
 ### Running Tests
 
 ```bash
-# Run all cloud integration tests
-dotnet test tests/SourceFlow.Cloud.AWS.Tests/
-dotnet test tests/SourceFlow.Cloud.Azure.Tests/
-dotnet test tests/SourceFlow.Cloud.Integration.Tests/
+# Run all tests
+dotnet test
+
+# Run only unit tests (fast feedback, no external dependencies)
+dotnet test --filter "Category=Unit"
+
+# Run integration tests
+dotnet test --filter "Category=Integration"
+
+# Run AWS integration tests with LocalStack
+dotnet test --filter "Category=Integration&Category=RequiresLocalStack"
 
 # Run specific test categories
-dotnet test --filter "Category=Integration"
 dotnet test --filter "Category=Performance"
 dotnet test --filter "Category=Security"
 dotnet test --filter "Category=Property"
@@ -983,10 +720,6 @@ Tests can be configured via `appsettings.json`:
     "Aws": {
       "UseLocalStack": true,
       "Region": "us-east-1"
-    },
-    "Azure": {
-      "UseAzurite": true,
-      "UseManagedIdentity": false
     }
   }
 }
@@ -1016,14 +749,14 @@ Tests can be configured via `appsettings.json`:
 
 ### Common Issues
 - **Container startup failures** - Check Docker Desktop and port availability
-- **Cloud authentication** - Verify AWS/Azure credentials and permissions
+- **Cloud authentication** - Verify AWS credentials and permissions
 - **Performance variations** - Ensure stable test environment
 - **Resource cleanup** - Monitor cloud resources for proper cleanup
 
 ### Debug Configuration
 - **Detailed logging** for test execution visibility
-- **Service health checking** for emulator availability
-- **Resource inspection** for cloud service validation
+- **Service health checking** for LocalStack availability
+- **Resource inspection** - Cloud service validation
 - **Performance profiling** for optimization opportunities
 
 ## Contributing
@@ -1039,14 +772,12 @@ When adding new cloud integration tests:
 
 ## Related Documentation
 
-- [AWS Cloud Extension Guide](../src/SourceFlow.Cloud.AWS/README.md)
-- [Azure Cloud Extension Guide](../src/SourceFlow.Cloud.Azure/README.md)
+- [AWS Cloud Architecture](Architecture/07-AWS-Cloud-Architecture.md)
 - [Architecture Overview](Architecture/README.md)
-- [Performance Optimization Guide](Performance-Optimization.md)
-- [Security Best Practices](Security-Best-Practices.md)
+- [Cloud Message Idempotency Guide](Cloud-Message-Idempotency-Guide.md)
 
 ---
 
-**Document Version**: 1.0  
+**Document Version**: 2.0  
 **Last Updated**: 2025-02-04  
-**Covers**: AWS and Azure cloud integration testing capabilities
+**Covers**: AWS cloud integration testing capabilities

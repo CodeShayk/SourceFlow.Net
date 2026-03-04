@@ -50,6 +50,7 @@ namespace SourceFlow.Core.Tests.Middleware
     }
 
     [TestFixture]
+    [Category("Unit")]
     public class AggregateEventSubscribeMiddlewareTests
     {
         private Mock<ILogger<IEventSubscriber>> loggerMock;
@@ -239,6 +240,7 @@ namespace SourceFlow.Core.Tests.Middleware
     }
 
     [TestFixture]
+    [Category("Unit")]
     public class ProjectionEventSubscribeMiddlewareTests
     {
         private Mock<ILogger<IEventSubscriber>> loggerMock;

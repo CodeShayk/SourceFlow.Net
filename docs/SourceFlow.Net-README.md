@@ -807,14 +807,13 @@ services.UseSourceFlowAws(
 
 ### Overview
 
-The Bus Configuration System provides a code-first fluent API for configuring distributed command and event routing in cloud-based applications. It simplifies the setup of message queues, topics, and subscriptions across AWS and Azure without dealing with low-level cloud service details.
+The Bus Configuration System provides a code-first fluent API for configuring distributed command and event routing in AWS cloud-based applications. It simplifies the setup of message queues, topics, and subscriptions without dealing with low-level cloud service details.
 
 **Key Benefits:**
 - **Type Safety** - Compile-time validation of command and event routing
 - **Simplified Configuration** - Use short names instead of full URLs/ARNs
 - **Automatic Resource Creation** - Queues, topics, and subscriptions created automatically
 - **Intuitive API** - Natural, readable configuration with method chaining
-- **Cloud Agnostic** - Same API works for both AWS and Azure
 
 ### Architecture
 
@@ -828,8 +827,6 @@ graph TB
     D --> E{Resource Creation}
     E -->|AWS| F[SQS Queues]
     E -->|AWS| G[SNS Topics]
-    E -->|Azure| H[Service Bus Queues]
-    E -->|Azure| I[Service Bus Topics]
     D --> J[Dispatcher Registration]
     J --> K[Listener Startup]
 ```
@@ -983,33 +980,6 @@ public class Startup
 }
 ```
 
-### Azure Configuration Example
-
-The same fluent API works for Azure Service Bus:
-
-```csharp
-using SourceFlow.Cloud.Azure;
-
-public void ConfigureServices(IServiceCollection services)
-{
-    services.UseSourceFlowAzure(
-        options => {
-            options.FullyQualifiedNamespace = "myservicebus.servicebus.windows.net";
-            options.UseManagedIdentity = true;
-        },
-        bus => bus
-            .Send
-                .Command<CreateOrderCommand>(q => q.Queue("orders"))
-                .Command<UpdateOrderCommand>(q => q.Queue("orders"))
-            .Raise
-                .Event<OrderCreatedEvent>(t => t.Topic("order-events"))
-            .Listen.To
-                .CommandQueue("orders")
-            .Subscribe.To
-                .Topic("order-events"));
-}
-```
-
 ### Bootstrapper Integration
 
 The bootstrapper is a hosted service that runs at application startup to initialize your cloud infrastructure:
@@ -1017,8 +987,7 @@ The bootstrapper is a hosted service that runs at application startup to initial
 **What the Bootstrapper Does:**
 
 1. **Resolves Short Names**
-   - AWS: Converts short names to full SQS URLs and SNS ARNs
-   - Azure: Uses short names directly for Service Bus resources
+   - Converts short names to full SQS URLs and SNS ARNs
 
 2. **Creates Missing Resources**
    - Creates queues with appropriate settings (FIFO attributes, sessions, etc.)
@@ -1053,15 +1022,6 @@ Use the `.fifo` suffix to enable ordered message processing:
 - Enables message grouping by entity ID
 - Guarantees exactly-once processing
 
-**Azure (Session-Enabled Queues):**
-```csharp
-.Send
-    .Command<CreateOrderCommand>(q => q.Queue("orders.fifo"))
-```
-- Enables session handling
-- Groups messages by session ID (entity ID)
-- Guarantees ordered processing per session
-
 ### Best Practices
 
 1. **Command Routing Organization**
@@ -1086,7 +1046,7 @@ Use the `.fifo` suffix to enable ordered message processing:
 
 5. **Testing**
    - Unit test configuration without cloud services
-   - Integration test with LocalStack (AWS) or Azurite (Azure)
+   - Integration test with LocalStack
    - Validate routing configuration in tests
 
 ### Troubleshooting
@@ -1114,8 +1074,7 @@ Use the `.fifo` suffix to enable ordered message processing:
 ### Cloud-Specific Documentation
 
 For detailed cloud-specific information:
-- **AWS**: See [AWS Cloud Extension Guide](.kiro/steering/sourceflow-cloud-aws.md)
-- **Azure**: See [Azure Cloud Extension Guide](.kiro/steering/sourceflow-cloud-azure.md)
+- **AWS**: See [AWS Cloud Architecture](Architecture/07-AWS-Cloud-Architecture.md)
 - **Testing**: See [Cloud Integration Testing](Cloud-Integration-Testing.md)
 
 ---

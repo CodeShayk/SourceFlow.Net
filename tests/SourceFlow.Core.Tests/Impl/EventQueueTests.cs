@@ -7,6 +7,7 @@ using SourceFlow.Observability;
 namespace SourceFlow.Core.Tests.Impl
 {
     [TestFixture]
+    [Category("Unit")]
     public class EventQueueTests
     {
         private Mock<ILogger<IEventQueue>> loggerMock;

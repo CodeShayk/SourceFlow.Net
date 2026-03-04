@@ -395,7 +395,7 @@ public class CommandBus
 
 **Benefits**:
 1. **Plugin Architecture**: Add new dispatchers without modifying CommandBus
-2. **Multi-target**: Same command can go to local + AWS + Azure simultaneously
+2. **Multi-target**: Same command can go to local + AWS + other cloud providers simultaneously
 3. **Open/Closed Principle**: Open for extension, closed for modification
 
 ---
@@ -669,7 +669,7 @@ services.AddImplementationAsInterfaces<IView>(assemblies, ServiceLifetime.Single
 
 ### 1. Add New ICommandDispatcher
 
-**Use Case**: Send commands to AWS SQS, Azure Service Bus, etc.
+**Use Case**: Send commands to AWS SQS or other cloud messaging services
 
 ```csharp
 // Implement interface
@@ -696,7 +696,7 @@ services.AddScoped<ICommandDispatcher, AwsSqsCommandDispatcher>();  // AWS
 
 ### 2. Add New IEventDispatcher
 
-**Use Case**: Publish events to AWS SNS, Azure Service Bus Topics, etc.
+**Use Case**: Publish events to AWS SNS or other cloud messaging services
 
 ```csharp
 // Implement interface
@@ -976,7 +976,7 @@ services.UseSourceFlow(ServiceLifetime.Singleton, assemblies);
 ✅ **Type Safety** - Generics preserved throughout
 ✅ **Performance** - Parallel processing and pooling optimizations
 ✅ **Observability** - Built-in telemetry and tracing
-✅ **Cloud Ready** - Easy to add AWS, Azure, or multi-cloud support
+✅ **Cloud Ready** - AWS cloud support with extensibility for additional providers
 ✅ **Comprehensive Testing** - Property-based testing, performance benchmarks, security validation, and resilience testing for cloud integrations
 
 **Extension Points**:
@@ -987,9 +987,9 @@ services.UseSourceFlow(ServiceLifetime.Singleton, assemblies);
 
 **Testing Capabilities**:
 - Property-based testing with FsCheck for universal correctness properties
-- LocalStack and Azurite integration for local development
+- LocalStack integration for local AWS development
 - Performance benchmarking with BenchmarkDotNet
-- Security validation including IAM, KMS, and Key Vault testing
+- Security validation including IAM and KMS testing
 - Resilience testing with circuit breakers and retry policies
 - End-to-end integration testing across cloud services
 
@@ -1007,9 +1007,8 @@ services.UseSourceFlow(ServiceLifetime.Singleton, assemblies);
 5. **Read Document 05** - Store Persistence (storage layer)
 
 ### Implementing Cloud Extensions
-- **For AWS**: Read documents 06-07
-- **For Azure**: Read documents 08-09
-- **For Multi-Cloud**: Read all cloud documents
+- **For AWS**: Read documents 06-07 for cloud architecture and AWS integration details
+- **For Multi-Cloud**: Future releases will support additional cloud providers
 
 ### Building with SourceFlow.Net
 1. Define your domain entities
@@ -1034,6 +1033,7 @@ services.UseSourceFlow(ServiceLifetime.Singleton, assemblies);
 | 04 | `04-Current-Dispatching-Patterns.md` | Extension points analysis |
 | 05 | `05-Store-Persistence-Architecture.md` | Storage layer deep dive |
 | 06 | `06-Cloud-Core-Consolidation.md` | Cloud.Core consolidation into SourceFlow |
+| 07 | `07-AWS-Cloud-Architecture.md` | AWS cloud integration architecture |
 
 ---
 

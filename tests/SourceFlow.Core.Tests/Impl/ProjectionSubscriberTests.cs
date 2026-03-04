@@ -8,6 +8,7 @@ using System.Linq;
 namespace SourceFlow.Core.Tests.Impl
 {
     [TestFixture]
+    [Category("Unit")]
     public class ProjectionSubscriberTests
     {
         [Test]

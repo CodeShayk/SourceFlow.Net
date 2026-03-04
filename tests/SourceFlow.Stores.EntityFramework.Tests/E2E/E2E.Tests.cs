@@ -1,11 +1,16 @@
+using System;
 using System.Reflection;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Core.Tests.E2E.Aggregates;
-using SourceFlow.Core.Tests.E2E.Projections;
+using NUnit.Framework;
 using SourceFlow.Saga;
+using SourceFlow.Stores.EntityFramework.Extensions;
+using SourceFlow.Stores.EntityFramework.Tests.E2E.Aggregates;
+using SourceFlow.Stores.EntityFramework.Tests.E2E.Projections;
 
-namespace SourceFlow.Core.Tests.E2E
+namespace SourceFlow.Stores.EntityFramework.Tests.E2E
 {
     [TestFixture]
     [Category("Integration")]
@@ -21,6 +26,14 @@ namespace SourceFlow.Core.Tests.E2E
         [SetUp]
         public void SetUp()
         {
+            // Clear any previous registrations
+            EntityDbContext.ClearRegistrations();
+            ViewModelDbContext.ClearRegistrations();
+
+            // Register the test assembly for scanning
+            EntityDbContext.RegisterAssembly(typeof(BankAccount).Assembly);
+            ViewModelDbContext.RegisterAssembly(typeof(AccountViewModel).Assembly);
+
             var services = new ServiceCollection();
 
             // Register logging with console provider
@@ -33,8 +46,29 @@ namespace SourceFlow.Core.Tests.E2E
             // Register SourceFlow and all required services
             // Pass the test assembly so it can discover E2E aggregates, sagas, and projections
             services.UseSourceFlow(Assembly.GetExecutingAssembly());
+            // Register EF store implementations with SQLite with sensitive data logging.
+            services.AddSourceFlowEfStoresWithCustomProvider(options =>
+                options.UseSqlite("DataSource=sourceflow.db")
+                       .EnableSensitiveDataLogging()
+                       .LogTo(Console.WriteLine, Microsoft.Extensions.Logging.LogLevel.Information));
 
             _serviceProvider = services.BuildServiceProvider();
+
+            // Ensure all database schemas are created fresh for each test
+            // Delete the database once (all contexts share the same database file)
+            var commandContext = _serviceProvider.GetRequiredService<CommandDbContext>();
+            commandContext.Database.EnsureDeleted();
+
+            // Create all tables for each context
+            commandContext.Database.EnsureCreated();
+
+            var entityContext = _serviceProvider.GetRequiredService<EntityDbContext>();
+            entityContext.Database.EnsureCreated();
+            entityContext.ApplyMigrations(); // On migrations for registered entity types
+
+            var viewModelContext = _serviceProvider.GetRequiredService<ViewModelDbContext>();
+            viewModelContext.Database.EnsureCreated();
+            viewModelContext.ApplyMigrations(); // On migrations for registered view model types
 
             _saga = _serviceProvider.GetRequiredService<ISaga>();
             _accountAggregate = _serviceProvider.GetRequiredService<IAccountAggregate>();

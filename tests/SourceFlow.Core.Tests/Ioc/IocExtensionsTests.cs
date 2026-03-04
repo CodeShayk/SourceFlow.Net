@@ -63,6 +63,7 @@ namespace SourceFlow.Tests.Ioc
     }
 
     [TestFixture]
+    [Category("Unit")]
     public class IocExtensionsTests
     {
         private ServiceCollection _services = null!;

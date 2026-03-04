@@ -22,8 +22,7 @@ The consolidation was driven by several factors:
 src/
 ├── SourceFlow/                    # Core framework
 ├── SourceFlow.Cloud.Core/         # Shared cloud functionality
-├── SourceFlow.Cloud.AWS/          # AWS integration (depends on Cloud.Core)
-└── SourceFlow.Cloud.Azure/        # Azure integration (depends on Cloud.Core)
+└── SourceFlow.Cloud.AWS/          # AWS integration (depends on Cloud.Core)
 ```
 
 **After:**
@@ -37,8 +36,7 @@ src/
 │       ├── Observability/        # Cloud telemetry
 │       ├── DeadLetter/           # Failed message handling
 │       └── Serialization/        # Polymorphic JSON converters
-├── SourceFlow.Cloud.AWS/          # AWS integration (depends only on SourceFlow)
-└── SourceFlow.Cloud.Azure/        # Azure integration (depends only on SourceFlow)
+└── SourceFlow.Cloud.AWS/          # AWS integration (depends only on SourceFlow)
 ```
 
 ### Namespace Changes
@@ -142,7 +140,7 @@ The following components are now part of the core `SourceFlow` package:
 
 ### No Breaking Changes for End Users
 
-If you're using the AWS or Azure cloud extensions, no code changes are required. The consolidation is transparent to consumers of the cloud packages.
+If you're using the AWS cloud extension, no code changes are required. The consolidation is transparent to consumers of the cloud package.
 
 ### Breaking Changes for Direct Cloud.Core Users
 
@@ -156,17 +154,16 @@ If you were directly referencing `SourceFlow.Cloud.Core` (not recommended), you'
 
 This consolidation sets the stage for:
 
-1. **Unified Cloud Abstractions** - Common patterns across all cloud providers
-2. **Extensibility** - Easier to add new cloud providers
-3. **Hybrid Cloud Support** - Simplified multi-cloud scenarios
+1. **Unified Cloud Abstractions** - Common patterns across cloud providers
+2. **Extensibility** - Easier to add new cloud providers in future releases
+3. **Hybrid Cloud Support** - Simplified multi-cloud scenarios when additional providers are added
 4. **Local Development** - Cloud patterns available without cloud dependencies
 
 ## Related Documentation
 
 - [SourceFlow Core](./01-Architecture-Overview.md)
 - [Cloud Configuration Guide](../SourceFlow.Net-README.md#-cloud-configuration-with-bus-configuration-system)
-- [AWS Cloud Extension](../../.kiro/steering/sourceflow-cloud-aws.md)
-- [Azure Cloud Extension](../../.kiro/steering/sourceflow-cloud-azure.md)
+- [AWS Cloud Extension](./07-AWS-Cloud-Architecture.md)
 
 ---
 

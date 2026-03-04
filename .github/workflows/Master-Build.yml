@@ -19,8 +19,52 @@ jobs:
       run: dotnet restore
     - name: Build
       run: dotnet build --no-restore
-    - name: Test
-      run: dotnet test --no-build --verbosity normal
+    
+    # Run unit tests first (no external dependencies)
+    - name: Run Unit Tests
+      run: dotnet test --no-build --verbosity normal --filter "Category=Unit"
+    
+    # Start LocalStack container for integration tests
+    - name: Start LocalStack Container
+      run: |
+        docker run -d \
+          --name localstack \
+          -p 4566:4566 \
+          -e SERVICES=sqs,sns,kms,iam \
+          -e DEBUG=1 \
+          -e DOCKER_HOST=unix:///var/run/docker.sock \
+          localstack/localstack:latest
+        
+        # Wait for LocalStack to be ready (max 60 seconds)
+        echo "Waiting for LocalStack to be ready..."
+        timeout 60 bash -c 'until docker exec localstack curl -s http://localhost:4566/_localstack/health | grep -q "\"sqs\": \"available\""; do sleep 2; done' || echo "LocalStack startup timeout"
+        
+        # Display LocalStack health status
+        docker exec localstack curl -s http://localhost:4566/_localstack/health
+    
+    # Configure AWS SDK to use LocalStack endpoints
+    - name: Configure AWS SDK for LocalStack
+      run: |
+        echo "AWS_ACCESS_KEY_ID=test" >> $GITHUB_ENV
+        echo "AWS_SECRET_ACCESS_KEY=test" >> $GITHUB_ENV
+        echo "AWS_DEFAULT_REGION=us-east-1" >> $GITHUB_ENV
+        echo "AWS_ENDPOINT_URL=http://localhost:4566" >> $GITHUB_ENV
+    
+    # Run integration tests against LocalStack
+    - name: Run Integration Tests with LocalStack
+      run: dotnet test --no-build --verbosity normal --filter "Category=Integration&Category=RequiresLocalStack"
+      env:
+        AWS_ACCESS_KEY_ID: test
+        AWS_SECRET_ACCESS_KEY: test
+        AWS_DEFAULT_REGION: us-east-1
+        AWS_ENDPOINT_URL: http://localhost:4566
+    
+    # Clean up LocalStack container
+    - name: Stop LocalStack Container
+      if: always()
+      run: |
+        docker stop localstack || true
+        docker rm localstack || true
   
   run-Lint:
       runs-on: ubuntu-latest

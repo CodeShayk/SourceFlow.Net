@@ -8,6 +8,7 @@ using SourceFlow.Core.Tests.Impl;
 namespace SourceFlow.Core.Tests.Middleware
 {
     [TestFixture]
+    [Category("Unit")]
     public class EventDispatchMiddlewareTests
     {
         private Mock<ILogger<IEventQueue>> loggerMock;

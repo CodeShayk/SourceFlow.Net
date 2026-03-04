@@ -10,6 +10,7 @@ using SourceFlow.Core.Tests.Impl;
 namespace SourceFlow.Core.Tests.Middleware
 {
     [TestFixture]
+    [Category("Unit")]
     public class CommandDispatchMiddlewareTests
     {
         private Mock<ICommandStoreAdapter> commandStoreMock;

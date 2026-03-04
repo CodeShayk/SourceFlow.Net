@@ -37,6 +37,7 @@ namespace SourceFlow.Core.Tests.Middleware
     }
 
     [TestFixture]
+    [Category("Unit")]
     public class CommandSubscribeMiddlewareTests
     {
         private Mock<ILogger<ICommandSubscriber>> loggerMock;

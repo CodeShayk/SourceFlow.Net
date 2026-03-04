@@ -259,7 +259,7 @@ public class CustomCleanupJob : BackgroundService
 
 - **Multi-Instance Deployments**: When running multiple application instances that process the same message queues
 - **Distributed Systems**: When messages can be delivered more than once (at-least-once delivery)
-- **Cloud Messaging**: When using AWS SQS, Azure Service Bus, or other cloud message queues
+- **Cloud Messaging**: When using AWS SQS or other cloud message queues
 
 For single-instance deployments, consider using `InMemoryIdempotencyService` from the core framework for better performance.
 

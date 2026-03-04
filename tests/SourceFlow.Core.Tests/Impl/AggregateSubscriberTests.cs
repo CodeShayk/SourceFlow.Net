@@ -7,6 +7,7 @@ using System.Linq;
 namespace SourceFlow.Core.Tests.Impl
 {
     [TestFixture]
+    [Category("Unit")]
     public class AggregateSubscriberTests
     {
         [Test]

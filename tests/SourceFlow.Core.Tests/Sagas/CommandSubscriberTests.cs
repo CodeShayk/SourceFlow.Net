@@ -62,6 +62,7 @@ namespace SourceFlow.Core.Tests.Sagas
     }
 
     [TestFixture]
+    [Category("Unit")]
     public class CommandSubscriberTests
     {
         private Mock<ILogger<ICommandSubscriber>> _mockLogger;

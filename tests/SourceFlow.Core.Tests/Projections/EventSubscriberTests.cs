@@ -47,6 +47,7 @@ namespace SourceFlow.Core.Tests.Projections
     }
 
     [TestFixture]
+    [Category("Unit")]
     public class EventSubscriberTests
     {
         private Mock<ILogger<IEventSubscriber>> _mockLogger;

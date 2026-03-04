@@ -164,7 +164,7 @@ dotnet test --filter "Category!=RequiresLocalStack"
 dotnet test --filter "Category!=RequiresAWS"
 ```
 
-For detailed information on running tests, see [RUNNING_TESTS.md](RUNNING_TESTS.md).
+
 
 ## Test Structure
 
@@ -475,10 +475,6 @@ dotnet test
 # Skip integration tests
 dotnet test --filter "Category!=Integration"
 ```
-
-### Detailed Test Execution
-
-For comprehensive information on running tests with different configurations, see [RUNNING_TESTS.md](RUNNING_TESTS.md).
 
 ### Test Categories
 
