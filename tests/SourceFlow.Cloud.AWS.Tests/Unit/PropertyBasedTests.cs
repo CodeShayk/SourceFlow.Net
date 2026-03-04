@@ -5,9 +5,7 @@ using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Cloud.AWS.Tests.Unit;
 
-/// <summary>
-/// Property-based tests for AWS cloud integration
-/// </summary>
+[Trait("Category", "Unit")]
 public class PropertyBasedTests
 {
     /// <summary>

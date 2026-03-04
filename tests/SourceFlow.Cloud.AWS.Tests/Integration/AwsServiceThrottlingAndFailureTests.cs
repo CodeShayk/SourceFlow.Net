@@ -20,6 +20,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// Validates: Requirements 7.4, 7.5 - AWS service throttling and network failure handling
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class AwsServiceThrottlingAndFailureTests : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;

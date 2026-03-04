@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Cloud.AWS.Monitoring;
 using SourceFlow.Cloud.AWS.Tests.TestHelpers;
-using SourceFlow.Cloud.Core.DeadLetter;
+using SourceFlow.Cloud.DeadLetter;
 using System.Text.Json;
 
 namespace SourceFlow.Cloud.AWS.Tests.Integration;
@@ -15,6 +15,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// Validates Requirement 7.3
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class AwsDeadLetterQueueProcessingTests : IClassFixture<LocalStackTestFixture>, IAsyncDisposable
 {
     private readonly LocalStackTestFixture _localStack;

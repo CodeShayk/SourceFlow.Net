@@ -4,7 +4,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Cloud.AWS.Security;
 using SourceFlow.Cloud.AWS.Tests.TestHelpers;
-using SourceFlow.Cloud.Core.Security;
+using SourceFlow.Cloud.Security;
 using System.Diagnostics;
 using System.Text.Json;
 
@@ -16,6 +16,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// **Validates: Requirements 3.3, 3.4, 3.5**
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class KmsSecurityAndPerformanceTests : IClassFixture<LocalStackTestFixture>, IAsyncDisposable
 {
     private readonly LocalStackTestFixture _localStack;

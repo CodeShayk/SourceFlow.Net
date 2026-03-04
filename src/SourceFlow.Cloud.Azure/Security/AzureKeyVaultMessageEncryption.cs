@@ -1,7 +1,7 @@
 using Azure.Security.KeyVault.Keys.Cryptography;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
-using SourceFlow.Cloud.Core.Security;
+using SourceFlow.Cloud.Security;
 using System.Security.Cryptography;
 using System.Text;
 

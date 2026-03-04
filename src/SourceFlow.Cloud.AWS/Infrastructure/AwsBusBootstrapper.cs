@@ -4,7 +4,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 
 namespace SourceFlow.Cloud.AWS.Infrastructure;
 

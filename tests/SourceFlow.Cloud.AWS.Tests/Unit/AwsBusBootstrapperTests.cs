@@ -6,10 +6,11 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using SourceFlow.Cloud.AWS.Infrastructure;
 using SourceFlow.Cloud.AWS.Tests.TestHelpers;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 
 namespace SourceFlow.Cloud.AWS.Tests.Unit;
 
+[Trait("Category", "Unit")]
 public class AwsBusBootstrapperTests
 {
     private readonly Mock<IAmazonSQS> _mockSqsClient;

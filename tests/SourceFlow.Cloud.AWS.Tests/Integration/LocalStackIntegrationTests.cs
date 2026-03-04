@@ -9,6 +9,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// <summary>
 /// Integration tests using LocalStack emulator
 /// </summary>
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class LocalStackIntegrationTests : IClassFixture<LocalStackTestFixture>
 {
     private readonly LocalStackTestFixture _localStack;

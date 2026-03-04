@@ -3,11 +3,12 @@ using Moq;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Cloud.Azure.Messaging.Events;
 using SourceFlow.Cloud.Azure.Tests.TestHelpers;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 using SourceFlow.Observability;
 
 namespace SourceFlow.Cloud.Azure.Tests.Unit;
 
+[Trait("Category", "Unit")]
 public class AzureServiceBusEventDispatcherTests
 {
     private readonly Mock<ServiceBusClient> _mockServiceBusClient;

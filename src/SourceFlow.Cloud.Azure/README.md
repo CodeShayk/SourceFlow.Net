@@ -22,6 +22,73 @@ dotnet add package SourceFlow.Cloud.Azure
 
 ## Configuration
 
+### Basic Setup with In-Memory Idempotency (Single Instance)
+
+For single-instance deployments, the default in-memory idempotency service is automatically registered:
+
+```csharp
+services.UseSourceFlow(); // Existing registration
+
+services.UseSourceFlowAzure(
+    options =>
+    {
+        options.FullyQualifiedNamespace = "myservicebus.servicebus.windows.net";
+        options.UseManagedIdentity = true;
+    },
+    bus => bus
+        .Send.Command<CreateOrderCommand>(q => q.Queue("orders"))
+        .Raise.Event<OrderCreatedEvent>(t => t.Topic("order-events"))
+        .Listen.To.CommandQueue("orders")
+        .Subscribe.To.Topic("order-events"));
+```
+
+### Multi-Instance Deployment with SQL-Based Idempotency
+
+For multi-instance deployments, use the Entity Framework-based idempotency service to ensure duplicate detection across all instances:
+
+```csharp
+services.UseSourceFlow(); // Existing registration
+
+// Register Entity Framework stores and SQL-based idempotency
+services.AddSourceFlowEfStores(connectionString);
+services.AddSourceFlowIdempotency(
+    connectionString: connectionString,
+    cleanupIntervalMinutes: 60);
+
+// Configure Azure with the registered idempotency service
+services.UseSourceFlowAzure(
+    options =>
+    {
+        options.FullyQualifiedNamespace = "myservicebus.servicebus.windows.net";
+        options.UseManagedIdentity = true;
+    },
+    bus => bus
+        .Send.Command<CreateOrderCommand>(q => q.Queue("orders"))
+        .Raise.Event<OrderCreatedEvent>(t => t.Topic("order-events"))
+        .Listen.To.CommandQueue("orders")
+        .Subscribe.To.Topic("order-events"));
+```
+
+**Note**: The SQL-based idempotency service requires the `SourceFlow.Stores.EntityFramework` package:
+
+```bash
+dotnet add package SourceFlow.Stores.EntityFramework
+```
+
+### Custom Idempotency Service
+
+You can also provide a custom idempotency implementation:
+
+```csharp
+services.UseSourceFlowAzure(
+    options => { options.FullyQualifiedNamespace = "myservicebus.servicebus.windows.net"; },
+    bus => bus.Send.Command<CreateOrderCommand>(q => q.Queue("orders")),
+    configureIdempotency: services =>
+    {
+        services.AddScoped<IIdempotencyService, MyCustomIdempotencyService>();
+    });
+```
+
 ### Azure Service Bus Setup
 
 Create Azure Service Bus resources with the following settings:

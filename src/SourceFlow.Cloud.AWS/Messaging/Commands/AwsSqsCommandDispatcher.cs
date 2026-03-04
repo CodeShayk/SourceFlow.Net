@@ -1,7 +1,7 @@
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 using SourceFlow.Cloud.AWS.Observability;
 using SourceFlow.Messaging.Commands;
 using SourceFlow.Observability;

@@ -5,11 +5,12 @@ using Moq;
 using SourceFlow.Cloud.AWS.Messaging.Events;
 using SourceFlow.Cloud.AWS.Observability;
 using SourceFlow.Cloud.AWS.Tests.TestHelpers;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 using SourceFlow.Observability;
 
 namespace SourceFlow.Cloud.AWS.Tests.Unit;
 
+[Trait("Category", "Unit")]
 public class AwsSnsEventDispatcherTests
 {
     private readonly Mock<IAmazonSimpleNotificationService> _mockSnsClient;

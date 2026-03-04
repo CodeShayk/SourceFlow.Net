@@ -1,7 +1,7 @@
 using Amazon.SimpleNotificationService;
 using Amazon.SimpleNotificationService.Model;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 using SourceFlow.Cloud.AWS.Observability;
 using SourceFlow.Messaging.Events;
 using SourceFlow.Observability;

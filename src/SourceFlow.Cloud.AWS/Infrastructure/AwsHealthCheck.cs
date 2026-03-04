@@ -1,7 +1,7 @@
 using Amazon.SQS;
 using Amazon.SimpleNotificationService;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 
 namespace SourceFlow.Cloud.AWS.Infrastructure;
 

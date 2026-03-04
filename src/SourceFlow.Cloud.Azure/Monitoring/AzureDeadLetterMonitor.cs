@@ -1,8 +1,8 @@
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using SourceFlow.Cloud.Core.DeadLetter;
-using SourceFlow.Cloud.Core.Observability;
+using SourceFlow.Cloud.DeadLetter;
+using SourceFlow.Cloud.Observability;
 using System.Text.Json;
 
 namespace SourceFlow.Cloud.Azure.Monitoring;

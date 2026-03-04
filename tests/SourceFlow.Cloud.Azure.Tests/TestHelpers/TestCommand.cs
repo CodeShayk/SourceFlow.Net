@@ -6,10 +6,16 @@ namespace SourceFlow.Cloud.Azure.Tests.TestHelpers;
 
 public class TestCommand : ICommand
 {
-    public IPayload Payload { get; set; } = null!;
-    public EntityRef Entity { get; set; } = null!;
-    public string Name { get; set; } = null!;
-    public Metadata Metadata { get; set; } = null!;
+    public IPayload Payload { get; set; } = new TestPayload();
+    public EntityRef Entity { get; set; } = new EntityRef { Id = 1 };
+    public string Name { get; set; } = string.Empty;
+    public Metadata Metadata { get; set; } = new Metadata();
+}
+
+public class TestPayload : IPayload
+{
+    public string Data { get; set; } = string.Empty;
+    public int Value { get; set; }
 }
 
 public class TestEvent : IEvent

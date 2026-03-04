@@ -7,6 +7,7 @@ namespace SourceFlow.Cloud.AWS.Tests.Unit;
 /// <summary>
 /// Dedicated property test for LocalStack AWS service equivalence
 /// </summary>
+[Trait("Category", "Unit")]
 public class LocalStackEquivalencePropertyTest
 {
     /// <summary>

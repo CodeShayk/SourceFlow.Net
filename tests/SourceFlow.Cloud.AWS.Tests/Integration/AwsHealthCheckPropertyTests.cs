@@ -13,6 +13,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// **Feature: aws-cloud-integration-testing, Property 8: AWS Health Check Accuracy**
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class AwsHealthCheckPropertyTests : IClassFixture<LocalStackTestFixture>, IAsyncDisposable
 {
     private readonly LocalStackTestFixture _localStack;

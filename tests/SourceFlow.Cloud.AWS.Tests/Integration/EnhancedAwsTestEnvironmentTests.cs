@@ -8,6 +8,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// Integration tests for the enhanced AWS test environment abstractions
 /// Validates that the new IAwsTestEnvironment, ILocalStackManager, and IAwsResourceManager work correctly
 /// </summary>
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class EnhancedAwsTestEnvironmentTests : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;

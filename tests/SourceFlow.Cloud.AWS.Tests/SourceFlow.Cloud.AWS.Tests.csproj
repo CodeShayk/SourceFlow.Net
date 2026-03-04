@@ -83,7 +83,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SourceFlow.Cloud.AWS\SourceFlow.Cloud.AWS.csproj" />
     <ProjectReference Include="..\..\src\SourceFlow\SourceFlow.csproj" />
-    <ProjectReference Include="..\..\src\SourceFlow.Cloud.Core\SourceFlow.Cloud.Core.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,9 @@
 using Amazon;
+using Amazon.SQS;
+using Amazon.SimpleNotificationService;
+using Amazon.KeyManagementService;
+using Amazon.Runtime;
+using System.Net.Sockets;
 
 namespace SourceFlow.Cloud.AWS.Tests.TestHelpers;
 
@@ -81,6 +86,201 @@ public class AwsTestConfiguration
     /// Security test configuration
     /// </summary>
     public SecurityTestConfiguration Security { get; set; } = new();
+
+    /// <summary>
+    /// Checks if AWS SQS is available with a timeout.
+    /// </summary>
+    /// <param name="timeout">Maximum time to wait for connection.</param>
+    /// <returns>True if SQS is available, false otherwise.</returns>
+    public async Task<bool> IsSqsAvailableAsync(TimeSpan timeout)
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(timeout);
+            
+            var config = new AmazonSQSConfig
+            {
+                RegionEndpoint = Region
+            };
+
+            if (UseLocalStack)
+            {
+                config.ServiceURL = LocalStackEndpoint;
+            }
+
+            var credentials = new BasicAWSCredentials(AccessKey, SecretKey);
+            using var client = new AmazonSQSClient(credentials, config);
+            
+            // Try to list queues to test connectivity
+            await client.ListQueuesAsync(new Amazon.SQS.Model.ListQueuesRequest(), cts.Token);
+            
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout occurred
+            return false;
+        }
+        catch (SocketException)
+        {
+            // Connection refused
+            return false;
+        }
+        catch (AmazonServiceException)
+        {
+            // Service error, but we connected
+            return true;
+        }
+        catch (Exception)
+        {
+            // Other connection errors
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if AWS SNS is available with a timeout.
+    /// </summary>
+    /// <param name="timeout">Maximum time to wait for connection.</param>
+    /// <returns>True if SNS is available, false otherwise.</returns>
+    public async Task<bool> IsSnsAvailableAsync(TimeSpan timeout)
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(timeout);
+            
+            var config = new AmazonSimpleNotificationServiceConfig
+            {
+                RegionEndpoint = Region
+            };
+
+            if (UseLocalStack)
+            {
+                config.ServiceURL = LocalStackEndpoint;
+            }
+
+            var credentials = new BasicAWSCredentials(AccessKey, SecretKey);
+            using var client = new AmazonSimpleNotificationServiceClient(credentials, config);
+            
+            // Try to list topics to test connectivity
+            await client.ListTopicsAsync(new Amazon.SimpleNotificationService.Model.ListTopicsRequest(), cts.Token);
+            
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout occurred
+            return false;
+        }
+        catch (SocketException)
+        {
+            // Connection refused
+            return false;
+        }
+        catch (AmazonServiceException)
+        {
+            // Service error, but we connected
+            return true;
+        }
+        catch (Exception)
+        {
+            // Other connection errors
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if AWS KMS is available with a timeout.
+    /// </summary>
+    /// <param name="timeout">Maximum time to wait for connection.</param>
+    /// <returns>True if KMS is available, false otherwise.</returns>
+    public async Task<bool> IsKmsAvailableAsync(TimeSpan timeout)
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(timeout);
+            
+            var config = new AmazonKeyManagementServiceConfig
+            {
+                RegionEndpoint = Region
+            };
+
+            if (UseLocalStack)
+            {
+                config.ServiceURL = LocalStackEndpoint;
+            }
+
+            var credentials = new BasicAWSCredentials(AccessKey, SecretKey);
+            using var client = new AmazonKeyManagementServiceClient(credentials, config);
+            
+            // Try to list keys to test connectivity
+            await client.ListKeysAsync(new Amazon.KeyManagementService.Model.ListKeysRequest(), cts.Token);
+            
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout occurred
+            return false;
+        }
+        catch (SocketException)
+        {
+            // Connection refused
+            return false;
+        }
+        catch (AmazonServiceException)
+        {
+            // Service error, but we connected
+            return true;
+        }
+        catch (Exception)
+        {
+            // Other connection errors
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if LocalStack is available with a timeout.
+    /// </summary>
+    /// <param name="timeout">Maximum time to wait for connection.</param>
+    /// <returns>True if LocalStack is available, false otherwise.</returns>
+    public async Task<bool> IsLocalStackAvailableAsync(TimeSpan timeout)
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(timeout);
+            
+            var config = new AmazonSQSConfig
+            {
+                ServiceURL = LocalStackEndpoint,
+                RegionEndpoint = Region
+            };
+
+            var credentials = new BasicAWSCredentials("test", "test");
+            using var client = new AmazonSQSClient(credentials, config);
+            
+            // Try to list queues to test LocalStack connectivity
+            await client.ListQueuesAsync(new Amazon.SQS.Model.ListQueuesRequest(), cts.Token);
+            
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            // Timeout occurred
+            return false;
+        }
+        catch (SocketException)
+        {
+            // Connection refused - LocalStack not running
+            return false;
+        }
+        catch (Exception)
+        {
+            // Other connection errors
+            return false;
+        }
+    }
 }
 
 /// <summary>

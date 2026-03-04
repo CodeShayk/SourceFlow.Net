@@ -11,6 +11,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// **Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5**
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class AwsHealthCheckIntegrationTests : IClassFixture<LocalStackTestFixture>, IAsyncDisposable
 {
     private readonly LocalStackTestFixture _localStack;

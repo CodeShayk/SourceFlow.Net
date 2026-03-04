@@ -21,6 +21,71 @@ dotnet add package SourceFlow.Cloud.AWS
 
 ## Configuration
 
+### Basic Setup with In-Memory Idempotency (Single Instance)
+
+For single-instance deployments, the default in-memory idempotency service is automatically registered:
+
+```csharp
+services.UseSourceFlow(); // Existing registration
+
+services.UseSourceFlowAws(
+    options =>
+    {
+        options.Region = RegionEndpoint.USEast1;
+    },
+    bus => bus
+        .Send.Command<CreateOrderCommand>(q => q.Queue("orders.fifo"))
+        .Raise.Event<OrderCreatedEvent>(t => t.Topic("order-events"))
+        .Listen.To.CommandQueue("orders.fifo")
+        .Subscribe.To.Topic("order-events"));
+```
+
+### Multi-Instance Deployment with SQL-Based Idempotency
+
+For multi-instance deployments, use the Entity Framework-based idempotency service to ensure duplicate detection across all instances:
+
+```csharp
+services.UseSourceFlow(); // Existing registration
+
+// Register Entity Framework stores and SQL-based idempotency
+services.AddSourceFlowEfStores(connectionString);
+services.AddSourceFlowIdempotency(
+    connectionString: connectionString,
+    cleanupIntervalMinutes: 60);
+
+// Configure AWS with the registered idempotency service
+services.UseSourceFlowAws(
+    options =>
+    {
+        options.Region = RegionEndpoint.USEast1;
+    },
+    bus => bus
+        .Send.Command<CreateOrderCommand>(q => q.Queue("orders.fifo"))
+        .Raise.Event<OrderCreatedEvent>(t => t.Topic("order-events"))
+        .Listen.To.CommandQueue("orders.fifo")
+        .Subscribe.To.Topic("order-events"));
+```
+
+**Note**: The SQL-based idempotency service requires the `SourceFlow.Stores.EntityFramework` package:
+
+```bash
+dotnet add package SourceFlow.Stores.EntityFramework
+```
+
+### Custom Idempotency Service
+
+You can also provide a custom idempotency implementation:
+
+```csharp
+services.UseSourceFlowAws(
+    options => { options.Region = RegionEndpoint.USEast1; },
+    bus => bus.Send.Command<CreateOrderCommand>(q => q.Queue("orders.fifo")),
+    configureIdempotency: services =>
+    {
+        services.AddScoped<IIdempotencyService, MyCustomIdempotencyService>();
+    });
+```
+
 ### appsettings.json
 
 ```json

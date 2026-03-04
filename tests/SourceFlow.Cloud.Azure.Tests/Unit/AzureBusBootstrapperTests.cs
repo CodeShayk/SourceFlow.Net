@@ -4,10 +4,11 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using SourceFlow.Cloud.Azure.Infrastructure;
 using SourceFlow.Cloud.Azure.Tests.TestHelpers;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 
 namespace SourceFlow.Cloud.Azure.Tests.Unit;
 
+[Trait("Category", "Unit")]
 public class AzureBusBootstrapperTests
 {
     private readonly Mock<ServiceBusAdministrationClient> _mockAdminClient;

@@ -14,6 +14,7 @@ namespace SourceFlow.Cloud.AWS.Tests.Unit;
 /// **Feature: aws-cloud-integration-testing, Property 9: AWS Performance Measurement Consistency**
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Unit")]
 public class AwsPerformanceMeasurementPropertyTests : IClassFixture<LocalStackTestFixture>, IAsyncDisposable
 {
     private readonly LocalStackTestFixture _localStack;

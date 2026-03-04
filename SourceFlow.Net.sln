@@ -41,8 +41,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceFlow.Cloud.Azure.Test
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceFlow.Stores.EntityFramework.Tests", "tests\SourceFlow.Net.EntityFramework.Tests\SourceFlow.Stores.EntityFramework.Tests.csproj", "{C56C4BC2-6BDC-EB3D-FC92-F9633530A501}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SourceFlow.Cloud.Core", "src\SourceFlow.Cloud.Core\SourceFlow.Cloud.Core.csproj", "{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -149,18 +147,6 @@ Global
 		{C56C4BC2-6BDC-EB3D-FC92-F9633530A501}.Release|x64.Build.0 = Release|Any CPU
 		{C56C4BC2-6BDC-EB3D-FC92-F9633530A501}.Release|x86.ActiveCfg = Release|Any CPU
 		{C56C4BC2-6BDC-EB3D-FC92-F9633530A501}.Release|x86.Build.0 = Release|Any CPU
-		{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353}.Debug|x64.Build.0 = Debug|Any CPU
-		{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353}.Debug|x86.Build.0 = Debug|Any CPU
-		{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353}.Release|Any CPU.Build.0 = Release|Any CPU
-		{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353}.Release|x64.ActiveCfg = Release|Any CPU
-		{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353}.Release|x64.Build.0 = Release|Any CPU
-		{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353}.Release|x86.ActiveCfg = Release|Any CPU
-		{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -174,7 +160,6 @@ Global
 		{0A833B33-8C55-4364-8D70-9A31994A6F61} = {653DCB25-EC82-421B-86F7-1DD8879B3926}
 		{B4D7F122-8D27-43D4-902F-5B0A43908A14} = {653DCB25-EC82-421B-86F7-1DD8879B3926}
 		{C56C4BC2-6BDC-EB3D-FC92-F9633530A501} = {653DCB25-EC82-421B-86F7-1DD8879B3926}
-		{9C9E52A2-4C1F-4DC5-A8E7-F784FDA81353} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D02B8992-CC81-4194-BBF7-5EC40A96C698}

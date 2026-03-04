@@ -1,8 +1,9 @@
 using SourceFlow.Cloud.AWS.Tests.TestHelpers;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 
 namespace SourceFlow.Cloud.AWS.Tests.Unit;
 
+[Trait("Category", "Unit")]
 public class BusConfigurationTests
 {
     private BusConfiguration BuildConfig(Action<BusConfigurationBuilder> configure)

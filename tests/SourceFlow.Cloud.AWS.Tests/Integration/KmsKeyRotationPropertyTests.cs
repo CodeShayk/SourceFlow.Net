@@ -18,6 +18,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// **Feature: aws-cloud-integration-testing, Property 6: KMS Key Rotation Seamlessness**
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class KmsKeyRotationPropertyTests : IClassFixture<LocalStackTestFixture>, IAsyncDisposable
 {
     private readonly LocalStackTestFixture _localStack;

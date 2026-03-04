@@ -1,6 +1,6 @@
 using FsCheck;
 using FsCheck.Xunit;
-using SourceFlow.Cloud.Core.Resilience;
+using SourceFlow.Cloud.Resilience;
 using SourceFlow.Cloud.AWS.Tests.TestHelpers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -12,6 +12,7 @@ namespace SourceFlow.Cloud.AWS.Tests.Unit;
 /// **Feature: aws-cloud-integration-testing, Property 11: AWS Resilience Pattern Compliance**
 /// **Validates: Requirements 7.1, 7.2, 7.4, 7.5**
 /// </summary>
+[Trait("Category", "Unit")]
 public class AwsResiliencePatternPropertyTests
 {
     /// <summary>

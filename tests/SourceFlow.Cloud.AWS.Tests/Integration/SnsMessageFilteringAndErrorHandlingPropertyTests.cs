@@ -19,6 +19,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// **Validates: Requirements 2.3, 2.5**
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class SnsMessageFilteringAndErrorHandlingPropertyTests : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;

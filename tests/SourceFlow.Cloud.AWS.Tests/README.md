@@ -136,6 +136,36 @@ The core testing framework is complete. Future enhancements could include:
 - Multi-region failover testing
 - Cost optimization analysis tools
 
+## Test Categories
+
+All AWS integration tests are categorized using xUnit traits for flexible test execution:
+
+- **`[Trait("Category", "Unit")]`** - No external dependencies (50+ tests)
+- **`[Trait("Category", "Integration")]`** - Requires external AWS services (100+ tests)
+- **`[Trait("Category", "RequiresLocalStack")]`** - Tests specifically designed for LocalStack emulator
+- **`[Trait("Category", "RequiresAWS")]`** - Tests requiring real AWS services
+
+### Running Tests by Category
+
+```bash
+# Run only unit tests (fast, no infrastructure needed)
+dotnet test --filter "Category=Unit"
+
+# Run all tests (requires AWS infrastructure)
+dotnet test
+
+# Skip all integration tests
+dotnet test --filter "Category!=Integration"
+
+# Skip LocalStack-dependent tests
+dotnet test --filter "Category!=RequiresLocalStack"
+
+# Skip real AWS-dependent tests
+dotnet test --filter "Category!=RequiresAWS"
+```
+
+For detailed information on running tests, see [RUNNING_TESTS.md](RUNNING_TESTS.md).
+
 ## Test Structure
 
 ```
@@ -433,34 +463,46 @@ public class AwsTestConfiguration
 
 ## Running Tests
 
-### All Tests
+### Quick Start
+
 ```bash
-dotnet test tests/SourceFlow.Cloud.AWS.Tests/
+# Run only unit tests (no infrastructure needed)
+dotnet test --filter "Category=Unit"
+
+# Run all tests (requires LocalStack or AWS)
+dotnet test
+
+# Skip integration tests
+dotnet test --filter "Category!=Integration"
 ```
 
-### Unit Tests Only
-```bash
-dotnet test tests/SourceFlow.Cloud.AWS.Tests/ --filter "FullyQualifiedName!~Integration"
-```
+### Detailed Test Execution
 
-### Integration Tests Only
-```bash
-dotnet test tests/SourceFlow.Cloud.AWS.Tests/ --filter "FullyQualifiedName~Integration"
-```
+For comprehensive information on running tests with different configurations, see [RUNNING_TESTS.md](RUNNING_TESTS.md).
 
-### Security Tests Only
-```bash
-dotnet test tests/SourceFlow.Cloud.AWS.Tests/ --filter "Category=Security"
-```
+### Test Categories
 
-### Resilience Tests Only
 ```bash
-dotnet test tests/SourceFlow.Cloud.AWS.Tests/ --filter "Category=Resilience"
-```
+# Unit tests only (fast, no dependencies)
+dotnet test --filter "Category=Unit"
 
-### End-to-End Tests Only
-```bash
-dotnet test tests/SourceFlow.Cloud.AWS.Tests/ --filter "Category=E2E"
+# Integration tests only (requires LocalStack or AWS)
+dotnet test --filter "Category=Integration"
+
+# LocalStack-specific tests
+dotnet test --filter "Category=RequiresLocalStack"
+
+# Real AWS-specific tests
+dotnet test --filter "Category=RequiresAWS"
+
+# Security tests
+dotnet test --filter "Category=Security"
+
+# Resilience tests
+dotnet test --filter "Category=Resilience"
+
+# End-to-end tests
+dotnet test --filter "Category=E2E"
 ```
 
 ### Performance Benchmarks

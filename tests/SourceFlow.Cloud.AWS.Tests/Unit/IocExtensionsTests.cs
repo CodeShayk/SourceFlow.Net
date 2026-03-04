@@ -1,10 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using SourceFlow.Cloud.AWS.Configuration;
 using SourceFlow.Cloud.AWS.Tests.TestHelpers;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 
 namespace SourceFlow.Cloud.AWS.Tests.Unit;
 
+[Trait("Category", "Unit")]
 public class IocExtensionsTests
 {
     [Fact]

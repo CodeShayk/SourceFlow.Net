@@ -16,6 +16,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// Validates universal properties that should hold across all KMS encryption operations
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class KmsEncryptionRoundTripPropertyTests : IClassFixture<LocalStackTestFixture>, IAsyncDisposable
 {
     private readonly LocalStackTestFixture _localStack;

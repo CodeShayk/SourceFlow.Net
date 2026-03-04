@@ -10,6 +10,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// Tests SourceFlow command metadata preservation, custom attributes handling, routing/filtering, and size limits
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class SqsMessageAttributesIntegrationTests : IClassFixture<LocalStackTestFixture>, IAsyncDisposable
 {
     private readonly LocalStackTestFixture _localStack;

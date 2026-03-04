@@ -11,6 +11,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// Validates universal properties that should hold for all dead letter queue scenarios
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class SqsDeadLetterQueuePropertyTests : IClassFixture<LocalStackTestFixture>, IAsyncDisposable
 {
     private readonly LocalStackTestFixture _localStack;

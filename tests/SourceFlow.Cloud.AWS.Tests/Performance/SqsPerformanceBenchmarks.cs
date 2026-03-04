@@ -9,6 +9,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Performance;
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class SqsPerformanceBenchmarks : PerformanceBenchmarkBase
 {
     private string? _testQueueUrl;

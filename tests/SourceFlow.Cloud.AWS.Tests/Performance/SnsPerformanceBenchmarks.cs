@@ -22,6 +22,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Performance;
 /// </summary>
 [MemoryDiagnoser]
 [SimpleJob(warmupCount: 3, iterationCount: 5)]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class SnsPerformanceBenchmarks : PerformanceBenchmarkBase
 {
     private string? _topicArn;

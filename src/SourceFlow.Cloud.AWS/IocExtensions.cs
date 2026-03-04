@@ -8,7 +8,7 @@ using SourceFlow.Cloud.AWS.Configuration;
 using SourceFlow.Cloud.AWS.Infrastructure;
 using SourceFlow.Cloud.AWS.Messaging.Commands;
 using SourceFlow.Cloud.AWS.Messaging.Events;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 using SourceFlow.Messaging.Commands;
 using SourceFlow.Messaging.Events;
 
@@ -20,6 +20,27 @@ public static class IocExtensions
     /// Registers SourceFlow AWS services. Routing is configured exclusively through the
     /// fluent <see cref="BusConfigurationBuilder"/> — no appsettings routing is used.
     /// </summary>
+    /// <param name="services">The service collection</param>
+    /// <param name="configureOptions">Action to configure AWS options</param>
+    /// <param name="configureBus">Action to configure bus routing</param>
+    /// <param name="configureIdempotency">Optional action to configure idempotency service using fluent builder. If not provided, uses in-memory implementation.</param>
+    /// <remarks>
+    /// <para>By default, uses <see cref="InMemoryIdempotencyService"/> which is suitable for single-instance deployments.</para>
+    /// <para>For multi-instance deployments, configure a SQL-based idempotency service using the fluent builder:</para>
+    /// <code>
+    /// services.UseSourceFlowAws(
+    ///     options => { options.Region = RegionEndpoint.USEast1; },
+    ///     bus => bus.Send.Command&lt;CreateOrderCommand&gt;(q => q.Queue("orders.fifo")),
+    ///     idempotency => idempotency.UseEFIdempotency(connectionString));
+    /// </code>
+    /// <para>Alternatively, pre-register the idempotency service before calling UseSourceFlowAws:</para>
+    /// <code>
+    /// services.AddSourceFlowIdempotency(connectionString);
+    /// services.UseSourceFlowAws(
+    ///     options => { options.Region = RegionEndpoint.USEast1; },
+    ///     bus => bus.Send.Command&lt;CreateOrderCommand&gt;(q => q.Queue("orders.fifo")));
+    /// </code>
+    /// </remarks>
     /// <example>
     /// <code>
     /// services.UseSourceFlowAws(
@@ -32,13 +53,15 @@ public static class IocExtensions
     ///         .Listen.To
     ///             .CommandQueue("orders.fifo")
     ///         .Subscribe.To
-    ///             .Topic("order-events"));
+    ///             .Topic("order-events"),
+    ///     idempotency => idempotency.UseEFIdempotency(connectionString));
     /// </code>
     /// </example>
     public static void UseSourceFlowAws(
         this IServiceCollection services,
         Action<AwsOptions> configureOptions,
-        Action<BusConfigurationBuilder> configureBus)
+        Action<BusConfigurationBuilder> configureBus,
+        Action<IdempotencyConfigurationBuilder>? configureIdempotency = null)
     {
         ArgumentNullException.ThrowIfNull(configureOptions);
         ArgumentNullException.ThrowIfNull(configureBus);
@@ -62,18 +85,31 @@ public static class IocExtensions
         services.AddSingleton<IEventRoutingConfiguration>(busConfiguration);
         services.AddSingleton<IBusBootstrapConfiguration>(busConfiguration);
 
-        // 4. Register AWS dispatchers
+        // 4. Register idempotency service using fluent builder
+        if (configureIdempotency != null)
+        {
+            var idempotencyBuilder = new IdempotencyConfigurationBuilder();
+            configureIdempotency(idempotencyBuilder);
+            idempotencyBuilder.Build(services);
+        }
+        else
+        {
+            // Register in-memory idempotency service as default if not already registered
+            services.TryAddScoped<IIdempotencyService, InMemoryIdempotencyService>();
+        }
+
+        // 5. Register AWS dispatchers
         services.AddScoped<ICommandDispatcher, AwsSqsCommandDispatcher>();
         services.AddSingleton<IEventDispatcher, AwsSnsEventDispatcher>();
 
-        // 5. Register bootstrapper first so queues/topics are resolved before listeners start
+        // 6. Register bootstrapper first so queues/topics are resolved before listeners start
         services.AddHostedService<AwsBusBootstrapper>();
 
-        // 6. Register AWS listeners as hosted services
+        // 7. Register AWS listeners as hosted services
         services.AddHostedService<AwsSqsCommandListener>();
         services.AddHostedService<AwsSnsEventListener>();
 
-        // 7. Register health check
+        // 8. Register health check
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHealthCheck, AwsHealthCheck>(
             provider => new AwsHealthCheck(
                 provider.GetRequiredService<IAmazonSQS>(),

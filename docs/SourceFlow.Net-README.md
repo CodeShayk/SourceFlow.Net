@@ -607,6 +607,517 @@ services.AddSingleton<IViewModelStore, CustomViewModelStore>();
 services.UseSourceFlow();
 ```
 
+### Resilience Patterns and Circuit Breakers
+
+SourceFlow.Net includes built-in resilience patterns to handle transient failures and prevent cascading failures in distributed systems.
+
+#### Circuit Breaker Pattern
+
+The circuit breaker pattern prevents your application from repeatedly trying to execute operations that are likely to fail, allowing the system to recover gracefully.
+
+**Circuit Breaker States:**
+- **Closed** - Normal operation, requests pass through
+- **Open** - Failures exceeded threshold, requests fail immediately
+- **Half-Open** - Testing if service has recovered
+
+**Configuration Example:**
+
+```csharp
+using SourceFlow.Cloud.Resilience;
+
+services.AddSingleton<ICircuitBreaker>(sp => 
+{
+    var options = new CircuitBreakerOptions
+    {
+        FailureThreshold = 5,                      // Open after 5 failures
+        SuccessThreshold = 3,                      // Close after 3 successes in half-open
+        Timeout = TimeSpan.FromMinutes(1),         // Wait 1 minute before half-open
+        SamplingDuration = TimeSpan.FromSeconds(30) // Failure rate window
+    };
+    
+    return new CircuitBreaker(options);
+});
+```
+
+**Usage in Services:**
+
+```csharp
+public class OrderService
+{
+    private readonly ICircuitBreaker _circuitBreaker;
+    
+    public OrderService(ICircuitBreaker circuitBreaker)
+    {
+        _circuitBreaker = circuitBreaker;
+    }
+    
+    public async Task<Order> ProcessOrderAsync(int orderId)
+    {
+        try
+        {
+            return await _circuitBreaker.ExecuteAsync(async () =>
+            {
+                // Call external service that might fail
+                return await externalService.GetOrderAsync(orderId);
+            });
+        }
+        catch (CircuitBreakerOpenException ex)
+        {
+            // Circuit is open, service is unavailable
+            _logger.LogWarning("Circuit breaker is open for order service: {Message}", ex.Message);
+            
+            // Return cached data or default response
+            return await GetCachedOrderAsync(orderId);
+        }
+    }
+}
+```
+
+#### CircuitBreakerOpenException
+
+This exception is thrown when the circuit breaker is in the Open state and prevents execution of the requested operation.
+
+**Properties:**
+- `Message` - Description of why the circuit is open
+- `CircuitBreakerState` - Current state of the circuit breaker
+- `OpenedAt` - Timestamp when the circuit opened
+- `WillRetryAt` - Timestamp when the circuit will attempt half-open state
+
+**Handling Example:**
+
+```csharp
+try
+{
+    await _circuitBreaker.ExecuteAsync(async () => await CallExternalServiceAsync());
+}
+catch (CircuitBreakerOpenException ex)
+{
+    _logger.LogWarning(
+        "Circuit breaker open. Opened at: {OpenedAt}, Will retry at: {WillRetryAt}",
+        ex.OpenedAt,
+        ex.WillRetryAt);
+    
+    // Implement fallback logic
+    return await GetFallbackResponseAsync();
+}
+```
+
+#### Monitoring Circuit Breaker State Changes
+
+Subscribe to state change events for monitoring and alerting:
+
+```csharp
+public class CircuitBreakerMonitor
+{
+    private readonly ICircuitBreaker _circuitBreaker;
+    private readonly ILogger<CircuitBreakerMonitor> _logger;
+    
+    public CircuitBreakerMonitor(ICircuitBreaker circuitBreaker, ILogger<CircuitBreakerMonitor> logger)
+    {
+        _circuitBreaker = circuitBreaker;
+        _logger = logger;
+        
+        // Subscribe to state change events
+        _circuitBreaker.StateChanged += OnCircuitBreakerStateChanged;
+    }
+    
+    private void OnCircuitBreakerStateChanged(object sender, CircuitBreakerStateChangedEventArgs e)
+    {
+        _logger.LogInformation(
+            "Circuit breaker state changed from {OldState} to {NewState}. Reason: {Reason}",
+            e.OldState,
+            e.NewState,
+            e.Reason);
+        
+        // Send alerts for critical state changes
+        if (e.NewState == CircuitState.Open)
+        {
+            SendAlert($"Circuit breaker opened: {e.Reason}");
+        }
+        else if (e.NewState == CircuitState.Closed)
+        {
+            SendAlert($"Circuit breaker recovered: {e.Reason}");
+        }
+    }
+    
+    private void SendAlert(string message)
+    {
+        // Integrate with your alerting system (PagerDuty, Slack, etc.)
+    }
+}
+```
+
+**CircuitBreakerStateChangedEventArgs Properties:**
+- `OldState` - Previous circuit breaker state
+- `NewState` - New circuit breaker state
+- `Reason` - Description of why the state changed
+- `Timestamp` - When the state change occurred
+- `FailureCount` - Number of failures that triggered the change (if applicable)
+- `SuccessCount` - Number of successes that triggered the change (if applicable)
+
+#### Integration with Cloud Services
+
+Circuit breakers are automatically integrated with cloud dispatchers:
+
+```csharp
+// AWS configuration with circuit breaker
+services.UseSourceFlowAws(
+    options => { 
+        options.Region = RegionEndpoint.USEast1;
+        options.EnableCircuitBreaker = true;
+        options.CircuitBreakerOptions = new CircuitBreakerOptions
+        {
+            FailureThreshold = 5,
+            Timeout = TimeSpan.FromMinutes(1)
+        };
+    },
+    bus => bus.Send.Command<CreateOrderCommand>(q => q.Queue("orders.fifo")));
+```
+
+#### Best Practices
+
+1. **Configure Appropriate Thresholds**
+   - Set failure thresholds based on service SLAs
+   - Use shorter timeouts for critical services
+   - Adjust sampling duration based on traffic patterns
+
+2. **Implement Fallback Strategies**
+   - Return cached data when circuit is open
+   - Provide degraded functionality
+   - Queue requests for later processing
+
+3. **Monitor and Alert**
+   - Subscribe to state change events
+   - Set up alerts for circuit opening
+   - Track failure patterns and recovery times
+
+4. **Test Circuit Breaker Behavior**
+   - Simulate failures in integration tests
+   - Verify fallback logic works correctly
+   - Test recovery scenarios
+
+5. **Combine with Retry Policies**
+   - Use exponential backoff for transient failures
+   - Circuit breaker prevents excessive retries
+   - Configure appropriate retry limits
+
+---
+
+## ☁️ Cloud Configuration with Bus Configuration System
+
+### Overview
+
+The Bus Configuration System provides a code-first fluent API for configuring distributed command and event routing in cloud-based applications. It simplifies the setup of message queues, topics, and subscriptions across AWS and Azure without dealing with low-level cloud service details.
+
+**Key Benefits:**
+- **Type Safety** - Compile-time validation of command and event routing
+- **Simplified Configuration** - Use short names instead of full URLs/ARNs
+- **Automatic Resource Creation** - Queues, topics, and subscriptions created automatically
+- **Intuitive API** - Natural, readable configuration with method chaining
+- **Cloud Agnostic** - Same API works for both AWS and Azure
+
+### Architecture
+
+The Bus Configuration System consists of three main components:
+
+```mermaid
+graph TB
+    A[Application Startup] --> B[BusConfigurationBuilder]
+    B --> C[BusConfiguration]
+    C --> D[Bootstrapper]
+    D --> E{Resource Creation}
+    E -->|AWS| F[SQS Queues]
+    E -->|AWS| G[SNS Topics]
+    E -->|Azure| H[Service Bus Queues]
+    E -->|Azure| I[Service Bus Topics]
+    D --> J[Dispatcher Registration]
+    J --> K[Listener Startup]
+```
+
+1. **BusConfigurationBuilder** - Entry point for building routing configuration using fluent API
+2. **BusConfiguration** - Holds the complete routing configuration for commands and events
+3. **Bootstrapper** - Hosted service that creates cloud resources and initializes routing at startup
+
+### Quick Start
+
+Here's a minimal example configuring command and event routing:
+
+```csharp
+using SourceFlow.Cloud.AWS;
+using Amazon;
+
+public void ConfigureServices(IServiceCollection services)
+{
+    services.UseSourceFlowAws(
+        options => { 
+            options.Region = RegionEndpoint.USEast1;
+        },
+        bus => bus
+            .Send
+                .Command<CreateOrderCommand>(q => q.Queue("orders.fifo"))
+            .Raise
+                .Event<OrderCreatedEvent>(t => t.Topic("order-events"))
+            .Listen.To
+                .CommandQueue("orders.fifo")
+            .Subscribe.To
+                .Topic("order-events"));
+}
+```
+
+### Configuration Sections
+
+The fluent API is organized into four intuitive sections:
+
+#### Send - Command Routing
+
+Configure which commands are sent to which queues:
+
+```csharp
+bus => bus
+    .Send
+        .Command<CreateOrderCommand>(q => q.Queue("orders.fifo"))
+        .Command<UpdateOrderCommand>(q => q.Queue("orders.fifo"))
+        .Command<AdjustInventoryCommand>(q => q.Queue("inventory.fifo"))
+```
+
+**Best Practices:**
+- Group related commands to the same queue for ordering guarantees
+- Use `.fifo` suffix for queues requiring ordered processing
+- Use short queue names only (e.g., "orders.fifo", not full URLs)
+
+#### Raise - Event Publishing
+
+Configure which events are published to which topics:
+
+```csharp
+bus => bus
+    .Raise
+        .Event<OrderCreatedEvent>(t => t.Topic("order-events"))
+        .Event<OrderUpdatedEvent>(t => t.Topic("order-events"))
+        .Event<OrderShippedEvent>(t => t.Topic("shipping-events"))
+```
+
+**Best Practices:**
+- Group related events to the same topic for fan-out messaging
+- Use descriptive topic names that reflect the event domain
+- Use short topic names only (e.g., "order-events", not full ARNs)
+
+#### Listen - Command Queue Listeners
+
+Configure which command queues the application listens to:
+
+```csharp
+bus => bus
+    .Listen.To
+        .CommandQueue("orders.fifo")
+        .CommandQueue("inventory.fifo")
+```
+
+**Note:** At least one command queue must be configured when subscribing to topics.
+
+#### Subscribe - Topic Subscriptions
+
+Configure which topics the application subscribes to:
+
+```csharp
+bus => bus
+    .Subscribe.To
+        .Topic("order-events")
+        .Topic("payment-events")
+        .Topic("shipping-events")
+```
+
+**How it works:** The bootstrapper automatically creates subscriptions that forward topic messages to your configured command queues.
+
+### Complete Example
+
+Here's a realistic scenario combining all four sections:
+
+```csharp
+using SourceFlow.Cloud.AWS;
+using Amazon;
+
+public class Startup
+{
+    public void ConfigureServices(IServiceCollection services)
+    {
+        // Register SourceFlow core
+        services.UseSourceFlow(Assembly.GetExecutingAssembly());
+        
+        // Configure AWS cloud integration with Bus Configuration System
+        services.UseSourceFlowAws(
+            options => { 
+                options.Region = RegionEndpoint.USEast1;
+                options.EnableEncryption = true;
+                options.KmsKeyId = "alias/sourceflow-key";
+            },
+            bus => bus
+                // Configure command routing
+                .Send
+                    .Command<CreateOrderCommand>(q => q.Queue("orders.fifo"))
+                    .Command<UpdateOrderCommand>(q => q.Queue("orders.fifo"))
+                    .Command<CancelOrderCommand>(q => q.Queue("orders.fifo"))
+                    .Command<AdjustInventoryCommand>(q => q.Queue("inventory.fifo"))
+                    .Command<ProcessPaymentCommand>(q => q.Queue("payments.fifo"))
+                
+                // Configure event publishing
+                .Raise
+                    .Event<OrderCreatedEvent>(t => t.Topic("order-events"))
+                    .Event<OrderUpdatedEvent>(t => t.Topic("order-events"))
+                    .Event<OrderCancelledEvent>(t => t.Topic("order-events"))
+                    .Event<InventoryAdjustedEvent>(t => t.Topic("inventory-events"))
+                    .Event<PaymentProcessedEvent>(t => t.Topic("payment-events"))
+                
+                // Configure command queue listeners
+                .Listen.To
+                    .CommandQueue("orders.fifo")
+                    .CommandQueue("inventory.fifo")
+                    .CommandQueue("payments.fifo")
+                
+                // Configure topic subscriptions
+                .Subscribe.To
+                    .Topic("order-events")
+                    .Topic("payment-events")
+                    .Topic("inventory-events"));
+    }
+}
+```
+
+### Azure Configuration Example
+
+The same fluent API works for Azure Service Bus:
+
+```csharp
+using SourceFlow.Cloud.Azure;
+
+public void ConfigureServices(IServiceCollection services)
+{
+    services.UseSourceFlowAzure(
+        options => {
+            options.FullyQualifiedNamespace = "myservicebus.servicebus.windows.net";
+            options.UseManagedIdentity = true;
+        },
+        bus => bus
+            .Send
+                .Command<CreateOrderCommand>(q => q.Queue("orders"))
+                .Command<UpdateOrderCommand>(q => q.Queue("orders"))
+            .Raise
+                .Event<OrderCreatedEvent>(t => t.Topic("order-events"))
+            .Listen.To
+                .CommandQueue("orders")
+            .Subscribe.To
+                .Topic("order-events"));
+}
+```
+
+### Bootstrapper Integration
+
+The bootstrapper is a hosted service that runs at application startup to initialize your cloud infrastructure:
+
+**What the Bootstrapper Does:**
+
+1. **Resolves Short Names**
+   - AWS: Converts short names to full SQS URLs and SNS ARNs
+   - Azure: Uses short names directly for Service Bus resources
+
+2. **Creates Missing Resources**
+   - Creates queues with appropriate settings (FIFO attributes, sessions, etc.)
+   - Creates topics for event publishing
+   - Creates subscriptions that forward topic messages to command queues
+
+3. **Validates Configuration**
+   - Ensures at least one command queue exists when subscribing to topics
+   - Validates queue and topic names follow cloud provider conventions
+   - Checks for configuration conflicts
+
+4. **Registers Dispatchers**
+   - Registers command and event dispatchers with resolved routing
+   - Configures listeners to start polling queues
+
+**Execution Timing:** The bootstrapper runs before listeners start, ensuring all routing is ready before message processing begins.
+
+**Development vs. Production:**
+- **Development**: Let the bootstrapper create resources automatically for rapid iteration
+- **Production**: Use infrastructure-as-code (CloudFormation, Terraform, ARM templates) for controlled deployments
+
+### FIFO Queue Configuration
+
+Use the `.fifo` suffix to enable ordered message processing:
+
+**AWS (SQS FIFO Queues):**
+```csharp
+.Send
+    .Command<CreateOrderCommand>(q => q.Queue("orders.fifo"))
+```
+- Enables content-based deduplication
+- Enables message grouping by entity ID
+- Guarantees exactly-once processing
+
+**Azure (Session-Enabled Queues):**
+```csharp
+.Send
+    .Command<CreateOrderCommand>(q => q.Queue("orders.fifo"))
+```
+- Enables session handling
+- Groups messages by session ID (entity ID)
+- Guarantees ordered processing per session
+
+### Best Practices
+
+1. **Command Routing Organization**
+   - Group related commands to the same queue for ordering
+   - Use separate queues for different bounded contexts
+   - Use FIFO queues when order matters
+
+2. **Event Routing Organization**
+   - Group related events to the same topic
+   - Use descriptive topic names reflecting the domain
+   - Design for fan-out to multiple subscribers
+
+3. **Queue and Topic Naming**
+   - Use lowercase with hyphens (e.g., "order-events")
+   - Use `.fifo` suffix for ordered processing
+   - Keep names short and descriptive
+
+4. **Resource Creation Strategy**
+   - Development: Use automatic creation for speed
+   - Staging: Mix of automatic and IaC
+   - Production: Use IaC for control and auditability
+
+5. **Testing**
+   - Unit test configuration without cloud services
+   - Integration test with LocalStack (AWS) or Azurite (Azure)
+   - Validate routing configuration in tests
+
+### Troubleshooting
+
+**Issue: Commands not being routed**
+- Verify command is configured in Send section
+- Check queue name matches Listen configuration
+- Ensure bootstrapper completed successfully
+
+**Issue: Events not being received**
+- Verify event is configured in Raise section
+- Check topic subscription is configured
+- Ensure at least one command queue is configured
+
+**Issue: Resources not created**
+- Check cloud provider credentials and permissions
+- Verify bootstrapper logs for errors
+- Ensure queue/topic names follow cloud provider conventions
+
+**Issue: FIFO ordering not working**
+- Verify `.fifo` suffix is used in queue name
+- Check entity ID is properly set in commands
+- Ensure message grouping is configured
+
+### Cloud-Specific Documentation
+
+For detailed cloud-specific information:
+- **AWS**: See [AWS Cloud Extension Guide](.kiro/steering/sourceflow-cloud-aws.md)
+- **Azure**: See [Azure Cloud Extension Guide](.kiro/steering/sourceflow-cloud-azure.md)
+- **Testing**: See [Cloud Integration Testing](Cloud-Integration-Testing.md)
+
 ---
 
 ## 🗂️ Persistence Options

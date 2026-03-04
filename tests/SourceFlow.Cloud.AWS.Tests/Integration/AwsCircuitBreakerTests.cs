@@ -5,7 +5,7 @@ using Amazon.SimpleNotificationService.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using SourceFlow.Cloud.Core.Resilience;
+using SourceFlow.Cloud.Resilience;
 using SourceFlow.Cloud.AWS.Tests.TestHelpers;
 using Xunit;
 using Xunit.Abstractions;
@@ -18,6 +18,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// circuit closing on successful recovery, and circuit breaker configuration and monitoring
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class AwsCircuitBreakerTests : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;

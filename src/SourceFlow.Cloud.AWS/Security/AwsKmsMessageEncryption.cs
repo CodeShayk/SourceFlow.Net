@@ -2,7 +2,7 @@ using Amazon.KeyManagementService;
 using Amazon.KeyManagementService.Model;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
-using SourceFlow.Cloud.Core.Security;
+using SourceFlow.Cloud.Security;
 using System.Security.Cryptography;
 using System.Text;
 

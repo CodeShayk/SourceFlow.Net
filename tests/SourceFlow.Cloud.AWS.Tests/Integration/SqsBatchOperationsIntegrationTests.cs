@@ -10,6 +10,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// Tests batch sending up to AWS limits, efficiency, resource utilization, and partial failure handling
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class SqsBatchOperationsIntegrationTests : IClassFixture<LocalStackTestFixture>, IAsyncDisposable
 {
     private readonly LocalStackTestFixture _localStack;

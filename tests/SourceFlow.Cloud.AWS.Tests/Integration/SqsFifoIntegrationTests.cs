@@ -10,6 +10,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// Tests message ordering, deduplication, EntityId-based grouping, and FIFO-specific behaviors
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class SqsFifoIntegrationTests : IClassFixture<LocalStackTestFixture>, IAsyncDisposable
 {
     private readonly LocalStackTestFixture _localStack;

@@ -4,7 +4,7 @@ using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Cloud.Azure.Observability;
 using SourceFlow.Cloud.Azure.Messaging.Serialization;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 using SourceFlow.Messaging.Events;
 using SourceFlow.Observability;
 

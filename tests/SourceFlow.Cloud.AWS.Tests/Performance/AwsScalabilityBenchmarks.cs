@@ -23,6 +23,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Performance;
 [MemoryDiagnoser]
 [ThreadingDiagnoser]
 [SimpleJob(warmupCount: 2, iterationCount: 3)]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class AwsScalabilityBenchmarks : PerformanceBenchmarkBase
 {
     private readonly List<string> _standardQueueUrls = new();

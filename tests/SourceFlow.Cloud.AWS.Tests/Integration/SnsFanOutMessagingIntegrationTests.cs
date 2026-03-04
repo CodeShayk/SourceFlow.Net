@@ -18,6 +18,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// **Validates: Requirements 2.2**
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class SnsFanOutMessagingIntegrationTests : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;

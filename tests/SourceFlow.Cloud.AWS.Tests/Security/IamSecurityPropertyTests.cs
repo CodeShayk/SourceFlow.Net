@@ -9,6 +9,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Security;
 /// **Feature: aws-cloud-integration-testing, Property 13: AWS IAM Security Enforcement**
 /// **Validates: Requirements 8.1, 8.2, 8.3**
 /// </summary>
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresAWS")]
 public class IamSecurityPropertyTests
 {
     /// <summary>

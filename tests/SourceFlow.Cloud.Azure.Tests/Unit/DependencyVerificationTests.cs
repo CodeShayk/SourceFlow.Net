@@ -14,6 +14,7 @@ namespace SourceFlow.Cloud.Azure.Tests.Unit;
 /// <summary>
 /// Verification tests to ensure all new testing dependencies are properly installed and accessible.
 /// </summary>
+[Trait("Category", "Unit")]
 public class DependencyVerificationTests
 {
     [Fact]

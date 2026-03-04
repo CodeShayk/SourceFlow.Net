@@ -4,7 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using SourceFlow.Cloud.Azure.Messaging.Serialization;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 using SourceFlow.Messaging.Commands;
 
 namespace SourceFlow.Cloud.Azure.Messaging.Commands;

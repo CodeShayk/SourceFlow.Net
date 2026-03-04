@@ -12,6 +12,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// Integration tests for the enhanced LocalStack manager
 /// Validates full AWS service emulation with comprehensive container management
 /// </summary>
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class EnhancedLocalStackManagerTests : IAsyncDisposable
 {
     private readonly ILogger<LocalStackManager> _logger;

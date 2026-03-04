@@ -3,11 +3,12 @@ using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using SourceFlow.Cloud.Azure.Infrastructure;
 using SourceFlow.Cloud.Azure.Messaging.Commands;
 using SourceFlow.Cloud.Azure.Messaging.Events;
-using SourceFlow.Cloud.Core.Configuration;
+using SourceFlow.Cloud.Configuration;
 using SourceFlow.Messaging.Commands;
 using SourceFlow.Messaging.Events;
 
@@ -15,10 +16,35 @@ namespace SourceFlow.Cloud.Azure;
 
 public static class AzureIocExtensions
 {
+    /// <summary>
+    /// Registers SourceFlow Azure services with Service Bus integration.
+    /// </summary>
+    /// <param name="services">The service collection</param>
+    /// <param name="configureOptions">Action to configure Azure options</param>
+    /// <param name="configureBus">Action to configure bus routing</param>
+    /// <param name="configureIdempotency">Optional action to configure idempotency service using fluent builder. If not provided, uses in-memory implementation.</param>
+    /// <remarks>
+    /// <para>By default, uses <see cref="InMemoryIdempotencyService"/> which is suitable for single-instance deployments.</para>
+    /// <para>For multi-instance deployments, configure a SQL-based idempotency service using the fluent builder:</para>
+    /// <code>
+    /// services.UseSourceFlowAzure(
+    ///     options => { options.FullyQualifiedNamespace = "myservicebus.servicebus.windows.net"; },
+    ///     bus => bus.Send.Command&lt;CreateOrderCommand&gt;(q => q.Queue("orders")),
+    ///     idempotency => idempotency.UseEFIdempotency(connectionString));
+    /// </code>
+    /// <para>Alternatively, pre-register the idempotency service before calling UseSourceFlowAzure:</para>
+    /// <code>
+    /// services.AddSourceFlowIdempotency(connectionString);
+    /// services.UseSourceFlowAzure(
+    ///     options => { options.FullyQualifiedNamespace = "myservicebus.servicebus.windows.net"; },
+    ///     bus => bus.Send.Command&lt;CreateOrderCommand&gt;(q => q.Queue("orders")));
+    /// </code>
+    /// </remarks>
     public static void UseSourceFlowAzure(
         this IServiceCollection services,
         Action<AzureOptions> configureOptions,
-        Action<BusConfigurationBuilder> configureBus)
+        Action<BusConfigurationBuilder> configureBus,
+        Action<IdempotencyConfigurationBuilder>? configureIdempotency = null)
     {
         // 1. Configure options
         services.Configure(configureOptions);
@@ -104,21 +130,34 @@ public static class AzureIocExtensions
         services.AddSingleton<IEventRoutingConfiguration>(busConfig);
         services.AddSingleton<IBusBootstrapConfiguration>(busConfig);
 
-        // 5. Register bootstrapper as hosted service
+        // 5. Register idempotency service using fluent builder
+        if (configureIdempotency != null)
+        {
+            var idempotencyBuilder = new IdempotencyConfigurationBuilder();
+            configureIdempotency(idempotencyBuilder);
+            idempotencyBuilder.Build(services);
+        }
+        else
+        {
+            // Register in-memory idempotency service as default if not already registered
+            services.TryAddScoped<IIdempotencyService, InMemoryIdempotencyService>();
+        }
+
+        // 6. Register bootstrapper as hosted service
         services.AddHostedService<AzureBusBootstrapper>();
 
-        // 6. Register Azure dispatchers
+        // 7. Register Azure dispatchers
         services.AddScoped<ICommandDispatcher, AzureServiceBusCommandDispatcher>();
         services.AddSingleton<IEventDispatcher, AzureServiceBusEventDispatcher>();
 
-        // 7. Register Azure listeners as hosted services
+        // 8. Register Azure listeners as hosted services
         if (options.EnableCommandListener)
             services.AddHostedService<AzureServiceBusCommandListener>();
 
         if (options.EnableEventListener)
             services.AddHostedService<AzureServiceBusEventListener>();
 
-        // 8. Register health check
+        // 9. Register health check
         services.AddHealthChecks()
             .AddCheck<AzureServiceBusHealthCheck>(
                 "azure-servicebus",

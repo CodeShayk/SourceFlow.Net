@@ -11,6 +11,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// Tests high-throughput delivery, at-least-once guarantees, concurrent processing, and performance characteristics
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class SqsStandardIntegrationTests : IClassFixture<LocalStackTestFixture>, IAsyncDisposable
 {
     private readonly LocalStackTestFixture _localStack;

@@ -7,7 +7,7 @@
     <AssemblyTitle>AWS Cloud Extension for SourceFlow.Net</AssemblyTitle>
     <AssemblyDescription>Provides AWS SQS/SNS integration for cloud-based message processing</AssemblyDescription>
     <PackageId>SourceFlow.Cloud.AWS</PackageId>
-    <Version>1.0.0</Version>
+    <Version>2.0.0</Version>
     <Authors>BuildwAI Team</Authors>
     <Company>BuildwAI</Company>
     <Product>SourceFlow.Net</Product>
@@ -26,7 +26,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SourceFlow\SourceFlow.csproj" />
-    <ProjectReference Include="..\SourceFlow.Cloud.Core\SourceFlow.Cloud.Core.csproj" />
   </ItemGroup>
 
 </Project>

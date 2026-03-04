@@ -18,6 +18,8 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 /// Validates: Requirement 7.2 - AWS retry policies
 /// </summary>
 [Collection("AWS Integration Tests")]
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
 public class AwsRetryPolicyTests : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;

@@ -6,10 +6,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using SourceFlow.Cloud.Azure.Messaging.Serialization;
 using SourceFlow.Cloud.Azure.Observability;
-using SourceFlow.Cloud.Core.Configuration;
-using SourceFlow.Cloud.Core.DeadLetter;
-using SourceFlow.Cloud.Core.Observability;
-using SourceFlow.Cloud.Core.Security;
+using SourceFlow.Cloud.Configuration;
+using SourceFlow.Cloud.DeadLetter;
+using SourceFlow.Cloud.Observability;
+using SourceFlow.Cloud.Security;
 using SourceFlow.Messaging.Commands;
 using SourceFlow.Observability;
 

@@ -1033,13 +1033,10 @@ services.UseSourceFlow(ServiceLifetime.Singleton, assemblies);
 | 03 | `03-Event-Flow-Analysis.md` | Event processing deep dive |
 | 04 | `04-Current-Dispatching-Patterns.md` | Extension points analysis |
 | 05 | `05-Store-Persistence-Architecture.md` | Storage layer deep dive |
-| 06 | `06-AWS-Cloud-Extension-Design.md` | AWS integration |
-| 07 | `07-AWS-Implementation-Roadmap.md` | AWS implementation plan |
-| 08 | `08-Azure-Cloud-Extension-Design.md` | Azure integration |
-| 09 | `09-Azure-Implementation-Roadmap.md` | Azure implementation plan |
+| 06 | `06-Cloud-Core-Consolidation.md` | Cloud.Core consolidation into SourceFlow |
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2025-11-30
+**Document Version**: 1.1
+**Last Updated**: 2026-03-03
 **Based On**: Analysis documents 01-05
