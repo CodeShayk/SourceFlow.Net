@@ -3,24 +3,26 @@ using Moq;
 using SourceFlow.Messaging;
 using SourceFlow.Messaging.Events;
 using SourceFlow.Projections;
+using System.Linq;
 
 namespace SourceFlow.Core.Tests.Impl
 {
     [TestFixture]
+    [Category("Unit")]
     public class ProjectionSubscriberTests
     {
         [Test]
         public void Constructor_NullProjections_ThrowsArgumentNullException()
         {
             var logger = new Mock<ILogger<IEventSubscriber>>().Object;
-            Assert.Throws<ArgumentNullException>(() => new SourceFlow.Projections.EventSubscriber(null, logger));
+            Assert.Throws<ArgumentNullException>(() => new SourceFlow.Projections.EventSubscriber(null, logger, Enumerable.Empty<IEventSubscribeMiddleware>()));
         }
 
         [Test]
         public void Constructor_NullLogger_ThrowsArgumentNullException()
         {
             var projections = new List<IView>();
-            Assert.Throws<ArgumentNullException>(() => new SourceFlow.Projections.EventSubscriber(projections, null));
+            Assert.Throws<ArgumentNullException>(() => new SourceFlow.Projections.EventSubscriber(projections, null, Enumerable.Empty<IEventSubscribeMiddleware>()));
         }
 
         [Test]
@@ -42,7 +44,7 @@ namespace SourceFlow.Core.Tests.Impl
             var testProjection = new TestProjection();
             var projections = new List<IView> { testProjection };
 
-            var dispatcher = new SourceFlow.Projections.EventSubscriber(projections, loggerMock.Object);
+            var dispatcher = new SourceFlow.Projections.EventSubscriber(projections, loggerMock.Object, Enumerable.Empty<IEventSubscribeMiddleware>());
             await dispatcher.Subscribe(testEvent);
 
             loggerMock.Verify(l => l.Log(

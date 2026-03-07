@@ -8,6 +8,7 @@ using SourceFlow.Saga;
 namespace SourceFlow.Core.Tests.E2E
 {
     [TestFixture]
+    [Category("Integration")]
     public class ProgramIntegrationTests
     {
         private ServiceProvider _serviceProvider;

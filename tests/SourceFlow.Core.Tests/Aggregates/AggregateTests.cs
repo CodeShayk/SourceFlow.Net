@@ -7,6 +7,7 @@ using SourceFlow.Messaging.Commands;
 namespace SourceFlow.Core.Tests.Aggregates
 {
     [TestFixture]
+    [Category("Unit")]
     public class AggregateTests
     {
         private Mock<ICommandPublisher> commandPublisherMock;

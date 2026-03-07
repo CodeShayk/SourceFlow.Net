@@ -15,7 +15,8 @@ namespace SourceFlow.Core.Tests.Messaging
         }
     }
 
-    [TestFixture]
+[TestFixture]
+    [Category("Unit")]
     public class CommandTests
     {
         [Test]
@@ -38,4 +39,5 @@ namespace SourceFlow.Core.Tests.Messaging
             Assert.That(((ICommand)command).Payload, Is.SameAs(payload));
         }
     }
+
 }
