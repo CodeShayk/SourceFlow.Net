@@ -334,7 +334,95 @@ This is a documentation-only update with no code changes required. All tasks foc
     - Verify Core and EntityFramework tests are now included in filtered results
     - _Requirements: 13.4, 13.5_
 
-- [x] 16. Final checkpoint - Complete validation
+- [x] 17. Fix package vulnerabilities
+  - [x] 17.1 Audit NuGet packages for vulnerabilities
+    - Run `dotnet list package --vulnerable` to identify vulnerable packages
+    - Document all vulnerabilities found with severity levels
+    - _Requirements: 14.1_
+  
+  - [x] 17.2 Update vulnerable packages
+    - Update all packages with known vulnerabilities to latest secure versions
+    - Verify compatibility with existing code after updates
+    - Test that all unit tests still pass after package updates
+    - _Requirements: 14.2, 14.3_
+  
+  - [x] 17.3 Verify no vulnerabilities remain
+    - Run `dotnet list package --vulnerable` again to confirm all vulnerabilities resolved
+    - Document any remaining vulnerabilities that cannot be fixed
+    - _Requirements: 14.4_
+
+- [x] 18. Fix build warnings
+  - [x] 18.1 Fix Microsoft.Extensions.Options version conflicts
+    - Resolve version conflicts between Microsoft.Extensions.Options 9.0.0 and 10.0.0
+    - Update package references to use consistent versions across all projects
+    - _Requirements: 15.1_
+  
+  - [x] 18.2 Fix AWS SDK version warnings
+    - Update AWSSDK.CloudFormation to version 3.7.401 or later
+    - Update AWSSDK.CloudWatchLogs to version 3.7.401 or later
+    - Update AWSSDK.IdentityManagement to version 3.7.401 or later
+    - _Requirements: 15.2_
+  
+  - [x] 18.3 Fix nullable reference warnings
+    - Review and fix CS8600 warnings (null literal to non-nullable type)
+    - Review and fix CS8602 warnings (dereference of possibly null reference)
+    - Add null checks or nullable annotations as appropriate
+    - _Requirements: 15.3_
+  
+  - [x] 18.4 Verify clean build
+    - Run `dotnet build --configuration Release` and verify zero warnings
+    - Document any warnings that cannot be fixed with justification
+    - _Requirements: 15.4_
+
+- [x] 19. Add multi-targeting support to AWS cloud extension
+  - [x] 19.1 Validate dependency compatibility
+    - Verify AWS SDK supports .NET Standard 2.1, net8.0, net9.0, net10.0
+    - Verify Microsoft.Extensions packages support all target frameworks
+    - Document compatibility findings
+    - _Requirements: 16.1_
+  
+  - [x] 19.2 Update AWS project file for multi-targeting
+    - Change TargetFramework to TargetFrameworks with netstandard2.1;net8.0;net9.0;net10.0
+    - Add LangVersion property set to "latest"
+    - Update Microsoft.Extensions.Options.ConfigurationExtensions to 10.0.0
+    - _Requirements: 16.2_
+  
+  - [x] 19.3 Fix .NET Standard 2.1 compatibility issues
+    - Fix ArgumentNullException.ThrowIfNull usage (not available in .NET Standard 2.1)
+    - Add conditional compilation for .NET Standard 2.1 vs modern .NET
+    - Use traditional null checks for .NET Standard 2.1
+    - _Requirements: 16.3_
+  
+  - [x] 19.4 Verify multi-targeting build
+    - Run `dotnet build` for AWS project and verify all target frameworks compile
+    - Verify netstandard2.1, net8.0, net9.0, net10.0 all build successfully
+    - Run unit tests to ensure functionality works across all targets
+    - _Requirements: 16.4_
+
+- [x] 20. Replace package icon
+  - [x] 20.1 Update SourceFlow.csproj package icon reference
+    - Change PackageIcon from ninja-icon-16.png to simple-logo.png
+    - Update ItemGroup to include simple-logo.png instead of ninja-icon-16.png
+    - Verify the simple-logo.png file exists in Images/ directory
+  
+  - [x] 20.2 Verify package icon in all projects
+    - Check if any other project files reference ninja-icon-16.png
+    - Update all references to use simple-logo.png
+    - Ensure consistent branding across all packages
+
+- [x] 21. Fix GitVersion pull-request configuration
+  - [x] 21.1 Update pull-request branch configuration
+    - Change tag from "beta" to "PullRequest" for pull requests
+    - Add tag-number-pattern to extract PR number from branch name
+    - Add increment: Inherit to inherit versioning from source branch
+    - Ensure PRs from release branches don't get beta tag
+  
+  - [x] 21.2 Verify version generation
+    - Push changes and verify GitHub Actions generates correct version
+    - Ensure PRs from release/v2.0.0-aws branch generate 2.0.0-PullRequest.X versions
+    - Verify no beta tag appears in version string
+
+- [ ] 22. Final checkpoint - Complete validation
   - Ensure all validation checks pass
   - Ensure documentation is ready for v2.0.0 release
   - Ask the user if questions arise

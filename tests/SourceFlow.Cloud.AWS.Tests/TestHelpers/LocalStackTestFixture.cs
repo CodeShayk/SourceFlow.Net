@@ -57,49 +57,125 @@ public class LocalStackTestFixture : IAsyncLifetime
             return;
         }
         
-        // Create LocalStack container
-        _localStackContainer = new ContainerBuilder()
-            .WithImage("localstack/localstack:latest")
-            .WithPortBinding(4566, 4566)
-            .WithEnvironment("SERVICES", "sqs,sns,kms")
-            .WithEnvironment("DEBUG", "1")
-            .WithEnvironment("DATA_DIR", "/tmp/localstack/data")
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(4566))
-            .Build();
+        // Detect GitHub Actions CI environment
+        bool isGitHubActions = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
         
-        // Start LocalStack
-        await _localStackContainer.StartAsync();
+        // Use CI-specific configuration in GitHub Actions
+        LocalStackConfiguration localStackConfig;
+        if (isGitHubActions)
+        {
+            localStackConfig = LocalStackConfiguration.CreateForGitHubActions();
+            Console.WriteLine("Using GitHub Actions CI-optimized LocalStack configuration (90s timeout, 30 retries)");
+        }
+        else
+        {
+            localStackConfig = LocalStackConfiguration.CreateDefault();
+            Console.WriteLine("Using local development LocalStack configuration (30s timeout, 10 retries)");
+        }
         
-        // Wait a bit for services to be ready
-        await Task.Delay(2000);
+        // Check if LocalStack is already running (e.g., in GitHub Actions)
+        // Use longer timeout and retry logic for CI environments
+        TimeSpan externalCheckTimeout = isGitHubActions ? TimeSpan.FromSeconds(10) : TimeSpan.FromSeconds(3);
+        int maxRetries = 3;
+        bool isAlreadyRunning = false;
+        
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                Console.WriteLine($"Checking for external LocalStack instance (attempt {attempt}/{maxRetries}, timeout: {externalCheckTimeout.TotalSeconds}s)...");
+                isAlreadyRunning = await _configuration.IsLocalStackAvailableAsync(externalCheckTimeout);
+                
+                if (isAlreadyRunning)
+                {
+                    Console.WriteLine("Detected existing LocalStack instance - will reuse it");
+                    break;
+                }
+                else
+                {
+                    Console.WriteLine($"No external LocalStack instance detected on attempt {attempt}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"External LocalStack check failed on attempt {attempt}: {ex.Message}");
+            }
+            
+            // Wait before retry (except on last attempt)
+            if (attempt < maxRetries && !isAlreadyRunning)
+            {
+                await Task.Delay(2000);
+            }
+        }
+        
+        if (!isAlreadyRunning)
+        {
+            // In GitHub Actions, we expect LocalStack to be provided as a service container
+            // If it's not detected, fail fast rather than trying to start a new container
+            if (isGitHubActions)
+            {
+                string errorMessage = "LocalStack service container not detected in GitHub Actions CI. " +
+                    "Ensure the workflow has a 'services.localstack' configuration. " +
+                    "Tests cannot start their own containers in CI due to Docker-in-Docker limitations.";
+                Console.WriteLine($"ERROR: {errorMessage}");
+                throw new InvalidOperationException(errorMessage);
+            }
+            
+            Console.WriteLine("Starting new LocalStack container for local development...");
+            
+            // Create LocalStack container (local development only)
+            _localStackContainer = new ContainerBuilder()
+                .WithImage("localstack/localstack:latest")
+                .WithPortBinding(4566, 4566)
+                .WithEnvironment("SERVICES", "sqs,sns,kms")
+                .WithEnvironment("DEBUG", "1")
+                .WithEnvironment("DATA_DIR", "/tmp/localstack/data")
+                .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(4566))
+                .Build();
+            
+            // Start LocalStack
+            await _localStackContainer.StartAsync();
+            Console.WriteLine("LocalStack container started successfully");
+            
+            // Wait for services to be ready
+            Console.WriteLine("Waiting 2000ms for LocalStack services to initialize...");
+            await Task.Delay(2000);
+        }
         
         // Create AWS clients configured for LocalStack
+        // Use BasicAWSCredentials with dummy values for LocalStack
+        // AnonymousAWSCredentials can cause issues with endpoint resolution
+        var credentials = new Amazon.Runtime.BasicAWSCredentials("test", "test");
+        
         var config = new Amazon.SQS.AmazonSQSConfig
         {
             ServiceURL = LocalStackEndpoint,
             UseHttp = true,
-            RegionEndpoint = _configuration.Region
+            // Don't set RegionEndpoint when using ServiceURL - it can override the endpoint
+            AuthenticationRegion = _configuration.Region.SystemName
         };
         
-        SqsClient = new AmazonSQSClient(_configuration.AccessKey, _configuration.SecretKey, config);
+        SqsClient = new AmazonSQSClient(credentials, config);
         
         var snsConfig = new Amazon.SimpleNotificationService.AmazonSimpleNotificationServiceConfig
         {
             ServiceURL = LocalStackEndpoint,
             UseHttp = true,
-            RegionEndpoint = _configuration.Region
+            // Don't set RegionEndpoint when using ServiceURL
+            AuthenticationRegion = _configuration.Region.SystemName
         };
         
-        SnsClient = new AmazonSimpleNotificationServiceClient(_configuration.AccessKey, _configuration.SecretKey, snsConfig);
+        SnsClient = new AmazonSimpleNotificationServiceClient(credentials, snsConfig);
         
         var kmsConfig = new Amazon.KeyManagementService.AmazonKeyManagementServiceConfig
         {
             ServiceURL = LocalStackEndpoint,
             UseHttp = true,
-            RegionEndpoint = _configuration.Region
+            // Don't set RegionEndpoint when using ServiceURL
+            AuthenticationRegion = _configuration.Region.SystemName
         };
         
-        KmsClient = new AmazonKeyManagementServiceClient(_configuration.AccessKey, _configuration.SecretKey, kmsConfig);
+        KmsClient = new AmazonKeyManagementServiceClient(credentials, kmsConfig);
         
         // Create test resources
         await CreateTestResourcesAsync();
@@ -114,6 +190,7 @@ public class LocalStackTestFixture : IAsyncLifetime
         SnsClient?.Dispose();
         KmsClient?.Dispose();
         
+        // Only stop container if we started it
         if (_localStackContainer != null)
         {
             await _localStackContainer.StopAsync();

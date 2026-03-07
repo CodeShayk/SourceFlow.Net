@@ -29,13 +29,17 @@ public class AwsTestConfiguration
     
     /// <summary>
     /// AWS access key for testing (used with LocalStack)
+    /// LocalStack accepts any credentials when IAM is not enforced,
+    /// but 'test' is the standard convention
     /// </summary>
-    public string AccessKey { get; set; } = "test";
+    public string AccessKey { get; set; } = Environment.GetEnvironmentVariable("AWS_ACCESS_KEY_ID") ?? "test";
     
     /// <summary>
     /// AWS secret key for testing (used with LocalStack)
+    /// LocalStack accepts any credentials when IAM is not enforced,
+    /// but 'test' is the standard convention
     /// </summary>
-    public string SecretKey { get; set; } = "test";
+    public string SecretKey { get; set; } = Environment.GetEnvironmentVariable("AWS_SECRET_ACCESS_KEY") ?? "test";
     
     /// <summary>
     /// Test queue URLs mapped by command type
@@ -106,9 +110,13 @@ public class AwsTestConfiguration
             if (UseLocalStack)
             {
                 config.ServiceURL = LocalStackEndpoint;
+                config.AuthenticationRegion = Region.SystemName;
             }
 
-            var credentials = new BasicAWSCredentials(AccessKey, SecretKey);
+            // Use AnonymousAWSCredentials for LocalStack to bypass credential validation
+            AWSCredentials credentials = UseLocalStack 
+                ? (AWSCredentials)new Amazon.Runtime.AnonymousAWSCredentials() 
+                : (AWSCredentials)new BasicAWSCredentials(AccessKey, SecretKey);
             using var client = new AmazonSQSClient(credentials, config);
             
             // Try to list queues to test connectivity
@@ -157,9 +165,13 @@ public class AwsTestConfiguration
             if (UseLocalStack)
             {
                 config.ServiceURL = LocalStackEndpoint;
+                config.AuthenticationRegion = Region.SystemName;
             }
 
-            var credentials = new BasicAWSCredentials(AccessKey, SecretKey);
+            // Use AnonymousAWSCredentials for LocalStack to bypass credential validation
+            AWSCredentials credentials = UseLocalStack 
+                ? (AWSCredentials)new Amazon.Runtime.AnonymousAWSCredentials() 
+                : (AWSCredentials)new BasicAWSCredentials(AccessKey, SecretKey);
             using var client = new AmazonSimpleNotificationServiceClient(credentials, config);
             
             // Try to list topics to test connectivity
@@ -208,9 +220,13 @@ public class AwsTestConfiguration
             if (UseLocalStack)
             {
                 config.ServiceURL = LocalStackEndpoint;
+                config.AuthenticationRegion = Region.SystemName;
             }
 
-            var credentials = new BasicAWSCredentials(AccessKey, SecretKey);
+            // Use AnonymousAWSCredentials for LocalStack to bypass credential validation
+            AWSCredentials credentials = UseLocalStack 
+                ? (AWSCredentials)new Amazon.Runtime.AnonymousAWSCredentials() 
+                : (AWSCredentials)new BasicAWSCredentials(AccessKey, SecretKey);
             using var client = new AmazonKeyManagementServiceClient(credentials, config);
             
             // Try to list keys to test connectivity
@@ -242,6 +258,7 @@ public class AwsTestConfiguration
 
     /// <summary>
     /// Checks if LocalStack is available with a timeout.
+    /// Uses the health endpoint for faster, more reliable detection.
     /// </summary>
     /// <param name="timeout">Maximum time to wait for connection.</param>
     /// <returns>True if LocalStack is available, false otherwise.</returns>
@@ -250,34 +267,44 @@ public class AwsTestConfiguration
         try
         {
             using var cts = new CancellationTokenSource(timeout);
+            using var httpClient = new HttpClient { Timeout = timeout };
             
-            var config = new AmazonSQSConfig
+            // Use LocalStack health endpoint for faster detection
+            // This is more reliable than trying to list queues
+            var healthUrl = $"{LocalStackEndpoint}/_localstack/health";
+            
+            Console.WriteLine($"Checking LocalStack health endpoint: {healthUrl}");
+            var response = await httpClient.GetAsync(healthUrl, cts.Token);
+            
+            // Accept any HTTP 200 response - services may still be initializing
+            // but LocalStack is running and accepting connections
+            bool isAvailable = response.IsSuccessStatusCode;
+            
+            if (isAvailable)
             {
-                ServiceURL = LocalStackEndpoint,
-                RegionEndpoint = Region
-            };
-
-            var credentials = new BasicAWSCredentials("test", "test");
-            using var client = new AmazonSQSClient(credentials, config);
+                var content = await response.Content.ReadAsStringAsync(cts.Token);
+                Console.WriteLine($"LocalStack health check succeeded. Response: {content}");
+            }
+            else
+            {
+                Console.WriteLine($"LocalStack health check failed with status: {response.StatusCode}");
+            }
             
-            // Try to list queues to test LocalStack connectivity
-            await client.ListQueuesAsync(new Amazon.SQS.Model.ListQueuesRequest(), cts.Token);
-            
-            return true;
+            return isAvailable;
         }
         catch (OperationCanceledException)
         {
-            // Timeout occurred
+            Console.WriteLine("LocalStack health check timed out");
             return false;
         }
-        catch (SocketException)
+        catch (HttpRequestException ex)
         {
-            // Connection refused - LocalStack not running
+            Console.WriteLine($"LocalStack health check failed: {ex.Message}");
             return false;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Other connection errors
+            Console.WriteLine($"LocalStack health check error: {ex.GetType().Name} - {ex.Message}");
             return false;
         }
     }

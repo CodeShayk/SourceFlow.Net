@@ -232,3 +232,36 @@ This document specifies the requirements for preparing the v2.0.0 release of Sou
 11. THE CI_System SHALL preserve existing test execution for non-cloud tests
 12. THE CI_System SHALL document LocalStack configuration in workflow comments
 
+
+### Requirement 14: Fix Package Vulnerabilities
+
+**User Story:** As a security-conscious developer, I want all NuGet packages to be free of known vulnerabilities, so that the v2.0.0 release is secure and production-ready.
+
+#### Acceptance Criteria
+
+1. THE Release_Package SHALL identify all vulnerable NuGet packages using `dotnet list package --vulnerable`
+2. THE Release_Package SHALL update all packages with known vulnerabilities to latest secure versions
+3. THE Release_Package SHALL verify compatibility with existing code after package updates
+4. THE Release_Package SHALL verify no vulnerabilities remain after updates
+
+### Requirement 15: Fix Build Warnings
+
+**User Story:** As a developer, I want a clean build with zero warnings, so that the codebase maintains high quality standards and potential issues are not hidden.
+
+#### Acceptance Criteria
+
+1. THE Release_Package SHALL resolve Microsoft.Extensions.Options version conflicts between 9.0.0 and 10.0.0
+2. THE Release_Package SHALL update AWS SDK packages to resolve version warnings (AWSSDK.CloudFormation, AWSSDK.CloudWatchLogs, AWSSDK.IdentityManagement)
+3. THE Release_Package SHALL fix nullable reference warnings (CS8600, CS8602) in test projects
+4. THE Release_Package SHALL achieve zero warnings when running `dotnet build --configuration Release`
+
+### Requirement 16: Add Multi-Targeting Support to AWS Cloud Extension
+
+**User Story:** As a developer, I want the AWS cloud extension to support multiple .NET target frameworks, so that I can use SourceFlow with .NET Standard 2.1, .NET 8.0, .NET 9.0, and .NET 10.0 applications.
+
+#### Acceptance Criteria
+
+1. THE Release_Package SHALL validate that all dependencies (AWS SDK, Microsoft.Extensions) support netstandard2.1, net8.0, net9.0, and net10.0
+2. THE Release_Package SHALL update SourceFlow.Cloud.AWS.csproj to target netstandard2.1;net8.0;net9.0;net10.0
+3. THE Release_Package SHALL fix compatibility issues for .NET Standard 2.1 (e.g., ArgumentNullException.ThrowIfNull not available)
+4. THE Release_Package SHALL verify all target frameworks compile successfully and unit tests pass

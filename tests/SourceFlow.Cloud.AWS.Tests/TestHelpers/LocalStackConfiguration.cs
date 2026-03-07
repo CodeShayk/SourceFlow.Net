@@ -195,8 +195,9 @@ public class LocalStackConfiguration
             Debug = true,
             PersistData = false,
             AutoRemove = true,
-            HealthCheckTimeout = TimeSpan.FromMinutes(1),
-            MaxHealthCheckRetries = 15,
+            HealthCheckTimeout = TimeSpan.FromSeconds(90),
+            MaxHealthCheckRetries = 30,
+            HealthCheckRetryDelay = TimeSpan.FromSeconds(3),
             EnvironmentVariables = new Dictionary<string, string>
             {
                 ["DISABLE_CORS_CHECKS"] = "1",
@@ -204,6 +205,37 @@ public class LocalStackConfiguration
                 ["ENFORCE_IAM"] = "0", // Disable for easier testing
                 ["LOCALSTACK_API_KEY"] = "", // Use free tier
                 ["PERSISTENCE"] = "0"
+            }
+        };
+    }
+    
+    /// <summary>
+    /// Create a configuration optimized for GitHub Actions CI environment.
+    /// Uses extended timeouts and enhanced retry logic to accommodate slower
+    /// container initialization in CI environments.
+    /// </summary>
+    /// <returns>A LocalStackConfiguration with CI-optimized settings</returns>
+    public static LocalStackConfiguration CreateForGitHubActions()
+    {
+        return new LocalStackConfiguration
+        {
+            EnabledServices = new List<string> { "sqs", "sns", "kms", "iam", "sts", "cloudformation" },
+            Debug = true,
+            PersistData = false,
+            AutoRemove = true,
+            StartupTimeout = TimeSpan.FromMinutes(3),
+            HealthCheckTimeout = TimeSpan.FromSeconds(90),
+            MaxHealthCheckRetries = 30,
+            HealthCheckRetryDelay = TimeSpan.FromSeconds(3),
+            EnvironmentVariables = new Dictionary<string, string>
+            {
+                ["DISABLE_CORS_CHECKS"] = "1",
+                ["SKIP_INFRA_DOWNLOADS"] = "1",
+                ["ENFORCE_IAM"] = "0", // Disable for easier testing
+                ["LOCALSTACK_API_KEY"] = "", // Use free tier
+                ["PERSISTENCE"] = "0",
+                ["DEBUG"] = "1",
+                ["LS_LOG"] = "info" // Enhanced diagnostics for CI troubleshooting
             }
         };
     }

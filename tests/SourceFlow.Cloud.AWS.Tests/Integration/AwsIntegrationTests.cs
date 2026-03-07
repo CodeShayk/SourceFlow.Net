@@ -4,6 +4,7 @@ using SourceFlow.Cloud.AWS.Tests.TestHelpers;
 
 namespace SourceFlow.Cloud.AWS.Tests.Integration;
 
+[Collection("AWS Integration Tests")]
 [Trait("Category", "Integration")]
 [Trait("Category", "RequiresLocalStack")]
 public class AwsIntegrationTests

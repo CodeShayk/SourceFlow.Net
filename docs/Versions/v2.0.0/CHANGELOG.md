@@ -186,6 +186,23 @@ services.UseSourceFlowAws(
 - Simplified build pipeline
 - Reduced compilation time
 
+### Versioning Configuration
+- **GitVersion Pull Request Handling** - Updated pull-request branch configuration
+  - Changed tag from "beta" to "PullRequest" for clearer version identification
+  - Added `tag-number-pattern` to extract PR number from branch name (e.g., `pr/123` → `PullRequest.123`)
+  - Set `increment: Inherit` to inherit versioning strategy from source branch
+  - Ensures PRs from release branches generate appropriate version numbers (e.g., `2.0.0-PullRequest.123`)
+
+### Release CI/CD Workflow Enhancement
+- **Tag-Based Release Publishing** - Enhanced Release-CI workflow with tag-based package publishing
+  - Added `release-packages` tag trigger for controlled package releases
+  - Conditional build versioning: pre-release versions for branch pushes, stable versions for tag pushes
+  - Conditional package publishing: GitHub Packages only on `release-packages` tag
+  - NuGet.org publishing temporarily disabled (requires manual enablement)
+  - Enables testing release branches without publishing packages
+  - Provides explicit control over when packages are published to public registries
+  - Tag format: `release-packages` (triggers stable version build and GitHub Packages publication)
+
 ## 📦 Package Dependencies
 
 ### SourceFlow v2.0.0

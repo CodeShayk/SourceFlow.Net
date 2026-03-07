@@ -49,6 +49,15 @@ public class LocalStackManager : ILocalStackManager
         }
         
         _configuration = config ?? throw new ArgumentNullException(nameof(config));
+        
+        // Check if LocalStack is already running externally (e.g., in GitHub Actions)
+        if (await IsExternalLocalStackAvailableAsync(config.Endpoint))
+        {
+            _logger.LogInformation("Detected existing LocalStack instance at {Endpoint}, using it instead of starting new container", config.Endpoint);
+            // Don't start a new container, just use the existing one
+            return;
+        }
+        
         _logger.LogInformation("Starting LocalStack container with services: {Services}", string.Join(", ", config.EnabledServices));
         
         // Ensure port is available before starting
@@ -114,6 +123,15 @@ public class LocalStackManager : ILocalStackManager
             {
                 throw new InvalidOperationException("LocalStack container failed to start properly");
             }
+            
+            // Add initial delay to allow LocalStack initialization scripts to run
+            // This is critical in CI environments where service initialization is slower
+            var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
+            var initialDelay = isCI ? TimeSpan.FromSeconds(5) : TimeSpan.FromSeconds(2);
+            
+            _logger.LogInformation("Waiting {DelaySeconds} seconds for LocalStack initialization scripts to complete (CI: {IsCI})", 
+                initialDelay.TotalSeconds, isCI);
+            await Task.Delay(initialDelay);
             
             // Wait for services to be ready with enhanced validation
             await WaitForServicesAsync(config.EnabledServices.ToArray(), config.HealthCheckTimeout);
@@ -188,45 +206,85 @@ public class LocalStackManager : ILocalStackManager
         var retryDelay = _configuration.HealthCheckRetryDelay;
         var maxRetries = _configuration.MaxHealthCheckRetries;
         
-        _logger.LogInformation("Waiting for LocalStack services to be ready: {Services}", string.Join(", ", services));
+        // Detect CI environment for enhanced diagnostics
+        var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
+        
+        _logger.LogInformation("Waiting for LocalStack services to be ready: {Services} (CI: {IsCI}, Timeout: {Timeout}s, MaxRetries: {MaxRetries})", 
+            string.Join(", ", services), isCI, actualTimeout.TotalSeconds, maxRetries);
         
         var startTime = DateTime.UtcNow;
         var retryCount = 0;
         var lastErrors = new List<string>();
+        var lastHealthResponse = string.Empty;
         
         while (DateTime.UtcNow - startTime < actualTimeout && retryCount < maxRetries)
         {
             try
             {
+                var healthCheckStartTime = DateTime.UtcNow;
                 var healthStatus = await GetServicesHealthAsync();
-                var serviceStatuses = new Dictionary<string, bool>();
+                var healthCheckResponseTime = DateTime.UtcNow - healthCheckStartTime;
+                
+                var serviceStatuses = new Dictionary<string, string>();
                 
                 foreach (var service in services)
                 {
-                    var isReady = healthStatus.ContainsKey(service) && healthStatus[service].IsAvailable;
-                    serviceStatuses[service] = isReady;
-                    
-                    if (isReady && !_serviceReadyTimes.ContainsKey(service))
+                    if (healthStatus.ContainsKey(service))
                     {
-                        _serviceReadyTimes[service] = DateTime.UtcNow;
-                        _logger.LogDebug("Service {ServiceName} became ready after {ElapsedTime}ms", 
-                            service, (DateTime.UtcNow - startTime).TotalMilliseconds);
+                        var status = healthStatus[service].Status;
+                        var isReady = healthStatus[service].IsAvailable;
+                        serviceStatuses[service] = status;
+                        
+                        if (isReady && !_serviceReadyTimes.ContainsKey(service))
+                        {
+                            _serviceReadyTimes[service] = DateTime.UtcNow;
+                            _logger.LogInformation("Service {ServiceName} became ready with status '{Status}' after {ElapsedTime}ms", 
+                                service, status, (DateTime.UtcNow - startTime).TotalMilliseconds);
+                        }
+                    }
+                    else
+                    {
+                        serviceStatuses[service] = "not_found";
                     }
                 }
                 
-                var allReady = serviceStatuses.Values.All(ready => ready);
+                var allReady = serviceStatuses.All(kvp => 
+                    healthStatus.ContainsKey(kvp.Key) && healthStatus[kvp.Key].IsAvailable);
                 
                 if (allReady)
                 {
-                    _logger.LogInformation("All LocalStack services are ready after {ElapsedTime}ms", 
-                        (DateTime.UtcNow - startTime).TotalMilliseconds);
+                    _logger.LogInformation("All LocalStack services are ready after {ElapsedTime}ms (total attempts: {Attempts})", 
+                        (DateTime.UtcNow - startTime).TotalMilliseconds, retryCount + 1);
+                    
+                    // Log individual service ready times for diagnostics
+                    foreach (var service in services)
+                    {
+                        if (_serviceReadyTimes.ContainsKey(service))
+                        {
+                            var readyTime = (_serviceReadyTimes[service] - startTime).TotalMilliseconds;
+                            _logger.LogDebug("Service {ServiceName} ready time: {ReadyTime}ms", service, readyTime);
+                        }
+                    }
+                    
                     return;
                 }
                 
-                var notReady = serviceStatuses.Where(kvp => !kvp.Value).Select(kvp => kvp.Key).ToList();
+                // Enhanced logging: log individual service status on each retry
+                var statusDetails = serviceStatuses
+                    .Select(kvp => $"{kvp.Key}:{kvp.Value}")
+                    .ToList();
                 
-                _logger.LogDebug("Services not ready yet: {NotReadyServices} (attempt {Attempt}/{MaxAttempts})", 
-                    string.Join(", ", notReady), retryCount + 1, maxRetries);
+                var notReadyServices = serviceStatuses
+                    .Where(kvp => !healthStatus.ContainsKey(kvp.Key) || !healthStatus[kvp.Key].IsAvailable)
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+                
+                _logger.LogInformation("Health check attempt {Attempt}/{MaxAttempts} - Services status: [{StatusDetails}] - Not ready: [{NotReadyServices}] - Response time: {ResponseTime}ms - Elapsed: {ElapsedTime}ms", 
+                    retryCount + 1, maxRetries, 
+                    string.Join(", ", statusDetails), 
+                    string.Join(", ", notReadyServices),
+                    healthCheckResponseTime.TotalMilliseconds,
+                    (DateTime.UtcNow - startTime).TotalMilliseconds);
                 
                 lastErrors.Clear();
             }
@@ -234,15 +292,78 @@ public class LocalStackManager : ILocalStackManager
             {
                 var errorMessage = $"Health check failed: {ex.Message}";
                 lastErrors.Add(errorMessage);
-                _logger.LogDebug(ex, "Health check failed (attempt {Attempt}/{MaxAttempts})", retryCount + 1, maxRetries);
+                
+                // Enhanced error logging with response time
+                var elapsedTime = DateTime.UtcNow - startTime;
+                _logger.LogWarning(ex, "Health check failed (attempt {Attempt}/{MaxAttempts}, elapsed: {ElapsedTime}ms, CI: {IsCI}): {ErrorMessage}", 
+                    retryCount + 1, maxRetries, elapsedTime.TotalMilliseconds, isCI, ex.Message);
+                
+                // Try to capture the health endpoint response for diagnostics
+                try
+                {
+                    using var httpClient = new HttpClient();
+                    httpClient.Timeout = TimeSpan.FromSeconds(5);
+                    var healthUrl = $"{_configuration.Endpoint}/_localstack/health";
+                    var response = await httpClient.GetAsync(healthUrl);
+                    lastHealthResponse = await response.Content.ReadAsStringAsync();
+                    
+                    if (response.IsSuccessStatusCode)
+                    {
+                        // Parse and log individual service statuses from the JSON response
+                        try
+                        {
+                            var healthData = JsonSerializer.Deserialize<LocalStackHealthResponse>(lastHealthResponse);
+                            if (healthData?.Services != null)
+                            {
+                                var serviceDetails = healthData.Services
+                                    .Select(s => $"{s.Key}:{s.Value}")
+                                    .ToList();
+                                
+                                _logger.LogInformation("Health endpoint JSON response (attempt {Attempt}/{MaxAttempts}): Services=[{ServiceDetails}], Version={Version}", 
+                                    retryCount + 1, maxRetries, string.Join(", ", serviceDetails), healthData.Version ?? "unknown");
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Health endpoint returned empty services list (attempt {Attempt}/{MaxAttempts})", 
+                                    retryCount + 1, maxRetries);
+                            }
+                        }
+                        catch (JsonException jsonEx)
+                        {
+                            _logger.LogWarning(jsonEx, "Failed to parse health endpoint JSON response (attempt {Attempt}/{MaxAttempts}): {Response}", 
+                                retryCount + 1, maxRetries, lastHealthResponse);
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Health endpoint returned non-success status {StatusCode} (attempt {Attempt}/{MaxAttempts}): {Response}", 
+                            response.StatusCode, retryCount + 1, maxRetries, lastHealthResponse);
+                    }
+                }
+                catch (Exception healthEx)
+                {
+                    _logger.LogDebug(healthEx, "Failed to capture health endpoint response for diagnostics (attempt {Attempt}/{MaxAttempts})", 
+                        retryCount + 1, maxRetries);
+                }
             }
             
             retryCount++;
             await Task.Delay(retryDelay);
         }
         
+        // Enhanced timeout error message with detailed diagnostics
         var errorDetails = lastErrors.Any() ? $" Last errors: {string.Join("; ", lastErrors)}" : "";
-        throw new TimeoutException($"LocalStack services did not become ready within {actualTimeout}: {string.Join(", ", services)}.{errorDetails}");
+        var healthResponseDetails = !string.IsNullOrEmpty(lastHealthResponse) 
+            ? $" Last health response: {lastHealthResponse}" 
+            : "";
+        
+        var serviceReadyTimesDetails = _serviceReadyTimes.Any()
+            ? $" Services that became ready: {string.Join(", ", _serviceReadyTimes.Select(kvp => $"{kvp.Key}@{(kvp.Value - startTime).TotalMilliseconds}ms"))}"
+            : " No services became ready";
+        
+        throw new TimeoutException(
+            $"LocalStack services did not become ready within {actualTimeout} (CI: {isCI}, Attempts: {retryCount}/{maxRetries}): " +
+            $"{string.Join(", ", services)}.{errorDetails}{healthResponseDetails}{serviceReadyTimesDetails}");
     }
     
     /// <inheritdoc />
@@ -356,6 +477,105 @@ public class LocalStackManager : ILocalStackManager
             _logger.LogWarning(ex, "Failed to get LocalStack container logs");
             return $"Failed to get logs: {ex.Message}";
         }
+    }
+    
+    /// <summary>
+    /// Check if an external LocalStack instance is already available
+    /// Uses enhanced detection with retry logic and service status validation
+    /// </summary>
+    /// <param name="endpoint">LocalStack endpoint to check</param>
+    /// <returns>True if external LocalStack is available with services ready</returns>
+    private async Task<bool> IsExternalLocalStackAvailableAsync(string endpoint)
+    {
+        // Detect CI environment for appropriate timeout configuration
+        var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
+        var timeout = isCI ? TimeSpan.FromSeconds(10) : TimeSpan.FromSeconds(3);
+        var maxAttempts = 3;
+        var retryDelay = TimeSpan.FromSeconds(2);
+        
+        _logger.LogDebug("Checking for external LocalStack instance at {Endpoint} (CI: {IsCI}, Timeout: {Timeout}s, Attempts: {MaxAttempts})", 
+            endpoint, isCI, timeout.TotalSeconds, maxAttempts);
+        
+        var startTime = DateTime.UtcNow;
+        
+        for (int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                using var httpClient = new HttpClient();
+                httpClient.Timeout = timeout;
+                
+                var healthUrl = $"{endpoint}/_localstack/health";
+                var attemptStartTime = DateTime.UtcNow;
+                var response = await httpClient.GetAsync(healthUrl);
+                var responseTime = DateTime.UtcNow - attemptStartTime;
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogDebug("External LocalStack health check returned {StatusCode} (attempt {Attempt}/{MaxAttempts}, response time: {ResponseTime}ms)", 
+                        response.StatusCode, attempt, maxAttempts, responseTime.TotalMilliseconds);
+                    
+                    if (attempt < maxAttempts)
+                    {
+                        await Task.Delay(retryDelay);
+                        continue;
+                    }
+                    return false;
+                }
+                
+                // If we get HTTP 200, LocalStack is running - accept it even if services aren't fully ready yet
+                // We'll wait for services to become ready in WaitForServicesAsync
+                var content = await response.Content.ReadAsStringAsync();
+                
+                try
+                {
+                    var healthData = JsonSerializer.Deserialize<LocalStackHealthResponse>(content);
+                    
+                    if (healthData?.Services != null && healthData.Services.Count > 0)
+                    {
+                        var serviceStatus = healthData.Services
+                            .Select(s => $"{s.Key}:{s.Value}")
+                            .ToList();
+                        
+                        _logger.LogInformation("Successfully detected external LocalStack instance at {Endpoint} with {ServiceCount} services: {Services} (response time: {ResponseTime}ms)", 
+                            endpoint, healthData.Services.Count, string.Join(", ", serviceStatus), responseTime.TotalMilliseconds);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Successfully detected external LocalStack instance at {Endpoint} (services still initializing, response time: {ResponseTime}ms)", 
+                            endpoint, responseTime.TotalMilliseconds);
+                    }
+                }
+                catch (JsonException)
+                {
+                    // JSON parsing failed, but we got HTTP 200, so LocalStack is running
+                    _logger.LogInformation("Successfully detected external LocalStack instance at {Endpoint} (health endpoint responded, response time: {ResponseTime}ms)", 
+                        endpoint, responseTime.TotalMilliseconds);
+                }
+                
+                var totalTime = DateTime.UtcNow - startTime;
+                _logger.LogDebug("External LocalStack detection succeeded after {TotalTime}ms", totalTime.TotalMilliseconds);
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                var elapsedTime = DateTime.UtcNow - startTime;
+                _logger.LogDebug(ex, "External LocalStack detection failed (attempt {Attempt}/{MaxAttempts}, elapsed: {ElapsedTime}ms): {Message}", 
+                    attempt, maxAttempts, elapsedTime.TotalMilliseconds, ex.Message);
+                
+                if (attempt < maxAttempts)
+                {
+                    await Task.Delay(retryDelay);
+                }
+            }
+        }
+        
+        var totalElapsedTime = DateTime.UtcNow - startTime;
+        _logger.LogDebug("No external LocalStack instance detected at {Endpoint} after {Attempts} attempts (total time: {TotalTime}ms)", 
+            endpoint, maxAttempts, totalElapsedTime.TotalMilliseconds);
+        
+        return false;
     }
     
     /// <summary>

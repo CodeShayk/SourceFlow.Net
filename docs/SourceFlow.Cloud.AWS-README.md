@@ -47,7 +47,7 @@ dotnet add package SourceFlow.Cloud.AWS
 
 - SourceFlow >= 2.0.0
 - AWS SDK for .NET
-- .NET 8.0 or higher
+- .NET Standard 2.1, .NET 8.0, .NET 9.0, or .NET 10.0
 
 ---
 
@@ -799,11 +799,12 @@ services.UseSourceFlowAws(
 # LocalStack endpoints
 export AWS_ENDPOINT_URL=http://localhost:4566
 
-# Dummy credentials (LocalStack doesn't validate)
-export AWS_ACCESS_KEY_ID=test
-export AWS_SECRET_ACCESS_KEY=test
+# LocalStack uses hardcoded test credentials in test fixtures
+# BasicAWSCredentials("test", "test") provides better endpoint compatibility
 export AWS_DEFAULT_REGION=us-east-1
 ```
+
+**Note**: LocalStack does not validate AWS credentials. The test infrastructure uses `BasicAWSCredentials` with dummy "test"/"test" values for better compatibility with AWS SDK endpoint resolution. This approach avoids endpoint override issues that can occur with `AnonymousAWSCredentials`.
 
 #### Testing
 

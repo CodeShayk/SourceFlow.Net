@@ -63,8 +63,13 @@ public static class IocExtensions
         Action<BusConfigurationBuilder> configureBus,
         Action<IdempotencyConfigurationBuilder>? configureIdempotency = null)
     {
+#if NETSTANDARD2_0 || NETSTANDARD2_1
+        if (configureOptions == null) throw new ArgumentNullException(nameof(configureOptions));
+        if (configureBus == null) throw new ArgumentNullException(nameof(configureBus));
+#else
         ArgumentNullException.ThrowIfNull(configureOptions);
         ArgumentNullException.ThrowIfNull(configureBus);
+#endif
 
         // 1. Configure options
         var options = new AwsOptions();

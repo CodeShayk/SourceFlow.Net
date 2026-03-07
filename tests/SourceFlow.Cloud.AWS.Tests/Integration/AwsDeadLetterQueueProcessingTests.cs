@@ -56,7 +56,7 @@ public class AwsDeadLetterQueueProcessingTests : IClassFixture<LocalStackTestFix
         
         var mainQueueUrl = await CreateStandardQueueAsync(mainQueueName, new Dictionary<string, string>
         {
-            ["VisibilityTimeoutSeconds"] = "2",
+            ["VisibilityTimeout"] = "2",
             ["RedrivePolicy"] = JsonSerializer.Serialize(new
             {
                 deadLetterTargetArn = dlqArn,
@@ -145,8 +145,9 @@ public class AwsDeadLetterQueueProcessingTests : IClassFixture<LocalStackTestFix
         
         Assert.NotNull(sendResponse.MessageId);
         
-        // Act - Simulate processing failures
-        for (int attempt = 1; attempt <= 2; attempt++)
+        // Act - Simulate processing failures by receiving without deleting
+        // The message will be moved to DLQ after maxReceiveCount (2) attempts
+        for (int attempt = 1; attempt <= 3; attempt++)
         {
             var receiveResponse = await _localStack.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
             {
@@ -154,18 +155,19 @@ public class AwsDeadLetterQueueProcessingTests : IClassFixture<LocalStackTestFix
                 MaxNumberOfMessages = 1,
                 MessageAttributeNames = new List<string> { "All" },
                 AttributeNames = new List<string> { "All" },
-                WaitTimeSeconds = 1
+                WaitTimeSeconds = 2
             });
             
             if (receiveResponse.Messages.Any())
             {
                 // Don't delete - simulate failure
-                await Task.Delay(3000);
+                // Wait for visibility timeout to expire so message becomes available again
+                await Task.Delay(2500); // Slightly longer than VisibilityTimeout (2s)
             }
         }
         
-        // Wait for DLQ processing
-        await Task.Delay(2000);
+        // Wait a bit more for DLQ processing to complete
+        await Task.Delay(1000);
         
         // Act - Retrieve from DLQ and process
         var dlqReceiveResponse = await _localStack.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
@@ -174,7 +176,7 @@ public class AwsDeadLetterQueueProcessingTests : IClassFixture<LocalStackTestFix
             MaxNumberOfMessages = 1,
             MessageAttributeNames = new List<string> { "All" },
             AttributeNames = new List<string> { "All" },
-            WaitTimeSeconds = 2
+            WaitTimeSeconds = 5
         });
         
         // Assert - Message should be in DLQ
@@ -1374,7 +1376,7 @@ public class AwsDeadLetterQueueProcessingTests : IClassFixture<LocalStackTestFix
         var attributes = new Dictionary<string, string>
         {
             ["MessageRetentionPeriod"] = "1209600",
-            ["VisibilityTimeoutSeconds"] = "30"
+            ["VisibilityTimeout"] = "30"
         };
         
         if (additionalAttributes != null)
@@ -1402,7 +1404,7 @@ public class AwsDeadLetterQueueProcessingTests : IClassFixture<LocalStackTestFix
             ["FifoQueue"] = "true",
             ["ContentBasedDeduplication"] = "true",
             ["MessageRetentionPeriod"] = "1209600",
-            ["VisibilityTimeoutSeconds"] = "30"
+            ["VisibilityTimeout"] = "30"
         };
         
         if (additionalAttributes != null)

@@ -9,12 +9,13 @@
 # the `language` matrix defined below to confirm you have the correct set of
 # supported CodeQL languages.
 #
-name: "pr-codeql"
+name: "release-codeql"
 
 on:
   push:
-  pull_request:
-    types: [opened, reopened, edited, synchronize]
+    branches:
+    - release/**
+    - release
     paths-ignore:
     - "**/*.md"
     - "**/*.gitignore"

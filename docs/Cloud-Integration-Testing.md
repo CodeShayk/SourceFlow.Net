@@ -75,11 +75,17 @@ dotnet test --filter "Category=Unit"
 # Run integration tests
 dotnet test --filter "Category=Integration"
 
+# Run security tests
+dotnet test --filter "Category=Security"
+
 # Run AWS integration tests with LocalStack
 dotnet test --filter "Category=Integration&Category=RequiresLocalStack"
 
 # Run all tests except LocalStack tests
 dotnet test --filter "Category!=RequiresLocalStack"
+
+# Run all tests except integration and security tests (CI pattern)
+dotnet test --filter "FullyQualifiedName!~Integration&FullyQualifiedName!~Security"
 ```
 
 ## Testing Frameworks and Tools
@@ -605,12 +611,14 @@ public async Task All_Configured_Resources_Should_Exist_After_Bootstrapping()
 - **LocalStack** - Complete AWS service emulation (SQS, SNS, KMS, IAM)
 - **Container Management** - Automatic lifecycle with TestContainers
 - **Health Checking** - Service availability validation
+- **Smart Container Detection** - Automatically detects and reuses existing LocalStack instances (e.g., in CI/CD environments) to avoid redundant container creation
 
 ### Development Workflow
 - **Fast Feedback** - Rapid test execution without cloud dependencies
 - **Cost Optimization** - No cloud resource costs during development
 - **Offline Development** - Full functionality without internet connectivity
 - **Debugging Support** - Local service inspection and troubleshooting
+- **CI/CD Efficiency** - Seamlessly integrates with pre-configured LocalStack services in GitHub Actions and other CI platforms
 
 ## CI/CD Integration
 
@@ -619,6 +627,131 @@ public async Task All_Configured_Resources_Should_Exist_After_Bootstrapping()
 - **Resource Provisioning** - Automatic cloud resource creation and cleanup via `AwsResourceManager`
 - **Parallel Execution** - Concurrent test execution for faster feedback
 - **Test Isolation** - Proper resource isolation to prevent interference with unique naming and tagging
+- **Smart Container Management** - Detects pre-existing LocalStack services in CI/CD environments (e.g., GitHub Actions service containers) and reuses them instead of creating redundant containers, improving test execution speed and resource efficiency
+- **Adaptive Timeouts** - Automatically adjusts LocalStack health check timeouts based on environment (90 seconds for CI, 30 seconds for local development)
+- **Shared Container Fixtures** - xUnit collection fixtures ensure single LocalStack instance per test run, preventing port conflicts in parallel test execution
+
+### GitHub Actions CI Optimizations
+
+The test infrastructure includes specific optimizations for GitHub Actions CI environments:
+
+**LocalStack Service Container Integration:**
+- **Pre-Started Container** - Release-CI workflow includes LocalStack as a service container
+- **Port Mapping** - LocalStack exposed on port 4566 for test access
+- **Service Configuration** - Configured with SQS, SNS, KMS, and IAM services
+- **Health Checks** - Container health validated before test execution begins
+- **Automatic Lifecycle** - GitHub Actions manages container startup and cleanup
+- **Resource Efficiency** - Single shared container across all test jobs
+- **Fail-Fast Behavior** - Tests fail immediately if LocalStack service container is not detected in CI (prevents Docker-in-Docker issues)
+- **Anonymous Credentials** - Uses `AnonymousAWSCredentials` to bypass credential validation in LocalStack (no dummy credentials needed)
+
+**LocalStack Timeout Handling:**
+- **Environment Detection** - Automatically detects GitHub Actions via `GITHUB_ACTIONS` environment variable
+- **Extended Timeouts** - Uses 90-second health check timeout in CI (vs 30 seconds locally) to accommodate slower container initialization
+- **Enhanced Retry Logic** - Increases retry attempts (30 vs 15) and delays (3 seconds vs 2 seconds) for CI environments
+- **External Instance Detection** - 10-second timeout (vs 3 seconds locally) with 3 retry attempts to reliably detect pre-started LocalStack service containers
+- **Lenient Detection** - Accepts HTTP 200 from health endpoint even if services aren't fully initialized, deferring full readiness validation to main wait loop
+
+**Container Sharing:**
+- **xUnit Collection Fixtures** - `AwsIntegrationTestCollection` enforces shared `LocalStackTestFixture` across all test classes
+- **Port Conflict Prevention** - Single LocalStack instance eliminates port 4566 allocation conflicts
+- **Resource Efficiency** - Reduces CI execution time by avoiding redundant container startups
+- **CI Service Container Detection** - In GitHub Actions, tests detect and reuse pre-started LocalStack service containers
+- **Fail-Fast in CI** - Tests fail immediately if LocalStack service container is not available in GitHub Actions (prevents Docker-in-Docker issues)
+- **Local Development** - Tests can start their own LocalStack containers when running locally
+
+**Configuration Classes:**
+- `LocalStackConfiguration.CreateForIntegrationTesting()` - Returns CI-optimized configuration with 90-second timeout
+- `LocalStackConfiguration.IsCI` - Property that detects GitHub Actions environment
+- `LocalStackManager.WaitForServicesAsync()` - Adaptive retry logic based on environment detection
+
+**GitHub Actions Workflow Configuration:**
+
+The Release-CI workflow includes LocalStack as a service container with AWS credentials and simplified security settings for testing:
+
+```yaml
+env:
+  # AWS credentials for LocalStack (dummy values)
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_DEFAULT_REGION: us-east-1
+
+services:
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - 4566:4566
+    env:
+      SERVICES: sqs,sns,kms,iam
+      DEBUG: 1
+      DOCKER_HOST: unix:///var/run/docker.sock
+      # Disable IAM enforcement for easier testing
+      ENFORCE_IAM: 0
+      # Skip SSL certificate validation
+      SKIP_SSL_CERT_DOWNLOAD: 1
+      # Disable signature validation (accept any credentials)
+      DISABLE_CUSTOM_CORS_S3: 1
+      DISABLE_CUSTOM_CORS_APIGATEWAY: 1
+    options: >-
+      --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
+      --health-interval 10s
+      --health-timeout 5s
+      --health-retries 30
+      --health-start-period 30s
+```
+
+**AWS Credential Configuration:**
+
+The test infrastructure uses `BasicAWSCredentials` with dummy values for LocalStack testing. This approach provides better compatibility with AWS SDK endpoint resolution compared to `AnonymousAWSCredentials`.
+
+```csharp
+// LocalStackTestFixture.cs
+// Use BasicAWSCredentials with dummy values for LocalStack
+// AnonymousAWSCredentials can cause issues with endpoint resolution
+var credentials = new Amazon.Runtime.BasicAWSCredentials("test", "test");
+
+var config = new Amazon.SQS.AmazonSQSConfig
+{
+    ServiceURL = LocalStackEndpoint,
+    UseHttp = true,
+    // Don't set RegionEndpoint when using ServiceURL - it can override the endpoint
+    AuthenticationRegion = _configuration.Region.SystemName
+};
+```
+
+**Credential Configuration Details:**
+- **BasicAWSCredentials** - Uses dummy "test"/"test" credentials for LocalStack
+- **ServiceURL** - Explicitly set to LocalStack endpoint (http://localhost:4566)
+- **UseHttp** - Enables HTTP instead of HTTPS for LocalStack
+- **AuthenticationRegion** - Set to match configured region (us-east-1)
+- **No RegionEndpoint** - Omitted when using ServiceURL to prevent endpoint override
+- **No ForcePathStyle** - Not required for LocalStack; ServiceURL configuration is sufficient
+
+**Benefits:**
+- **Endpoint Compatibility** - BasicAWSCredentials works reliably with custom ServiceURL
+- **LocalStack Support** - Dummy credentials accepted by LocalStack without validation
+- **Consistent Behavior** - Same credential approach across all AWS service clients (SQS, SNS, KMS)
+- **CI/CD Integration** - Works seamlessly in GitHub Actions with LocalStack service containers
+- **Local Development** - No configuration needed for LocalStack testing
+
+**LocalStack Security Configuration:**
+- **`ENFORCE_IAM: 0`** - Disables IAM policy enforcement for simplified testing with dummy credentials
+- **`SKIP_SSL_CERT_DOWNLOAD: 1`** - Skips SSL certificate downloads to speed up container initialization
+- **`DISABLE_CUSTOM_CORS_S3: 1`** - Disables custom CORS for S3 (not used in tests but reduces overhead)
+- **`DISABLE_CUSTOM_CORS_APIGATEWAY: 1`** - Disables custom CORS for API Gateway (not used in tests but reduces overhead)
+
+These settings optimize LocalStack for CI testing by:
+- Accepting any AWS credentials (test/test) without validation
+- Reducing container startup time by skipping unnecessary downloads
+- Simplifying test execution without strict IAM policy enforcement
+- Maintaining functional equivalence for SQS, SNS, KMS, and IAM service testing
+
+**Service Container Benefits:**
+- Container starts before test job begins
+- Health checks ensure services are ready before tests run
+- Automatic cleanup after job completion
+- No manual container management required in test code
+- Consistent environment across all CI runs
 
 ### Reporting and Analysis
 - **Comprehensive Reports** - Detailed test results with metrics and analysis
@@ -639,13 +772,43 @@ The `AwsResourceManager` provides comprehensive automated resource lifecycle man
 - **Test Isolation** - Unique naming prevents conflicts in parallel test execution
 
 ### LocalStack Manager (Implemented)
+The `LocalStackManager` provides comprehensive container lifecycle management for AWS service emulation with enhanced features:
+
+- **Smart Container Detection** - Automatically detects and reuses existing LocalStack instances (e.g., in CI/CD environments) to avoid redundant container creation
+- **Adaptive Timeout Configuration** - Automatically adjusts health check timeouts based on environment (90 seconds for CI, 30 seconds for local development)
+- **Health Endpoint Detection** - Uses LocalStack's `/_localstack/health` endpoint for fast, reliable instance detection instead of attempting AWS service operations
+- **Lenient Detection Strategy** - Accepts HTTP 200 responses from health endpoint even if services aren't fully initialized, deferring full service readiness validation to the main wait loop
+- **Retry Logic** - Configurable retry attempts with delays for reliable external instance detection (3 attempts with 2-second delays)
+- **Port Management** - Automatic port conflict detection and resolution
+- **Service Validation** - Comprehensive AWS service emulation validation (SQS, SNS, KMS, IAM)
+- **Diagnostic Logging** - Detailed logging for troubleshooting container startup and service initialization issues
+
+**External Instance Detection Behavior:**
+- Checks for existing LocalStack instances before starting new containers
+- Uses HTTP health endpoint (`/_localstack/health`) for faster detection than AWS SDK calls
+- Accepts HTTP 200 status code regardless of individual service status
+- Allows services to continue initializing after detection succeeds
+- Full service readiness validation occurs in `WaitForServicesAsync` with appropriate timeouts
+- Prevents port conflicts and reduces CI execution time by reusing pre-started containers
+- **CI Fail-Fast**: In GitHub Actions, tests fail immediately if LocalStack service container is not detected (prevents Docker-in-Docker issues)
+- **Local Development**: Tests can start their own LocalStack containers when no external instance is detected
+
+**CI/CD Optimizations:**
+- Detects GitHub Actions environment via `GITHUB_ACTIONS` environment variable
+- Uses extended timeouts (10 seconds vs 3 seconds) for external instance detection in CI
+- Increases retry attempts and delays for slower CI environments
+- Adds initial delay after container start (5 seconds in CI, 2 seconds locally) for initialization scripts
+
 Enhanced LocalStack container management with comprehensive AWS service emulation:
 
 - **Service Emulation** - Full support for SQS (standard and FIFO), SNS, KMS, and IAM
-- **Health Checking** - Service availability validation and readiness detection
+- **Health Checking** - Service availability validation and readiness detection with adaptive timeouts
 - **Port Management** - Automatic port allocation and conflict resolution
 - **Container Lifecycle** - Automated startup, health checks, and cleanup
 - **Service Validation** - AWS SDK compatibility testing for each service
+- **CI/CD Optimization** - Detects pre-existing LocalStack instances (e.g., GitHub Actions services) to avoid redundant container creation
+- **Environment-Aware Configuration** - Automatically adjusts health check timeouts and retry logic for CI environments (90 seconds) vs local development (30 seconds)
+- **Shared Container Support** - xUnit collection fixtures ensure single LocalStack instance shared across all test classes to prevent port conflicts
 
 ### AWS Test Environment (Implemented)
 Comprehensive test environment abstraction supporting both LocalStack and real AWS:
@@ -709,7 +872,9 @@ dotnet test --collect:"XPlat Code Coverage"
 
 ### Configuration
 
-Tests can be configured via `appsettings.json`:
+Tests can be configured via `appsettings.json` or environment variables:
+
+**Configuration File (appsettings.json):**
 
 ```json
 {
@@ -724,6 +889,30 @@ Tests can be configured via `appsettings.json`:
   }
 }
 ```
+
+**Environment Variables:**
+
+The test infrastructure supports configuration via environment variables for CI/CD integration:
+
+| Variable | Purpose | Default | Example |
+|----------|---------|---------|---------|
+| `AWS_ACCESS_KEY_ID` | AWS access key for LocalStack | `test` | `test` |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key for LocalStack | `test` | `test` |
+| `AWS_DEFAULT_REGION` | AWS region for testing | `us-east-1` | `us-east-1` |
+| `GITHUB_ACTIONS` | Detects CI environment | (none) | `true` |
+
+**Credential Resolution:**
+
+The `AwsTestConfiguration` class automatically resolves credentials in the following order:
+
+1. **Environment Variables** - Checks `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+2. **Default Values** - Falls back to "test"/"test" for local development
+
+This approach provides:
+- **CI/CD Compatibility** - Works seamlessly with GitHub Actions and other CI systems
+- **Local Development** - No configuration needed for LocalStack testing
+- **Flexibility** - Override credentials via environment variables when needed
+- **Security** - Credentials managed through CI/CD secrets, not hardcoded
 
 ## Best Practices
 
@@ -748,16 +937,60 @@ Tests can be configured via `appsettings.json`:
 ## Troubleshooting
 
 ### Common Issues
-- **Container startup failures** - Check Docker Desktop and port availability
-- **Cloud authentication** - Verify AWS credentials and permissions
-- **Performance variations** - Ensure stable test environment
-- **Resource cleanup** - Monitor cloud resources for proper cleanup
+
+#### LocalStack Container Startup Failures
+- **Symptom**: Tests fail with "LocalStack services did not become ready within timeout"
+- **Cause**: Container startup slower than expected, especially in CI environments
+- **Solution**: 
+  - Verify Docker Desktop is running and has sufficient resources
+  - Check that `GITHUB_ACTIONS` environment variable is set correctly in CI
+  - Ensure health check timeout is appropriate for environment (90s for CI, 30s for local)
+  - Review LocalStack logs for service initialization errors
+
+#### LocalStack Service Container Not Detected in CI
+- **Symptom**: Tests fail with "LocalStack service container not detected in GitHub Actions CI"
+- **Cause**: GitHub Actions workflow missing `services.localstack` configuration
+- **Solution**:
+  - Verify workflow YAML includes LocalStack service container definition
+  - Check service container health checks are configured correctly
+  - Ensure port 4566 is mapped correctly in service configuration
+  - Review GitHub Actions logs to confirm service container started successfully
+  - **Note**: Tests cannot start their own containers in CI due to Docker-in-Docker limitations
+
+#### Port Conflicts
+- **Symptom**: Tests fail with "port is already allocated" or "address already in use"
+- **Cause**: Multiple test classes attempting to start separate LocalStack instances
+- **Solution**:
+  - Verify `AwsIntegrationTestCollection` class exists with `[CollectionDefinition]` and `ICollectionFixture<LocalStackTestFixture>`
+  - Ensure all integration test classes use `[Collection("AWS Integration Tests")]` attribute
+  - Check that only one LocalStack container is running (use `docker ps`)
+
+#### External LocalStack Detection Issues
+- **Symptom**: Tests start new LocalStack container despite existing instance
+- **Cause**: External instance detection timeout too short or instance not responding to health endpoint
+- **Solution**:
+  - Increase external detection timeout (10 seconds recommended for CI)
+  - Verify existing LocalStack instance is healthy and responding to `/_localstack/health` endpoint
+  - Check network connectivity between test runner and LocalStack container
+  - Review console output for health check diagnostic messages
+  - Ensure LocalStack is accepting HTTP connections on port 4566
+
+#### CI-Specific Timeout Issues
+- **Symptom**: Tests pass locally but timeout in GitHub Actions CI
+- **Cause**: CI environment has slower container initialization than local development
+- **Solution**:
+  - Verify `LocalStackConfiguration.IsCI` correctly detects GitHub Actions environment
+  - Ensure `CreateForIntegrationTesting()` returns 90-second timeout configuration
+  - Check GitHub Actions runner has sufficient resources allocated
+  - Review CI logs for container startup timing information
 
 ### Debug Configuration
 - **Detailed logging** for test execution visibility
 - **Service health checking** for LocalStack availability
 - **Resource inspection** - Cloud service validation
 - **Performance profiling** for optimization opportunities
+- **Environment detection** - Verify CI vs local environment detection
+- **Container inspection** - Check LocalStack container status and logs with `docker logs`
 
 ## Contributing
 
@@ -775,9 +1008,10 @@ When adding new cloud integration tests:
 - [AWS Cloud Architecture](Architecture/07-AWS-Cloud-Architecture.md)
 - [Architecture Overview](Architecture/README.md)
 - [Cloud Message Idempotency Guide](Cloud-Message-Idempotency-Guide.md)
+- [GitHub Actions LocalStack Timeout Fix](.kiro/specs/github-actions-localstack-timeout-fix/design.md) - Technical details on CI timeout handling
 
 ---
 
-**Document Version**: 2.0  
-**Last Updated**: 2025-02-04  
-**Covers**: AWS cloud integration testing capabilities
+**Document Version**: 2.2  
+**Last Updated**: 2026-03-07  
+**Covers**: AWS cloud integration testing capabilities with GitHub Actions CI optimizations and environment variable credential configuration
