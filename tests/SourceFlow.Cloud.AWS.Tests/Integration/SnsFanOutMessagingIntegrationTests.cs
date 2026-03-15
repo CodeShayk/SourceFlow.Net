@@ -494,19 +494,26 @@ public class SnsFanOutMessagingIntegrationTests : IAsyncLifetime
         foreach (var (queueUrl, _) in subscriberQueues)
         {
             var queueStopwatch = System.Diagnostics.Stopwatch.StartNew();
-            
-            var receiveResponse = await _testEnvironment.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+            var queueMessageCount = 0;
+
+            // SQS returns at most 10 per call; poll until we stop getting messages
+            for (int poll = 0; poll < 5; poll++)
             {
-                QueueUrl = queueUrl,
-                MaxNumberOfMessages = 10,
-                WaitTimeSeconds = 5
-            });
-            
+                var receiveResponse = await _testEnvironment.SqsClient.ReceiveMessageAsync(new ReceiveMessageRequest
+                {
+                    QueueUrl = queueUrl,
+                    MaxNumberOfMessages = 10,
+                    WaitTimeSeconds = 1
+                });
+                if (receiveResponse.Messages.Count == 0) break;
+                queueMessageCount += receiveResponse.Messages.Count;
+            }
+
             queueStopwatch.Stop();
             deliveryLatencies.Add(queueStopwatch.Elapsed);
-            totalMessagesReceived += receiveResponse.Messages.Count;
-            
-            _logger.LogDebug("Queue {QueueUrl} received {MessageCount} messages", queueUrl, receiveResponse.Messages.Count);
+            totalMessagesReceived += queueMessageCount;
+
+            _logger.LogDebug("Queue {QueueUrl} received {MessageCount} messages", queueUrl, queueMessageCount);
         }
         
         var expectedTotalMessages = subscriberCount * messageCount;

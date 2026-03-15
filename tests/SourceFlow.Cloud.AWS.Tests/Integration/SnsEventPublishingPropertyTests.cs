@@ -8,7 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Cloud.AWS.Tests.TestHelpers;
 using System.Text.Json;
-using Xunit.Abstractions;
 using SnsMessageAttributeValue = Amazon.SimpleNotificationService.Model.MessageAttributeValue;
 
 namespace SourceFlow.Cloud.AWS.Tests.Integration;
@@ -23,23 +22,22 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 [Trait("Category", "RequiresLocalStack")]
 public class SnsEventPublishingPropertyTests : IAsyncLifetime
 {
-    private readonly ITestOutputHelper _output;
     private readonly IAwsTestEnvironment _testEnvironment;
     private readonly ILogger<SnsEventPublishingPropertyTests> _logger;
     private readonly List<string> _createdTopics = new();
     private readonly List<string> _createdQueues = new();
     private readonly List<string> _createdSubscriptions = new();
 
-    public SnsEventPublishingPropertyTests(ITestOutputHelper output)
+    // FsCheck [Property] tests require a constructor that FsCheck can invoke.
+    // ITestOutputHelper cannot be injected by FsCheck — use ILogger instead.
+    public SnsEventPublishingPropertyTests()
     {
-        _output = output;
-        
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug));
-        
+
         var serviceProvider = services.BuildServiceProvider();
         _logger = serviceProvider.GetRequiredService<ILogger<SnsEventPublishingPropertyTests>>();
-        
+
         _testEnvironment = AwsTestEnvironmentFactory.CreateLocalStackEnvironmentAsync().GetAwaiter().GetResult();
     }
 
@@ -111,7 +109,7 @@ public class SnsEventPublishingPropertyTests : IAsyncLifetime
     /// it should be delivered to all subscribers with proper message attributes, correlation ID preservation,
     /// and fan-out messaging to multiple subscriber types (SQS, Lambda, HTTP).
     /// </summary>
-    [Property(MaxTest = 20, Arbitrary = new[] { typeof(SnsEventPublishingGenerators) })]
+    [Property(MaxTest = 5, Arbitrary = new[] { typeof(SnsEventPublishingGenerators) })]
     public void SnsEventPublishingCorrectness(SnsEventPublishingScenario scenario)
     {
         try

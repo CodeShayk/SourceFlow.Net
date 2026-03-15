@@ -415,7 +415,9 @@ public class IamSecurityPropertyTests
             return "external-id-12345";
         
         var sanitized = new string(input.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_').ToArray());
-        return string.IsNullOrEmpty(sanitized) ? "external-id-12345" : sanitized;
+        if (string.IsNullOrEmpty(sanitized) || sanitized.Length < 2)
+            return "external-id-12345";
+        return sanitized;
     }
     
     private static string SanitizePrincipalType(string input)

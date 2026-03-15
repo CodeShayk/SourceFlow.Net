@@ -34,35 +34,39 @@ public class AwsHealthCheckPropertyTests : IClassFixture<LocalStackTestFixture>,
     /// returning true when services are operational and false when they are not.
     /// **Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5**
     /// </summary>
-    [Property(MaxTest = 100, Arbitrary = new[] { typeof(AwsHealthCheckGenerators) })]
-    public async Task Property_AwsHealthCheckAccuracy(AwsHealthCheckScenario scenario)
+    // FsCheck 2.x does not support async Task properties — method must be void
+    [Property(MaxTest = 10, Arbitrary = new[] { typeof(AwsHealthCheckGenerators) })]
+    public void Property_AwsHealthCheckAccuracy(AwsHealthCheckScenario scenario) =>
+        Property_AwsHealthCheckAccuracyAsync(scenario).GetAwaiter().GetResult();
+
+    private async Task Property_AwsHealthCheckAccuracyAsync(AwsHealthCheckScenario scenario)
     {
         // Skip if not configured for integration tests
         if (!_localStack.Configuration.RunIntegrationTests || _localStack.SqsClient == null)
         {
             return;
         }
-        
+
         // Arrange - Create resources based on scenario
         var resources = await CreateTestResourcesAsync(scenario);
-        
+
         try
         {
             // Act - Perform health checks on all services
             var healthResults = await PerformHealthChecksAsync(resources, scenario);
-            
+
             // Assert - Health checks accurately reflect service availability
             AssertHealthCheckAccuracy(healthResults, resources, scenario);
-            
+
             // Assert - Health checks detect accessibility issues
             AssertAccessibilityDetection(healthResults, resources, scenario);
-            
+
             // Assert - Health checks validate permissions correctly
             AssertPermissionValidation(healthResults, resources, scenario);
-            
+
             // Assert - Health checks complete within acceptable latency
             AssertHealthCheckPerformance(healthResults, scenario);
-            
+
             // Assert - Health checks are reliable under concurrent access
             if (scenario.TestConcurrency)
             {

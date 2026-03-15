@@ -23,8 +23,9 @@ jobs:
         ports:
           - 4566:4566
         env:
-          SERVICES: sqs,sns,kms,iam
+          SERVICES: sqs,sns,kms
           DEBUG: 1
+          EAGER_SERVICE_LOADING: 1
           DOCKER_HOST: unix:///var/run/docker.sock
           # Disable IAM enforcement for easier testing
           ENFORCE_IAM: 0
@@ -151,13 +152,15 @@ jobs:
       - name: Step-09b Run Integration Tests with LocalStack
         run: |
           dotnet test --configuration Release --no-build --no-restore --verbosity normal \
-            --filter "Category=Integration&Category=RequiresLocalStack"
+            --filter "Category=Integration&Category=RequiresLocalStack" \
+            -- RunConfiguration.TestSessionTimeout=600000
         working-directory: '${{ env.working-directory }}'
         env:
           AWS_ACCESS_KEY_ID: test
           AWS_SECRET_ACCESS_KEY: test
           AWS_DEFAULT_REGION: us-east-1
           AWS_ENDPOINT_URL: http://localhost:4566
+          GITHUB_ACTIONS: true
 
       - name: Step-10 Create NuGet Package (Pre-release)
         if: ${{ env.is-release != 'true' }}

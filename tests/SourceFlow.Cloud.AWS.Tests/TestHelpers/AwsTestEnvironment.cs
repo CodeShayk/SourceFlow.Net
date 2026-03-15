@@ -1,4 +1,5 @@
 using Amazon;
+using Amazon.Runtime;
 using Amazon.IdentityManagement;
 using Amazon.IdentityManagement.Model;
 using Amazon.KeyManagementService;
@@ -147,7 +148,7 @@ public class AwsTestEnvironment : IAwsTestEnvironment
             ["FifoQueue"] = "true",
             ["ContentBasedDeduplication"] = "true",
             ["MessageRetentionPeriod"] = _configuration.Services.Sqs.MessageRetentionPeriod.ToString(),
-            ["VisibilityTimeoutSeconds"] = _configuration.Services.Sqs.VisibilityTimeout.ToString()
+            ["VisibilityTimeout"] = _configuration.Services.Sqs.VisibilityTimeout.ToString()
         };
         
         // Add custom attributes
@@ -162,7 +163,8 @@ public class AwsTestEnvironment : IAwsTestEnvironment
         // Add dead letter queue if enabled
         if (_configuration.Services.Sqs.EnableDeadLetterQueue)
         {
-            var dlqName = $"{fifoQueueName}-dlq";
+            var baseName = fifoQueueName.EndsWith(".fifo") ? fifoQueueName[..^5] : fifoQueueName;
+            var dlqName = $"{baseName}-dlq.fifo";
             var dlqResponse = await SqsClient.CreateQueueAsync(new CreateQueueRequest
             {
                 QueueName = dlqName,
@@ -192,7 +194,7 @@ public class AwsTestEnvironment : IAwsTestEnvironment
         var queueAttributes = new Dictionary<string, string>
         {
             ["MessageRetentionPeriod"] = _configuration.Services.Sqs.MessageRetentionPeriod.ToString(),
-            ["VisibilityTimeoutSeconds"] = _configuration.Services.Sqs.VisibilityTimeout.ToString()
+            ["VisibilityTimeout"] = _configuration.Services.Sqs.VisibilityTimeout.ToString()
         };
         
         // Add custom attributes
@@ -432,37 +434,43 @@ public class AwsTestEnvironment : IAwsTestEnvironment
             await _localStackManager.StartAsync(config);
         }
         
-        await _localStackManager.WaitForServicesAsync(new[] { "sqs", "sns", "kms", "iam" });
+        // Only wait for services that appear in the health endpoint by default.
+        // IAM is lazily initialized in newer LocalStack versions and won't appear until first use.
+        await _localStackManager.WaitForServicesAsync(new[] { "sqs", "sns", "kms" });
         
         // Configure clients for LocalStack
         var endpoint = _localStackManager.Endpoint;
         
-        SqsClient = new AmazonSQSClient(_configuration.AccessKey, _configuration.SecretKey, new AmazonSQSConfig
+        // Don't set RegionEndpoint when using ServiceURL - it can override the endpoint
+        var credentials = new Amazon.Runtime.BasicAWSCredentials(_configuration.AccessKey, _configuration.SecretKey);
+        var regionName = _configuration.Region.SystemName;
+
+        SqsClient = new AmazonSQSClient(credentials, new AmazonSQSConfig
         {
             ServiceURL = endpoint,
             UseHttp = true,
-            RegionEndpoint = _configuration.Region
+            AuthenticationRegion = regionName
         });
-        
-        SnsClient = new AmazonSimpleNotificationServiceClient(_configuration.AccessKey, _configuration.SecretKey, new AmazonSimpleNotificationServiceConfig
+
+        SnsClient = new AmazonSimpleNotificationServiceClient(credentials, new AmazonSimpleNotificationServiceConfig
         {
             ServiceURL = endpoint,
             UseHttp = true,
-            RegionEndpoint = _configuration.Region
+            AuthenticationRegion = regionName
         });
-        
-        KmsClient = new AmazonKeyManagementServiceClient(_configuration.AccessKey, _configuration.SecretKey, new AmazonKeyManagementServiceConfig
+
+        KmsClient = new AmazonKeyManagementServiceClient(credentials, new AmazonKeyManagementServiceConfig
         {
             ServiceURL = endpoint,
             UseHttp = true,
-            RegionEndpoint = _configuration.Region
+            AuthenticationRegion = regionName
         });
-        
-        IamClient = new AmazonIdentityManagementServiceClient(_configuration.AccessKey, _configuration.SecretKey, new AmazonIdentityManagementServiceConfig
+
+        IamClient = new AmazonIdentityManagementServiceClient(credentials, new AmazonIdentityManagementServiceConfig
         {
             ServiceURL = endpoint,
             UseHttp = true,
-            RegionEndpoint = _configuration.Region
+            AuthenticationRegion = regionName
         });
     }
     

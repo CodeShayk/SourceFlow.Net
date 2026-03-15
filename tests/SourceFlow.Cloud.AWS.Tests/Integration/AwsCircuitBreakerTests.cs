@@ -68,7 +68,7 @@ public class AwsCircuitBreakerTests : IAsyncLifetime
         };
         
         var circuitBreaker = CreateCircuitBreaker(options);
-        var invalidQueueUrl = "https://sqs.us-east-1.amazonaws.com/000000000000/nonexistent-queue";
+        var invalidQueueUrl = "http://localhost:4566/000000000000/nonexistent-queue";
         
         // Track state changes
         var stateChanges = new List<CircuitState>();
@@ -187,7 +187,7 @@ public class AwsCircuitBreakerTests : IAsyncLifetime
         };
         
         var circuitBreaker = CreateCircuitBreaker(options);
-        var invalidQueueUrl = "https://sqs.us-east-1.amazonaws.com/000000000000/nonexistent-queue";
+        var invalidQueueUrl = "http://localhost:4566/000000000000/nonexistent-queue";
         
         // Track state changes
         var stateChanges = new List<(CircuitState Previous, CircuitState New)>();
@@ -255,7 +255,7 @@ public class AwsCircuitBreakerTests : IAsyncLifetime
         };
         
         var circuitBreaker = CreateCircuitBreaker(options);
-        var invalidQueueUrl = "https://sqs.us-east-1.amazonaws.com/000000000000/nonexistent-queue";
+        var invalidQueueUrl = "http://localhost:4566/000000000000/nonexistent-queue";
         var validQueueUrl = await _environment.CreateStandardQueueAsync($"{_testPrefix}-recovery");
         
         // Track state changes
@@ -341,7 +341,7 @@ public class AwsCircuitBreakerTests : IAsyncLifetime
         };
         
         var circuitBreaker = CreateCircuitBreaker(options);
-        var invalidQueueUrl = "https://sqs.us-east-1.amazonaws.com/000000000000/nonexistent-queue";
+        var invalidQueueUrl = "http://localhost:4566/000000000000/nonexistent-queue";
         
         // Track state changes
         var stateChanges = new List<(CircuitState Previous, CircuitState New)>();
@@ -441,7 +441,7 @@ public class AwsCircuitBreakerTests : IAsyncLifetime
         
         var circuitBreaker = CreateCircuitBreaker(options);
         var validQueueUrl = await _environment.CreateStandardQueueAsync($"{_testPrefix}-stats");
-        var invalidQueueUrl = "https://sqs.us-east-1.amazonaws.com/000000000000/nonexistent-queue";
+        var invalidQueueUrl = "http://localhost:4566/000000000000/nonexistent-queue";
         
         try
         {
@@ -515,7 +515,7 @@ public class AwsCircuitBreakerTests : IAsyncLifetime
         };
         
         var circuitBreaker = CreateCircuitBreaker(options);
-        var invalidQueueUrl = "https://sqs.us-east-1.amazonaws.com/000000000000/nonexistent-queue";
+        var invalidQueueUrl = "http://localhost:4566/000000000000/nonexistent-queue";
         
         // Act - Open the circuit
         for (int i = 0; i < options.FailureThreshold; i++)
@@ -591,7 +591,7 @@ public class AwsCircuitBreakerTests : IAsyncLifetime
         };
         
         var circuitBreaker = CreateCircuitBreaker(options);
-        var invalidQueueUrl = "https://sqs.us-east-1.amazonaws.com/000000000000/nonexistent-queue";
+        var invalidQueueUrl = "http://localhost:4566/000000000000/nonexistent-queue";
         var validQueueUrl = await _environment.CreateStandardQueueAsync($"{_testPrefix}-events");
         
         // Track state change events

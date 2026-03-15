@@ -120,26 +120,61 @@ public class LocalStackTestFixture : IAsyncLifetime
                 Console.WriteLine($"ERROR: {errorMessage}");
                 throw new InvalidOperationException(errorMessage);
             }
-            
+
             Console.WriteLine("Starting new LocalStack container for local development...");
-            
-            // Create LocalStack container (local development only)
-            _localStackContainer = new ContainerBuilder()
-                .WithImage("localstack/localstack:latest")
-                .WithPortBinding(4566, 4566)
-                .WithEnvironment("SERVICES", "sqs,sns,kms")
-                .WithEnvironment("DEBUG", "1")
-                .WithEnvironment("DATA_DIR", "/tmp/localstack/data")
-                .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(4566))
-                .Build();
-            
-            // Start LocalStack
-            await _localStackContainer.StartAsync();
-            Console.WriteLine("LocalStack container started successfully");
-            
-            // Wait for services to be ready
-            Console.WriteLine("Waiting 2000ms for LocalStack services to initialize...");
-            await Task.Delay(2000);
+
+            try
+            {
+                // Create LocalStack container (local development only)
+                _localStackContainer = new ContainerBuilder()
+                    .WithImage("localstack/localstack:latest")
+                    .WithPortBinding(4566, 4566)
+                    .WithEnvironment("SERVICES", "sqs,sns,kms")
+                    .WithEnvironment("DEBUG", "1")
+                    .WithEnvironment("DATA_DIR", "/tmp/localstack/data")
+                    .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(4566))
+                    .Build();
+
+                // Start LocalStack
+                await _localStackContainer.StartAsync();
+                Console.WriteLine("LocalStack container started successfully");
+
+                // Wait for services to be ready
+                Console.WriteLine("Waiting 2000ms for LocalStack services to initialize...");
+                await Task.Delay(2000);
+            }
+            catch (Exception ex) when (ex.ToString().Contains("port", StringComparison.OrdinalIgnoreCase))
+            {
+                // Port conflict means another LocalStack instance is likely running but the health
+                // check failed under parallel test load. Retry external detection with longer timeout.
+                Console.WriteLine($"Docker port conflict detected ({ex.Message}). Retrying external LocalStack detection...");
+                _localStackContainer = null;
+
+                for (int retry = 1; retry <= 5; retry++)
+                {
+                    await Task.Delay(1000 * retry);
+                    try
+                    {
+                        isAlreadyRunning = await _configuration.IsLocalStackAvailableAsync(TimeSpan.FromSeconds(10));
+                        if (isAlreadyRunning)
+                        {
+                            Console.WriteLine($"External LocalStack instance detected on retry {retry}");
+                            break;
+                        }
+                    }
+                    catch (Exception retryEx)
+                    {
+                        Console.WriteLine($"Retry {retry} failed: {retryEx.Message}");
+                    }
+                }
+
+                if (!isAlreadyRunning)
+                {
+                    throw new InvalidOperationException(
+                        "Port 4566 is in use but LocalStack health endpoint is not responding. " +
+                        "Ensure LocalStack is running correctly or free port 4566.", ex);
+                }
+            }
         }
         
         // Create AWS clients configured for LocalStack

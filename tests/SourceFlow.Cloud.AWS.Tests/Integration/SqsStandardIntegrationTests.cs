@@ -171,7 +171,7 @@ public class SqsStandardIntegrationTests : IClassFixture<LocalStackTestFixture>,
         var queueName = $"test-standard-at-least-once-{Guid.NewGuid():N}";
         var queueUrl = await CreateStandardQueueAsync(queueName, new Dictionary<string, string>
         {
-            ["VisibilityTimeoutSeconds"] = "5" // Short visibility timeout for testing
+            ["VisibilityTimeout"] = "5" // Short visibility timeout for testing
         });
         
         var messageBody = $"At-least-once test message - {Guid.NewGuid()}";
@@ -701,7 +701,7 @@ public class SqsStandardIntegrationTests : IClassFixture<LocalStackTestFixture>,
         var attributes = new Dictionary<string, string>
         {
             ["MessageRetentionPeriod"] = "1209600", // 14 days
-            ["VisibilityTimeoutSeconds"] = "30",
+            ["VisibilityTimeout"] = "30",
             ["ReceiveMessageWaitTimeSeconds"] = "0" // Short polling by default
         };
         

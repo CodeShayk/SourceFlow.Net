@@ -20,8 +20,10 @@ jobs:
         ports:
           - 4566:4566
         env:
-          SERVICES: sqs,sns,kms,iam
+          SERVICES: sqs,sns,kms
           DEBUG: 1
+          EAGER_SERVICE_LOADING: 1
+          SKIP_SSL_CERT_DOWNLOAD: 1
           DOCKER_HOST: unix:///var/run/docker.sock
         options: >-
           --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
@@ -40,11 +42,15 @@ jobs:
     - name: Verify LocalStack is Ready
       run: |
         echo "Waiting for LocalStack to be fully ready..."
+        echo "Testing connection to localhost:4566..."
+
         max_attempts=30
         attempt=0
         while [ $attempt -lt $max_attempts ]; do
           if curl -f http://localhost:4566/_localstack/health 2>/dev/null; then
+            echo ""
             echo "LocalStack is ready!"
+            echo "Health endpoint response:"
             curl -s http://localhost:4566/_localstack/health | jq '.'
             break
           fi
@@ -54,6 +60,7 @@ jobs:
         done
         if [ $attempt -eq $max_attempts ]; then
           echo "ERROR: LocalStack did not become ready in time"
+          docker logs $(docker ps -q --filter ancestor=localstack/localstack:latest) 2>/dev/null || echo "Could not get container logs"
           exit 1
         fi
     
@@ -68,12 +75,13 @@ jobs:
     
     # Run integration tests against LocalStack
     - name: Run Integration Tests with LocalStack
-      run: dotnet test --no-build --verbosity normal --filter "Category=Integration&Category=RequiresLocalStack"
+      run: dotnet test --no-build --verbosity normal --filter "Category=Integration&Category=RequiresLocalStack" -- RunConfiguration.TestSessionTimeout=600000
       env:
         AWS_ACCESS_KEY_ID: test
         AWS_SECRET_ACCESS_KEY: test
         AWS_DEFAULT_REGION: us-east-1
         AWS_ENDPOINT_URL: http://localhost:4566
+        GITHUB_ACTIONS: true
   
   run-Lint:
       runs-on: ubuntu-latest

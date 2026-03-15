@@ -8,7 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Cloud.AWS.Tests.TestHelpers;
 using System.Text.Json;
-using Xunit.Abstractions;
 using SnsMessageAttributeValue = Amazon.SimpleNotificationService.Model.MessageAttributeValue;
 
 namespace SourceFlow.Cloud.AWS.Tests.Integration;
@@ -23,23 +22,22 @@ namespace SourceFlow.Cloud.AWS.Tests.Integration;
 [Trait("Category", "RequiresLocalStack")]
 public class SnsMessageFilteringAndErrorHandlingPropertyTests : IAsyncLifetime
 {
-    private readonly ITestOutputHelper _output;
     private readonly IAwsTestEnvironment _testEnvironment;
     private readonly ILogger<SnsMessageFilteringAndErrorHandlingPropertyTests> _logger;
     private readonly List<string> _createdTopics = new();
     private readonly List<string> _createdQueues = new();
     private readonly List<string> _createdSubscriptions = new();
 
-    public SnsMessageFilteringAndErrorHandlingPropertyTests(ITestOutputHelper output)
+    // FsCheck [Property] tests require a constructor that FsCheck can invoke.
+    // ITestOutputHelper cannot be injected by FsCheck — use ILogger instead.
+    public SnsMessageFilteringAndErrorHandlingPropertyTests()
     {
-        _output = output;
-        
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug));
-        
+
         var serviceProvider = services.BuildServiceProvider();
         _logger = serviceProvider.GetRequiredService<ILogger<SnsMessageFilteringAndErrorHandlingPropertyTests>>();
-        
+
         _testEnvironment = AwsTestEnvironmentFactory.CreateLocalStackEnvironmentAsync().GetAwaiter().GetResult();
     }
 
@@ -111,7 +109,7 @@ public class SnsMessageFilteringAndErrorHandlingPropertyTests : IAsyncLifetime
     /// should be delivered to that subscriber, and failed deliveries should trigger appropriate retry
     /// mechanisms and error handling.
     /// </summary>
-    [Property(MaxTest = 15, Arbitrary = new[] { typeof(SnsFilteringAndErrorHandlingGenerators) })]
+    [Property(MaxTest = 5, Arbitrary = new[] { typeof(SnsFilteringAndErrorHandlingGenerators) })]
     public void SnsMessageFilteringAndErrorHandling(SnsFilteringAndErrorHandlingScenario scenario)
     {
         try

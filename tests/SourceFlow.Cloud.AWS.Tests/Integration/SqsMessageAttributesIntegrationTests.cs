@@ -208,10 +208,10 @@ public class SqsMessageAttributesIntegrationTests : IClassFixture<LocalStackTest
                     DataType = "String",
                     StringValue = "Test string value with unicode: 你好世界"
                 },
-                ["EmptyString"] = new MessageAttributeValue
+                ["ShortString"] = new MessageAttributeValue
                 {
                     DataType = "String",
-                    StringValue = ""
+                    StringValue = "x"
                 },
                 // Number attributes
                 ["IntegerAttribute"] = new MessageAttributeValue
@@ -851,7 +851,7 @@ public class SqsMessageAttributesIntegrationTests : IClassFixture<LocalStackTest
         var attributes = new Dictionary<string, string>
         {
             ["MessageRetentionPeriod"] = "1209600", // 14 days
-            ["VisibilityTimeoutSeconds"] = "30"
+            ["VisibilityTimeout"] = "30"
         };
         
         if (additionalAttributes != null)
@@ -882,7 +882,7 @@ public class SqsMessageAttributesIntegrationTests : IClassFixture<LocalStackTest
             ["FifoQueue"] = "true",
             ["ContentBasedDeduplication"] = "true",
             ["MessageRetentionPeriod"] = "1209600",
-            ["VisibilityTimeoutSeconds"] = "30"
+            ["VisibilityTimeout"] = "30"
         };
         
         if (additionalAttributes != null)

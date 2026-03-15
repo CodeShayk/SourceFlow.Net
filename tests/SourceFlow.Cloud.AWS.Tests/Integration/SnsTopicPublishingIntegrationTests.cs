@@ -356,7 +356,7 @@ public class SnsTopicPublishingIntegrationTests : IAsyncLifetime
         });
 
         // Act & Assert
-        var exception = await Assert.ThrowsAsync<Exception>(async () =>
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
         {
             await _testEnvironment.SnsClient.PublishAsync(new PublishRequest
             {

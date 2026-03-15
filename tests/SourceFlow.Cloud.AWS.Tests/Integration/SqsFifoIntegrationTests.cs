@@ -553,7 +553,7 @@ public class SqsFifoIntegrationTests : IClassFixture<LocalStackTestFixture>, IAs
             ["FifoQueue"] = "true",
             ["ContentBasedDeduplication"] = "true",
             ["MessageRetentionPeriod"] = "1209600", // 14 days
-            ["VisibilityTimeoutSeconds"] = "30"
+            ["VisibilityTimeout"] = "30"
         };
         
         if (additionalAttributes != null)

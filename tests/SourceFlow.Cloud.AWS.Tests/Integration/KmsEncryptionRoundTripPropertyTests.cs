@@ -45,7 +45,11 @@ public class KmsEncryptionRoundTripPropertyTests : IClassFixture<LocalStackTestF
     /// **Validates: Requirements 3.1**
     /// </summary>
     [Property(MaxTest = 100, Arbitrary = new[] { typeof(KmsEncryptionGenerators) })]
-    public async Task Property_KmsEncryptionRoundTripConsistency(KmsTestMessage message)
+    // FsCheck 2.x does not support async Task properties — method must be void
+    public void Property_KmsEncryptionRoundTripConsistency(KmsTestMessage message) =>
+        Property_KmsEncryptionRoundTripConsistencyAsync(message).GetAwaiter().GetResult();
+
+    private async Task Property_KmsEncryptionRoundTripConsistencyAsync(KmsTestMessage message)
     {
         // Skip if not configured for integration tests
         if (!_localStack.Configuration.RunIntegrationTests || _localStack.KmsClient == null)

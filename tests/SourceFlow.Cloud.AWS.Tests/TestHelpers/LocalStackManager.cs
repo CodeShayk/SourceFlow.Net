@@ -442,17 +442,28 @@ public class LocalStackManager : ILocalStackManager
     {
         if (!IsRunning || _configuration == null)
             throw new InvalidOperationException("LocalStack container is not running");
-        
+
         try
         {
-            using var httpClient = new HttpClient();
-            var resetUrl = $"{_configuration.Endpoint}/_localstack/health";
-            
-            // LocalStack doesn't have a direct reset endpoint, but we can restart the container
+            if (_isExternalInstance)
+            {
+                // For external instances, use LocalStack's state reset API
+                _logger.LogInformation("Resetting LocalStack data via HTTP state reset API");
+                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                var resetUrl = $"{_configuration.Endpoint}/_localstack/state/reset";
+                var response = await httpClient.PostAsync(resetUrl, null);
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("LocalStack state reset API returned {StatusCode}", response.StatusCode);
+                }
+                return;
+            }
+
+            // For managed containers, restart the container
             _logger.LogInformation("Resetting LocalStack data by restarting container");
-            
+            var savedConfig = _configuration;
             await StopAsync();
-            await StartAsync(_configuration);
+            await StartAsync(savedConfig);
         }
         catch (Exception ex)
         {

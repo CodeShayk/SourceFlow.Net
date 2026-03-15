@@ -32,23 +32,27 @@ public class SqsMessageProcessingPropertyTests : IClassFixture<LocalStackTestFix
     /// and achieve consistent throughput performance.
     /// Validates: Requirements 1.1, 1.2, 1.4, 1.5
     /// </summary>
+    // FsCheck 2.x does not support async Task properties — method must be void
     [Property(MaxTest = 20, Arbitrary = new[] { typeof(SqsMessageGenerators) })]
-    public async Task Property_SqsMessageProcessingCorrectness(SqsTestScenario scenario)
+    public void Property_SqsMessageProcessingCorrectness(SqsTestScenario scenario) =>
+        Property_SqsMessageProcessingCorrectnessAsync(scenario).GetAwaiter().GetResult();
+
+    private async Task Property_SqsMessageProcessingCorrectnessAsync(SqsTestScenario scenario)
     {
         // Skip if not configured for integration tests
         if (!_localStack.Configuration.RunIntegrationTests || _localStack.SqsClient == null)
         {
             return;
         }
-        
+
         // Arrange - Create appropriate queue type
-        var queueUrl = scenario.QueueType == QueueType.Fifo 
+        var queueUrl = scenario.QueueType == QueueType.Fifo
             ? await CreateFifoQueueAsync($"prop-test-fifo-{Guid.NewGuid():N}.fifo")
             : await CreateStandardQueueAsync($"prop-test-standard-{Guid.NewGuid():N}");
-        
+
         var sentMessages = new List<SqsTestMessage>();
         var receivedMessages = new List<Message>();
-        
+
         try
         {
             // Act - Send messages according to scenario
@@ -60,28 +64,28 @@ public class SqsMessageProcessingPropertyTests : IClassFixture<LocalStackTestFix
             {
                 await SendMessagesIndividually(queueUrl, scenario, sentMessages);
             }
-            
+
             // Act - Receive all messages
             await ReceiveAllMessages(queueUrl, scenario.Messages.Count, receivedMessages);
-            
+
             // Assert - Message delivery correctness
             AssertMessageDeliveryCorrectness(sentMessages, receivedMessages);
-            
+
             // Assert - Message attributes preservation
             AssertMessageAttributesPreservation(sentMessages, receivedMessages);
-            
+
             // Assert - FIFO ordering (if applicable)
             if (scenario.QueueType == QueueType.Fifo)
             {
                 AssertFifoOrdering(sentMessages, receivedMessages);
             }
-            
+
             // Assert - Batch operation efficiency (if applicable)
             if (scenario.UseBatchSending)
             {
                 AssertBatchOperationEfficiency(scenario, sentMessages);
             }
-            
+
             // Assert - Performance consistency
             AssertPerformanceConsistency(scenario, sentMessages, receivedMessages);
         }
@@ -457,7 +461,7 @@ public class SqsMessageProcessingPropertyTests : IClassFixture<LocalStackTestFix
                 ["FifoQueue"] = "true",
                 ["ContentBasedDeduplication"] = "true",
                 ["MessageRetentionPeriod"] = "1209600",
-                ["VisibilityTimeoutSeconds"] = "30"
+                ["VisibilityTimeout"] = "30"
             }
         });
         
@@ -476,7 +480,7 @@ public class SqsMessageProcessingPropertyTests : IClassFixture<LocalStackTestFix
             Attributes = new Dictionary<string, string>
             {
                 ["MessageRetentionPeriod"] = "1209600",
-                ["VisibilityTimeoutSeconds"] = "30"
+                ["VisibilityTimeout"] = "30"
             }
         });
         

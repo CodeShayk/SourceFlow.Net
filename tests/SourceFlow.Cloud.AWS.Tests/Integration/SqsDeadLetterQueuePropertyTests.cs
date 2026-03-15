@@ -31,7 +31,11 @@ public class SqsDeadLetterQueuePropertyTests : IClassFixture<LocalStackTestFixtu
     /// Validates: Requirements 1.3
     /// </summary>
     [Property(MaxTest = 15, Arbitrary = new[] { typeof(DeadLetterQueueGenerators) })]
-    public async Task Property_SqsDeadLetterQueueHandling(DeadLetterQueueScenario scenario)
+    // FsCheck 2.x does not support async Task properties — method must be void
+    public void Property_SqsDeadLetterQueueHandling(DeadLetterQueueScenario scenario) =>
+        Property_SqsDeadLetterQueueHandlingAsync(scenario).GetAwaiter().GetResult();
+
+    private async Task Property_SqsDeadLetterQueueHandlingAsync(DeadLetterQueueScenario scenario)
     {
         // Skip if not configured for integration tests
         if (!_localStack.Configuration.RunIntegrationTests || _localStack.SqsClient == null)
@@ -49,7 +53,7 @@ public class SqsDeadLetterQueuePropertyTests : IClassFixture<LocalStackTestFixtu
         var mainQueueUrl = scenario.QueueType == QueueType.Fifo
             ? await CreateFifoQueueAsync($"prop-test-main-{Guid.NewGuid():N}.fifo", new Dictionary<string, string>
             {
-                ["VisibilityTimeoutSeconds"] = scenario.VisibilityTimeoutSeconds.ToString(),
+                ["VisibilityTimeout"] = scenario.VisibilityTimeout.ToString(),
                 ["RedrivePolicy"] = JsonSerializer.Serialize(new
                 {
                     deadLetterTargetArn = dlqArn,
@@ -58,7 +62,7 @@ public class SqsDeadLetterQueuePropertyTests : IClassFixture<LocalStackTestFixtu
             })
             : await CreateStandardQueueAsync($"prop-test-main-{Guid.NewGuid():N}", new Dictionary<string, string>
             {
-                ["VisibilityTimeoutSeconds"] = scenario.VisibilityTimeoutSeconds.ToString(),
+                ["VisibilityTimeout"] = scenario.VisibilityTimeout.ToString(),
                 ["RedrivePolicy"] = JsonSerializer.Serialize(new
                 {
                     deadLetterTargetArn = dlqArn,
@@ -78,7 +82,7 @@ public class SqsDeadLetterQueuePropertyTests : IClassFixture<LocalStackTestFixtu
             await SimulateProcessingFailures(mainQueueUrl, scenario);
             
             // Act - Wait for messages to be moved to DLQ
-            await Task.Delay(TimeSpan.FromSeconds(scenario.VisibilityTimeoutSeconds + 2));
+            await Task.Delay(TimeSpan.FromSeconds(scenario.VisibilityTimeout + 2));
             
             // Act - Retrieve messages from dead letter queue
             await RetrieveDeadLetterMessages(dlqUrl, scenario.Messages.Count, dlqMessages);
@@ -144,7 +148,7 @@ public class SqsDeadLetterQueuePropertyTests : IClassFixture<LocalStackTestFixtu
     private async Task SimulateProcessingFailures(string queueUrl, DeadLetterQueueScenario scenario)
     {
         var maxAttempts = scenario.MaxReceiveCount + 2; // Try a bit more than max to ensure DLQ triggering
-        var visibilityTimeout = TimeSpan.FromSeconds(scenario.VisibilityTimeoutSeconds);
+        var visibilityTimeout = TimeSpan.FromSeconds(scenario.VisibilityTimeout);
         
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
@@ -525,7 +529,7 @@ public class SqsDeadLetterQueuePropertyTests : IClassFixture<LocalStackTestFixtu
         var attributes = new Dictionary<string, string>
         {
             ["MessageRetentionPeriod"] = "1209600",
-            ["VisibilityTimeoutSeconds"] = "30"
+            ["VisibilityTimeout"] = "30"
         };
         
         if (additionalAttributes != null)
@@ -556,7 +560,7 @@ public class SqsDeadLetterQueuePropertyTests : IClassFixture<LocalStackTestFixtu
             ["FifoQueue"] = "true",
             ["ContentBasedDeduplication"] = "true",
             ["MessageRetentionPeriod"] = "1209600",
-            ["VisibilityTimeoutSeconds"] = "30"
+            ["VisibilityTimeout"] = "30"
         };
         
         if (additionalAttributes != null)
@@ -628,7 +632,7 @@ public static class DeadLetterQueueGenerators
                          {
                              QueueType = queueType,
                              MaxReceiveCount = maxReceiveCount,
-                             VisibilityTimeoutSeconds = visibilityTimeout,
+                             VisibilityTimeout = visibilityTimeout,
                              Messages = messages.ToList()
                          };
         
@@ -697,7 +701,7 @@ public class DeadLetterQueueScenario
 {
     public QueueType QueueType { get; set; }
     public int MaxReceiveCount { get; set; }
-    public int VisibilityTimeoutSeconds { get; set; }
+    public int VisibilityTimeout { get; set; }
     public List<FailingTestMessage> Messages { get; set; } = new();
 }
 
