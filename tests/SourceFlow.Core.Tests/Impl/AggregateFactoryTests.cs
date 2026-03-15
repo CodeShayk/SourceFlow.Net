@@ -5,6 +5,7 @@ using SourceFlow.Impl;
 namespace SourceFlow.Core.Tests.Impl
 {
     [TestFixture]
+    [Category("Unit")]
     public class AggregateFactoryTests
     {
         [Test]

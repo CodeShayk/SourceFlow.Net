@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"C:\\\\Work\\\\Projects\\\\Published\\\\SourceFlow\\\\SourceFlow.Net/src/SourceFlow.Cloud.AWS/Attributes\" -type f -name \"*.cs\" 2>/dev/null | head -10)",
+      "Bash(find /c/Work/Projects/Published/SourceFlow/SourceFlow.Net/src -name \"*Cloud*\" -o -name \"*cloud*\" 2>/dev/null | head -50)",
+      "Bash(find /c/Work/Projects/Published/SourceFlow/SourceFlow.Net/tests/SourceFlow.Cloud.AWS.Tests/Unit -type f -name \"*.cs\" 2>/dev/null | grep -v obj | sort)",
+      "Bash(find /c/Work/Projects/Published/SourceFlow/SourceFlow.Net/tests -type f -name \"*.cs\" | xargs grep -l \"Idempotency\\\\|DeadLetter\\\\|Masker\\\\|CloudTelemetry\\\\|PolymorphicJson\\\\|Encryption\" | grep -v obj | head -20)",
+      "Bash(find \"C:/Work/Projects/Published/SourceFlow/SourceFlow.Net/tests/SourceFlow.Cloud.AWS.Tests\" -name \"*.csproj\" | xargs cat)",
+      "Bash(find \"C:/Work/Projects/Published/SourceFlow/SourceFlow.Net/tests/SourceFlow.Core.Tests\" -name \"*.csproj\" | xargs cat)",
+      "Bash(ls \"C:\\\\Work\\\\Projects\\\\Published\\\\SourceFlow\\\\SourceFlow.Net\\\\src\\\\SourceFlow.Cloud.AWS\\\\Attributes\\\\\" 2>/dev/null && echo \"EXISTS\" || echo \"EMPTY_OR_MISSING\"\nls \"C:\\\\Work\\\\Projects\\\\Published\\\\SourceFlow\\\\SourceFlow.Net\\\\src\\\\SourceFlow.Cloud.AWS\\\\Management\\\\\" 2>/dev/null && echo \"EXISTS\" || echo \"EMPTY_OR_MISSING\")",
+      "Bash(ls \"C:\\\\Work\\\\Projects\\\\Published\\\\SourceFlow\\\\SourceFlow.Net\\\\src\\\\SourceFlow\\\\\" 2>/dev/null || echo \"NOT_FOUND\"\nls \"C:\\\\Work\\\\Projects\\\\Published\\\\SourceFlow\\\\SourceFlow.Net\\\\src\\\\\" 2>/dev/null)"
+    ]
+  }
+}

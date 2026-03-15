@@ -7,6 +7,7 @@ using SourceFlow.Observability;
 namespace SourceFlow.Core.Tests.Impl
 {
     [TestFixture]
+    [Category("Unit")]
     public class EventQueueTests
     {
         private Mock<ILogger<IEventQueue>> loggerMock;
@@ -25,21 +26,32 @@ namespace SourceFlow.Core.Tests.Impl
             telemetryMock.Setup(t => t.TraceAsync(It.IsAny<string>(), It.IsAny<Func<Task>>(), It.IsAny<Action<System.Diagnostics.Activity>>()))
                 .Returns((string name, Func<Task> operation, Action<System.Diagnostics.Activity> enrich) => operation());
 
-            eventQueue = new EventQueue(new[] { eventDispatcherMock.Object }, loggerMock.Object, telemetryMock.Object);
+            eventQueue = new EventQueue(
+                new[] { eventDispatcherMock.Object },
+                loggerMock.Object,
+                telemetryMock.Object,
+                Enumerable.Empty<IEventDispatchMiddleware>());
         }
 
         [Test]
         public void Constructor_NullLogger_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new EventQueue(new[] { eventDispatcherMock.Object }, null, telemetryMock.Object));
+                new EventQueue(new[] { eventDispatcherMock.Object }, null, telemetryMock.Object, Enumerable.Empty<IEventDispatchMiddleware>()));
         }
 
         [Test]
         public void Constructor_NullEventDispatcher_ThrowsArgumentNullException()
         {
             Assert.Throws<ArgumentNullException>(() =>
-                new EventQueue(null, loggerMock.Object, telemetryMock.Object));
+                new EventQueue(null, loggerMock.Object, telemetryMock.Object, Enumerable.Empty<IEventDispatchMiddleware>()));
+        }
+
+        [Test]
+        public void Constructor_NullMiddleware_ThrowsArgumentNullException()
+        {
+            Assert.Throws<ArgumentNullException>(() =>
+                new EventQueue(new[] { eventDispatcherMock.Object }, loggerMock.Object, telemetryMock.Object, null));
         }
 
         [Test]
@@ -129,6 +141,114 @@ namespace SourceFlow.Core.Tests.Impl
 
             // Assert
             eventDispatcherMock.Verify(ed => ed.Dispatch(It.IsAny<DummyEvent>()), Times.Exactly(3));
+        }
+
+        [Test]
+        public async Task Enqueue_WithMiddleware_ExecutesMiddlewareAroundCoreLogic()
+        {
+            // Arrange
+            var callOrder = new List<string>();
+            var middlewareMock = new Mock<IEventDispatchMiddleware>();
+            middlewareMock
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyEvent>(), It.IsAny<Func<DummyEvent, Task>>()))
+                .Returns<DummyEvent, Func<DummyEvent, Task>>(async (evt, next) =>
+                {
+                    callOrder.Add("middleware-before");
+                    await next(evt);
+                    callOrder.Add("middleware-after");
+                });
+
+            eventDispatcherMock.Setup(ed => ed.Dispatch(It.IsAny<DummyEvent>()))
+                .Callback(() => callOrder.Add("dispatch"))
+                .Returns(Task.CompletedTask);
+
+            var queue = new EventQueue(
+                new[] { eventDispatcherMock.Object },
+                loggerMock.Object,
+                telemetryMock.Object,
+                new[] { middlewareMock.Object });
+
+            // Act
+            await queue.Enqueue(new DummyEvent());
+
+            // Assert
+            Assert.That(callOrder[0], Is.EqualTo("middleware-before"));
+            Assert.That(callOrder[1], Is.EqualTo("dispatch"));
+            Assert.That(callOrder[2], Is.EqualTo("middleware-after"));
+        }
+
+        [Test]
+        public async Task Enqueue_WithMultipleMiddleware_ExecutesInRegistrationOrder()
+        {
+            // Arrange
+            var callOrder = new List<string>();
+
+            var middleware1 = new Mock<IEventDispatchMiddleware>();
+            middleware1
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyEvent>(), It.IsAny<Func<DummyEvent, Task>>()))
+                .Returns<DummyEvent, Func<DummyEvent, Task>>(async (evt, next) =>
+                {
+                    callOrder.Add("m1-before");
+                    await next(evt);
+                    callOrder.Add("m1-after");
+                });
+
+            var middleware2 = new Mock<IEventDispatchMiddleware>();
+            middleware2
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyEvent>(), It.IsAny<Func<DummyEvent, Task>>()))
+                .Returns<DummyEvent, Func<DummyEvent, Task>>(async (evt, next) =>
+                {
+                    callOrder.Add("m2-before");
+                    await next(evt);
+                    callOrder.Add("m2-after");
+                });
+
+            var queue = new EventQueue(
+                new[] { eventDispatcherMock.Object },
+                loggerMock.Object,
+                telemetryMock.Object,
+                new IEventDispatchMiddleware[] { middleware1.Object, middleware2.Object });
+
+            // Act
+            await queue.Enqueue(new DummyEvent());
+
+            // Assert
+            Assert.That(callOrder, Is.EqualTo(new[] { "m1-before", "m2-before", "m2-after", "m1-after" }));
+        }
+
+        [Test]
+        public async Task Enqueue_MiddlewareShortCircuits_DoesNotCallCoreLogic()
+        {
+            // Arrange
+            var middlewareMock = new Mock<IEventDispatchMiddleware>();
+            middlewareMock
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyEvent>(), It.IsAny<Func<DummyEvent, Task>>()))
+                .Returns(Task.CompletedTask); // Does NOT call next
+
+            var queue = new EventQueue(
+                new[] { eventDispatcherMock.Object },
+                loggerMock.Object,
+                telemetryMock.Object,
+                new[] { middlewareMock.Object });
+
+            // Act
+            await queue.Enqueue(new DummyEvent());
+
+            // Assert
+            eventDispatcherMock.Verify(ed => ed.Dispatch(It.IsAny<DummyEvent>()), Times.Never);
+        }
+
+        [Test]
+        public async Task Enqueue_NoMiddleware_ExecutesCoreLogicDirectly()
+        {
+            // Arrange
+            var @event = new DummyEvent();
+
+            // Act
+            await eventQueue.Enqueue(@event);
+
+            // Assert
+            eventDispatcherMock.Verify(ed => ed.Dispatch(@event), Times.Once);
         }
     }
 }

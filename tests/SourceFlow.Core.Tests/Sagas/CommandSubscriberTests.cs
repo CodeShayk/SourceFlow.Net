@@ -62,6 +62,7 @@ namespace SourceFlow.Core.Tests.Sagas
     }
 
     [TestFixture]
+    [Category("Unit")]
     public class CommandSubscriberTests
     {
         private Mock<ILogger<ICommandSubscriber>> _mockLogger;
@@ -81,10 +82,21 @@ namespace SourceFlow.Core.Tests.Sagas
             var sagas = new List<ISaga> { new TestSaga() };
 
             // Act
-            var subscriber = new CommandSubscriber(sagas, _mockLogger.Object);
+            var subscriber = new CommandSubscriber(sagas, _mockLogger.Object, Enumerable.Empty<ICommandSubscribeMiddleware>());
 
             // Assert
             Assert.IsNotNull(subscriber);
+        }
+
+        [Test]
+        public void Constructor_NullMiddleware_ThrowsArgumentNullException()
+        {
+            // Arrange
+            var sagas = new List<ISaga> { new TestSaga() };
+
+            // Act & Assert
+            Assert.Throws<ArgumentNullException>(() =>
+                new CommandSubscriber(sagas, _mockLogger.Object, null));
         }
 
         [Test]
@@ -93,7 +105,7 @@ namespace SourceFlow.Core.Tests.Sagas
             // Arrange
             var testSaga = new TestSaga();
             var sagas = new List<ISaga> { testSaga };
-            var subscriber = new CommandSubscriber(sagas, _mockLogger.Object);
+            var subscriber = new CommandSubscriber(sagas, _mockLogger.Object, Enumerable.Empty<ICommandSubscribeMiddleware>());
 
             // Act
             await subscriber.Subscribe(_testCommand);
@@ -110,7 +122,7 @@ namespace SourceFlow.Core.Tests.Sagas
             var sagas = new List<ISaga>();
 
             // Act
-            var subscriber = new CommandSubscriber(sagas, _mockLogger.Object);
+            var subscriber = new CommandSubscriber(sagas, _mockLogger.Object, Enumerable.Empty<ICommandSubscribeMiddleware>());
 
             // Assert
             Assert.IsNotNull(subscriber);
@@ -127,7 +139,7 @@ namespace SourceFlow.Core.Tests.Sagas
             var testSaga2 = new TestSaga();
             var nonHandlingSaga = new NonHandlingSaga();
             var sagas = new List<ISaga> { testSaga1, nonHandlingSaga, testSaga2 };
-            var subscriber = new CommandSubscriber(sagas, _mockLogger.Object);
+            var subscriber = new CommandSubscriber(sagas, _mockLogger.Object, Enumerable.Empty<ICommandSubscribeMiddleware>());
 
             // Act
             await subscriber.Subscribe(_testCommand);
@@ -144,7 +156,7 @@ namespace SourceFlow.Core.Tests.Sagas
         public async Task Subscribe_NullSagas_StillCreatesSubscriber()
         {
             // Arrange & Act
-            var subscriber = new CommandSubscriber(null, _mockLogger.Object);
+            var subscriber = new CommandSubscriber(null, _mockLogger.Object, Enumerable.Empty<ICommandSubscribeMiddleware>());
 
             // Assert
             Assert.IsNotNull(subscriber);
@@ -152,6 +164,94 @@ namespace SourceFlow.Core.Tests.Sagas
             // Note: The CommandSubscriber constructor doesn't validate null sagas,
             // so we just test that it doesn't throw during construction.
             // During Subscribe(), it would check sagas.Any() which would handle null.
+        }
+
+        [Test]
+        public async Task Subscribe_WithMiddleware_ExecutesMiddlewareAroundCoreLogic()
+        {
+            // Arrange
+            var callOrder = new List<string>();
+            var testSaga = new TestSaga();
+            var sagas = new List<ISaga> { testSaga };
+
+            var middlewareMock = new Mock<ICommandSubscribeMiddleware>();
+            middlewareMock
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyCommand>(), It.IsAny<Func<DummyCommand, Task>>()))
+                .Returns<DummyCommand, Func<DummyCommand, Task>>(async (cmd, next) =>
+                {
+                    callOrder.Add("middleware-before");
+                    await next(cmd);
+                    callOrder.Add("middleware-after");
+                });
+
+            var subscriber = new CommandSubscriber(sagas, _mockLogger.Object, new[] { middlewareMock.Object });
+
+            // Act
+            await subscriber.Subscribe(_testCommand);
+
+            // Assert
+            Assert.That(callOrder[0], Is.EqualTo("middleware-before"));
+            Assert.That(callOrder[1], Is.EqualTo("middleware-after"));
+            Assert.IsTrue(testSaga.Handled);
+        }
+
+        [Test]
+        public async Task Subscribe_WithMultipleMiddleware_ExecutesInRegistrationOrder()
+        {
+            // Arrange
+            var callOrder = new List<string>();
+            var testSaga = new TestSaga();
+            var sagas = new List<ISaga> { testSaga };
+
+            var middleware1 = new Mock<ICommandSubscribeMiddleware>();
+            middleware1
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyCommand>(), It.IsAny<Func<DummyCommand, Task>>()))
+                .Returns<DummyCommand, Func<DummyCommand, Task>>(async (cmd, next) =>
+                {
+                    callOrder.Add("m1-before");
+                    await next(cmd);
+                    callOrder.Add("m1-after");
+                });
+
+            var middleware2 = new Mock<ICommandSubscribeMiddleware>();
+            middleware2
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyCommand>(), It.IsAny<Func<DummyCommand, Task>>()))
+                .Returns<DummyCommand, Func<DummyCommand, Task>>(async (cmd, next) =>
+                {
+                    callOrder.Add("m2-before");
+                    await next(cmd);
+                    callOrder.Add("m2-after");
+                });
+
+            var subscriber = new CommandSubscriber(sagas, _mockLogger.Object,
+                new ICommandSubscribeMiddleware[] { middleware1.Object, middleware2.Object });
+
+            // Act
+            await subscriber.Subscribe(_testCommand);
+
+            // Assert
+            Assert.That(callOrder, Is.EqualTo(new[] { "m1-before", "m2-before", "m2-after", "m1-after" }));
+        }
+
+        [Test]
+        public async Task Subscribe_MiddlewareShortCircuits_DoesNotCallCoreLogic()
+        {
+            // Arrange
+            var testSaga = new TestSaga();
+            var sagas = new List<ISaga> { testSaga };
+
+            var middlewareMock = new Mock<ICommandSubscribeMiddleware>();
+            middlewareMock
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyCommand>(), It.IsAny<Func<DummyCommand, Task>>()))
+                .Returns(Task.CompletedTask); // Does NOT call next
+
+            var subscriber = new CommandSubscriber(sagas, _mockLogger.Object, new[] { middlewareMock.Object });
+
+            // Act
+            await subscriber.Subscribe(_testCommand);
+
+            // Assert - saga was never reached
+            Assert.IsFalse(testSaga.Handled);
         }
     }
 }

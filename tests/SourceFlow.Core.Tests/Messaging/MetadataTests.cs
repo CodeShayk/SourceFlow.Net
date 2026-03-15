@@ -3,6 +3,7 @@ using SourceFlow.Messaging;
 namespace SourceFlow.Core.Tests.Messaging
 {
     [TestFixture]
+    [Category("Unit")]
     public class MetadataTests
     {
         [Test]

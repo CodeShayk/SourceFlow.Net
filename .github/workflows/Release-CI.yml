@@ -4,16 +4,53 @@ on:
     branches:
     - release/**
     - release
+    paths-ignore:
+    - "**/*.md"
+    - "**/*.gitignore"
+    - "**/*.gitattributes"  
+    tags:
+    - release-packages
 
 permissions:
   contents: read
 jobs:
   Build-Test-Publish:
     runs-on: ubuntu-latest
+    
+    services:
+      localstack:
+        image: localstack/localstack:latest
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: sqs,sns,kms
+          DEBUG: 1
+          EAGER_SERVICE_LOADING: 1
+          DOCKER_HOST: unix:///var/run/docker.sock
+          # Disable IAM enforcement for easier testing
+          ENFORCE_IAM: 0
+          # Skip SSL certificate validation
+          SKIP_SSL_CERT_DOWNLOAD: 1
+          # Disable signature validation (accept any credentials)
+          DISABLE_CUSTOM_CORS_S3: 1
+          DISABLE_CUSTOM_CORS_APIGATEWAY: 1
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/_localstack/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+          --health-start-period 30s
+    
     env:
       working-directory: ${{ github.workspace }}
       github-token: '${{ secrets.GH_Packages }}'
       nuget-token: '${{ secrets.NUGET_API_KEY }}'
+      # Check if this is a release-packages tag push
+      is-release: ${{ startsWith(github.ref, 'refs/tags/release-packages') }}
+      # AWS credentials for LocalStack (dummy values)
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
 
     steps:
       - name: Step-01 Install GitVersion
@@ -38,36 +75,112 @@ jobs:
           echo "FullSemVer: ${{ steps.gitversion.outputs.FullSemVer }}"
           echo "MajorMinorPatch: ${{ steps.gitversion.outputs.MajorMinorPatch }}"
           echo "BranchName: ${{ steps.gitversion.outputs.BranchName }}"
+          echo "Is Release: ${{ env.is-release }}"
 
       - name: Step-05 Install .NET
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: 9.0.x
 
-      - name: Step-06 Restore dependencies
-        run: dotnet restore
+      - name: Step-06 Verify LocalStack is Ready
+        run: |
+          echo "Waiting for LocalStack to be fully ready..."
+          echo "Testing connection to localhost:4566..."
+          
+          # Test basic connectivity first
+          if ! nc -zv localhost 4566 2>&1; then
+            echo "ERROR: Cannot connect to localhost:4566"
+            echo "Checking if LocalStack container is running..."
+            docker ps -a
+            exit 1
+          fi
+          
+          echo "Port 4566 is accessible, checking health endpoint..."
+          max_attempts=30
+          attempt=0
+          while [ $attempt -lt $max_attempts ]; do
+            if curl -f http://localhost:4566/_localstack/health 2>/dev/null; then
+              echo "LocalStack is ready!"
+              echo "Health endpoint response:"
+              curl -s http://localhost:4566/_localstack/health | jq '.'
+              
+              echo ""
+              echo "Testing if services are available..."
+              health_response=$(curl -s http://localhost:4566/_localstack/health)
+              echo "Full health response: $health_response"
+              
+              break
+            fi
+            attempt=$((attempt + 1))
+            echo "Attempt $attempt/$max_attempts - LocalStack not ready yet, waiting..."
+            sleep 3
+          done
+          if [ $attempt -eq $max_attempts ]; then
+            echo "ERROR: LocalStack did not become ready in time"
+            echo "Checking LocalStack container logs..."
+            docker logs $(docker ps -q --filter ancestor=localstack/localstack:latest) || echo "Could not get container logs"
+            exit 1
+          fi
+          
+          echo ""
+          echo "LocalStack is ready for tests!"
+
+      - name: Step-06b Clear NuGet Cache
+        run: dotnet nuget locals all --clear
         working-directory: '${{ env.working-directory }}'
 
-      - name: Step-07 Build Version (Stable)
+      - name: Step-07 Restore dependencies
+        run: dotnet restore --no-cache --force
+        working-directory: '${{ env.working-directory }}'
+
+      - name: Step-08 Build Version (Pre-release)
+        if: ${{ env.is-release != 'true' }}
+        run: dotnet build --configuration Release --no-restore -p:PackageVersion=${{ steps.gitversion.outputs.NuGetVersion }}
+        working-directory: '${{ env.working-directory }}'
+
+      - name: Step-08 Build Version (Release)
+        if: ${{ env.is-release == 'true' }}
         run: dotnet build --configuration Release --no-restore -p:PackageVersion=${{ steps.gitversion.outputs.MajorMinorPatch }}
         working-directory: '${{ env.working-directory }}'
 
-      - name: Step-08 Test Solution
-        run: dotnet test --configuration Release --no-build --no-restore --verbosity normal
+      - name: Step-09 Run Unit Tests
+        run: |
+          dotnet test --configuration Release --no-build --no-restore --verbosity normal \
+            --filter "FullyQualifiedName!~Integration&FullyQualifiedName!~Security"
         working-directory: '${{ env.working-directory }}'
 
-      - name: Step-09 Create NuGet Package
+      - name: Step-09b Run Integration Tests with LocalStack
+        run: |
+          dotnet test --configuration Release --no-build --no-restore --verbosity normal \
+            --filter "Category=Integration&Category=RequiresLocalStack" \
+            -- RunConfiguration.TestSessionTimeout=600000
+        working-directory: '${{ env.working-directory }}'
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ENDPOINT_URL: http://localhost:4566
+          GITHUB_ACTIONS: true
+
+      - name: Step-10 Create NuGet Package (Pre-release)
+        if: ${{ env.is-release != 'true' }}
+        run: dotnet pack --configuration Release --no-build --output ./packages -p:PackageVersion=${{ steps.gitversion.outputs.NuGetVersion }}
+        working-directory: '${{ env.working-directory }}'
+
+      - name: Step-10 Create NuGet Package (Release)
+        if: ${{ env.is-release == 'true' }}
         run: dotnet pack --configuration Release --no-build --output ./packages -p:PackageVersion=${{ steps.gitversion.outputs.MajorMinorPatch }}
         working-directory: '${{ env.working-directory }}'
 
-      - name: Step-10 Publish to Github Packages
+      - name: Step-11 Publish to Github Packages
+        if: ${{ env.is-release == 'true' }}
         run: |
           dotnet tool install gpr --global
           find ./packages -name "*.nupkg" -print -exec gpr push -k ${{ env.github-token }} {} \;
         working-directory: '${{ env.working-directory }}'
 
-      - name: Step-11 Publish to NuGet.org
-        if: ${{ env.nuget-token != '' }}
+      - name: Step-12 Publish to NuGet.org
+        if: ${{ 'false' && env.is-release == 'true' && env.nuget-token != '' }}
         run: |
           find ./packages -name "*.nupkg" -print -exec dotnet nuget push {} --skip-duplicate --api-key ${{ env.nuget-token }} --source https://api.nuget.org/v3/index.json \;
         working-directory: '${{ env.working-directory }}'

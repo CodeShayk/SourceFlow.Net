@@ -1,4 +1,4 @@
-next-version: 1.0.0
+next-version: 2.0.0
 tag-prefix: '[vV]'
 mode: ContinuousDeployment
 branches:
@@ -8,8 +8,8 @@ branches:
     source-branches: ['develop']
   release:
     mode: ContinuousDelivery
-    tag: beta
-    increment: Minor
+    tag: 'beta'
+    increment: Patch
     prevent-increment-of-merged-branch-version: true
     source-branches: ['master', 'develop']
   pre-release:
@@ -24,7 +24,9 @@ branches:
     increment: Minor
     source-branches: ['master']
   pull-request:
-    tag: beta
+    tag: PullRequest
+    tag-number-pattern: '[/-](?<number>\d+)'
+    increment: Inherit
     regex: ^(pull|pull\-requests|pr)[/-]
     source-branches: ['master', 'develop', 'release', 'pre-release']
   feature:

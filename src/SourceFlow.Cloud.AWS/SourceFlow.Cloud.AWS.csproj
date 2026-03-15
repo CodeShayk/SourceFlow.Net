@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.1;net8.0;net9.0;net10.0</TargetFrameworks>
+    <ImplicitUsings Condition="'$(TargetFramework)' == 'net8.0' OR '$(TargetFramework)' == 'net9.0' OR '$(TargetFramework)' == 'net10.0'">enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyTitle>AWS Cloud Extension for SourceFlow.Net</AssemblyTitle>
+    <AssemblyDescription>Provides AWS SQS/SNS integration for cloud-based message processing</AssemblyDescription>
+    <PackageId>SourceFlow.Cloud.AWS</PackageId>
+    <Version>2.0.0</Version>
+    <Authors>BuildwAI Team</Authors>
+    <Company>BuildwAI</Company>
+    <Product>SourceFlow.Net</Product>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.KeyManagementService" Version="3.7.400" />
+    <PackageReference Include="AWSSDK.SQS" Version="3.7.400.58" />
+    <PackageReference Include="AWSSDK.SimpleNotificationService" Version="3.7.400.58" />
+    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.301" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SourceFlow\SourceFlow.csproj" />
+  </ItemGroup>
+
+</Project>

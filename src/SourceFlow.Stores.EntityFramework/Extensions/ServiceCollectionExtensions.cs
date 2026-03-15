@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using SourceFlow.Stores.EntityFramework.Options;
 using SourceFlow.Stores.EntityFramework.Services;
 using SourceFlow.Stores.EntityFramework.Stores;
@@ -343,6 +344,76 @@ namespace SourceFlow.Stores.EntityFramework.Extensions
             services.TryAddScoped<ICommandStore, EfCommandStore>();
             services.TryAddScoped<IEntityStore, EfEntityStore>();
             services.TryAddScoped<IViewModelStore, EfViewModelStore>();
+        }
+
+        /// <summary>
+        /// Registers SQL-based idempotency service for multi-instance deployments.
+        /// </summary>
+        /// <param name="services">The service collection</param>
+        /// <param name="connectionString">Connection string for idempotency database</param>
+        /// <param name="cleanupIntervalMinutes">Interval in minutes for cleanup of expired records (default: 60)</param>
+        /// <returns>The service collection for chaining</returns>
+        /// <remarks>
+        /// This method registers a SQL-based idempotency service that uses database transactions
+        /// to ensure thread-safe duplicate detection across multiple application instances.
+        /// A background service will periodically clean up expired records.
+        /// </remarks>
+        public static IServiceCollection AddSourceFlowIdempotency(
+            this IServiceCollection services,
+            string connectionString,
+            int cleanupIntervalMinutes = 60)
+        {
+            if (services == null)
+                throw new ArgumentNullException(nameof(services));
+            if (string.IsNullOrEmpty(connectionString))
+                throw new ArgumentException("Connection string cannot be null or empty.", nameof(connectionString));
+
+            // Register IdempotencyDbContext
+            services.AddDbContext<IdempotencyDbContext>(options =>
+                options.UseSqlServer(connectionString));
+
+            // Register EfIdempotencyService as Scoped (matches cloud dispatcher lifetime)
+            services.TryAddScoped<SourceFlow.Cloud.Configuration.IIdempotencyService, EfIdempotencyService>();
+
+            // Register background cleanup service
+            services.AddHostedService<IdempotencyCleanupService>(provider =>
+                new IdempotencyCleanupService(
+                    provider,
+                    TimeSpan.FromMinutes(cleanupIntervalMinutes)));
+
+            return services;
+        }
+
+        /// <summary>
+        /// [Database-Agnostic] Registers SQL-based idempotency service with custom database provider.
+        /// </summary>
+        /// <param name="services">The service collection</param>
+        /// <param name="configureContext">Action to configure the DbContext with the desired provider</param>
+        /// <param name="cleanupIntervalMinutes">Interval in minutes for cleanup of expired records (default: 60)</param>
+        /// <returns>The service collection for chaining</returns>
+        public static IServiceCollection AddSourceFlowIdempotencyWithCustomProvider(
+            this IServiceCollection services,
+            Action<DbContextOptionsBuilder> configureContext,
+            int cleanupIntervalMinutes = 60)
+        {
+            if (services == null)
+                throw new ArgumentNullException(nameof(services));
+            if (configureContext == null)
+                throw new ArgumentNullException(nameof(configureContext));
+
+            // Register IdempotencyDbContext with custom provider
+            services.AddDbContext<IdempotencyDbContext>(configureContext);
+
+            // Register EfIdempotencyService as Scoped
+            services.TryAddScoped<SourceFlow.Cloud.Configuration.IIdempotencyService, EfIdempotencyService>();
+
+            // Register background cleanup service
+            services.AddHostedService<IdempotencyCleanupService>(provider =>
+                new IdempotencyCleanupService(
+                    provider,
+                    TimeSpan.FromMinutes(cleanupIntervalMinutes)));
+
+            return services;
         }
 
         /// <summary>

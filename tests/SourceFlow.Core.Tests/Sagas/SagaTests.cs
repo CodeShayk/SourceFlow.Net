@@ -8,6 +8,7 @@ using SourceFlow.Saga;
 namespace SourceFlow.Core.Tests.Sagas
 {
     [TestFixture]
+    [Category("Unit")]
     public class SagaTests
     {
         public class TestSaga : Saga<IEntity>, IHandles<ICommand>

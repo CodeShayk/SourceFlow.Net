@@ -34,18 +34,25 @@ namespace SourceFlow.Messaging.Bus.Impl
         private readonly IDomainTelemetryService telemetry;
 
         /// <summary>
+        /// Middleware pipeline components for command dispatch.
+        /// </summary>
+        private readonly IEnumerable<ICommandDispatchMiddleware> middlewares;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="CommandBus"/> class.
         /// </summary>
         /// <param name="commandDispatchers"></param>
         /// <param name="commandStore"></param>
         /// <param name="logger"></param>
         /// <param name="telemetry"></param>
-        public CommandBus(IEnumerable<ICommandDispatcher> commandDispatchers, ICommandStoreAdapter commandStore, ILogger<ICommandBus> logger, IDomainTelemetryService telemetry)
+        /// <param name="middlewares"></param>
+        public CommandBus(IEnumerable<ICommandDispatcher> commandDispatchers, ICommandStoreAdapter commandStore, ILogger<ICommandBus> logger, IDomainTelemetryService telemetry, IEnumerable<ICommandDispatchMiddleware> middlewares)
         {
             this.commandStore = commandStore ?? throw new ArgumentNullException(nameof(commandStore));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.commandDispatchers = commandDispatchers ?? throw new ArgumentNullException(nameof(commandDispatchers));
             this.telemetry = telemetry ?? throw new ArgumentNullException(nameof(telemetry));
+            this.middlewares = middlewares ?? throw new ArgumentNullException(nameof(middlewares));
         }
 
         /// <summary>
@@ -69,23 +76,17 @@ namespace SourceFlow.Messaging.Bus.Impl
                 "sourceflow.commandbus.dispatch",
                 async () =>
                 {
-                    // 1. Set event sequence no.
-                    if (!((IMetadata)command).Metadata.IsReplay)
-                        ((IMetadata)command).Metadata.SequenceNo = await commandStore.GetNextSequenceNo(command.Entity.Id);
+                    // Build the middleware pipeline: chain from last to first,
+                    // with CoreDispatch as the innermost delegate.
+                    Func<TCommand, Task> pipeline = CoreDispatch;
 
-                    var tasks = new List<Task>();
+                    foreach (var middleware in middlewares.Reverse())
+                    {
+                        var next = pipeline;
+                        pipeline = cmd => middleware.InvokeAsync(cmd, next);
+                    }
 
-                    // 2. Dispatch command to handlers.
-                    foreach (var dispatcher in commandDispatchers)
-                        tasks.Add(DispatchCommand(command, dispatcher));
-
-                    if (tasks.Any())
-                        await Task.WhenAll(tasks);
-
-                    // 3. When event is not replayed
-                    if (!((IMetadata)command).Metadata.IsReplay)
-                        // 3.1. Append event to event store.
-                        await commandStore.Append(command);
+                    await pipeline(command);
                 },
                 activity =>
                 {
@@ -97,6 +98,30 @@ namespace SourceFlow.Messaging.Bus.Impl
 
             // Record metric
             telemetry.RecordCommandExecuted(command.GetType().Name, command.Entity.Id);
+        }
+
+        /// <summary>
+        /// Core dispatch logic: sets sequence number, dispatches to handlers, and appends to store.
+        /// </summary>
+        private async Task CoreDispatch<TCommand>(TCommand command) where TCommand : ICommand
+        {
+            // 1. Set event sequence no.
+            if (!((IMetadata)command).Metadata.IsReplay)
+                ((IMetadata)command).Metadata.SequenceNo = await commandStore.GetNextSequenceNo(command.Entity.Id);
+
+            var tasks = new List<Task>();
+
+            // 2. Dispatch command to handlers.
+            foreach (var dispatcher in commandDispatchers)
+                tasks.Add(DispatchCommand(command, dispatcher));
+
+            if (tasks.Any())
+                await Task.WhenAll(tasks);
+
+            // 3. When event is not replayed
+            if (!((IMetadata)command).Metadata.IsReplay)
+                // 3.1. Append event to event store.
+                await commandStore.Append(command);
         }
 
         /// <summary>

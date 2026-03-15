@@ -34,6 +34,7 @@ namespace SourceFlow.Core.Tests.Aggregates
     }
 
     [TestFixture]
+    [Category("Unit")]
     public class AggregateEventSubscriberTests
     {
         private Mock<ILogger<IEventSubscriber>> _mockLogger;
@@ -54,7 +55,7 @@ namespace SourceFlow.Core.Tests.Aggregates
 
             // Act & Assert
             Assert.Throws<ArgumentNullException>(() =>
-                new EventSubscriber(nullAggregates, _mockLogger.Object));
+                new EventSubscriber(nullAggregates, _mockLogger.Object, Enumerable.Empty<IEventSubscribeMiddleware>()));
         }
 
         [Test]
@@ -65,7 +66,18 @@ namespace SourceFlow.Core.Tests.Aggregates
 
             // Act & Assert
             Assert.Throws<ArgumentNullException>(() =>
-                new EventSubscriber(aggregates, null));
+                new EventSubscriber(aggregates, null, Enumerable.Empty<IEventSubscribeMiddleware>()));
+        }
+
+        [Test]
+        public void Constructor_NullMiddleware_ThrowsArgumentNullException()
+        {
+            // Arrange
+            var aggregates = new List<IAggregate> { new TestAggregate() };
+
+            // Act & Assert
+            Assert.Throws<ArgumentNullException>(() =>
+                new EventSubscriber(aggregates, _mockLogger.Object, null));
         }
 
         [Test]
@@ -75,7 +87,7 @@ namespace SourceFlow.Core.Tests.Aggregates
             var aggregates = new List<IAggregate> { new TestAggregate() };
 
             // Act
-            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object);
+            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object, Enumerable.Empty<IEventSubscribeMiddleware>());
 
             // Assert
             Assert.IsNotNull(subscriber);
@@ -87,7 +99,7 @@ namespace SourceFlow.Core.Tests.Aggregates
             // Arrange
             var testAggregate = new TestAggregate();
             var aggregates = new List<IAggregate> { testAggregate };
-            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object);
+            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object, Enumerable.Empty<IEventSubscribeMiddleware>());
 
             // Act
             await subscriber.Subscribe(_testEvent);
@@ -102,7 +114,7 @@ namespace SourceFlow.Core.Tests.Aggregates
             // Arrange
             var nonMatchingAggregate = new NonMatchingAggregate();
             var aggregates = new List<IAggregate> { nonMatchingAggregate };
-            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object);
+            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object, Enumerable.Empty<IEventSubscribeMiddleware>());
 
             // Act
             await subscriber.Subscribe(_testEvent);
@@ -119,7 +131,7 @@ namespace SourceFlow.Core.Tests.Aggregates
             var matchingAggregate2 = new TestAggregate();
             var nonMatchingAggregate = new NonMatchingAggregate();
             var aggregates = new List<IAggregate> { matchingAggregate1, nonMatchingAggregate, matchingAggregate2 };
-            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object);
+            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object, Enumerable.Empty<IEventSubscribeMiddleware>());
 
             // Act
             await subscriber.Subscribe(_testEvent);
@@ -135,7 +147,7 @@ namespace SourceFlow.Core.Tests.Aggregates
             // Arrange
             var nonMatchingAggregate = new NonMatchingAggregate();
             var aggregates = new List<IAggregate> { nonMatchingAggregate };
-            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object);
+            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object, Enumerable.Empty<IEventSubscribeMiddleware>());
 
             // Act & Assert
             Assert.DoesNotThrowAsync(async () => await subscriber.Subscribe(_testEvent));
@@ -146,10 +158,98 @@ namespace SourceFlow.Core.Tests.Aggregates
         {
             // Arrange
             var aggregates = new List<IAggregate>();
-            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object);
+            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object, Enumerable.Empty<IEventSubscribeMiddleware>());
 
             // Act & Assert
             Assert.DoesNotThrowAsync(async () => await subscriber.Subscribe(_testEvent));
+        }
+
+        [Test]
+        public async Task Subscribe_WithMiddleware_ExecutesMiddlewareAroundCoreLogic()
+        {
+            // Arrange
+            var callOrder = new List<string>();
+            var testAggregate = new TestAggregate();
+            var aggregates = new List<IAggregate> { testAggregate };
+
+            var middlewareMock = new Mock<IEventSubscribeMiddleware>();
+            middlewareMock
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyAggregateEvent>(), It.IsAny<Func<DummyAggregateEvent, Task>>()))
+                .Returns<DummyAggregateEvent, Func<DummyAggregateEvent, Task>>(async (evt, next) =>
+                {
+                    callOrder.Add("middleware-before");
+                    await next(evt);
+                    callOrder.Add("middleware-after");
+                });
+
+            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object, new[] { middlewareMock.Object });
+
+            // Act
+            await subscriber.Subscribe(_testEvent);
+
+            // Assert
+            Assert.That(callOrder[0], Is.EqualTo("middleware-before"));
+            Assert.That(callOrder[1], Is.EqualTo("middleware-after"));
+            Assert.IsTrue(testAggregate.Handled);
+        }
+
+        [Test]
+        public async Task Subscribe_WithMultipleMiddleware_ExecutesInRegistrationOrder()
+        {
+            // Arrange
+            var callOrder = new List<string>();
+            var testAggregate = new TestAggregate();
+            var aggregates = new List<IAggregate> { testAggregate };
+
+            var middleware1 = new Mock<IEventSubscribeMiddleware>();
+            middleware1
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyAggregateEvent>(), It.IsAny<Func<DummyAggregateEvent, Task>>()))
+                .Returns<DummyAggregateEvent, Func<DummyAggregateEvent, Task>>(async (evt, next) =>
+                {
+                    callOrder.Add("m1-before");
+                    await next(evt);
+                    callOrder.Add("m1-after");
+                });
+
+            var middleware2 = new Mock<IEventSubscribeMiddleware>();
+            middleware2
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyAggregateEvent>(), It.IsAny<Func<DummyAggregateEvent, Task>>()))
+                .Returns<DummyAggregateEvent, Func<DummyAggregateEvent, Task>>(async (evt, next) =>
+                {
+                    callOrder.Add("m2-before");
+                    await next(evt);
+                    callOrder.Add("m2-after");
+                });
+
+            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object,
+                new IEventSubscribeMiddleware[] { middleware1.Object, middleware2.Object });
+
+            // Act
+            await subscriber.Subscribe(_testEvent);
+
+            // Assert
+            Assert.That(callOrder, Is.EqualTo(new[] { "m1-before", "m2-before", "m2-after", "m1-after" }));
+        }
+
+        [Test]
+        public async Task Subscribe_MiddlewareShortCircuits_DoesNotCallCoreLogic()
+        {
+            // Arrange
+            var testAggregate = new TestAggregate();
+            var aggregates = new List<IAggregate> { testAggregate };
+
+            var middlewareMock = new Mock<IEventSubscribeMiddleware>();
+            middlewareMock
+                .Setup(m => m.InvokeAsync(It.IsAny<DummyAggregateEvent>(), It.IsAny<Func<DummyAggregateEvent, Task>>()))
+                .Returns(Task.CompletedTask); // Does NOT call next
+
+            var subscriber = new EventSubscriber(aggregates, _mockLogger.Object, new[] { middlewareMock.Object });
+
+            // Act
+            await subscriber.Subscribe(_testEvent);
+
+            // Assert - aggregate was never reached
+            Assert.IsFalse(testAggregate.Handled);
         }
     }
 }
