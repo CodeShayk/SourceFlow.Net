@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.1;net8.0;net9.0;net10.0</TargetFrameworks>
+    <ImplicitUsings Condition="'$(TargetFramework)' == 'net8.0' OR '$(TargetFramework)' == 'net9.0' OR '$(TargetFramework)' == 'net10.0'">enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Version>2.0.0</Version>
+    <AssemblyVersion>2.0.0</AssemblyVersion>
+    <FileVersion>2.0.0</FileVersion>
+    <RepositoryUrl>https://github.com/CodeShayk/SourceFlow.Net</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/CodeShayk/SourceFlow.Net/wiki</PackageProjectUrl>
+    <Authors>CodeShayk</Authors>
+    <Company>CodeShayk</Company>
+    <Product>SourceFlow.Net</Product>
+    <Title>SourceFlow.Cloud.AWS</Title>
+    <PackageId>SourceFlow.Cloud.AWS</PackageId>
+    <AssemblyTitle>AWS Cloud Extension for SourceFlow.Net</AssemblyTitle>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Description>AWS cloud provider for SourceFlow.Net. Implements command dispatching via Amazon SQS (Standard and FIFO queues) and event publishing via Amazon SNS with full topic subscription management. Features include automatic bus bootstrapping as an IHostedService, KMS-based message encryption, SQS dead letter queue processing, batched message operations, circuit breaker and retry policies, health checks for SQS/SNS/KMS endpoints, and OpenTelemetry tracing. Supports .NET Standard 2.1, .NET 8.0, 9.0, and 10.0.</Description>
+    <Copyright>Copyright (c) 2026 CodeShayk</Copyright>
+    <PackageReadmeFile>\docs\SourceFlow.Cloud.AWS-README.md</PackageReadmeFile>
+    <PackageIcon>event-icon.png</PackageIcon>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <IncludeSymbols>True</IncludeSymbols>
+    <PackageReleaseNotes>
+      v2.0.0 - Major release with production-ready AWS integration.
+      - SQS command dispatching: Standard and FIFO queues with batched send/receive operations.
+      - SNS event publishing: topic creation, subscription management, and filter policies.
+      - Bus bootstrapper: IHostedService that auto-provisions queues, topics, and subscriptions at startup.
+      - Security: KMS envelope encryption for messages at rest, sensitive data masking in logs.
+      - Resilience: circuit breaker, configurable retry policies, and throttling protection.
+      - Dead letter queues: automatic DLQ setup and failed message reprocessing.
+      - Health checks: IHealthCheck implementations for SQS, SNS, and KMS endpoints.
+      - Observability: OpenTelemetry distributed tracing across command and event flows.
+      - Breaking change: depends on SourceFlow.Net 2.0.0 (Cloud.Core consolidated into core).
+    </PackageReleaseNotes>
+    <PackageTags>SourceFlow;AWS;SQS;SNS;KMS;Cloud;Messaging;CQRS;Event-Sourcing;Commands;Events;Pub-Sub;Dead-Letter-Queue;Circuit-Breaker;Health-Checks</PackageTags>
+    <EnableNETAnalyzers>True</EnableNETAnalyzers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.KeyManagementService" Version="3.7.400" />
+    <PackageReference Include="AWSSDK.SQS" Version="3.7.400.58" />
+    <PackageReference Include="AWSSDK.SimpleNotificationService" Version="3.7.400.58" />
+    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.301" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SourceFlow\SourceFlow.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\Images\event-icon.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\..\docs\SourceFlow.Cloud.AWS-README.md">
+      <Pack>True</Pack>
+      <PackagePath>\docs</PackagePath>
+    </None>
+  </ItemGroup>
+
+</Project>

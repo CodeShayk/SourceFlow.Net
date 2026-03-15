@@ -1,9 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net462;netstandard2.0;netstandard2.1;net9.0;net10.0</TargetFrameworks>
-    <LangVersion>9.0</LangVersion>
-    <Version>1.0.0</Version>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net8.0;net9.0;net10.0</TargetFrameworks>
+    <LangVersion>10.0</LangVersion>
+    <Version>2.0.0</Version>
     <RepositoryUrl>https://github.com/CodeShayk/SourceFlow.Net</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageProjectUrl>https://github.com/CodeShayk/SourceFlow.Net/wiki</PackageProjectUrl>
@@ -13,15 +13,25 @@
     <Title>SourceFlow.Net</Title>
     <PackageId>SourceFlow.Net</PackageId>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-    <Description>SourceFlow.Net is a modern, lightweight, and extensible framework for building event-sourced applications using Domain-Driven Design (DDD) principles and Command Query Responsibility Segregation (CQRS) patterns. Build scalable, maintainable applications with complete event sourcing, aggregate pattern implementation, saga orchestration for long-running transactions, and view model projections. Supports .NET Framework 4.6.2, .NET Standard 2.0/2.1, .NET 9.0, and .NET 10.0 with built-in OpenTelemetry observability.</Description>
-    <Copyright>Copyright (c) 2025 CodeShayk</Copyright>
+    <Description>SourceFlow.Net is a modern, lightweight, and extensible framework for building event-sourced applications using Domain-Driven Design (DDD) principles and Command Query Responsibility Segregation (CQRS) patterns. Build scalable, maintainable applications with complete event sourcing, aggregate pattern implementation, saga orchestration for long-running transactions, and view model projections. Supports .NET Standard 2.0/2.1, .NET 9.0, and .NET 10.0 with built-in OpenTelemetry observability.</Description>
+    <Copyright>Copyright (c) 2026 CodeShayk</Copyright>
     <PackageReadmeFile>docs\SourceFlow.Net-README.md</PackageReadmeFile>
-    <PackageIcon>ninja-icon-16.png</PackageIcon>
-    <AssemblyVersion>1.0.0</AssemblyVersion>
-    <FileVersion>1.0.0</FileVersion>
+    <PackageIcon>event-icon.png</PackageIcon>
+    <AssemblyVersion>2.0.0</AssemblyVersion>
+    <FileVersion>2.0.0</FileVersion>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <IncludeSymbols>True</IncludeSymbols>
-    <PackageReleaseNotes>v1.0.0 - Initial stable release! Complete event sourcing and CQRS implementation with Aggregate pattern for managing root entities, Saga orchestration for long-running transactions, event-driven communication, view model projection system, multi-framework support (.NET 4.6.2, .NET Standard 2.0/2.1, .NET 9.0, .NET 10.0), OpenTelemetry integration for observability, and dependency injection support. Production-ready with comprehensive test coverage.</PackageReleaseNotes>
+    <PackageReleaseNotes>
+      v2.0.0 - Major release with cloud-native architecture.
+      - Cloud.Core consolidated into main package: cloud abstractions now in SourceFlow.Cloud.* namespaces (breaking change).
+      - Fluent bus configuration: BusConfiguration with .Send.Command, .Raise.Event, .Listen.To, .Subscribe.To APIs.
+      - Resilience: built-in CircuitBreaker with configurable thresholds and half-open recovery.
+      - Security: MessageEncryption, SensitiveDataMasker, and dead letter queue processing.
+      - Observability: OpenTelemetry tracing for commands, events, and cloud operations.
+      - Idempotency: fluent builder API for duplicate detection configuration.
+      - Multi-target: .NET Standard 2.0/2.1, .NET 8.0, 9.0, and 10.0.
+      - See docs/Architecture/06-Cloud-Core-Consolidation.md for migration guide.
+   </PackageReleaseNotes>
     <PackageTags>Events;Commands;DDD;CQRS;Event-Sourcing;ViewModel;Aggregates;EventStore;Domain driven design; Event Sourcing; Command Query Responsibility Segregation; Command Pattern; Publisher Subscriber; PuB-Sub</PackageTags>
     <EnableNETAnalyzers>False</EnableNETAnalyzers>
   </PropertyGroup>
@@ -59,7 +69,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\Images\ninja-icon-16.png">
+    <None Include="..\..\Images\event-icon.png">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>

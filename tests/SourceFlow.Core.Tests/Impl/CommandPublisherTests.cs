@@ -7,6 +7,7 @@ using SourceFlow.Messaging.Commands.Impl;
 namespace SourceFlow.Core.Tests.Impl
 {
     [TestFixture]
+    [Category("Unit")]
     public class CommandPublisherTests
     {
         [Test]

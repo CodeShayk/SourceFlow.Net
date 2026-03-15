@@ -1,14 +1,15 @@
 # SourceFlow.Stores.EntityFramework
 
-Entity Framework Core persistence provider for SourceFlow.Net with support for SQL Server and configurable connection strings per store type.
+Entity Framework Core persistence provider for SourceFlow.Net with support for SQL Server, configurable connection strings per store type, and cloud message idempotency for distributed deployments.
 
 ## Features
 
 - **Complete Store Implementations**: ICommandStore, IEntityStore, and IViewModelStore
+- **Cloud Idempotency**: SQL-backed duplicate message detection with `EfIdempotencyService`, `IdempotencyDbContext`, and automatic cleanup via `IdempotencyCleanupService` — essential for multi-instance cloud deployments
 - **Flexible Configuration**: Separate or shared connection strings per store type
-- **SQL Server Support**: Built-in SQL Server database provider
-- **Resilience Policies**: Polly-based retry and circuit breaker patterns
-- **Observability**: OpenTelemetry instrumentation for database operations
+- **SQL Server Support**: Built-in SQL Server database provider with support for PostgreSQL, MySQL, and SQLite via custom providers
+- **Resilience Policies**: Polly-based retry and circuit breaker patterns for database operations
+- **Observability**: OpenTelemetry instrumentation for EF Core queries and store operations
 - **Multi-Framework Support**: .NET 8.0, .NET 9.0, .NET 10.0
 
 ## Installation
@@ -119,6 +120,203 @@ The provider includes built-in Polly resilience policies for:
 - Circuit breaker for database failures
 - Automatic reconnection handling
 
+## Idempotency Service
+
+The Entity Framework provider includes `EfIdempotencyService`, a SQL-based implementation of `IIdempotencyService` designed for multi-instance deployments where in-memory idempotency tracking is insufficient.
+
+### Features
+
+- **Thread-Safe Duplicate Detection**: Uses database transactions to ensure consistency across multiple application instances
+- **Automatic Expiration**: Records expire based on configurable TTL (Time To Live)
+- **Background Cleanup**: Automatic periodic cleanup of expired records
+- **Statistics**: Track total checks, duplicates detected, and cache size
+- **Database Agnostic**: Support for SQL Server, PostgreSQL, MySQL, SQLite, and other EF Core providers
+
+### Configuration
+
+#### SQL Server (Default)
+
+Register the idempotency service with automatic cleanup:
+
+```csharp
+services.AddSourceFlowIdempotency(
+    connectionString: configuration.GetConnectionString("IdempotencyStore"),
+    cleanupIntervalMinutes: 60); // Optional, defaults to 60 minutes
+```
+
+#### Custom Database Provider
+
+Use PostgreSQL, MySQL, SQLite, or any other EF Core provider:
+
+```csharp
+// PostgreSQL
+services.AddSourceFlowIdempotencyWithCustomProvider(
+    configureContext: options => options.UseNpgsql(connectionString),
+    cleanupIntervalMinutes: 60);
+
+// MySQL
+services.AddSourceFlowIdempotencyWithCustomProvider(
+    configureContext: options => options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)),
+    cleanupIntervalMinutes: 60);
+
+// SQLite
+services.AddSourceFlowIdempotencyWithCustomProvider(
+    configureContext: options => options.UseSqlite(connectionString),
+    cleanupIntervalMinutes: 60);
+```
+
+#### Manual Registration (Advanced)
+
+For more control over the registration:
+
+```csharp
+services.AddDbContext<IdempotencyDbContext>(options =>
+    options.UseSqlServer(configuration.GetConnectionString("IdempotencyStore")));
+
+services.AddScoped<IIdempotencyService, EfIdempotencyService>();
+
+// Optional: Register background cleanup service
+services.AddHostedService<IdempotencyCleanupService>(provider =>
+    new IdempotencyCleanupService(provider, TimeSpan.FromMinutes(60)));
+```
+
+### Database Schema
+
+The service uses a single table with the following structure:
+
+```sql
+CREATE TABLE IdempotencyRecords (
+    IdempotencyKey NVARCHAR(500) PRIMARY KEY,
+    ProcessedAt DATETIME2 NOT NULL,
+    ExpiresAt DATETIME2 NOT NULL
+);
+
+CREATE INDEX IX_IdempotencyRecords_ExpiresAt ON IdempotencyRecords(ExpiresAt);
+```
+
+The schema is automatically created when you run migrations or when the application starts (if auto-migration is enabled).
+
+### Usage
+
+The service is automatically used by cloud dispatchers when registered:
+
+```csharp
+// Check if message was already processed
+if (await idempotencyService.HasProcessedAsync(messageId))
+{
+    // Skip duplicate message
+    return;
+}
+
+// Process message...
+
+// Mark as processed with 24-hour TTL
+await idempotencyService.MarkAsProcessedAsync(messageId, TimeSpan.FromHours(24));
+```
+
+### Cleanup
+
+The `AddSourceFlowIdempotency` and `AddSourceFlowIdempotencyWithCustomProvider` methods automatically register a background service (`IdempotencyCleanupService`) that periodically cleans up expired records.
+
+**Default Behavior:**
+- Cleanup runs every 60 minutes (configurable)
+- Processes up to 1000 expired records per batch
+- Runs as a hosted background service
+
+**Custom Cleanup Interval:**
+
+```csharp
+services.AddSourceFlowIdempotency(
+    connectionString: configuration.GetConnectionString("IdempotencyStore"),
+    cleanupIntervalMinutes: 30); // Run cleanup every 30 minutes
+```
+
+**Manual Cleanup (Advanced):**
+
+If you need to trigger cleanup manually or implement custom cleanup logic:
+
+```csharp
+public class CustomCleanupJob : BackgroundService
+{
+    private readonly IServiceProvider _serviceProvider;
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var service = scope.ServiceProvider.GetRequiredService<EfIdempotencyService>();
+            
+            await service.CleanupExpiredRecordsAsync(stoppingToken);
+            
+            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+        }
+    }
+}
+```
+
+### When to Use
+
+- **Multi-Instance Deployments**: When running multiple application instances that process the same message queues
+- **Distributed Systems**: When messages can be delivered more than once (at-least-once delivery)
+- **Cloud Messaging**: When using AWS SQS or other cloud message queues
+
+For single-instance deployments, consider using `InMemoryIdempotencyService` from the core framework for better performance.
+
+### End-to-End Cloud Integration
+
+Here's a complete example showing how EF idempotency integrates with AWS cloud messaging:
+
+```csharp
+public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+{
+    // 1. Register SourceFlow core
+    services.UseSourceFlow(Assembly.GetExecutingAssembly());
+
+    // 2. Register EF persistence stores
+    services.AddSourceFlowStores(configuration, options =>
+    {
+        options.UseCommandStore("CommandStore");
+        options.UseEntityStore("EntityStore");
+        options.UseViewModelStore("ViewModelStore");
+    });
+
+    // 3. Register SQL-backed idempotency (replaces in-memory default)
+    services.AddSourceFlowIdempotency(
+        connectionString: configuration.GetConnectionString("IdempotencyStore"),
+        cleanupIntervalMinutes: 60);
+
+    // 4. Configure AWS cloud messaging
+    services.UseSourceFlowAws(
+        options =>
+        {
+            options.Region = RegionEndpoint.USEast1;
+            options.EnableEncryption = true;
+            options.KmsKeyId = "alias/sourceflow-key";
+        },
+        bus => bus
+            .Send
+                .Command<CreateOrderCommand>(q => q.Queue("orders.fifo"))
+            .Raise
+                .Event<OrderCreatedEvent>(t => t.Topic("order-events"))
+            .Listen.To
+                .CommandQueue("orders.fifo")
+            .Subscribe.To
+                .Topic("order-events"));
+}
+```
+
+**How it works end-to-end:**
+
+1. **Command dispatched** to SQS queue (`orders.fifo`)
+2. **Listener receives** message from SQS
+3. **Idempotency check** — `EfIdempotencyService.HasProcessedAsync(messageId)` queries the SQL database to detect duplicates across all application instances
+4. **Command processed** by saga, entity persisted via `IEntityStore`, events raised
+5. **Message marked processed** — `EfIdempotencyService.MarkAsProcessedAsync(messageId, ttl)` records the message ID with expiration
+6. **Background cleanup** — `IdempotencyCleanupService` periodically removes expired records
+
+This ensures exactly-once processing semantics even with SQS at-least-once delivery and multiple consumer instances.
+
 ## Documentation
 
 - [Full Documentation](https://github.com/CodeShayk/SourceFlow.Net/wiki)
@@ -134,3 +332,7 @@ The provider includes built-in Polly resilience policies for:
 ## License
 
 This project is licensed under the [MIT License](https://github.com/CodeShayk/SourceFlow.Net/blob/master/LICENSE).
+
+---
+
+**Package Version**: 2.0.0 | **Last Updated**: 2026-03-15
