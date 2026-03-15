@@ -35,10 +35,6 @@ public abstract class PolymorphicJsonConverter<T> : JsonConverter<T>
         }
 
         var actualType = ResolveType(typeString);
-        if (actualType == null)
-        {
-            throw new JsonException($"Cannot resolve type: {typeString}");
-        }
 
         // Deserialize as the actual type
         var json = root.GetRawText();
@@ -86,8 +82,14 @@ public abstract class PolymorphicJsonConverter<T> : JsonConverter<T>
     /// <summary>
     /// Resolve type from type identifier
     /// </summary>
-    protected virtual Type? ResolveType(string typeIdentifier)
+    protected virtual Type ResolveType(string typeIdentifier)
     {
-        return Type.GetType(typeIdentifier);
+        var type = Type.GetType(typeIdentifier);
+        if (type == null)
+        {
+            throw new JsonException(
+                $"Cannot resolve type '{typeIdentifier}'. Ensure the assembly containing this type is loaded and the type name is assembly-qualified.");
+        }
+        return type;
     }
 }

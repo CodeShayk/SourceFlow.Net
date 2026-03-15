@@ -280,11 +280,21 @@ public class AwsDeadLetterMonitor : BackgroundService
                 await _sqsClient.SendMessageAsync(sendRequest, cancellationToken);
 
                 // Delete from DLQ
-                await _sqsClient.DeleteMessageAsync(new DeleteMessageRequest
+                try
                 {
-                    QueueUrl = deadLetterQueueUrl,
-                    ReceiptHandle = message.ReceiptHandle
-                }, cancellationToken);
+                    await _sqsClient.DeleteMessageAsync(new DeleteMessageRequest
+                    {
+                        QueueUrl = deadLetterQueueUrl,
+                        ReceiptHandle = message.ReceiptHandle
+                    }, cancellationToken);
+                }
+                catch (Exception deleteEx)
+                {
+                    _logger.LogWarning(deleteEx,
+                        "Message {MessageId} was replayed to {TargetQueue} but could not be deleted from DLQ {DlqUrl}. " +
+                        "It may be replayed again. Manual cleanup may be required.",
+                        message.MessageId, targetQueueUrl, deadLetterQueueUrl);
+                }
 
                 // Mark as replayed in store
                 await _deadLetterStore.MarkAsReplayedAsync(message.MessageId, cancellationToken);

@@ -151,7 +151,7 @@ public class AwsSnsEventDispatcherEnhanced : IEventDispatcher
             // Log with masked sensitive data
             _logger.LogInformation(
                 "Event published to AWS SNS: {EventType} -> {Topic}, Duration: {Duration}ms, Event: {Event}",
-                eventType, topicArn, sw.ElapsedMilliseconds, _dataMasker.Mask(@event));
+                eventType, topicArn, sw.ElapsedMilliseconds, _dataMasker.MaskLazy(@event));
         }
         catch (CircuitBreakerOpenException cbex)
         {

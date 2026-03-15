@@ -12,6 +12,8 @@ using SourceFlow.Cloud.Observability;
 using SourceFlow.Cloud.Security;
 using SourceFlow.Messaging.Events;
 using SourceFlow.Observability;
+using System.Collections.Concurrent;
+using System.Reflection;
 using System.Text.Json;
 
 namespace SourceFlow.Cloud.AWS.Messaging.Events;
@@ -21,6 +23,9 @@ namespace SourceFlow.Cloud.AWS.Messaging.Events;
 /// </summary>
 public class AwsSnsEventListenerEnhanced : BackgroundService
 {
+    private static readonly ConcurrentDictionary<string, Type?> _typeCache = new();
+    private static readonly ConcurrentDictionary<Type, MethodInfo?> _methodInfoCache = new();
+
     private readonly IAmazonSQS _sqsClient;
     private readonly IServiceProvider _serviceProvider;
     private readonly IEventRoutingConfiguration _routingConfig;
@@ -188,7 +193,7 @@ public class AwsSnsEventListenerEnhanced : BackgroundService
                 return;
             }
 
-            var eventType = Type.GetType(eventTypeName);
+            var eventType = _typeCache.GetOrAdd(eventTypeName, static name => Type.GetType(name));
             if (eventType == null)
             {
                 _logger.LogError("Could not resolve event type: {EventType}", eventTypeName);
@@ -266,9 +271,8 @@ public class AwsSnsEventListenerEnhanced : BackgroundService
             using var scope = _serviceProvider.CreateScope();
             var eventSubscribers = scope.ServiceProvider.GetServices<IEventSubscriber>();
 
-            var subscribeMethod = typeof(IEventSubscriber)
-                .GetMethod("Subscribe")
-                ?.MakeGenericMethod(eventType);
+            var subscribeMethod = _methodInfoCache.GetOrAdd(eventType, static t =>
+                typeof(IEventSubscriber).GetMethod("Subscribe")?.MakeGenericMethod(t));
 
             if (subscribeMethod == null)
             {
@@ -316,7 +320,7 @@ public class AwsSnsEventListenerEnhanced : BackgroundService
             _logger.LogInformation(
                 "Event processed from SNS: {EventType} -> {Queue}, Duration: {Duration}ms, MessageId: {MessageId}, Event: {Event}",
                 eventTypeName, queueUrl, sw.ElapsedMilliseconds, message.MessageId,
-                _dataMasker.Mask(@event));
+                _dataMasker.MaskLazy(@event));
         }
         catch (Exception ex)
         {
@@ -419,22 +423,6 @@ public class AwsSnsEventListenerEnhanced : BackgroundService
         }
     }
 
-    // SNS notification wrapper structure
-    private class SnsNotification
-    {
-        public string Type { get; set; } = string.Empty;
-        public string MessageId { get; set; } = string.Empty;
-        public string TopicArn { get; set; } = string.Empty;
-        public string Subject { get; set; } = string.Empty;
-        public string Message { get; set; } = string.Empty;
-        public Dictionary<string, SnsMessageAttribute>? MessageAttributes { get; set; }
-    }
-
-    private class SnsMessageAttribute
-    {
-        public string Type { get; set; } = string.Empty;
-        public string Value { get; set; } = string.Empty;
-    }
 }
 
 // Extension method to safely get dictionary values

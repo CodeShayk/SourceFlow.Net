@@ -20,9 +20,6 @@ public class InMemoryIdempotencyService : IIdempotencyService
     public InMemoryIdempotencyService(ILogger<InMemoryIdempotencyService> logger)
     {
         _logger = logger;
-
-        // Start background cleanup task
-        _ = Task.Run(CleanupExpiredRecordsAsync);
     }
 
     public Task<bool> HasProcessedAsync(string idempotencyKey, CancellationToken cancellationToken = default)
@@ -82,13 +79,16 @@ public class InMemoryIdempotencyService : IIdempotencyService
         });
     }
 
-    private async Task CleanupExpiredRecordsAsync()
+    internal Task RunCleanupAsync(CancellationToken cancellationToken) =>
+        CleanupExpiredRecordsAsync(cancellationToken);
+
+    private async Task CleanupExpiredRecordsAsync(CancellationToken cancellationToken)
     {
-        while (true)
+        while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                await Task.Delay(TimeSpan.FromMinutes(1));
+                await Task.Delay(TimeSpan.FromMinutes(1), cancellationToken);
 
                 var now = DateTime.UtcNow;
                 var expiredKeys = _records
@@ -105,6 +105,11 @@ public class InMemoryIdempotencyService : IIdempotencyService
                 {
                     _logger.LogDebug("Cleaned up {Count} expired idempotency records", expiredKeys.Count);
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when cancellation is requested; exit the loop cleanly
+                break;
             }
             catch (Exception ex)
             {

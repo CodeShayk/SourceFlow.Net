@@ -2,6 +2,7 @@ using System;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace SourceFlow.Cloud.Configuration;
 
@@ -102,7 +103,9 @@ public class IdempotencyConfigurationBuilder
     {
         _configureAction = services =>
         {
-            services.AddScoped<IIdempotencyService, InMemoryIdempotencyService>();
+            services.AddSingleton<InMemoryIdempotencyService>();
+            services.AddSingleton<IIdempotencyService>(sp => sp.GetRequiredService<InMemoryIdempotencyService>());
+            services.AddHostedService<InMemoryIdempotencyCleanupService>();
         };
 
         return this;
@@ -121,7 +124,9 @@ public class IdempotencyConfigurationBuilder
         else
         {
             // Default to in-memory if nothing configured
-            services.TryAddScoped<IIdempotencyService, InMemoryIdempotencyService>();
+            services.TryAddSingleton<InMemoryIdempotencyService>();
+            services.TryAddSingleton<IIdempotencyService>(sp => sp.GetRequiredService<InMemoryIdempotencyService>());
+            services.AddHostedService<InMemoryIdempotencyCleanupService>();
         }
     }
 

@@ -6,12 +6,17 @@ using Microsoft.Extensions.Logging;
 using SourceFlow.Cloud.AWS.Configuration;
 using SourceFlow.Cloud.Configuration;
 using SourceFlow.Messaging.Events;
+using System.Collections.Concurrent;
+using System.Reflection;
 using System.Text.Json;
 
 namespace SourceFlow.Cloud.AWS.Messaging.Events;
 
 public class AwsSnsEventListener : BackgroundService
 {
+    private static readonly ConcurrentDictionary<string, Type?> _typeCache = new();
+    private static readonly ConcurrentDictionary<Type, MethodInfo?> _methodInfoCache = new();
+
     private readonly IAmazonSQS _sqsClient;
     private readonly IServiceProvider _serviceProvider;
     private readonly IEventRoutingConfiguration _routingConfig;
@@ -134,15 +139,34 @@ public class AwsSnsEventListener : BackgroundService
                 return;
             }
 
-            var eventType = Type.GetType(eventTypeName);
+            var eventType = _typeCache.GetOrAdd(eventTypeName, static name => Type.GetType(name));
             if (eventType == null)
             {
                 _logger.LogError("Could not resolve event type: {EventType}", eventTypeName);
+                await _sqsClient.DeleteMessageAsync(new DeleteMessageRequest
+                {
+                    QueueUrl = queueUrl,
+                    ReceiptHandle = message.ReceiptHandle
+                }, cancellationToken);
                 return;
             }
 
             // 3. Deserialize event from SNS message body
-            var @event = JsonSerializer.Deserialize(snsNotification.Message, eventType, _jsonOptions) as IEvent;
+            IEvent? @event;
+            try
+            {
+                @event = JsonSerializer.Deserialize(snsNotification.Message, eventType, _jsonOptions) as IEvent;
+            }
+            catch (JsonException jsonEx)
+            {
+                _logger.LogError(jsonEx, "Failed to deserialize event body for type {EventType}: {MessageId}", eventTypeName, message.MessageId);
+                await _sqsClient.DeleteMessageAsync(new DeleteMessageRequest
+                {
+                    QueueUrl = queueUrl,
+                    ReceiptHandle = message.ReceiptHandle
+                }, cancellationToken);
+                return;
+            }
             if (@event == null)
             {
                 _logger.LogError("Failed to deserialize event: {EventType}", eventTypeName);
@@ -154,9 +178,8 @@ public class AwsSnsEventListener : BackgroundService
             var eventSubscribers = scope.ServiceProvider.GetServices<IEventSubscriber>();
 
             // 5. Invoke Subscribe method for each subscriber
-            var subscribeMethod = typeof(IEventSubscriber)
-                .GetMethod("Subscribe")
-                ?.MakeGenericMethod(eventType);
+            var subscribeMethod = _methodInfoCache.GetOrAdd(eventType, static t =>
+                typeof(IEventSubscriber).GetMethod("Subscribe")?.MakeGenericMethod(t));
 
             if (subscribeMethod == null)
             {
@@ -195,22 +218,6 @@ public class AwsSnsEventListener : BackgroundService
         }
     }
 
-    // SNS notification wrapper structure
-    private class SnsNotification
-    {
-        public string Type { get; set; }
-        public string MessageId { get; set; }
-        public string TopicArn { get; set; }
-        public string Subject { get; set; }
-        public string Message { get; set; }
-        public Dictionary<string, SnsMessageAttribute> MessageAttributes { get; set; }
-    }
-
-    private class SnsMessageAttribute
-    {
-        public string Type { get; set; }
-        public string Value { get; set; }
-    }
 }
 
 // Extension method to safely get dictionary values

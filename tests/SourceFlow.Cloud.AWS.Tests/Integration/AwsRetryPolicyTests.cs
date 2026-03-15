@@ -685,11 +685,12 @@ public class AwsRetryPolicyTests : IAsyncLifetime
         _output.WriteLine($"Average duration: {average}ms");
         _output.WriteLine($"Standard deviation: {standardDeviation}ms");
         
-        // With jitter, we expect some variation in durations
-        // Standard deviation should be > 0 (indicating variation)
-        // Note: This test may be flaky in some environments, so we use a lenient threshold
-        Assert.True(standardDeviation >= 0, 
-            "Standard deviation should be non-negative");
+        // With jitter, we expect meaningful variation in durations across multiple runs.
+        // A standard deviation of at least 10ms indicates that jitter is actually shifting
+        // the retry delays rather than producing identical timings every time.
+        Assert.True(standardDeviation > 10,
+            $"Standard deviation ({standardDeviation:F2}ms) should be > 10ms when jitter is enabled, " +
+            "indicating that jitter produces real variation in retry delays");
         
         _output.WriteLine("Jitter analysis complete - durations show expected variation pattern");
     }

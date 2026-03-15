@@ -100,7 +100,9 @@ public static class IocExtensions
         else
         {
             // Register in-memory idempotency service as default if not already registered
-            services.TryAddScoped<IIdempotencyService, InMemoryIdempotencyService>();
+            services.TryAddSingleton<InMemoryIdempotencyService>();
+            services.TryAddSingleton<IIdempotencyService>(sp => sp.GetRequiredService<InMemoryIdempotencyService>());
+            services.AddHostedService<InMemoryIdempotencyCleanupService>();
         }
 
         // 5. Register AWS dispatchers

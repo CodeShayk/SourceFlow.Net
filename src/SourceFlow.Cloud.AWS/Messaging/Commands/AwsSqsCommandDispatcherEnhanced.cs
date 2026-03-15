@@ -160,7 +160,7 @@ public class AwsSqsCommandDispatcherEnhanced : ICommandDispatcher
 
             // Log with masked sensitive data
             _logger.LogInformation("Command dispatched to AWS SQS: {CommandType} -> {Queue}, Duration: {Duration}ms, Command: {Command}",
-                commandType, queueUrl, sw.ElapsedMilliseconds, _dataMasker.Mask(command));
+                commandType, queueUrl, sw.ElapsedMilliseconds, _dataMasker.MaskLazy(command));
         }
         catch (CircuitBreakerOpenException cbex)
         {

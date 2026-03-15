@@ -192,16 +192,22 @@ services.UseSourceFlowAws(
   - Added `tag-number-pattern` to extract PR number from branch name (e.g., `pr/123` → `PullRequest.123`)
   - Set `increment: Inherit` to inherit versioning strategy from source branch
   - Ensures PRs from release branches generate appropriate version numbers (e.g., `2.0.0-PullRequest.123`)
+- **GitVersion Release Branch Tagging** - Updated release branch configuration
+  - Changed tag from empty string to "beta" for consistent pre-release identification
+  - Release branches now generate versions like `2.0.0-beta.1` instead of `2.0.0`
+  - Provides clearer distinction between release candidates and final releases
+  - Aligns with semantic versioning pre-release conventions
 
 ### Release CI/CD Workflow Enhancement
 - **Tag-Based Release Publishing** - Enhanced Release-CI workflow with tag-based package publishing
   - Added `release-packages` tag trigger for controlled package releases
-  - Conditional build versioning: pre-release versions for branch pushes, stable versions for tag pushes
+  - Conditional build versioning: pre-release versions (with 'beta' tag) for branch pushes, stable versions for tag pushes
   - Conditional package publishing: GitHub Packages only on `release-packages` tag
   - NuGet.org publishing temporarily disabled (requires manual enablement)
   - Enables testing release branches without publishing packages
   - Provides explicit control over when packages are published to public registries
   - Tag format: `release-packages` (triggers stable version build and GitHub Packages publication)
+  - Release branch versions now use 'beta' tag (e.g., `2.0.0-beta.1`) for clear pre-release identification
 
 ## 📦 Package Dependencies
 

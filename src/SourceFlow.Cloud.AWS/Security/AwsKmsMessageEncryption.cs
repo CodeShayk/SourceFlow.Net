@@ -120,6 +120,12 @@ public class AwsKmsMessageEncryption : IMessageEncryption
             // 5. Convert to string
             return Encoding.UTF8.GetString(plaintextBytes);
         }
+        catch (Amazon.KeyManagementService.Model.InvalidCiphertextException ex)
+        {
+            _logger.LogError(ex, "KMS reported invalid ciphertext — message may be tampered or encrypted with wrong key.");
+            throw new MessageDecryptionException(
+                "The message ciphertext is invalid. The message may be corrupted or encrypted with a different key.", ex);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error decrypting message with AWS KMS");

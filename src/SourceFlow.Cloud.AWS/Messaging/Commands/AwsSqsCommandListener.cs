@@ -6,12 +6,17 @@ using Microsoft.Extensions.Logging;
 using SourceFlow.Cloud.AWS.Configuration;
 using SourceFlow.Cloud.Configuration;
 using SourceFlow.Messaging.Commands;
+using System.Collections.Concurrent;
+using System.Reflection;
 using System.Text.Json;
 
 namespace SourceFlow.Cloud.AWS.Messaging.Commands;
 
 public class AwsSqsCommandListener : BackgroundService
 {
+    private static readonly ConcurrentDictionary<string, Type?> _typeCache = new();
+    private static readonly ConcurrentDictionary<Type, MethodInfo?> _methodInfoCache = new();
+
     private readonly IAmazonSQS _sqsClient;
     private readonly IServiceProvider _serviceProvider;
     private readonly ICommandRoutingConfiguration _routingConfig;
@@ -119,16 +124,27 @@ public class AwsSqsCommandListener : BackgroundService
             }
 
             var commandTypeName = commandTypeAttribute.StringValue;
-            var commandType = Type.GetType(commandTypeName);
+            var commandType = _typeCache.GetOrAdd(commandTypeName, static name => Type.GetType(name));
 
             if (commandType == null)
             {
                 _logger.LogError("Could not resolve command type: {CommandType}", commandTypeName);
+                await _sqsClient.DeleteMessageAsync(queueUrl, message.ReceiptHandle, cancellationToken);
                 return;
             }
 
             // 2. Deserialize command
-            var command = JsonSerializer.Deserialize(message.Body, commandType, _jsonOptions) as ICommand;
+            ICommand? command;
+            try
+            {
+                command = JsonSerializer.Deserialize(message.Body, commandType, _jsonOptions) as ICommand;
+            }
+            catch (JsonException jsonEx)
+            {
+                _logger.LogError(jsonEx, "Failed to deserialize command body for type {CommandType}: {MessageId}", commandTypeName, message.MessageId);
+                await _sqsClient.DeleteMessageAsync(queueUrl, message.ReceiptHandle, cancellationToken);
+                return;
+            }
 
             if (command == null)
             {
@@ -142,9 +158,8 @@ public class AwsSqsCommandListener : BackgroundService
                 .GetRequiredService<ICommandSubscriber>();
 
             // 4. Invoke Subscribe method using reflection (to preserve generics)
-            var subscribeMethod = typeof(ICommandSubscriber)
-                .GetMethod("Subscribe")
-                ?.MakeGenericMethod(commandType);
+            var subscribeMethod = _methodInfoCache.GetOrAdd(commandType, static t =>
+                typeof(ICommandSubscriber).GetMethod("Subscribe")?.MakeGenericMethod(t));
 
             if (subscribeMethod == null)
             {

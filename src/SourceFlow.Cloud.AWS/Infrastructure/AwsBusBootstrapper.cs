@@ -168,8 +168,16 @@ public sealed class AwsBusBootstrapper : IHostedService
                 };
             }
 
-            var created = await _sqsClient.CreateQueueAsync(request, ct);
-            return created.QueueUrl;
+            try
+            {
+                var created = await _sqsClient.CreateQueueAsync(request, ct);
+                return created.QueueUrl;
+            }
+            catch (Exception createEx)
+            {
+                _logger.LogError(createEx, "Failed to create SQS queue '{QueueName}'.", queueName);
+                throw;
+            }
         }
     }
 

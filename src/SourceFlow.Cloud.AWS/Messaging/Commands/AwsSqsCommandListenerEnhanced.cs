@@ -12,6 +12,8 @@ using SourceFlow.Cloud.Observability;
 using SourceFlow.Cloud.Security;
 using SourceFlow.Messaging.Commands;
 using SourceFlow.Observability;
+using System.Collections.Concurrent;
+using System.Reflection;
 using System.Text.Json;
 
 namespace SourceFlow.Cloud.AWS.Messaging.Commands;
@@ -21,6 +23,9 @@ namespace SourceFlow.Cloud.AWS.Messaging.Commands;
 /// </summary>
 public class AwsSqsCommandListenerEnhanced : BackgroundService
 {
+    private static readonly ConcurrentDictionary<string, Type?> _typeCache = new();
+    private static readonly ConcurrentDictionary<Type, MethodInfo?> _methodInfoCache = new();
+
     private readonly IAmazonSQS _sqsClient;
     private readonly IServiceProvider _serviceProvider;
     private readonly ICommandRoutingConfiguration _routingConfig;
@@ -164,7 +169,7 @@ public class AwsSqsCommandListenerEnhanced : BackgroundService
             }
 
             commandTypeName = commandTypeAttribute.StringValue;
-            var commandType = Type.GetType(commandTypeName);
+            var commandType = _typeCache.GetOrAdd(commandTypeName, static name => Type.GetType(name));
 
             if (commandType == null)
             {
@@ -252,9 +257,8 @@ public class AwsSqsCommandListenerEnhanced : BackgroundService
                 .GetRequiredService<ICommandSubscriber>();
 
             // 10. Invoke Subscribe method using reflection (to preserve generics)
-            var subscribeMethod = typeof(ICommandSubscriber)
-                .GetMethod("Subscribe")
-                ?.MakeGenericMethod(commandType);
+            var subscribeMethod = _methodInfoCache.GetOrAdd(commandType, static t =>
+                typeof(ICommandSubscriber).GetMethod("Subscribe")?.MakeGenericMethod(t));
 
             if (subscribeMethod == null)
             {
@@ -291,7 +295,7 @@ public class AwsSqsCommandListenerEnhanced : BackgroundService
             _logger.LogInformation(
                 "Command processed from SQS: {CommandType} -> {Queue}, Duration: {Duration}ms, MessageId: {MessageId}, Command: {Command}",
                 commandTypeName, queueUrl, sw.ElapsedMilliseconds, message.MessageId,
-                _dataMasker.Mask(command));
+                _dataMasker.MaskLazy(command));
         }
         catch (Exception ex)
         {

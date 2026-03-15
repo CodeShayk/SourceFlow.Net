@@ -186,4 +186,27 @@ public class SensitiveDataMasker
         }
         return "********";
     }
+
+    /// <summary>
+    /// Returns a lazy wrapper that defers masking until ToString() is called.
+    /// Use this with logging to avoid serializing objects when the log level is not enabled.
+    /// </summary>
+    public LazyMaskValue MaskLazy(object? obj) => new LazyMaskValue(this, obj);
+}
+
+/// <summary>
+/// A lazy wrapper that defers sensitive data masking until the value is converted to a string.
+/// </summary>
+public readonly struct LazyMaskValue
+{
+    private readonly SensitiveDataMasker _masker;
+    private readonly object? _obj;
+
+    public LazyMaskValue(SensitiveDataMasker masker, object? obj)
+    {
+        _masker = masker;
+        _obj = obj;
+    }
+
+    public override string ToString() => _masker.Mask(_obj);
 }

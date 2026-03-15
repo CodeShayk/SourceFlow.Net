@@ -71,21 +71,40 @@ public class CircuitBreaker : ICircuitBreaker
             }
         }
 
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
-            // Execute with timeout
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(_options.OperationTimeout);
 
-            var result = await operation();
+            var operationTask = operation();
+            var timeoutTask = Task.Delay(Timeout.InfiniteTimeSpan, cts.Token);
+
+            var completed = await Task.WhenAny(operationTask, timeoutTask);
+
+            if (completed != operationTask)
+            {
+                var timeoutEx = new OperationCanceledException("Circuit breaker operation timed out.");
+                OnFailure(timeoutEx);
+                throw timeoutEx;
+            }
+
+            T result;
+            try
+            {
+                result = await operationTask;
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                OnFailure(ex);
+                throw;
+            }
 
             OnSuccess();
             return result;
         }
-        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        finally
         {
-            OnFailure(ex);
-            throw;
+            cts.Dispose();
         }
     }
 

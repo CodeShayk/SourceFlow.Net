@@ -47,14 +47,37 @@ After disabling default setup, verify the configuration:
 
 SourceFlow.Net uses multiple CI workflows for different purposes:
 
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| `Release-CI.yml` | Push to release/** branches | Build, test, and package release candidates |
-| `Release-CodeQL.yml` | Push to release/** branches | Security analysis for releases |
-| `Master-CodeQL.yml` | Push to master branch | Security analysis for production |
-| `Master-Build.yml` | Push to master branch | Production build validation |
-| `PR-CI.yml` | Pull requests | Validate PR changes |
-| `Pre-release-CI.yml` | Push to pre-release branches | Pre-release validation |
+| Workflow | Trigger | Purpose | Version Format |
+|----------|---------|---------|----------------|
+| `Release-CI.yml` | Push to release/** branches | Build, test, and package release candidates | `2.0.0-beta.1` (pre-release) |
+| `Release-CI.yml` | Push `release-packages` tag | Build and publish stable packages | `2.0.0` (stable) |
+| `Release-CodeQL.yml` | Push to release/** branches | Security analysis for releases | N/A |
+| `Master-CodeQL.yml` | Push to master branch | Security analysis for production | N/A |
+| `Master-Build.yml` | Push to master branch | Production build validation | `2.0.0` (stable) |
+| `PR-CI.yml` | Pull requests | Validate PR changes | `2.0.0-PullRequest.123` |
+| `Pre-release-CI.yml` | Push to pre-release branches | Pre-release validation | `2.0.0-alpha.1` |
+
+### Versioning Strategy
+
+SourceFlow.Net uses GitVersion for semantic versioning with the following configuration:
+
+**Release Branches** (`release/**`):
+- **Branch Pushes**: Generate pre-release versions with 'beta' tag (e.g., `2.0.0-beta.1`, `2.0.0-beta.2`)
+- **Tag Pushes** (`release-packages`): Generate stable versions (e.g., `2.0.0`)
+- **Purpose**: Allows testing release candidates before final publication
+
+**Pull Request Branches** (`pr/**`, `pull-request/**`):
+- Generate versions with PR number (e.g., `2.0.0-PullRequest.123`)
+- Inherit versioning strategy from source branch
+- Clear identification of PR builds
+
+**Pre-Release Branches** (`pre-release/**`):
+- Generate versions with 'alpha' tag (e.g., `2.0.0-alpha.1`)
+- Used for early testing and validation
+
+**Master Branch**:
+- Generate stable versions (e.g., `2.0.0`)
+- Production-ready releases
 
 ### Test Execution Strategy
 
