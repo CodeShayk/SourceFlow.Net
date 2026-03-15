@@ -76,7 +76,17 @@ public class CircuitBreaker : ICircuitBreaker
         {
             cts.CancelAfter(_options.OperationTimeout);
 
-            var operationTask = operation();
+            Task<T> operationTask;
+            try
+            {
+                operationTask = operation();
+            }
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                OnFailure(ex);
+                throw;
+            }
+
             var timeoutTask = Task.Delay(Timeout.InfiniteTimeSpan, cts.Token);
 
             var completed = await Task.WhenAny(operationTask, timeoutTask);

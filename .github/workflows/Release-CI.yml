@@ -142,13 +142,22 @@ jobs:
         run: dotnet build --configuration Release --no-restore -p:PackageVersion=${{ steps.gitversion.outputs.MajorMinorPatch }}
         working-directory: '${{ env.working-directory }}'
 
-      - name: Step-09 Test Solution
+      - name: Step-09 Run Unit Tests
         run: |
-          # Run only unit tests, exclude integration tests that require LocalStack/Docker
-          # Integration tests are in Integration folders/namespaces and may cause CI timeouts
-          # Also exclude Security tests which require IAM/LocalStack services
-          dotnet test --configuration Release --no-build --no-restore --verbosity normal --filter "FullyQualifiedName!~Integration&FullyQualifiedName!~Security"
+          dotnet test --configuration Release --no-build --no-restore --verbosity normal \
+            --filter "FullyQualifiedName!~Integration&FullyQualifiedName!~Security"
         working-directory: '${{ env.working-directory }}'
+
+      - name: Step-09b Run Integration Tests with LocalStack
+        run: |
+          dotnet test --configuration Release --no-build --no-restore --verbosity normal \
+            --filter "Category=Integration&Category=RequiresLocalStack"
+        working-directory: '${{ env.working-directory }}'
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ENDPOINT_URL: http://localhost:4566
 
       - name: Step-10 Create NuGet Package (Pre-release)
         if: ${{ env.is-release != 'true' }}
