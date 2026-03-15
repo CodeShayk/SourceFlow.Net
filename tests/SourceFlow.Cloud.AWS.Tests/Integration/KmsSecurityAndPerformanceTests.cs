@@ -169,7 +169,7 @@ public class KmsSecurityAndPerformanceTests : IClassFixture<LocalStackTestFixtur
         var plaintext = "Test message";
         
         // Act & Assert - Should fail with invalid key
-        await Assert.ThrowsAsync<Exception>(async () =>
+        await Assert.ThrowsAnyAsync<Exception>(async () =>
         {
             await encryption.EncryptAsync(plaintext);
         });

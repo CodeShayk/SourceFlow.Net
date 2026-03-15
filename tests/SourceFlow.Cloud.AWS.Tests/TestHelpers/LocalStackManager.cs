@@ -22,6 +22,7 @@ public class LocalStackManager : ILocalStackManager
     private IContainer? _container;
     private LocalStackConfiguration? _configuration;
     private bool _disposed;
+    private bool _isExternalInstance;
     private readonly Dictionary<string, DateTime> _serviceReadyTimes = new();
     private readonly object _lockObject = new();
     
@@ -31,7 +32,7 @@ public class LocalStackManager : ILocalStackManager
     }
     
     /// <inheritdoc />
-    public bool IsRunning => _container?.State == TestcontainersStates.Running;
+    public bool IsRunning => _container?.State == TestcontainersStates.Running || _isExternalInstance;
     
     /// <inheritdoc />
     public string Endpoint => _configuration?.Endpoint ?? "http://localhost:4566";
@@ -54,7 +55,7 @@ public class LocalStackManager : ILocalStackManager
         if (await IsExternalLocalStackAvailableAsync(config.Endpoint))
         {
             _logger.LogInformation("Detected existing LocalStack instance at {Endpoint}, using it instead of starting new container", config.Endpoint);
-            // Don't start a new container, just use the existing one
+            _isExternalInstance = true;
             return;
         }
         
@@ -152,14 +153,22 @@ public class LocalStackManager : ILocalStackManager
     /// <inheritdoc />
     public async Task StopAsync()
     {
+        if (_isExternalInstance)
+        {
+            _logger.LogInformation("Using external LocalStack instance — skipping stop");
+            _isExternalInstance = false;
+            _configuration = null;
+            return;
+        }
+
         if (_container == null)
             return;
-        
+
         _logger.LogInformation("Stopping LocalStack container");
-        
+
         try
         {
-            if (IsRunning)
+            if (_container.State == TestcontainersStates.Running)
             {
                 await _container.StopAsync();
             }
@@ -174,7 +183,7 @@ public class LocalStackManager : ILocalStackManager
             _container = null;
             _configuration = null;
         }
-        
+
         _logger.LogInformation("LocalStack container stopped");
     }
     
