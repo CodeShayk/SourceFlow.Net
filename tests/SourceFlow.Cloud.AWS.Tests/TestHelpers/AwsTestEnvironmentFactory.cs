@@ -132,21 +132,20 @@ public static class AwsTestEnvironmentFactory
             await localStackManager.StartAsync(configuration.LocalStack);
         }
         
-        // Add resource manager
-        services.AddTransient<IAwsResourceManager, AwsResourceManager>();
-        
-        // Build service provider
+        // Build service provider (for logging only - AwsResourceManager is created after AwsTestEnvironment
+        // to break the circular dependency: AwsTestEnvironment → AwsResourceManager → IAwsTestEnvironment)
         var finalServiceProvider = services.BuildServiceProvider();
-        
-        // Create resource manager
+
         var logger = finalServiceProvider.GetRequiredService<ILogger<AwsTestEnvironment>>();
-        var resourceManager = finalServiceProvider.GetRequiredService<IAwsResourceManager>();
-        
-        // Create test environment
-        var testEnvironment = new AwsTestEnvironment(configuration, localStackManager, resourceManager, logger);
-        
-        // Initialize the environment
+        var resourceManagerLogger = finalServiceProvider.GetRequiredService<ILogger<AwsResourceManager>>();
+
+        // Phase 1: create environment without resource manager, initialize AWS clients
+        var testEnvironment = new AwsTestEnvironment(configuration, localStackManager, null, logger);
         await testEnvironment.InitializeAsync();
+
+        // Phase 2: create resource manager (environment now has AWS clients), wire back
+        var resourceManager = new AwsResourceManager(testEnvironment, resourceManagerLogger);
+        testEnvironment.SetResourceManager(resourceManager);
         
         return testEnvironment;
     }

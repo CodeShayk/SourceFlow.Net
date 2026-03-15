@@ -20,21 +20,24 @@ public class AwsTestEnvironment : IAwsTestEnvironment
 {
     private readonly AwsTestConfiguration _configuration;
     private readonly ILocalStackManager? _localStackManager;
-    private readonly IAwsResourceManager _resourceManager;
+    private IAwsResourceManager? _resourceManager;
     private readonly ILogger<AwsTestEnvironment> _logger;
     private bool _disposed;
-    
+
     public AwsTestEnvironment(
         AwsTestConfiguration configuration,
         ILocalStackManager? localStackManager,
-        IAwsResourceManager resourceManager,
+        IAwsResourceManager? resourceManager,
         ILogger<AwsTestEnvironment> logger)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _localStackManager = localStackManager;
-        _resourceManager = resourceManager ?? throw new ArgumentNullException(nameof(resourceManager));
+        _resourceManager = resourceManager;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
+
+    internal void SetResourceManager(IAwsResourceManager resourceManager) =>
+        _resourceManager = resourceManager ?? throw new ArgumentNullException(nameof(resourceManager));
     
     /// <inheritdoc />
     public IAmazonSQS SqsClient { get; private set; } = null!;
@@ -117,7 +120,8 @@ public class AwsTestEnvironment : IAwsTestEnvironment
         services.AddSingleton(_configuration);
         
         // Add resource manager
-        services.AddSingleton(_resourceManager);
+        if (_resourceManager != null)
+            services.AddSingleton(_resourceManager);
         
         return services;
     }
