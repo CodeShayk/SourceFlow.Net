@@ -100,7 +100,8 @@ public class LocalStackCITimeoutExplorationTests : IAsyncLifetime
         }
         
         _logger.LogInformation("=== BUG EXPLORATION TEST: LocalStack CI Timeout ===");
-        var services = new[] { "sqs", "sns", "kms", "iam" };
+        // Only check services we actually enable — IAM/STS/cloudformation are disabled in LocalStack Community
+        var services = new[] { "sqs", "sns", "kms" };
         _logger.LogInformation("Testing services: {Services}", string.Join(", ", services));
         
         // Use UNFIXED configuration (30-second timeout from current code)
@@ -136,21 +137,22 @@ public class LocalStackCITimeoutExplorationTests : IAsyncLifetime
                 }
             }
             
-            // Expected behavior: All services should be available within 90 seconds
+            // Expected behavior: All enabled services should be available within 90 seconds
             // On unfixed code, this will likely timeout at 30 seconds
-            var allAvailable = healthStatus.Values.All(h => h.IsAvailable);
-            
+            var allAvailable = services.All(s =>
+                healthStatus.TryGetValue(s, out var h) && h.IsAvailable);
+
             if (!allAvailable)
             {
                 var counterexample = $"COUNTEREXAMPLE: Services not all available after {elapsedTime}. " +
-                    $"Status: {string.Join(", ", healthStatus.Select(kvp => $"{kvp.Key}={kvp.Value.Status}"))}";
+                    $"Status: {string.Join(", ", services.Select(s => $"{s}={(healthStatus.TryGetValue(s, out var h) ? h.Status : "missing")}"))}";
                 _counterexamples.Add(counterexample);
                 _logger.LogWarning(counterexample);
             }
-            
-            Assert.True(allAvailable, 
+
+            Assert.True(allAvailable,
                 $"Expected all services to be available. " +
-                $"Status: {string.Join(", ", healthStatus.Select(kvp => $"{kvp.Key}={kvp.Value.Status}"))}");
+                $"Status: {string.Join(", ", services.Select(s => $"{s}={(healthStatus.TryGetValue(s, out var h) ? h.Status : "missing")}"))}");
         }
         catch (TimeoutException ex)
         {
@@ -219,28 +221,31 @@ public class LocalStackCITimeoutExplorationTests : IAsyncLifetime
         }
         
         _logger.LogInformation("=== BUG EXPLORATION TEST: External Instance Detection ===");
-        
+
         // Check if there's an external LocalStack instance (e.g., pre-started in GitHub Actions)
         var config = TestHelpers.LocalStackConfiguration.CreateForIntegrationTesting();
-        
+        // Only check services we actually enable
+        var enabledServices = new[] { "sqs", "sns", "kms" };
+
         _stopwatch.Restart();
-        
+
         try
         {
             // This will use the current (unfixed) 3-second timeout for external detection
             await _localStackManager!.StartAsync(config);
-            
+
             _stopwatch.Stop();
-            
+
             _logger.LogInformation("LocalStack started/detected after {ElapsedTime}", _stopwatch.Elapsed);
-            
+
             // Check if it detected an external instance or started a new one
             var healthStatus = await _localStackManager.GetServicesHealthAsync();
-            var allAvailable = healthStatus.Values.All(h => h.IsAvailable);
-            
-            Assert.True(allAvailable, 
-                "Expected all services to be available. " +
-                $"Status: {string.Join(", ", healthStatus.Select(kvp => $"{kvp.Key}={kvp.Value.Status}"))}");
+            var allAvailable = enabledServices.All(s =>
+                healthStatus.TryGetValue(s, out var h) && h.IsAvailable);
+
+            Assert.True(allAvailable,
+                "Expected all enabled services to be available. " +
+                $"Status: {string.Join(", ", enabledServices.Select(s => $"{s}={(healthStatus.TryGetValue(s, out var h) ? h.Status : "missing")}"))}");
         }
         catch (TimeoutException ex)
         {
@@ -301,9 +306,10 @@ public class LocalStackCITimeoutExplorationTests : IAsyncLifetime
         _logger.LogInformation("=== BUG EXPLORATION TEST: Service Timing Analysis ===");
         
         var config = TestHelpers.LocalStackConfiguration.CreateForIntegrationTesting();
-        var services = config.EnabledServices.ToArray();
-        
-        _logger.LogInformation("Monitoring initialization times for services: {Services}", 
+        // Only monitor services we actually enable — IAM/STS/cloudformation are disabled in LocalStack Community
+        var services = new[] { "sqs", "sns", "kms" };
+
+        _logger.LogInformation("Monitoring initialization times for services: {Services}",
             string.Join(", ", services));
         
         var serviceTimings = new Dictionary<string, TimeSpan?>();
@@ -343,20 +349,22 @@ public class LocalStackCITimeoutExplorationTests : IAsyncLifetime
                 }
             }
             
-            // Check if all services are available
-            var allAvailable = healthStatus.Values.All(h => h.IsAvailable);
-            
+            // Check if all enabled services are available
+            var allAvailable = services.All(s =>
+                healthStatus.TryGetValue(s, out var h) && h.IsAvailable);
+
             if (!allAvailable)
             {
-                var notAvailable = healthStatus.Where(kvp => !kvp.Value.IsAvailable)
-                    .Select(kvp => $"{kvp.Key}={kvp.Value.Status}");
+                var notAvailable = services
+                    .Where(s => !healthStatus.TryGetValue(s, out var h) || !h.IsAvailable)
+                    .Select(s => $"{s}={(healthStatus.TryGetValue(s, out var h) ? h.Status : "missing")}");
                 var counterexample = $"COUNTEREXAMPLE: Not all services available after {_stopwatch.Elapsed}. " +
                     $"Not available: {string.Join(", ", notAvailable)}";
                 _counterexamples.Add(counterexample);
                 _logger.LogWarning(counterexample);
             }
-            
-            Assert.True(allAvailable, 
+
+            Assert.True(allAvailable,
                 $"Expected all services to be available within timeout. " +
                 $"Timings: {string.Join(", ", serviceTimings.Select(kvp => $"{kvp.Key}={kvp.Value?.TotalSeconds:F1}s"))}");
         }
