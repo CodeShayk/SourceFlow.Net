@@ -767,14 +767,27 @@ services.UseSourceFlowAws(
 
 LocalStack provides local AWS service emulation for development and testing.
 
-#### Setup
+#### Setup with Script (Recommended)
 
 ```bash
-# Install LocalStack
-pip install localstack
+# PowerShell (Windows)
+./tests/SourceFlow.Cloud.AWS.Tests/run-integration-tests.ps1
 
-# Start LocalStack
-localstack start
+# Bash (Linux/macOS/WSL)
+./tests/SourceFlow.Cloud.AWS.Tests/run-integration-tests.sh
+```
+
+The scripts automatically start a LocalStack Docker container, wait for services, set environment variables, and run the integration tests. Use `--keep` / `-KeepRunning` to leave the container running after tests.
+
+#### Manual Setup
+
+```bash
+# Start LocalStack via Docker
+docker run -d --name sourceflow-localstack \
+  -p 4566:4566 \
+  -e SERVICES=sqs,sns,kms \
+  -e EAGER_SERVICE_LOADING=1 \
+  localstack/localstack:latest
 ```
 
 #### Configuration
@@ -826,7 +839,11 @@ public class AwsIntegrationTests : LocalStackRequiredTestBase
 # Unit tests only
 dotnet test --filter "Category=Unit"
 
-# Integration tests with LocalStack
+# Integration tests with LocalStack (using script)
+./tests/SourceFlow.Cloud.AWS.Tests/run-integration-tests.ps1  # PowerShell
+./tests/SourceFlow.Cloud.AWS.Tests/run-integration-tests.sh   # Bash
+
+# Integration tests manually (LocalStack must be running)
 dotnet test --filter "Category=Integration&Category=RequiresLocalStack"
 ```
 
@@ -1141,9 +1158,9 @@ Aggregates/Views Handle Event
 
 ## Support
 
-- **Documentation**: [GitHub Wiki](https://github.com/sourceflow/sourceflow.net/wiki)
-- **Issues**: [GitHub Issues](https://github.com/sourceflow/sourceflow.net/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/sourceflow/sourceflow.net/discussions)
+- **Documentation**: [GitHub Wiki](https://github.com/CodeShayk/SourceFlow.Net/wiki)
+- **Issues**: [GitHub Issues](https://github.com/CodeShayk/SourceFlow.Net/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/CodeShayk/SourceFlow.Net/discussions)
 
 ---
 
@@ -1154,5 +1171,5 @@ MIT License - see [LICENSE](../LICENSE) file for details.
 ---
 
 **Package Version**: 2.0.0  
-**Last Updated**: 2026-03-04  
+**Last Updated**: 2026-03-15  
 **Status**: Production Ready

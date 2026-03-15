@@ -1,15 +1,15 @@
 # SourceFlow.Stores.EntityFramework
 
-Entity Framework Core persistence provider for SourceFlow.Net with support for SQL Server and configurable connection strings per store type.
+Entity Framework Core persistence provider for SourceFlow.Net with support for SQL Server, configurable connection strings per store type, and cloud message idempotency for distributed deployments.
 
 ## Features
 
 - **Complete Store Implementations**: ICommandStore, IEntityStore, and IViewModelStore
-- **Idempotency Service**: SQL-based duplicate message detection for multi-instance deployments
+- **Cloud Idempotency**: SQL-backed duplicate message detection with `EfIdempotencyService`, `IdempotencyDbContext`, and automatic cleanup via `IdempotencyCleanupService` — essential for multi-instance cloud deployments
 - **Flexible Configuration**: Separate or shared connection strings per store type
-- **SQL Server Support**: Built-in SQL Server database provider
-- **Resilience Policies**: Polly-based retry and circuit breaker patterns
-- **Observability**: OpenTelemetry instrumentation for database operations
+- **SQL Server Support**: Built-in SQL Server database provider with support for PostgreSQL, MySQL, and SQLite via custom providers
+- **Resilience Policies**: Polly-based retry and circuit breaker patterns for database operations
+- **Observability**: OpenTelemetry instrumentation for EF Core queries and store operations
 - **Multi-Framework Support**: .NET 8.0, .NET 9.0, .NET 10.0
 
 ## Installation
@@ -263,6 +263,60 @@ public class CustomCleanupJob : BackgroundService
 
 For single-instance deployments, consider using `InMemoryIdempotencyService` from the core framework for better performance.
 
+### End-to-End Cloud Integration
+
+Here's a complete example showing how EF idempotency integrates with AWS cloud messaging:
+
+```csharp
+public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+{
+    // 1. Register SourceFlow core
+    services.UseSourceFlow(Assembly.GetExecutingAssembly());
+
+    // 2. Register EF persistence stores
+    services.AddSourceFlowStores(configuration, options =>
+    {
+        options.UseCommandStore("CommandStore");
+        options.UseEntityStore("EntityStore");
+        options.UseViewModelStore("ViewModelStore");
+    });
+
+    // 3. Register SQL-backed idempotency (replaces in-memory default)
+    services.AddSourceFlowIdempotency(
+        connectionString: configuration.GetConnectionString("IdempotencyStore"),
+        cleanupIntervalMinutes: 60);
+
+    // 4. Configure AWS cloud messaging
+    services.UseSourceFlowAws(
+        options =>
+        {
+            options.Region = RegionEndpoint.USEast1;
+            options.EnableEncryption = true;
+            options.KmsKeyId = "alias/sourceflow-key";
+        },
+        bus => bus
+            .Send
+                .Command<CreateOrderCommand>(q => q.Queue("orders.fifo"))
+            .Raise
+                .Event<OrderCreatedEvent>(t => t.Topic("order-events"))
+            .Listen.To
+                .CommandQueue("orders.fifo")
+            .Subscribe.To
+                .Topic("order-events"));
+}
+```
+
+**How it works end-to-end:**
+
+1. **Command dispatched** to SQS queue (`orders.fifo`)
+2. **Listener receives** message from SQS
+3. **Idempotency check** — `EfIdempotencyService.HasProcessedAsync(messageId)` queries the SQL database to detect duplicates across all application instances
+4. **Command processed** by saga, entity persisted via `IEntityStore`, events raised
+5. **Message marked processed** — `EfIdempotencyService.MarkAsProcessedAsync(messageId, ttl)` records the message ID with expiration
+6. **Background cleanup** — `IdempotencyCleanupService` periodically removes expired records
+
+This ensures exactly-once processing semantics even with SQS at-least-once delivery and multiple consumer instances.
+
 ## Documentation
 
 - [Full Documentation](https://github.com/CodeShayk/SourceFlow.Net/wiki)
@@ -278,3 +332,7 @@ For single-instance deployments, consider using `InMemoryIdempotencyService` fro
 ## License
 
 This project is licensed under the [MIT License](https://github.com/CodeShayk/SourceFlow.Net/blob/master/LICENSE).
+
+---
+
+**Package Version**: 2.0.0 | **Last Updated**: 2026-03-15

@@ -15,9 +15,11 @@ SourceFlow.Net is a comprehensive event sourcing and CQRS framework that empower
 - ⚡ **CQRS Implementation** - Command/Query separation for optimized read and write operations
 - 📊 **Event-First Design** - Foundation built on event sourcing with complete audit trails
 - 🧱 **Clean Architecture** - Separation of concerns with clear architectural boundaries
-- 🔒 **Resilience Ready** - Built-in retry policies and circuit breakers
-- 📈 **Observability** - Integrated OpenTelemetry support for monitoring and tracing
-- 🔧 **Extensible** - Pluggable persistence and messaging layers
+- ☁️ **Cloud-Native Messaging** - Built-in bus configuration with fluent API for distributed command/event routing
+- 🔒 **Security** - Message encryption (KMS), sensitive data masking, and dead letter queue processing
+- 🔄 **Resilience** - Circuit breakers, retry policies, and idempotency for duplicate message detection
+- 📈 **Observability** - Integrated OpenTelemetry support for monitoring and tracing across cloud operations
+- 🔧 **Extensible** - Pluggable persistence, messaging, and cloud provider layers (AWS, Azure)
 
 ### 🎯 Core Architecture
 
@@ -61,12 +63,52 @@ dotnet add package SourceFlow.Net
 
 # Entity Framework persistence (optional but recommended)
 dotnet add package SourceFlow.Stores.EntityFramework
+
+# AWS Cloud Provider (optional)
+dotnet add package SourceFlow.Cloud.AWS
 ```
 
 ### .NET Framework Support
-- .NET Framework 4.6.2
 - .NET Standard 2.0 / 2.1
-- .NET 9.0 / 10.0
+- .NET 8.0 / 9.0 / 10.0
+
+---
+
+## ☁️ What's New in v2.0.0 — Cloud-Native Architecture
+
+Version 2.0.0 consolidates all cloud abstractions into the core SourceFlow.Net package, eliminating the need for a separate `SourceFlow.Cloud.Core` dependency. Cloud provider packages (e.g., `SourceFlow.Cloud.AWS`) now depend only on the core package.
+
+### Cloud Abstractions in Core
+
+The following are now part of `SourceFlow.Net`:
+
+| Feature | Namespace | Description |
+|---------|-----------|-------------|
+| **Bus Configuration** | `SourceFlow.Cloud.Configuration` | Fluent API for command/event routing (`.Send.Command`, `.Raise.Event`, `.Listen.To`, `.Subscribe.To`) |
+| **Circuit Breaker** | `SourceFlow.Cloud.Resilience` | Configurable failure thresholds, half-open recovery, and state change events |
+| **Message Encryption** | `SourceFlow.Cloud.Security` | Envelope encryption with pluggable key providers (e.g., AWS KMS) |
+| **Sensitive Data Masker** | `SourceFlow.Cloud.Security` | Automatic PII/credential masking in logs and diagnostics |
+| **Dead Letter Processing** | `SourceFlow.Cloud.DeadLetterProcessing` | Failed message inspection, replay, and purge |
+| **Idempotency** | `SourceFlow.Cloud.Idempotency` | Duplicate message detection with in-memory or EF-backed stores |
+| **Cloud Observability** | `SourceFlow.Cloud.Observability` | OpenTelemetry spans for command dispatch, event publish, and message processing |
+| **Health Checks** | `SourceFlow.Cloud.HealthChecks` | IHealthCheck implementations for cloud service endpoints |
+
+### Migration from v1.x
+
+If you previously used `SourceFlow.Cloud.Core`:
+
+```diff
+- using SourceFlow.Cloud.Core.Configuration;
++ using SourceFlow.Cloud.Configuration;
+
+- using SourceFlow.Cloud.Core.Resilience;
++ using SourceFlow.Cloud.Resilience;
+
+- using SourceFlow.Cloud.Core.Security;
++ using SourceFlow.Cloud.Security;
+```
+
+Remove the `SourceFlow.Cloud.Core` package reference — everything is now in `SourceFlow.Net`.
 
 ---
 
@@ -1071,10 +1113,39 @@ Use the `.fifo` suffix to enable ordered message processing:
 - Check entity ID is properly set in commands
 - Ensure message grouping is configured
 
+### Message Security
+
+SourceFlow.Net v2.0.0 includes built-in security infrastructure for cloud messaging:
+
+**Message Encryption** — Envelope encryption for sensitive message payloads:
+```csharp
+services.UseSourceFlowAws(options =>
+{
+    options.EnableEncryption = true;
+    options.KmsKeyId = "alias/sourceflow-key";
+}, bus => ...);
+```
+
+**Sensitive Data Masking** — Automatic PII detection and masking in logs:
+```csharp
+// Automatically masks credit card numbers, emails, SSNs, etc.
+// in diagnostic output and exception messages
+var masker = new SensitiveDataMasker();
+var safe = masker.Mask(rawLogMessage);
+```
+
+**Dead Letter Queue Processing** — Inspect, replay, or purge failed messages:
+```csharp
+// Failed messages are automatically routed to DLQs
+// Use the DLQ processor to investigate and replay
+await dlqProcessor.ReplayMessagesAsync(queueUrl, maxMessages: 10);
+```
+
 ### Cloud-Specific Documentation
 
 For detailed cloud-specific information:
-- **AWS**: See [AWS Cloud Architecture](Architecture/07-AWS-Cloud-Architecture.md)
+- **AWS**: See [SourceFlow.Cloud.AWS README](SourceFlow.Cloud.AWS-README.md) and [AWS Cloud Architecture](Architecture/07-AWS-Cloud-Architecture.md)
+- **Idempotency**: See [Cloud Message Idempotency Guide](Cloud-Message-Idempotency-Guide.md)
 - **Testing**: See [Cloud Integration Testing](Cloud-Integration-Testing.md)
 
 ---
@@ -1086,6 +1157,7 @@ SourceFlow.Net supports pluggable persistence through store interfaces:
 - `ICommandStore` - Stores command history for audit trails and replay
 - `IEntityStore` - Stores current state of domain entities
 - `IViewModelStore` - Stores optimized read models for queries
+- `IIdempotencyService` - Duplicate message detection for cloud messaging
 
 ### Entity Framework Provider
 
@@ -1094,6 +1166,7 @@ The Entity Framework provider offers:
 - Resilience policies with automatic retry and circuit breaker
 - OpenTelemetry integration for database operations
 - Configurable connection strings per store type
+- **Cloud Idempotency**: EF-backed `IdempotencyService` with `IdempotencyDbContext` and automatic cleanup via `IdempotencyCleanupService` for multi-instance deployments
 - **Enhanced Return Types**: Store operations return the persisted entity for additional processing
 
 Install with:
@@ -1175,4 +1248,6 @@ We welcome contributions! Please see our [Contributing Guide](../CONTRIBUTING.md
 This project is licensed under the [MIT License](../LICENSE).
 
 ---
+**Package Version**: 2.0.0 | **Last Updated**: 2026-03-15
+
 Made with ❤️ by the SourceFlow.Net team to empower developers building event-sourced applications
