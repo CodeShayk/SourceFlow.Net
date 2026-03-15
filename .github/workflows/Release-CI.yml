@@ -7,16 +7,17 @@ on:
     paths-ignore:
     - "**/*.md"
     - "**/*.gitignore"
-    - "**/*.gitattributes"  
+    - "**/*.gitattributes"
     tags:
     - release-packages
 
 permissions:
   contents: read
+  packages: write
 jobs:
   Build-Test-Publish:
     runs-on: ubuntu-latest
-    
+
     services:
       localstack:
         image: localstack/localstack:latest
@@ -40,7 +41,7 @@ jobs:
           --health-timeout 5s
           --health-retries 30
           --health-start-period 30s
-    
+
     env:
       working-directory: ${{ github.workspace }}
       github-token: '${{ secrets.GH_Packages }}'
@@ -69,13 +70,22 @@ jobs:
         with:
           useConfigFile: true
 
-      - name: Step-04 Display Version Info
+      - name: Step-04 Evaluate Version
+        id: version
         run: |
           echo "NuGetVersion: ${{ steps.gitversion.outputs.NuGetVersion }}"
           echo "FullSemVer: ${{ steps.gitversion.outputs.FullSemVer }}"
           echo "MajorMinorPatch: ${{ steps.gitversion.outputs.MajorMinorPatch }}"
           echo "BranchName: ${{ steps.gitversion.outputs.BranchName }}"
           echo "Is Release: ${{ env.is-release }}"
+
+          if [ "${{ env.is-release }}" == "true" ]; then
+            echo "package-version=${{ steps.gitversion.outputs.MajorMinorPatch }}" >> $GITHUB_OUTPUT
+            echo "Using RELEASE version: ${{ steps.gitversion.outputs.MajorMinorPatch }}"
+          else
+            echo "package-version=${{ steps.gitversion.outputs.NuGetVersion }}" >> $GITHUB_OUTPUT
+            echo "Using PRE-RELEASE version: ${{ steps.gitversion.outputs.NuGetVersion }}"
+          fi
 
       - name: Step-05 Install .NET
         uses: actions/setup-dotnet@v3
@@ -86,7 +96,7 @@ jobs:
         run: |
           echo "Waiting for LocalStack to be fully ready..."
           echo "Testing connection to localhost:4566..."
-          
+
           # Test basic connectivity first
           if ! nc -zv localhost 4566 2>&1; then
             echo "ERROR: Cannot connect to localhost:4566"
@@ -94,7 +104,7 @@ jobs:
             docker ps -a
             exit 1
           fi
-          
+
           echo "Port 4566 is accessible, checking health endpoint..."
           max_attempts=30
           attempt=0
@@ -103,12 +113,12 @@ jobs:
               echo "LocalStack is ready!"
               echo "Health endpoint response:"
               curl -s http://localhost:4566/_localstack/health | jq '.'
-              
+
               echo ""
               echo "Testing if services are available..."
               health_response=$(curl -s http://localhost:4566/_localstack/health)
               echo "Full health response: $health_response"
-              
+
               break
             fi
             attempt=$((attempt + 1))
@@ -121,7 +131,7 @@ jobs:
             docker logs $(docker ps -q --filter ancestor=localstack/localstack:latest) || echo "Could not get container logs"
             exit 1
           fi
-          
+
           echo ""
           echo "LocalStack is ready for tests!"
 
@@ -133,14 +143,8 @@ jobs:
         run: dotnet restore --no-cache --force
         working-directory: '${{ env.working-directory }}'
 
-      - name: Step-08 Build Version (Pre-release)
-        if: ${{ env.is-release != 'true' }}
-        run: dotnet build --configuration Release --no-restore -p:PackageVersion=${{ steps.gitversion.outputs.NuGetVersion }}
-        working-directory: '${{ env.working-directory }}'
-
-      - name: Step-08 Build Version (Release)
-        if: ${{ env.is-release == 'true' }}
-        run: dotnet build --configuration Release --no-restore -p:PackageVersion=${{ steps.gitversion.outputs.MajorMinorPatch }}
+      - name: Step-08 Build Version ${{ steps.version.outputs.package-version }}
+        run: dotnet build --configuration Release --no-restore -p:PackageVersion=${{ steps.version.outputs.package-version }}
         working-directory: '${{ env.working-directory }}'
 
       - name: Step-09 Run Unit Tests
@@ -162,25 +166,22 @@ jobs:
           AWS_ENDPOINT_URL: http://localhost:4566
           GITHUB_ACTIONS: true
 
-      - name: Step-10 Create NuGet Package (Pre-release)
-        if: ${{ env.is-release != 'true' }}
-        run: dotnet pack --configuration Release --no-build --output ./packages -p:PackageVersion=${{ steps.gitversion.outputs.NuGetVersion }}
-        working-directory: '${{ env.working-directory }}'
-
-      - name: Step-10 Create NuGet Package (Release)
-        if: ${{ env.is-release == 'true' }}
-        run: dotnet pack --configuration Release --no-build --output ./packages -p:PackageVersion=${{ steps.gitversion.outputs.MajorMinorPatch }}
+      - name: Step-10 Create NuGet Package ${{ steps.version.outputs.package-version }}
+        run: dotnet pack --configuration Release --no-build --output ./packages -p:PackageVersion=${{ steps.version.outputs.package-version }}
         working-directory: '${{ env.working-directory }}'
 
       - name: Step-11 Publish to Github Packages
-        if: ${{ env.is-release == 'true' }}
         run: |
-          dotnet tool install gpr --global
-          find ./packages -name "*.nupkg" -print -exec gpr push -k ${{ env.github-token }} {} \;
+          dotnet nuget add source --username CodeShayk --password ${{ secrets.GITHUB_TOKEN }} \
+            --store-password-in-clear-text --name github \
+            "https://nuget.pkg.github.com/CodeShayk/index.json" || true
+          find ./packages -name "*.nupkg" -print -exec \
+            dotnet nuget push {} --skip-duplicate --api-key ${{ secrets.GITHUB_TOKEN }} \
+            --source "https://nuget.pkg.github.com/CodeShayk/index.json" \;
         working-directory: '${{ env.working-directory }}'
 
       - name: Step-12 Publish to NuGet.org
-        if: ${{ 'false' && env.is-release == 'true' && env.nuget-token != '' }}
+        if: ${{ env.is-release == 'true' && env.nuget-token != '' }}
         run: |
           find ./packages -name "*.nupkg" -print -exec dotnet nuget push {} --skip-duplicate --api-key ${{ env.nuget-token }} --source https://api.nuget.org/v3/index.json \;
         working-directory: '${{ env.working-directory }}'
