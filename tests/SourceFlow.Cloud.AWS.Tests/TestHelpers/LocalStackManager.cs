@@ -840,8 +840,11 @@ public class LocalStackManager : ILocalStackManager
     /// </summary>
     private class LocalStackHealthResponse
     {
+        [System.Text.Json.Serialization.JsonPropertyName("services")]
         public Dictionary<string, string>? Services { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("version")]
         public string? Version { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("features")]
         public Dictionary<string, object>? Features { get; set; }
     }
 }
