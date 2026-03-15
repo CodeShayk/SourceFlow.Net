@@ -8,11 +8,12 @@
 5. [Framework Components](#framework-components)
 6. [Persistence with Entity Framework](#persistence-with-entity-framework)
 7. [EntityFramework Usage Examples](#entityframework-usage-examples)
-8. [Implementation Guide](#implementation-guide)
-9. [Advanced Features](#advanced-features)
-10. [Performance and Observability](#performance-and-observability)
-11. [Best Practices](#best-practices)
-12. [FAQ](#faq)
+8. [Cloud Integration (AWS)](#cloud-integration-aws)
+9. [Implementation Guide](#implementation-guide)
+10. [Advanced Features](#advanced-features)
+11. [Performance and Observability](#performance-and-observability)
+12. [Best Practices](#best-practices)
+13. [FAQ](#faq)
 
 ---
 
@@ -31,6 +32,8 @@ SourceFlow.Net provides a complete toolkit for event sourcing, domain modeling, 
 * 📊 **Event Sourcing Foundation** - Event-first design with full audit trail
 * 🧱 **Clean Architecture** - Clear separation of concerns and dependency management
 * 💾 **Flexible Persistence** - Multiple storage options including Entity Framework Core
+* ☁️ **Cloud-Native Messaging** - AWS SQS/SNS integration for distributed command and event processing
+* 🔐 **Message Security** - KMS envelope encryption and sensitive data masking for cloud messages
 * 🔄 **Event Replay** - Built-in command replay for debugging and state reconstruction
 * 🎯 **Type Safety** - Strongly-typed commands, events, and projections
 * 📦 **Dependency Injection** - Seamless integration with .NET DI container
@@ -179,8 +182,46 @@ public class AccountProjection : IProjectOn<AccountCreated>, IProjectOn<MoneyDep
 8. **Command Store** persists commands for replay capability
 9. **Entity Store** persists root aggregates (entities) within bounded context
 10. **ViewModel Store** persists transformed view models from events
-  
+
 **Entity Framework Stores** provide persistence using EF Core with support for multiple databases
+
+### Cloud-Native Extension
+
+When the **SourceFlow.Cloud.AWS** package is added, the architecture extends to distributed systems:
+
+1. **Cloud Command Dispatcher** routes commands to **Amazon SQS** queues (Standard or FIFO)
+2. **Cloud Event Dispatcher** publishes events to **Amazon SNS** topics with fan-out to subscribers
+3. **Bus Bootstrapper** (`IHostedService`) auto-provisions queues, topics, and subscriptions at startup
+4. **Cloud Listeners** poll SQS queues and feed messages back into the local Command Bus / Event Queue
+5. **Idempotency Service** prevents duplicate message processing across multiple instances
+6. **KMS Encryption** provides envelope encryption for sensitive message payloads
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Application Instance                                       │
+│  ┌──────────┐    ┌──────────┐    ┌──────────────────────┐  │
+│  │ Aggregate │───>│ Command  │───>│ SQS Command          │  │
+│  │           │    │ Bus      │    │ Dispatcher            │  │
+│  └──────────┘    └──────────┘    └──────────┬───────────┘  │
+│                                              │              │
+│  ┌──────────┐    ┌──────────┐    ┌──────────▼───────────┐  │
+│  │ Views    │<───│ Event    │<───│ SNS Event             │  │
+│  │          │    │ Queue    │    │ Dispatcher             │  │
+│  └──────────┘    └──────────┘    └──────────────────────┘  │
+│                                                             │
+│  ┌──────────────────────┐    ┌──────────────────────────┐  │
+│  │ SQS Command Listener │    │ Idempotency Service      │  │
+│  │ (polls queues)       │    │ (duplicate detection)    │  │
+│  └──────────────────────┘    └──────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+         │                              │
+         ▼                              ▼
+   ┌───────────┐                 ┌────────────┐
+   │ Amazon    │                 │ Amazon     │
+   │ SQS       │                 │ SNS        │
+   │ Queues    │<────────────────│ Topics     │
+   └───────────┘  (subscription) └────────────┘
+```
 
 ---
 
@@ -194,6 +235,9 @@ dotnet add package SourceFlow
 
 # Install Entity Framework persistence
 dotnet add package SourceFlow.Stores.EntityFramework
+
+# Install AWS cloud messaging (optional)
+dotnet add package SourceFlow.Cloud.AWS
 ```
 
 ### Basic Setup
@@ -1353,6 +1397,388 @@ builder.Services.AddScoped(sp =>
 
 // Similar for CommandDbContext and ViewModelDbContext
 ```
+
+---
+
+## Cloud Integration (AWS)
+
+SourceFlow.Cloud.AWS extends the framework with distributed command and event processing using Amazon SQS, SNS, and KMS. It enables multiple application instances to communicate through cloud messaging while preserving the same CQRS and event-sourcing patterns used locally.
+
+### Installation
+
+```bash
+dotnet add package SourceFlow.Cloud.AWS
+```
+
+**Prerequisites**: SourceFlow >= 2.0.0, .NET Standard 2.1 / .NET 8.0+ / .NET 9.0+ / .NET 10.0+
+
+### Quick Start
+
+```csharp
+using SourceFlow.Cloud.AWS;
+using Amazon;
+
+// Register SourceFlow core
+services.UseSourceFlow(typeof(Program).Assembly);
+
+// Configure AWS cloud messaging
+services.UseSourceFlowAws(
+    options =>
+    {
+        options.Region = RegionEndpoint.USEast1;
+        options.MaxConcurrentCalls = 10;
+    },
+    bus => bus
+        .Send
+            .Command<CreateOrderCommand>(q => q.Queue("orders.fifo"))
+            .Command<ProcessPaymentCommand>(q => q.Queue("payments.fifo"))
+        .Raise
+            .Event<OrderCreatedEvent>(t => t.Topic("order-events"))
+            .Event<PaymentProcessedEvent>(t => t.Topic("payment-events"))
+        .Listen.To
+            .CommandQueue("orders.fifo")
+            .CommandQueue("payments.fifo")
+        .Subscribe.To
+            .Topic("order-events")
+            .Topic("payment-events"));
+```
+
+This registers AWS dispatchers, configures routing, starts SQS listeners, and automatically provisions queues/topics/subscriptions at startup via the `AwsBusBootstrapper` hosted service.
+
+### Bus Configuration API
+
+The fluent bus configuration API maps commands to SQS queues and events to SNS topics:
+
+#### Send Commands to SQS Queues
+
+```csharp
+.Send
+    .Command<CreateOrderCommand>(q => q.Queue("orders.fifo"))    // FIFO queue
+    .Command<SendEmailCommand>(q => q.Queue("notifications"))     // Standard queue
+```
+
+- **FIFO queues** (name ends with `.fifo`): Exactly-once processing, strict ordering per message group, content-based deduplication
+- **Standard queues**: High throughput, at-least-once delivery, best-effort ordering
+
+#### Raise Events to SNS Topics
+
+```csharp
+.Raise
+    .Event<OrderCreatedEvent>(t => t.Topic("order-events"))
+    .Event<PaymentProcessedEvent>(t => t.Topic("payment-events"))
+```
+
+Events are published to SNS topics using the publish-subscribe pattern with fan-out to all subscribed queues.
+
+#### Listen to Command Queues
+
+```csharp
+.Listen.To
+    .CommandQueue("orders.fifo")
+    .CommandQueue("payments.fifo")
+```
+
+Listeners poll SQS queues and feed received messages back into the local Command Bus for saga processing.
+
+#### Subscribe to Event Topics
+
+```csharp
+.Subscribe.To
+    .Topic("order-events")
+    .Topic("payment-events")
+```
+
+SNS topics are subscribed to the first configured command queue, enabling event-driven cross-service communication.
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `Region` | `RegionEndpoint` | Required | AWS region for SQS/SNS/KMS |
+| `EnableCommandRouting` | `bool` | `true` | Enable command dispatching to SQS |
+| `EnableEventRouting` | `bool` | `true` | Enable event publishing to SNS |
+| `EnableCommandListener` | `bool` | `true` | Enable SQS command polling |
+| `EnableEventListener` | `bool` | `true` | Enable SNS event listener |
+| `MaxConcurrentCalls` | `int` | `10` | Max concurrent message processing |
+| `EnableEncryption` | `bool` | `false` | Enable KMS message encryption |
+| `KmsKeyId` | `string` | `null` | KMS key ID or alias |
+
+### Message Encryption (KMS)
+
+Enable envelope encryption for sensitive message payloads:
+
+```csharp
+services.UseSourceFlowAws(
+    options =>
+    {
+        options.Region = RegionEndpoint.USEast1;
+        options.EnableEncryption = true;
+        options.KmsKeyId = "alias/sourceflow-key";
+    },
+    bus => ...);
+```
+
+**Encryption flow**: Generate data key (KMS) -> Encrypt message (data key) -> Encrypt data key (KMS master key) -> Store encrypted message + encrypted data key in SQS.
+
+**Decryption flow**: Retrieve encrypted message -> Decrypt data key (KMS) -> Decrypt message (data key) -> Plaintext message.
+
+### Automatic Resource Provisioning
+
+The `AwsBusBootstrapper` runs as an `IHostedService` at startup and automatically creates:
+
+- **SQS queues**: Standard and FIFO with dead letter queues, configurable retention and visibility timeout
+- **SNS topics**: With display names
+- **SNS-to-SQS subscriptions**: Raw message delivery enabled, with queue policy updates for SNS publish permissions
+
+All provisioning operations are idempotent — safe to run on every application startup.
+
+### Idempotency
+
+#### In-Memory (Single Instance)
+
+Automatically registered when using `UseSourceFlowAws()`. Suitable for single-instance deployments.
+
+#### SQL-Based (Multi-Instance)
+
+For production with multiple application instances processing the same queues:
+
+```csharp
+// Install: dotnet add package SourceFlow.Stores.EntityFramework
+
+// Register SQL-backed idempotency (replaces in-memory default)
+services.AddSourceFlowIdempotency(
+    connectionString: configuration.GetConnectionString("IdempotencyStore"),
+    cleanupIntervalMinutes: 60);
+
+// Then configure AWS
+services.UseSourceFlowAws(options => ..., bus => ...);
+```
+
+The `EfIdempotencyService` uses database transactions for thread-safe duplicate detection across instances, with automatic background cleanup of expired records.
+
+### Command and Event Flow
+
+**Command Flow (SQS)**:
+```
+Aggregate.Send(command)
+    → CommandBus (assigns sequence number)
+    → AwsSqsCommandDispatcher (checks routing, encrypts if enabled)
+    → SQS Queue (message persisted)
+    → AwsSqsCommandListener (polls queue, decrypts, idempotency check)
+    → CommandBus.Publish (local processing)
+    → Saga handles command
+```
+
+**Event Flow (SNS → SQS)**:
+```
+Saga.Raise(event)
+    → EventQueue (enqueues event)
+    → AwsSnsEventDispatcher (checks routing, publishes to SNS)
+    → SNS Topic (fan-out to subscribers)
+    → SQS Queue (subscribed to topic)
+    → AwsSqsCommandListener (polls queue, idempotency check)
+    → EventQueue.Enqueue (local processing)
+    → Views/Aggregates handle event
+```
+
+### Health Checks
+
+```csharp
+services.AddHealthChecks()
+    .AddCheck<AwsHealthCheck>("aws");
+```
+
+Checks SQS connectivity, SNS connectivity, KMS access (if encryption enabled), and queue/topic existence.
+
+### Observability
+
+**Activity Source**: `SourceFlow.Cloud.AWS`
+
+**Traces**:
+- `AwsSqsCommandDispatcher.Dispatch` — Command dispatch to SQS
+- `AwsSnsEventDispatcher.Dispatch` — Event publish to SNS
+- `AwsSqsCommandListener.ProcessMessage` — Message processing from SQS
+
+**Metrics**:
+- `sourceflow.aws.command.dispatched` / `dispatch_duration` / `dispatch_error`
+- `sourceflow.aws.event.published` / `publish_duration` / `publish_error`
+- `sourceflow.aws.message.received` / `processed` / `processing_duration` / `processing_error`
+
+Trace context is propagated via SQS message attributes for end-to-end distributed tracing.
+
+### Local Development with LocalStack
+
+LocalStack provides local AWS service emulation for development and testing.
+
+#### Quick Start (Recommended)
+
+```bash
+# PowerShell (Windows)
+./tests/SourceFlow.Cloud.AWS.Tests/run-integration-tests.ps1
+
+# Bash (Linux/macOS/WSL)
+./tests/SourceFlow.Cloud.AWS.Tests/run-integration-tests.sh
+```
+
+The scripts start a LocalStack Docker container, wait for SQS/SNS/KMS services, set environment variables, and run integration tests. Use `-KeepRunning` / `--keep` to leave the container running.
+
+#### Manual Setup
+
+```bash
+docker run -d --name sourceflow-localstack \
+  -p 4566:4566 \
+  -e SERVICES=sqs,sns,kms \
+  -e EAGER_SERVICE_LOADING=1 \
+  localstack/localstack:latest
+```
+
+#### Environment Variables
+
+```bash
+export AWS_ENDPOINT_URL=http://localhost:4566
+export AWS_DEFAULT_REGION=us-east-1
+# LocalStack uses dummy credentials — test fixtures use BasicAWSCredentials("test", "test")
+```
+
+#### Integration Tests
+
+```csharp
+[Trait("Category", "Integration")]
+[Trait("Category", "RequiresLocalStack")]
+public class MyIntegrationTests : LocalStackRequiredTestBase
+{
+    [Fact]
+    public async Task Should_Process_Command_Through_SQS()
+    {
+        // Test against local SQS/SNS/KMS
+    }
+}
+```
+
+```bash
+# Run integration tests (LocalStack must be running)
+dotnet test --filter "Category=Integration&Category=RequiresLocalStack"
+```
+
+### Complete Cloud Application Example
+
+End-to-end setup with EF persistence, cloud messaging, and SQL-backed idempotency:
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// 1. Register domain types
+EntityDbContext.RegisterAssembly(typeof(Program).Assembly);
+ViewModelDbContext.RegisterAssembly(typeof(Program).Assembly);
+
+// 2. Register SourceFlow core
+builder.Services.UseSourceFlow(typeof(Program).Assembly);
+
+// 3. Register EF persistence stores
+builder.Services.AddSourceFlowEfStores(builder.Configuration, options =>
+{
+    options.UseCommandStore("CommandStore");
+    options.UseEntityStore("EntityStore");
+    options.UseViewModelStore("ViewModelStore");
+});
+
+// 4. Register SQL-backed idempotency for multi-instance deployments
+builder.Services.AddSourceFlowIdempotency(
+    connectionString: builder.Configuration.GetConnectionString("IdempotencyStore"),
+    cleanupIntervalMinutes: 60);
+
+// 5. Configure AWS cloud messaging
+builder.Services.UseSourceFlowAws(
+    options =>
+    {
+        options.Region = RegionEndpoint.USEast1;
+        options.EnableEncryption = true;
+        options.KmsKeyId = "alias/sourceflow-key";
+        options.MaxConcurrentCalls = 10;
+    },
+    bus => bus
+        .Send
+            .Command<CreateOrderCommand>(q => q.Queue("orders.fifo"))
+        .Raise
+            .Event<OrderCreatedEvent>(t => t.Topic("order-events"))
+        .Listen.To
+            .CommandQueue("orders.fifo")
+        .Subscribe.To
+            .Topic("order-events"));
+
+// 6. Health checks
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<EntityDbContext>("entity-store")
+    .AddCheck<AwsHealthCheck>("aws");
+
+// 7. Observability
+builder.Services.AddSourceFlowTelemetry(options =>
+{
+    options.Enabled = true;
+    options.ServiceName = "OrderService";
+});
+
+var app = builder.Build();
+app.MapHealthChecks("/health");
+app.Run();
+```
+
+### IAM Permissions
+
+**Development** (broad access):
+```json
+{
+  "Statement": [
+    { "Action": ["sqs:*"], "Resource": "arn:aws:sqs:*:*:*", "Effect": "Allow" },
+    { "Action": ["sns:*"], "Resource": "arn:aws:sns:*:*:*", "Effect": "Allow" },
+    { "Action": ["sts:GetCallerIdentity"], "Resource": "*", "Effect": "Allow" }
+  ]
+}
+```
+
+**Production** (restricted to specific resources):
+```json
+{
+  "Statement": [
+    {
+      "Action": ["sqs:CreateQueue", "sqs:GetQueueUrl", "sqs:GetQueueAttributes",
+                  "sqs:SetQueueAttributes", "sqs:ReceiveMessage", "sqs:SendMessage",
+                  "sqs:DeleteMessage", "sqs:ChangeMessageVisibility"],
+      "Resource": ["arn:aws:sqs:us-east-1:123456789012:orders.fifo"],
+      "Effect": "Allow"
+    },
+    {
+      "Action": ["sns:CreateTopic", "sns:GetTopicAttributes", "sns:Subscribe",
+                  "sns:Publish"],
+      "Resource": ["arn:aws:sns:us-east-1:123456789012:order-events"],
+      "Effect": "Allow"
+    },
+    {
+      "Action": ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey", "kms:DescribeKey"],
+      "Resource": "arn:aws:kms:us-east-1:123456789012:key/your-key-id",
+      "Effect": "Allow"
+    },
+    {
+      "Action": ["sts:GetCallerIdentity"],
+      "Resource": "*",
+      "Effect": "Allow"
+    }
+  ]
+}
+```
+
+### Cloud Best Practices
+
+1. **Use FIFO queues for ordered operations** — commands that must be processed in sequence per entity
+2. **Use standard queues for independent operations** — notifications, emails, analytics
+3. **Group related commands to the same queue** — `CreateOrder`, `UpdateOrder`, `CancelOrder` all go to `orders.fifo`
+4. **Enable SQL-based idempotency in production** — in-memory is insufficient for multi-instance deployments
+5. **Enable KMS encryption for sensitive data** — PII, financial data, health records
+6. **Use infrastructure-as-code for production** — CloudFormation/Terraform for queues and topics; let bootstrapper handle dev only
+7. **Monitor health checks and metrics** — alert on `sourceflow.aws.message.processing_error` and circuit breaker state
+8. **Configure dead letter queues** — review failed messages regularly
+
+For detailed AWS configuration, IAM policies, and architecture diagrams, see the [SourceFlow.Cloud.AWS Documentation](SourceFlow.Cloud.AWS-README.md).
 
 ---
 
@@ -2516,6 +2942,53 @@ services.AddSourceFlowEfStoresWithCustomProvider(options =>
 
 The `AddSourceFlowEfStores` methods without "CustomProvider" use SQL Server by default.
 
+### Q: How do I add AWS cloud messaging to my application?
+
+**A:** Install `SourceFlow.Cloud.AWS` and configure using the fluent API:
+
+```csharp
+dotnet add package SourceFlow.Cloud.AWS
+```
+
+```csharp
+services.UseSourceFlowAws(
+    options => { options.Region = RegionEndpoint.USEast1; },
+    bus => bus
+        .Send.Command<MyCommand>(q => q.Queue("my-queue.fifo"))
+        .Raise.Event<MyEvent>(t => t.Topic("my-events"))
+        .Listen.To.CommandQueue("my-queue.fifo")
+        .Subscribe.To.Topic("my-events"));
+```
+
+The bootstrapper automatically provisions SQS queues, SNS topics, and subscriptions at startup.
+
+### Q: Do I need to create SQS queues and SNS topics manually?
+
+**A:** No. The `AwsBusBootstrapper` runs as an `IHostedService` and creates all required resources at startup. All operations are idempotent. For production, consider using CloudFormation/Terraform for resource management and letting the bootstrapper verify they exist.
+
+### Q: How do I prevent duplicate message processing in multi-instance deployments?
+
+**A:** Use SQL-based idempotency from `SourceFlow.Stores.EntityFramework`:
+
+```csharp
+services.AddSourceFlowIdempotency(
+    connectionString: configuration.GetConnectionString("IdempotencyStore"),
+    cleanupIntervalMinutes: 60);
+```
+
+This uses database transactions for thread-safe duplicate detection across instances. For single-instance deployments, the default `InMemoryIdempotencyService` is sufficient.
+
+### Q: How do I test AWS integrations locally?
+
+**A:** Use LocalStack with the provided scripts:
+
+```bash
+./tests/SourceFlow.Cloud.AWS.Tests/run-integration-tests.ps1   # Windows
+./tests/SourceFlow.Cloud.AWS.Tests/run-integration-tests.sh    # Linux/macOS
+```
+
+Or manually start LocalStack via Docker and set `AWS_ENDPOINT_URL=http://localhost:4566`.
+
 ### Q: What's the difference between EnsureCreated() and ApplyMigrations()?
 
 **A:**
@@ -2599,14 +3072,25 @@ Set naming conventions BEFORE calling `ApplyMigrations()` to ensure tables are c
 6. **Configure Observability**: Use appropriate sampling rates for production (1-10%)
 7. **Enable Resilience**: Use Polly policies for fault tolerance in production
 
+### Cloud Deployment
+
+1. **Enable SQL-based idempotency**: Required for multi-instance deployments processing shared queues
+2. **Enable KMS encryption**: For messages containing sensitive data (PII, financial, health)
+3. **Use FIFO queues**: For commands requiring ordered processing per entity
+4. **Configure dead letter queues**: Monitor and reprocess failed messages
+5. **Restrict IAM permissions**: Scope SQS/SNS/KMS access to specific resource ARNs
+6. **Monitor cloud health checks**: `AwsHealthCheck` validates SQS, SNS, and KMS connectivity
+7. **Use infrastructure-as-code**: CloudFormation or Terraform for production AWS resources
+
 ### Monitoring
 
 ```csharp
-// Health checks
+// Health checks (database + AWS)
 services.AddHealthChecks()
     .AddDbContextCheck<CommandDbContext>("commandstore")
     .AddDbContextCheck<EntityDbContext>("entitystore")
-    .AddDbContextCheck<ViewModelDbContext>("viewmodelstore");
+    .AddDbContextCheck<ViewModelDbContext>("viewmodelstore")
+    .AddCheck<AwsHealthCheck>("aws");  // SQS, SNS, KMS connectivity
 
 // OpenTelemetry metrics and tracing
 services.AddSourceFlowTelemetry("ProductionApp", "1.0.0");
@@ -2618,6 +3102,9 @@ services.AddOpenTelemetry()
 // - Operation latency: sourceflow.domain.operation.duration (P50/P95/P99)
 // - Circuit breaker state: polly.circuit_breaker.state
 // - GC pressure: dotnet.gc.collections (reduced with ArrayPool)
+// - AWS dispatch: sourceflow.aws.command.dispatched / dispatch_duration
+// - AWS errors: sourceflow.aws.message.processing_error
+// - AWS events: sourceflow.aws.event.published / publish_duration
 ```
 
 ### Deployment
@@ -2666,6 +3153,8 @@ public class MyCommand : Command<MyPayload>
 
 - **GitHub Repository**: [https://github.com/CodeShayk/SourceFlow.Net](https://github.com/CodeShayk/SourceFlow.Net)
 - **Documentation**: [https://github.com/CodeShayk/SourceFlow.Net/wiki](https://github.com/CodeShayk/SourceFlow.Net/wiki)
+- **AWS Cloud Documentation**: [SourceFlow.Cloud.AWS README](SourceFlow.Cloud.AWS-README.md)
+- **Entity Framework Documentation**: [SourceFlow.Stores.EntityFramework README](SourceFlow.Stores.EntityFramework-README.md)
 - **Issues**: [https://github.com/CodeShayk/SourceFlow.Net/issues](https://github.com/CodeShayk/SourceFlow.Net/issues)
 - **Discussions**: [https://github.com/CodeShayk/SourceFlow.Net/discussions](https://github.com/CodeShayk/SourceFlow.Net/discussions)
 
@@ -2677,6 +3166,6 @@ SourceFlow.Net is released under the MIT License, making it free for both commer
 
 ## Conclusion
 
-SourceFlow.Net provides a robust, scalable foundation for building event-sourced applications with .NET. By combining Event Sourcing, Domain-Driven Design, and CQRS patterns with flexible Entity Framework persistence, it enables developers to create maintainable, auditable, and performant systems.
+SourceFlow.Net provides a robust, scalable foundation for building event-sourced applications with .NET. By combining Event Sourcing, Domain-Driven Design, and CQRS patterns with flexible Entity Framework persistence and cloud-native AWS messaging, it enables developers to create maintainable, auditable, and performant distributed systems.
 
 **Start your journey with SourceFlow.Net today and build better software with events as your foundation!**
