@@ -105,7 +105,7 @@ Click on **[Architecture](https://github.com/CodeShayk/SourceFlow.Net/blob/maste
 </a>
 
 **From Problems to Patterns — Domain-Driven Design and Event Sourcing in .NET**
-*By Najaf Shaikh · First Edition, 2026*
+*By Najaf A. Shaikh · First Edition, 2026*
 
 The complete, runnable companion code for all 32 chapters of the book is available in the [dd-event-sourcing-dotnet-samples](https://github.com/CodeShayk/dd-event-sourcing-dotnet-samples) repository. Every code example builds and all tests pass. The code evolves chapter by chapter through a single Bank Account domain — starting from a naive CRUD implementation and ending with a containerised, observable, event-sourced system built on **SourceFlow.Net**.
 
