@@ -1629,7 +1629,7 @@ docker run -d --name sourceflow-localstack \
   -p 4566:4566 \
   -e SERVICES=sqs,sns,kms \
   -e EAGER_SERVICE_LOADING=1 \
-  localstack/localstack:latest
+  localstack/localstack:3
 ```
 
 #### Environment Variables

@@ -8,7 +8,7 @@ public class LocalStackConfiguration
     /// <summary>
     /// LocalStack container image to use
     /// </summary>
-    public string Image { get; set; } = "localstack/localstack:latest";
+    public string Image { get; set; } = "localstack/localstack:3";
     
     /// <summary>
     /// LocalStack endpoint URL (typically http://localhost:4566)

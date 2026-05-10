@@ -20,7 +20,7 @@ jobs:
 
     services:
       localstack:
-        image: localstack/localstack:latest
+        image: localstack/localstack:3
         ports:
           - 4566:4566
         env:
@@ -128,7 +128,7 @@ jobs:
           if [ $attempt -eq $max_attempts ]; then
             echo "ERROR: LocalStack did not become ready in time"
             echo "Checking LocalStack container logs..."
-            docker logs $(docker ps -q --filter ancestor=localstack/localstack:latest) || echo "Could not get container logs"
+            docker logs $(docker ps -q --filter ancestor=localstack/localstack:3) || echo "Could not get container logs"
             exit 1
           fi
 

@@ -156,7 +156,7 @@ if (-not $alreadyRunning) {
         -e "DEBUG=1" `
         -e "EAGER_SERVICE_LOADING=1" `
         -e "SKIP_SSL_CERT_DOWNLOAD=1" `
-        localstack/localstack:latest
+        localstack/localstack:3
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to start LocalStack container." -ForegroundColor Red

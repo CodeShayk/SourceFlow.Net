@@ -678,7 +678,7 @@ env:
 
 services:
   localstack:
-    image: localstack/localstack:latest
+    image: localstack/localstack:3
     ports:
       - 4566:4566
     env:

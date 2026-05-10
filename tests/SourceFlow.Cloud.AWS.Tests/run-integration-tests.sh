@@ -138,7 +138,7 @@ if ! $ALREADY_RUNNING; then
         -e "DEBUG=1" \
         -e "EAGER_SERVICE_LOADING=1" \
         -e "SKIP_SSL_CERT_DOWNLOAD=1" \
-        localstack/localstack:latest
+        localstack/localstack:3
 
     ok "Container started."
 fi

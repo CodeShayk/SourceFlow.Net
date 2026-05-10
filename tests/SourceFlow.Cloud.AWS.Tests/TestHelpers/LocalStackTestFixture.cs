@@ -127,7 +127,7 @@ public class LocalStackTestFixture : IAsyncLifetime
             {
                 // Create LocalStack container (local development only)
                 _localStackContainer = new ContainerBuilder()
-                    .WithImage("localstack/localstack:latest")
+                    .WithImage("localstack/localstack:3")
                     .WithPortBinding(4566, 4566)
                     .WithEnvironment("SERVICES", "sqs,sns,kms")
                     .WithEnvironment("DEBUG", "1")
