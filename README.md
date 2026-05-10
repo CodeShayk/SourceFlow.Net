@@ -98,6 +98,17 @@ Click on **[Architecture](https://github.com/CodeShayk/SourceFlow.Net/blob/maste
 |SourceFlow.Cloud.AWS|v2.0.0 |15th Mar 2026 |Provides support for AWS cloud with cross domain boundary command and Event publishing & subscription. Includes comprehensive testing framework with LocalStack integration, performance benchmarks, security validation, and resilience testing.|[![.Net 10](https://img.shields.io/badge/.Net-10-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) [![.Net 9.0](https://img.shields.io/badge/.Net-9.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/9.0) [![.Net 8.0](https://img.shields.io/badge/.Net-8.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)|
 |SourceFlow.Cloud.Azure|v2.0.0 |(TBC) |Provides support for Azure cloud with cross domain boundary command and Event publishing & subscription. Includes comprehensive testing framework with Azurite integration, performance benchmarks, security validation, and resilience testing.|[![.Net 10](https://img.shields.io/badge/.Net-10-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) [![.Net 9.0](https://img.shields.io/badge/.Net-9.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/9.0) [![.Net 8.0](https://img.shields.io/badge/.Net-8.0-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)|
 
+## Companion Book
+
+<a href="https://www.amazon.com/Problems-Patterns-Domain-Driven-Sourcing-Understanding-ebook/dp/B0GX32V9F1/">
+  <img src="https://github.com/CodeShayk/SourceFlow.Net/blob/master/Images/e-book-front.png" alt="From Problems to Patterns: Domain-Driven Design and Event Sourcing in .NET" width="250" align="right" />
+</a>
+
+**From Problems to Patterns — Domain-Driven Design and Event Sourcing in .NET**
+*By Najaf Shaikh · First Edition, 2026*
+
+The complete, runnable companion code for all 32 chapters of the book is available in the [dd-event-sourcing-dotnet-samples](https://github.com/CodeShayk/dd-event-sourcing-dotnet-samples) repository. Every code example builds and all tests pass. The code evolves chapter by chapter through a single Bank Account domain — starting from a naive CRUD implementation and ending with a containerised, observable, event-sourced system built on **SourceFlow.Net**.
+
 ## Getting Started
 ### Installation
 add nuget packages for SourceFlow.Net
