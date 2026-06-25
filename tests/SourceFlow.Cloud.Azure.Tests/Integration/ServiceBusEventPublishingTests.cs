@@ -472,31 +472,41 @@ public class ServiceBusEventPublishingTests : IAsyncLifetime
 
     private async Task EnsureTopicWithMultipleSubscriptionsExistsAsync(string topicName, string[] subscriptionNames)
     {
-        // Create topic if it doesn't exist
-        if (!await _adminClient!.TopicExistsAsync(topicName))
+        // The Service Bus emulator has no management endpoint; entities are
+        // pre-declared in .github/azure-emulator/Config.json. Tolerate admin
+        // failures so the AMQP-based test body can still run.
+        try
         {
-            var topicOptions = new CreateTopicOptions(topicName)
+            // Create topic if it doesn't exist
+            if (!await _adminClient!.TopicExistsAsync(topicName))
             {
-                DefaultMessageTimeToLive = TimeSpan.FromDays(14),
-                EnableBatchedOperations = true
-            };
-
-            await _adminClient.CreateTopicAsync(topicOptions);
-        }
-
-        // Create subscriptions
-        foreach (var subscriptionName in subscriptionNames)
-        {
-            if (!await _adminClient.SubscriptionExistsAsync(topicName, subscriptionName))
-            {
-                var subscriptionOptions = new CreateSubscriptionOptions(topicName, subscriptionName)
+                var topicOptions = new CreateTopicOptions(topicName)
                 {
-                    MaxDeliveryCount = 10,
-                    LockDuration = TimeSpan.FromMinutes(5)
+                    DefaultMessageTimeToLive = TimeSpan.FromDays(14),
+                    EnableBatchedOperations = true
                 };
 
-                await _adminClient.CreateSubscriptionAsync(subscriptionOptions);
+                await _adminClient.CreateTopicAsync(topicOptions);
             }
+
+            // Create subscriptions
+            foreach (var subscriptionName in subscriptionNames)
+            {
+                if (!await _adminClient.SubscriptionExistsAsync(topicName, subscriptionName))
+                {
+                    var subscriptionOptions = new CreateSubscriptionOptions(topicName, subscriptionName)
+                    {
+                        MaxDeliveryCount = 10,
+                        LockDuration = TimeSpan.FromMinutes(5)
+                    };
+
+                    await _adminClient.CreateSubscriptionAsync(subscriptionOptions);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _output.WriteLine($"Error ensuring topic {topicName} with subscriptions: {ex.Message}");
         }
     }
 

@@ -8,7 +8,16 @@
           { "Name": "test-commands.fifo", "Properties": { "LockDuration": "PT1M", "RequiresSession": true, "MaxDeliveryCount": 10 } },
           { "Name": "test-commands-dedup", "Properties": { "LockDuration": "PT1M", "RequiresDuplicateDetection": true, "DuplicateDetectionHistoryTimeWindow": "PT5M", "MaxDeliveryCount": 10 } }
         ],
-        "Topics": []
+        "Topics": [
+          { "Name": "test-events", "Properties": {}, "Subscriptions": [ { "Name": "test-subscription", "Properties": { "LockDuration": "PT1M", "MaxDeliveryCount": 10 } } ] },
+          { "Name": "test-events-fanout", "Properties": {}, "Subscriptions": [ { "Name": "subscription-1", "Properties": { "LockDuration": "PT1M", "MaxDeliveryCount": 10 } }, { "Name": "subscription-2", "Properties": { "LockDuration": "PT1M", "MaxDeliveryCount": 10 } }, { "Name": "subscription-3", "Properties": { "LockDuration": "PT1M", "MaxDeliveryCount": 10 } } ] },
+          { "Name": "session-events-topic", "Properties": {}, "Subscriptions": [ { "Name": "session-events-sub", "Properties": { "RequiresSession": true, "LockDuration": "PT1M", "MaxDeliveryCount": 10 } } ] },
+          { "Name": "multi-session-topic", "Properties": {}, "Subscriptions": [ { "Name": "multi-session-sub", "Properties": { "RequiresSession": true, "LockDuration": "PT1M", "MaxDeliveryCount": 10 } } ] },
+          { "Name": "correlation-session-topic", "Properties": {}, "Subscriptions": [ { "Name": "correlation-session-sub", "Properties": { "RequiresSession": true, "LockDuration": "PT1M", "MaxDeliveryCount": 10 } } ] },
+          { "Name": "session-state-topic", "Properties": {}, "Subscriptions": [ { "Name": "session-state-sub", "Properties": { "RequiresSession": true, "LockDuration": "PT1M", "MaxDeliveryCount": 10 } } ] },
+          { "Name": "session-lock-topic", "Properties": {}, "Subscriptions": [ { "Name": "session-lock-sub", "Properties": { "RequiresSession": true, "LockDuration": "PT1M", "MaxDeliveryCount": 10 } } ] },
+          { "Name": "mixed-events-topic", "Properties": {}, "Subscriptions": [ { "Name": "mixed-events-sub", "Properties": { "RequiresSession": true, "LockDuration": "PT1M", "MaxDeliveryCount": 10 } } ] }
+        ]
       }
     ],
     "Logging": { "Type": "File" }

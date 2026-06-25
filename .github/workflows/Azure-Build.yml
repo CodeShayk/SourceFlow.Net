@@ -103,14 +103,30 @@ jobs:
 
       # The emulator exposes only the AMQP endpoint (5672) — it has no HTTP
       # management endpoint, so ServiceBusAdministrationClient calls fail. We run
-      # the suite that tolerates that (pre-declared entities in Config.json + AMQP
+      # the suites that tolerate that (pre-declared entities in Config.json + AMQP
       # send/receive). Suites that hard-require the management API, Key Vault,
-      # Managed Identity, or runtime entity creation are excluded.
-      - name: Run Azure Service Bus integration tests (emulator)
+      # Managed Identity, SQL rule filters, or runtime entity creation are excluded.
+      # Each suite runs as its own step so the per-class filter stays AND-only
+      # (VSTest has no parentheses and mixes &/| left-to-right unreliably).
+      - name: Integration — command dispatching
         run: >-
           dotnet test tests/SourceFlow.Cloud.Azure.Tests/SourceFlow.Cloud.Azure.Tests.csproj
           --configuration Release --no-build --verbosity normal
           --filter "FullyQualifiedName~ServiceBusCommandDispatchingTests&FullyQualifiedName!~DeadLetterQueue_SupportsResubmission&FullyQualifiedName!~SessionHandling_MultipleSessions_ProcessIndependently&FullyQualifiedName!~SessionHandling_PreservesOrderWithinSession"
+          -- RunConfiguration.TestSessionTimeout=600000
+
+      - name: Integration — event publishing
+        run: >-
+          dotnet test tests/SourceFlow.Cloud.Azure.Tests/SourceFlow.Cloud.Azure.Tests.csproj
+          --configuration Release --no-build --verbosity normal
+          --filter "FullyQualifiedName~ServiceBusEventPublishingTests"
+          -- RunConfiguration.TestSessionTimeout=600000
+
+      - name: Integration — event session handling
+        run: >-
+          dotnet test tests/SourceFlow.Cloud.Azure.Tests/SourceFlow.Cloud.Azure.Tests.csproj
+          --configuration Release --no-build --verbosity normal
+          --filter "FullyQualifiedName~ServiceBusEventSessionHandlingTests"
           -- RunConfiguration.TestSessionTimeout=600000
 
       - name: Dump emulator logs on failure

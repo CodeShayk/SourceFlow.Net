@@ -414,8 +414,10 @@ public class ServiceBusEventSessionHandlingTests : IAsyncLifetime
         }
         catch (Exception ex)
         {
+            // The Service Bus emulator has no management endpoint; entities are
+            // pre-declared in .github/azure-emulator/Config.json. Tolerate admin
+            // failures so the AMQP-based test body can still run.
             _output.WriteLine($"Error creating topic/subscription: {ex.Message}");
-            throw;
         }
     }
 
