@@ -77,10 +77,17 @@ jobs:
         run: |
           echo "Waiting for the Service Bus emulator to report ready..."
           for i in $(seq 1 60); do
-            if docker compose logs sb-emulator 2>&1 | grep -qi "Emulator Service is Successfully Up"; then
+            logs=$(docker compose logs sb-emulator 2>&1)
+            if echo "$logs" | grep -qi "Emulator Service is Successfully Up"; then
               echo "Emulator is ready."
               sleep 5   # small settle margin
               exit 0
+            fi
+            if echo "$logs" | grep -qiE "Error occured while running emulator launcher|Hosting failed to start"; then
+              echo "ERROR: emulator failed to start (config rejected):"
+              echo "$logs" | grep -iE "Error occured|Expected" | head -5
+              docker compose logs
+              exit 1
             fi
             echo "Attempt $i/60 - emulator not ready yet, waiting..."
             sleep 5
