@@ -67,21 +67,26 @@ jobs:
 
       - name: Start Azure Service Bus emulator
         working-directory: .github/azure-emulator
-        run: docker compose up -d --wait
+        run: docker compose up -d
 
-      - name: Wait for emulator AMQP port
+      # A TCP check on 5672 is unreliable: Docker's port proxy accepts the
+      # connection before the emulator app binds (and while SQL Edge is still
+      # initialising). Wait for the emulator's readiness log line instead.
+      - name: Wait for emulator to be ready
+        working-directory: .github/azure-emulator
         run: |
-          echo "Waiting for Service Bus emulator on localhost:5672..."
-          for i in $(seq 1 30); do
-            if (echo > /dev/tcp/localhost/5672) >/dev/null 2>&1; then
-              echo "Emulator is accepting connections."
+          echo "Waiting for the Service Bus emulator to report ready..."
+          for i in $(seq 1 60); do
+            if docker compose logs sb-emulator 2>&1 | grep -qi "Emulator Service is Successfully Up"; then
+              echo "Emulator is ready."
+              sleep 5   # small settle margin
               exit 0
             fi
-            echo "Attempt $i/30 - not ready yet, waiting..."
-            sleep 3
+            echo "Attempt $i/60 - emulator not ready yet, waiting..."
+            sleep 5
           done
-          echo "ERROR: emulator did not become ready"
-          docker compose -f .github/azure-emulator/docker-compose.yml logs
+          echo "ERROR: emulator did not become ready in time"
+          docker compose logs
           exit 1
 
       - name: Restore & build
