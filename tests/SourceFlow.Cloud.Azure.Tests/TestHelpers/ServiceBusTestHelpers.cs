@@ -64,14 +64,15 @@ public class ServiceBusTestHelpers
         {
             MessageId = Guid.NewGuid().ToString(),
             CorrelationId = correlationId ?? metadataCorrelationId ?? Guid.NewGuid().ToString(),
-            SessionId = command.Entity.ToString(), // For session-based ordering
+            SessionId = command.Entity.Id.ToString(), // For session-based ordering
             Subject = command.Name,
             ContentType = "application/json"
         };
 
-        // Add custom properties for routing and metadata
+        // Add custom properties for routing and metadata. EntityId mirrors the
+        // production dispatcher, which uses the entity's Id (not EntityRef.ToString()).
         message.ApplicationProperties["CommandType"] = command.GetType().AssemblyQualifiedName ?? command.GetType().FullName ?? command.GetType().Name;
-        message.ApplicationProperties["EntityId"] = command.Entity.ToString();
+        message.ApplicationProperties["EntityId"] = command.Entity.Id.ToString();
         message.ApplicationProperties["Timestamp"] = DateTimeOffset.UtcNow.ToString("O");
         message.ApplicationProperties["SourceSystem"] = "SourceFlow.Tests";
 
