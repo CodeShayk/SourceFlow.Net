@@ -55,7 +55,7 @@ jobs:
     env:
       MSSQL_SA_PASSWORD: "SourceFlow!Emulator1"
       # Emulator client connection string (documented default for the emulator image).
-      AZURE_SERVICEBUS_CONNECTION_STRING: "Endpoint=sb://localhost:5672;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true"
+      AZURE_SERVICEBUS_CONNECTION_STRING: "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true"
     steps:
       - uses: actions/checkout@v4
       - name: Setup .NET
@@ -89,11 +89,15 @@ jobs:
           dotnet restore SourceFlow.Net.sln
           dotnet build SourceFlow.Net.sln --configuration Release --no-restore
 
-      - name: Run Azure integration tests
+      # Deterministic Service Bus messaging suites whose entities are declared in
+      # .github/azure-emulator/Config.json. Key Vault / Managed Identity / monitor /
+      # telemetry suites need real Azure, and the property/perf suites create many
+      # queues at runtime (unsupported by the static-entity emulator) — excluded here.
+      - name: Run Azure Service Bus integration tests (emulator)
         run: >-
           dotnet test tests/SourceFlow.Cloud.Azure.Tests/SourceFlow.Cloud.Azure.Tests.csproj
           --configuration Release --no-build --verbosity normal
-          --filter "Category=Integration"
+          --filter "FullyQualifiedName~ServiceBusCommandDispatchingTests|FullyQualifiedName~ServiceBusEventPublishingTests|FullyQualifiedName~ServiceBusEventSessionHandlingTests"
           -- RunConfiguration.TestSessionTimeout=600000
 
       - name: Dump emulator logs on failure

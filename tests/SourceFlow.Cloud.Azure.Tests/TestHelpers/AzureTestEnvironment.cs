@@ -77,7 +77,28 @@ public class AzureTestEnvironment : IAzureTestEnvironment
         await Task.CompletedTask;
     }
 
-    public string GetServiceBusConnectionString() => _config.ServiceBusConnectionString;
+    /// <summary>
+    /// Default connection string for the local Azure Service Bus emulator
+    /// (see .github/azure-emulator/docker-compose.yml).
+    /// </summary>
+    public const string EmulatorConnectionString =
+        "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true";
+
+    public string GetServiceBusConnectionString()
+    {
+        // 1. Explicit connection string from configuration.
+        if (!string.IsNullOrEmpty(_config.ServiceBusConnectionString))
+            return _config.ServiceBusConnectionString;
+
+        // 2. Environment override (real Azure namespace or emulator) — set by CI.
+        var fromEnv = Environment.GetEnvironmentVariable("AZURE_SERVICEBUS_CONNECTION_STRING");
+        if (!string.IsNullOrEmpty(fromEnv))
+            return fromEnv;
+
+        // 3. Fall back to the local Service Bus emulator. Azurite cannot emulate
+        // Service Bus, so tests requesting "Azurite" really target the emulator here.
+        return EmulatorConnectionString;
+    }
     public string GetServiceBusFullyQualifiedNamespace() => _config.FullyQualifiedNamespace;
     public string GetKeyVaultUrl() => _config.KeyVaultUrl;
 

@@ -4,8 +4,9 @@
       {
         "Name": "sbemulatorns",
         "Queues": [
-          { "Name": "test-commands", "Properties": { "LockDuration": "PT1M", "RequiresDuplicateDetection": true, "DuplicateDetectionHistoryTimeWindow": "PT10M", "MaxDeliveryCount": 5 } },
-          { "Name": "test-events", "Properties": { "LockDuration": "PT1M", "MaxDeliveryCount": 5 } },
+          { "Name": "test-commands", "Properties": { "LockDuration": "PT1M", "MaxDeliveryCount": 10 } },
+          { "Name": "test-commands.fifo", "Properties": { "LockDuration": "PT1M", "RequiresSession": true, "MaxDeliveryCount": 10 } },
+          { "Name": "test-commands-dedup", "Properties": { "LockDuration": "PT1M", "RequiresDuplicateDetection": true, "DuplicateDetectionHistoryTimeWindow": "PT10M", "MaxDeliveryCount": 10 } },
           { "Name": "autoscaling-test-queue", "Properties": { "MaxDeliveryCount": 5 } },
           { "Name": "autoscaling-small-queue", "Properties": { "MaxDeliveryCount": 5 } },
           { "Name": "autoscaling-medium-queue", "Properties": { "MaxDeliveryCount": 5 } },
@@ -41,6 +42,8 @@
           { "Name": "perf-resource-queue", "Properties": { "MaxDeliveryCount": 5 } }
         ],
         "Topics": [
+          { "Name": "test-events", "Properties": {}, "Subscriptions": [ { "Name": "test-subscription", "Properties": { "MaxDeliveryCount": 5 } } ] },
+          { "Name": "test-events-fanout", "Properties": {}, "Subscriptions": [ { "Name": "test-subscription", "Properties": { "MaxDeliveryCount": 5 } }, { "Name": "fanout-sub-1", "Properties": { "MaxDeliveryCount": 5 } }, { "Name": "fanout-sub-2", "Properties": { "MaxDeliveryCount": 5 } } ] },
           { "Name": "session-events-topic", "Properties": {}, "Subscriptions": [ { "Name": "session-events-sub", "Properties": { "RequiresSession": true, "MaxDeliveryCount": 5 } } ] },
           { "Name": "session-lock-topic", "Properties": {}, "Subscriptions": [ { "Name": "session-lock-sub", "Properties": { "RequiresSession": true, "MaxDeliveryCount": 5 } } ] },
           { "Name": "session-state-topic", "Properties": {}, "Subscriptions": [ { "Name": "session-state-sub", "Properties": { "RequiresSession": true, "MaxDeliveryCount": 5 } } ] },
