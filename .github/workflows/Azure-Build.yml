@@ -1,0 +1,102 @@
+# Builds and tests the Azure Service Bus cloud extension.
+# Mirrors the AWS Master-Build pipeline (which uses LocalStack); the Azure
+# equivalent of LocalStack is the Azure Service Bus emulator (+ SQL Edge),
+# started from .github/azure-emulator/docker-compose.yml.
+
+name: azure-build
+
+on:
+  push:
+    branches: [ "azure-cloud" ]
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.gitignore"
+      - "**/*.gitattributes"
+  pull_request:
+    branches: [ "azure-cloud", "master" ]
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.gitignore"
+      - "**/*.gitattributes"
+
+jobs:
+  # Build + unit tests. These have no external dependencies and must always pass.
+  build-and-unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+      - name: Restore
+        run: dotnet restore SourceFlow.Net.sln
+      - name: Build
+        run: dotnet build SourceFlow.Net.sln --configuration Release --no-restore
+      - name: Run Azure unit tests
+        run: >-
+          dotnet test tests/SourceFlow.Cloud.Azure.Tests/SourceFlow.Cloud.Azure.Tests.csproj
+          --configuration Release --no-build --verbosity normal
+          --filter "Category=Unit"
+      - name: Pack SourceFlow.Cloud.Azure
+        run: dotnet pack src/SourceFlow.Cloud.Azure/SourceFlow.Cloud.Azure.csproj --configuration Release --no-build --output ./packages
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: azure-nupkg
+          path: ./packages/*.nupkg
+          retention-days: 7
+
+  # Integration tests against the Azure Service Bus emulator.
+  integration-test:
+    runs-on: ubuntu-latest
+    env:
+      MSSQL_SA_PASSWORD: "SourceFlow!Emulator1"
+      # Emulator client connection string (documented default for the emulator image).
+      AZURE_SERVICEBUS_CONNECTION_STRING: "Endpoint=sb://localhost:5672;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+
+      - name: Start Azure Service Bus emulator
+        working-directory: .github/azure-emulator
+        run: docker compose up -d --wait
+
+      - name: Wait for emulator AMQP port
+        run: |
+          echo "Waiting for Service Bus emulator on localhost:5672..."
+          for i in $(seq 1 30); do
+            if (echo > /dev/tcp/localhost/5672) >/dev/null 2>&1; then
+              echo "Emulator is accepting connections."
+              exit 0
+            fi
+            echo "Attempt $i/30 - not ready yet, waiting..."
+            sleep 3
+          done
+          echo "ERROR: emulator did not become ready"
+          docker compose -f .github/azure-emulator/docker-compose.yml logs
+          exit 1
+
+      - name: Restore & build
+        run: |
+          dotnet restore SourceFlow.Net.sln
+          dotnet build SourceFlow.Net.sln --configuration Release --no-restore
+
+      - name: Run Azure integration tests
+        run: >-
+          dotnet test tests/SourceFlow.Cloud.Azure.Tests/SourceFlow.Cloud.Azure.Tests.csproj
+          --configuration Release --no-build --verbosity normal
+          --filter "Category=Integration"
+          -- RunConfiguration.TestSessionTimeout=600000
+
+      - name: Dump emulator logs on failure
+        if: failure()
+        working-directory: .github/azure-emulator
+        run: docker compose logs

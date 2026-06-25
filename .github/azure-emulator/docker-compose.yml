@@ -1,0 +1,29 @@
+# Azure Service Bus emulator + required SQL backing store.
+# This is the Azure equivalent of the LocalStack setup used for the AWS tests.
+# Docs: https://learn.microsoft.com/azure/service-bus-messaging/test-locally-with-service-bus-emulator
+#
+# The emulator only serves entities (queues/topics/subscriptions) that are
+# declared up-front in Config.json — it does NOT support creating entities at
+# runtime via ServiceBusAdministrationClient. Add any new entity a test needs
+# to Config.json before running.
+services:
+  sb-emulator:
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    pull_policy: always
+    volumes:
+      - "./Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json"
+    ports:
+      - "5672:5672"   # AMQP
+    environment:
+      SQL_SERVER: sqledge
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      ACCEPT_EULA: "Y"
+    depends_on:
+      sqledge:
+        condition: service_started
+
+  sqledge:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
