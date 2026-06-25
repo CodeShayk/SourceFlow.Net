@@ -67,6 +67,13 @@ public class ServiceBusCommandDispatchingTests : IAsyncLifetime
 
         // Create test queues
         await CreateTestQueuesAsync();
+
+        // These tests share entities on the emulator (which has no per-test
+        // teardown). Drain the shared non-session queues and their dead-letter
+        // sub-queues so each test starts from a clean state — otherwise a message
+        // dead-lettered by one test leaks into the next test's DLQ assertions.
+        await DrainQueueAsync("test-commands");
+        await DrainQueueAsync("test-commands-dedup");
     }
 
     public async Task DisposeAsync()
@@ -685,6 +692,43 @@ public class ServiceBusCommandDispatchingTests : IAsyncLifetime
     #endregion
 
     #region Helper Methods
+
+    /// <summary>
+    /// Empties a queue and its dead-letter sub-queue using ReceiveAndDelete so each
+    /// test starts from a clean state (the emulator has no admin purge endpoint).
+    /// </summary>
+    private async Task DrainQueueAsync(string queueName)
+    {
+        foreach (var subQueue in new[] { SubQueue.None, SubQueue.DeadLetter })
+        {
+            var receiver = _serviceBusClient!.CreateReceiver(queueName, new ServiceBusReceiverOptions
+            {
+                SubQueue = subQueue,
+                ReceiveMode = ServiceBusReceiveMode.ReceiveAndDelete
+            });
+
+            try
+            {
+                while (true)
+                {
+                    var messages = await receiver.ReceiveMessagesAsync(
+                        maxMessages: 100,
+                        maxWaitTime: TimeSpan.FromMilliseconds(500));
+
+                    if (messages == null || messages.Count == 0)
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _output.WriteLine($"Error draining {queueName} ({subQueue}): {ex.Message}");
+            }
+            finally
+            {
+                await receiver.DisposeAsync();
+            }
+        }
+    }
 
     private async Task CreateTestQueuesAsync()
     {
