@@ -729,31 +729,48 @@ public class ServiceBusCommandDispatchingTests : IAsyncLifetime
 
     private async Task EnsureSessionQueueExistsAsync(string queueName)
     {
-        if (!await _adminClient!.QueueExistsAsync(queueName))
+        // The Service Bus emulator has no management endpoint; entities are
+        // pre-declared in .github/azure-emulator/Config.json. Tolerate admin
+        // failures so the AMQP-based test body can still run.
+        try
         {
-            var options = new CreateQueueOptions(queueName)
+            if (!await _adminClient!.QueueExistsAsync(queueName))
             {
-                RequiresSession = true,
-                MaxDeliveryCount = 10,
-                LockDuration = TimeSpan.FromMinutes(5)
-            };
+                var options = new CreateQueueOptions(queueName)
+                {
+                    RequiresSession = true,
+                    MaxDeliveryCount = 10,
+                    LockDuration = TimeSpan.FromMinutes(5)
+                };
 
-            await _adminClient.CreateQueueAsync(options);
+                await _adminClient.CreateQueueAsync(options);
+            }
+        }
+        catch (Exception ex)
+        {
+            _output.WriteLine($"Error ensuring session queue {queueName}: {ex.Message}");
         }
     }
 
     private async Task EnsureDuplicateDetectionQueueExistsAsync(string queueName)
     {
-        if (!await _adminClient!.QueueExistsAsync(queueName))
+        try
         {
-            var options = new CreateQueueOptions(queueName)
+            if (!await _adminClient!.QueueExistsAsync(queueName))
             {
-                RequiresDuplicateDetection = true,
-                DuplicateDetectionHistoryTimeWindow = TimeSpan.FromMinutes(10),
-                MaxDeliveryCount = 10
-            };
+                var options = new CreateQueueOptions(queueName)
+                {
+                    RequiresDuplicateDetection = true,
+                    DuplicateDetectionHistoryTimeWindow = TimeSpan.FromMinutes(10),
+                    MaxDeliveryCount = 10
+                };
 
-            await _adminClient.CreateQueueAsync(options);
+                await _adminClient.CreateQueueAsync(options);
+            }
+        }
+        catch (Exception ex)
+        {
+            _output.WriteLine($"Error ensuring dedup queue {queueName}: {ex.Message}");
         }
     }
 

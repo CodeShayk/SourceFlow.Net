@@ -89,15 +89,16 @@ jobs:
           dotnet restore SourceFlow.Net.sln
           dotnet build SourceFlow.Net.sln --configuration Release --no-restore
 
-      # Deterministic Service Bus messaging suites whose entities are declared in
-      # .github/azure-emulator/Config.json. Key Vault / Managed Identity / monitor /
-      # telemetry suites need real Azure, and the property/perf suites create many
-      # queues at runtime (unsupported by the static-entity emulator) — excluded here.
+      # The emulator exposes only the AMQP endpoint (5672) — it has no HTTP
+      # management endpoint, so ServiceBusAdministrationClient calls fail. We run
+      # the suite that tolerates that (pre-declared entities in Config.json + AMQP
+      # send/receive). Suites that hard-require the management API, Key Vault,
+      # Managed Identity, or runtime entity creation are excluded.
       - name: Run Azure Service Bus integration tests (emulator)
         run: >-
           dotnet test tests/SourceFlow.Cloud.Azure.Tests/SourceFlow.Cloud.Azure.Tests.csproj
           --configuration Release --no-build --verbosity normal
-          --filter "FullyQualifiedName~ServiceBusCommandDispatchingTests|FullyQualifiedName~ServiceBusEventPublishingTests|FullyQualifiedName~ServiceBusEventSessionHandlingTests"
+          --filter "FullyQualifiedName~ServiceBusCommandDispatchingTests"
           -- RunConfiguration.TestSessionTimeout=600000
 
       - name: Dump emulator logs on failure
