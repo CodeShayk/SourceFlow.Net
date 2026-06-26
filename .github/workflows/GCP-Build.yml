@@ -1,0 +1,95 @@
+# Builds and tests the Google Cloud (Pub/Sub) cloud extension.
+# Unit tests have no dependencies; integration tests run against the Pub/Sub emulator
+# (the clients auto-detect PUBSUB_EMULATOR_HOST). Unlike the Azure Service Bus emulator the
+# Pub/Sub emulator needs no SQL backing store and no entity pre-declaration.
+
+name: gcp-build
+
+on:
+  push:
+    branches: [ "gcp_cloud" ]
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.gitignore"
+      - "**/*.gitattributes"
+  pull_request:
+    branches: [ "gcp_cloud", "master" ]
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.gitignore"
+      - "**/*.gitattributes"
+
+jobs:
+  build-and-unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+      - name: Restore
+        run: dotnet restore SourceFlow.Net.sln
+      - name: Build
+        run: dotnet build SourceFlow.Net.sln --configuration Release --no-restore
+      - name: Run GCP unit tests
+        run: >-
+          dotnet test tests/SourceFlow.Cloud.GCP.Tests/SourceFlow.Cloud.GCP.Tests.csproj
+          --configuration Release --no-build --verbosity normal
+          --filter "Category=Unit"
+      - name: Pack SourceFlow.Cloud.GCP
+        run: dotnet pack src/SourceFlow.Cloud.GCP/SourceFlow.Cloud.GCP.csproj --configuration Release --no-build --output ./packages
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gcp-nupkg
+          path: ./packages/*.nupkg
+          retention-days: 7
+
+  integration-test:
+    runs-on: ubuntu-latest
+    env:
+      PUBSUB_EMULATOR_HOST: localhost:8085
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+
+      # GitHub `services:` cannot pass a multi-word command, so run the emulator via compose.
+      - name: Start Pub/Sub emulator
+        working-directory: .github/gcp-emulator
+        run: docker compose up -d
+
+      - name: Wait for emulator
+        working-directory: .github/gcp-emulator
+        run: |
+          echo "Waiting for the Pub/Sub emulator..."
+          for i in $(seq 1 30); do
+            if docker compose logs pubsub-emulator 2>&1 | grep -qi "Server started, listening"; then
+              echo "Emulator is ready."; exit 0
+            fi
+            echo "Attempt $i/30 - not ready yet..."; sleep 3
+          done
+          echo "ERROR: emulator did not become ready"; docker compose logs; exit 1
+
+      - name: Restore & build
+        run: |
+          dotnet restore SourceFlow.Net.sln
+          dotnet build SourceFlow.Net.sln --configuration Release --no-restore
+
+      - name: Run GCP integration tests (emulator)
+        run: >-
+          dotnet test tests/SourceFlow.Cloud.GCP.Tests/SourceFlow.Cloud.GCP.Tests.csproj
+          --configuration Release --no-build --verbosity normal
+          --filter "Category=Integration"
+
+      - name: Dump emulator logs on failure
+        if: failure()
+        working-directory: .github/gcp-emulator
+        run: docker compose logs

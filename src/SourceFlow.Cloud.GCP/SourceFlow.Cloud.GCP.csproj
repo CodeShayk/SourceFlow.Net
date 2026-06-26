@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Version>2.0.0-beta.1</Version>
+    <AssemblyVersion>2.0.0</AssemblyVersion>
+    <FileVersion>2.0.0</FileVersion>
+    <RepositoryUrl>https://github.com/CodeShayk/SourceFlow.Net</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/CodeShayk/SourceFlow.Net/wiki</PackageProjectUrl>
+    <Authors>CodeShayk</Authors>
+    <Company>CodeShayk</Company>
+    <Product>SourceFlow.Net</Product>
+    <Title>SourceFlow.Cloud.GCP</Title>
+    <PackageId>SourceFlow.Cloud.GCP</PackageId>
+    <AssemblyTitle>Google Cloud Extension for SourceFlow.Net</AssemblyTitle>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Description>Google Cloud provider for SourceFlow.Net. Implements command dispatching and event publishing via Google Cloud Pub/Sub (topics and pull subscriptions). Features include automatic bus bootstrapping as an IHostedService that provisions topics and subscriptions at startup, Cloud KMS envelope encryption, configurable retry policies, health checks for the Pub/Sub endpoint, the Pub/Sub emulator for local development, and OpenTelemetry metrics. Supports .NET 8.0, 9.0, and 10.0.</Description>
+    <Copyright>Copyright (c) 2026 CodeShayk</Copyright>
+    <PackageReadmeFile>\docs\SourceFlow.Cloud.GCP-README.md</PackageReadmeFile>
+    <PackageIcon>event-icon.png</PackageIcon>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <IncludeSymbols>True</IncludeSymbols>
+    <PackageReleaseNotes>
+      v2.0.0 - Initial release with production-ready Google Cloud integration.
+      - Pub/Sub command dispatching: publish to topics, pull from subscriptions.
+      - Pub/Sub event publishing: topic fan-out to per-service pull subscriptions.
+      - Bus bootstrapper: IHostedService that auto-provisions topics and subscriptions at startup.
+      - Security: Cloud KMS envelope encryption for messages.
+      - Health checks: IHealthCheck implementation for the Pub/Sub endpoint.
+      - Local development: Pub/Sub emulator support via PUBSUB_EMULATOR_HOST.
+      - Observability: OpenTelemetry metrics across command and event flows.
+      - Depends on SourceFlow.Net 2.0.0.
+    </PackageReleaseNotes>
+    <PackageTags>SourceFlow;GCP;GoogleCloud;PubSub;KMS;Cloud;Messaging;CQRS;Event-Sourcing;Commands;Events;Pub-Sub;Health-Checks</PackageTags>
+    <EnableNETAnalyzers>True</EnableNETAnalyzers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Cloud.PubSub.V1" Version="3.17.0" />
+    <PackageReference Include="Google.Cloud.Kms.V1" Version="3.16.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SourceFlow\SourceFlow.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\Images\event-icon.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\..\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\..\docs\SourceFlow.Cloud.GCP-README.md">
+      <Pack>True</Pack>
+      <PackagePath>\docs</PackagePath>
+    </None>
+  </ItemGroup>
+
+</Project>

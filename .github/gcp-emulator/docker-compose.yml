@@ -1,0 +1,14 @@
+# Google Cloud Pub/Sub emulator for local development and CI.
+# The SourceFlow.Cloud.GCP clients auto-detect the emulator via PUBSUB_EMULATOR_HOST
+# (EmulatorDetection.EmulatorOrProduction). Unlike the Azure Service Bus emulator there is
+# no SQL backing store and no entity pre-declaration — the bootstrapper creates topics and
+# subscriptions at runtime.
+services:
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    command: >-
+      gcloud beta emulators pubsub start
+      --host-port=0.0.0.0:8085
+      --project=sourceflow-emulator
+    ports:
+      - "8085:8085"
