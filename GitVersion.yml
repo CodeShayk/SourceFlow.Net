@@ -1,4 +1,4 @@
-next-version: 2.0.0
+next-version: 3.0.0
 tag-prefix: '[vV]'
 mode: ContinuousDeployment
 branches:
@@ -29,6 +29,19 @@ branches:
     increment: Inherit
     regex: ^(pull|pull\-requests|pr)[/-]
     source-branches: ['master', 'develop', 'release', 'pre-release']
+  v3:
+    # v3.0.0 integration branch (implementation plan 02 §2). Switch tag to 'rc' at M6 (WP-6.3).
+    regex: ^v3\.0\.0$
+    tag: alpha
+    increment: None
+    prevent-increment-of-merged-branch-version: true
+    source-branches: ['master']
+  v3-work:
+    # Work-package branches: v3/<wp-id>-<slug> (implementation plan 02 §1)
+    regex: ^v3/
+    tag: '{BranchName}'
+    increment: Inherit
+    source-branches: ['v3']
   feature:
     tag: '{BranchName}'
     increment: Inherit
