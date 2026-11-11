@@ -2,5 +2,6 @@
   <!-- Bank sample, Accounts service domain (WP-1.14): the ported v2 E2E domain. References only SourceFlow.Net (ARCH-04). -->
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <ProjectReference Include="..\Bank.Contracts\Bank.Contracts.csproj" />
   </ItemGroup>
 </Project>

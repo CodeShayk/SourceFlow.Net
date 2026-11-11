@@ -1,10 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- End-to-end scenarios over the Bank sample (E2E-xx); chaos scenarios (CH-xx) carry Category=Chaos (nightly). -->
+  <PropertyGroup>
+    <UseSourceFlowGenerator>true</UseSourceFlowGenerator>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
+    <ProjectReference Include="..\..\..\samples\Bank\Bank.Contracts\Bank.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\samples\Bank\Bank.Accounts\Bank.Accounts.csproj" />
+    <ProjectReference Include="..\..\..\samples\Bank\Bank.Transfers\Bank.Transfers.csproj" />
+    <ProjectReference Include="..\..\..\samples\Bank\Bank.Notifications\Bank.Notifications.csproj" />
   </ItemGroup>
 </Project>

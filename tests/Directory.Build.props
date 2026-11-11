@@ -6,7 +6,8 @@
     <IsTestProject>true</IsTestProject>
     <OutputType>Exe</OutputType>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <NoWarn>$(NoWarn);CA1707;CA2007</NoWarn>
+    <!-- CA1707: underscores in test names; CA2007: no ConfigureAwait in tests; xUnit1051: optional tokens on API calls under test. -->
+    <NoWarn>$(NoWarn);CA1707;CA2007;xUnit1051</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />

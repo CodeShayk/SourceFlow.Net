@@ -28,3 +28,15 @@ ADR-010,ADRs,Commit-ordered global position
 ES-R1,doc 05 5.3,Stream write first
 ES-R2,doc 05 3.1,One stream per session
 GAP-15,product 06,Not-found semantics
+ADR-002,ADRs,Event sourcing
+ADR-007,ADRs,Single command ownership
+ADR-012,ADRs,One middleware abstraction
+RT-R1,doc 04 3,Owned xor routed
+RT-R4,doc 04 3,One subscription per service
+RT-R5,doc 04 3,Logical names
+GAP-03,product 06,No inert options
+GAP-05,product 06,Concurrency on append
+GAP-11,product 06,One dead-letter view
+GAP-13,product 06,Per-service fan-out
+GAP-20,product 06,Default ids rejected
+ARCH-04,ADR-027,Domain code uses only contract namespaces

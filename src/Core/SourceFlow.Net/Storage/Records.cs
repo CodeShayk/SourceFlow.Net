@@ -197,6 +197,12 @@ public sealed record DeadLetter
     /// <summary>The full original envelope.</summary>
     public required MessageEnvelope Envelope { get; init; }
 
+    /// <summary>Where a replay sends the message: the original endpoint or topic.</summary>
+    public string? Destination { get; init; }
+
+    /// <summary>True when <see cref="Destination"/> is a topic (publish) rather than an endpoint (send).</summary>
+    public bool DestinationIsTopic { get; init; }
+
     /// <summary>A short reason, for example <c>UnknownMessageType</c>.</summary>
     public required string Reason { get; init; }
 

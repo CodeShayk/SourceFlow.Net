@@ -104,7 +104,6 @@ namespace Bank.Accounts
             global::System.ArgumentNullException.ThrowIfNull(builder);
             builder.AddJsonTypeInfoResolver(global::Bank.Accounts.AccountsJsonContext.Default);
             builder.AddJsonConverter(new global::Bank.Accounts.AccountId.SourceFlowJsonConverter());
-            builder.AddMessage<global::Bank.Accounts.AccountOpenedV1>("accounts.account-opened", 1);
             builder.AddMessage<global::Bank.Accounts.CloseAccount>("bank.account.close", 1);
             builder.AddMessage<global::Bank.Accounts.AccountClosed>("bank.account.closed", 1);
             builder.AddMessage<global::Bank.Accounts.Deposit>("bank.account.deposit", 1);

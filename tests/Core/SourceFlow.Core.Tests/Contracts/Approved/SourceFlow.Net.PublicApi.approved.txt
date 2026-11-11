@@ -421,6 +421,127 @@ namespace SourceFlow
         public System.Type MessageType { get; }
     }
 }
+namespace SourceFlow.Diagnostics
+{
+    public sealed class SourceFlowMetrics : System.IDisposable
+    {
+        public SourceFlowMetrics() { }
+        public System.Diagnostics.Metrics.Histogram<double> AppendDuration { get; }
+        public System.Diagnostics.Metrics.Histogram<long> AppendEvents { get; }
+        public System.Diagnostics.Metrics.Histogram<double> CommandDuration { get; }
+        public System.Diagnostics.Metrics.Counter<long> ConcurrencyConflicts { get; }
+        public System.Diagnostics.Metrics.Counter<long> ConsumedMessages { get; }
+        public System.Diagnostics.Metrics.Counter<long> DeadLettersParked { get; }
+        public System.Diagnostics.Metrics.Counter<long> InboxDuplicates { get; }
+        public System.Diagnostics.Metrics.Histogram<long> LoadEvents { get; }
+        public System.Diagnostics.Metrics.Meter Meter { get; }
+        public System.Diagnostics.Metrics.Histogram<double> OutboxDispatchDuration { get; }
+        public System.Diagnostics.Metrics.Histogram<double> ProcessDuration { get; }
+        public System.Diagnostics.Metrics.Counter<long> RetryAttempts { get; }
+        public System.Diagnostics.Metrics.Counter<long> SentMessages { get; }
+        public System.Diagnostics.Metrics.Histogram<double> SubscriptionBatchDuration { get; }
+        public void Dispose() { }
+    }
+    public static class SourceFlowTelemetry
+    {
+        public const string ActivitySourceName = "SourceFlow";
+        public const string InMemorySystem = "sourceflow.inmemory";
+        public const string MeterName = "SourceFlow";
+        public static readonly System.Diagnostics.ActivitySource ActivitySource;
+        public static readonly System.Collections.Generic.IReadOnlyList<long> CountBuckets;
+        public static readonly System.Collections.Generic.IReadOnlyList<double> DurationBuckets;
+        public static readonly string Version;
+        public static class Tags
+        {
+            public const string AggregateType = "sourceflow.aggregate.type";
+            public const string BatchCount = "messaging.batch.message_count";
+            public const string CommandType = "sourceflow.command.type";
+            public const string ConcurrencyRetries = "sourceflow.concurrency.retries";
+            public const string Consumer = "consumer";
+            public const string ConsumerGroup = "messaging.consumer.group.name";
+            public const string ConversationId = "messaging.message.conversation_id";
+            public const string Destination = "messaging.destination.name";
+            public const string ErrorType = "error.type";
+            public const string LoadSource = "sourceflow.load.source";
+            public const string MessageId = "messaging.message.id";
+            public const string MessageType = "sourceflow.message.type";
+            public const string MessagingSystem = "messaging.system";
+            public const string OperationName = "messaging.operation.name";
+            public const string OperationType = "messaging.operation.type";
+            public const string Outcome = "sourceflow.outcome";
+            public const string Partition = "sourceflow.partition";
+            public const string ProcessId = "sourceflow.process.id";
+            public const string Reason = "reason";
+            public const string RetryKind = "retry.kind";
+            public const string SettleAction = "sourceflow.settle.action";
+            public const string Stage = "stage";
+            public const string StreamId = "sourceflow.stream.id";
+            public const string Subscription = "sourceflow.subscription";
+        }
+    }
+}
+namespace SourceFlow.Hosting
+{
+    public enum ProjectionMode
+    {
+        Inline = 0,
+        Async = 1,
+    }
+    public sealed class ProjectionModeBuilder
+    {
+        public SourceFlow.Hosting.ProjectionModeBuilder Async() { }
+        public SourceFlow.Hosting.ProjectionModeBuilder Inline() { }
+    }
+    public sealed class ProjectionsBuilder
+    {
+        public SourceFlow.Hosting.ProjectionModeBuilder Add<TProjection>()
+            where TProjection :  class { }
+    }
+    public static class ServiceCollectionExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder AddSourceFlow(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder builder, string name = "sourceflow") { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddSourceFlow(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<SourceFlow.Hosting.SourceFlowBuilder> configure) { }
+    }
+    public sealed class SourceFlowBuilder
+    {
+        public SourceFlow.Transport.ProvisioningMode Provisioning { get; set; }
+        public SourceFlow.Hosting.SourceFlowRoles Roles { get; set; }
+        public string ServiceName { get; set; }
+        public Microsoft.Extensions.DependencyInjection.IServiceCollection Services { get; }
+        public SourceFlow.Hosting.SourceFlowBuilder AddModule<TModule>()
+            where TModule : SourceFlow.ISourceFlowModule { }
+        public SourceFlow.Hosting.SourceFlowBuilder Configure(System.Action<SourceFlow.Runtime.SourceFlowOptions> configure) { }
+        public SourceFlow.Hosting.SourceFlowBuilder Errors(System.Action<SourceFlow.Pipeline.ErrorClassifier> configure) { }
+        public SourceFlow.Hosting.SourceFlowBuilder Projections(System.Action<SourceFlow.Hosting.ProjectionsBuilder> configure) { }
+        public SourceFlow.Hosting.SourceFlowBuilder Routing(System.Action<SourceFlow.Runtime.RoutingBuilder> configure) { }
+        public SourceFlow.Hosting.SourceFlowBuilder UseInMemoryStorage(SourceFlow.Storage.InMemory.InMemoryStore? store = null) { }
+        public SourceFlow.Hosting.SourceFlowBuilder UseInMemoryTransport(SourceFlow.Transport.InMemory.InMemoryBroker? broker = null) { }
+        public SourceFlow.Hosting.SourceFlowBuilder UseMiddleware(System.Func<System.IServiceProvider, SourceFlow.Pipeline.IMessageMiddleware> factory, SourceFlow.Pipeline.PipelineStage stages = 31, System.Func<SourceFlow.Pipeline.MessageContext, bool>? filter = null) { }
+        public SourceFlow.Hosting.SourceFlowBuilder UseStorage(System.Func<System.IServiceProvider, SourceFlow.Runtime.StoragePorts> factory) { }
+        public SourceFlow.Hosting.SourceFlowBuilder UseTransport(System.Func<System.IServiceProvider, SourceFlow.Transport.ITransport> factory) { }
+    }
+    public sealed class SourceFlowHost : Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck, Microsoft.Extensions.Hosting.IHostedService, System.IAsyncDisposable
+    {
+        public bool IsReady { get; }
+        public int ReceiveInFlight { get; }
+        public SourceFlow.Runtime.SourceFlowRuntime Runtime { get; }
+        public System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult> CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext context, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.ValueTask DisposeAsync() { }
+        public void Pulse() { }
+        public System.Threading.Tasks.Task StartAsync(System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task StopAsync(System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<bool> SubscriptionsCaughtUpAsync(System.Threading.CancellationToken cancellationToken) { }
+    }
+    [System.Flags]
+    public enum SourceFlowRoles
+    {
+        Api = 0,
+        Receiver = 1,
+        Relay = 2,
+        Subscriptions = 4,
+        All = 7,
+    }
+}
 namespace SourceFlow.Messaging
 {
     public static class CloudEvents
@@ -559,6 +680,96 @@ namespace SourceFlow.Messaging
         public int Version { get; }
     }
 }
+namespace SourceFlow.Pipeline
+{
+    public sealed class ErrorClassifier
+    {
+        public ErrorClassifier() { }
+        public SourceFlow.Pipeline.HandlingOutcome Classify(System.Exception exception) { }
+        public SourceFlow.Pipeline.ErrorClassifier Treat<TException>(SourceFlow.Pipeline.HandlingOutcome outcome)
+            where TException : System.Exception { }
+    }
+    public enum HandlingOutcome
+    {
+        None = 0,
+        Completed = 1,
+        Rejected = 2,
+        Duplicate = 3,
+        Transient = 4,
+        Permanent = 5,
+    }
+    public interface IMessageMiddleware
+    {
+        System.Threading.Tasks.ValueTask InvokeAsync(SourceFlow.Pipeline.MessageContext context, SourceFlow.Pipeline.MessageDelegate next);
+    }
+    public sealed class MessageContext
+    {
+        public MessageContext(SourceFlow.Pipeline.PipelineStage stage, SourceFlow.Messaging.MessageEnvelope envelope, System.IServiceProvider services, System.Threading.CancellationToken cancellationToken) { }
+        public System.Diagnostics.Activity? Activity { get; set; }
+        public System.Threading.CancellationToken CancellationToken { get; }
+        public SourceFlow.Messaging.MessageEnvelope Envelope { get; set; }
+        public System.Exception? Exception { get; set; }
+        public System.Collections.Generic.IDictionary<string, object?> Items { get; }
+        public object? Message { get; set; }
+        public SourceFlow.Pipeline.HandlingOutcome Outcome { get; set; }
+        public SourceFlow.CommandResult? Result { get; set; }
+        public System.IServiceProvider Services { get; }
+        public SourceFlow.Storage.IStorageSession? Session { get; set; }
+        public SourceFlow.Pipeline.PipelineStage Stage { get; }
+        public SourceFlow.Messaging.MessageTypeInfo? TypeInfo { get; set; }
+    }
+    public delegate System.Threading.Tasks.ValueTask MessageDelegate(SourceFlow.Pipeline.MessageContext context);
+    public sealed class MessagePipeline
+    {
+        public MessagePipeline(System.Collections.Generic.IEnumerable<SourceFlow.Pipeline.MiddlewareRegistration> registrations) { }
+        public System.Threading.Tasks.ValueTask InvokeAsync(SourceFlow.Pipeline.MessageContext context, SourceFlow.Pipeline.MessageDelegate terminal) { }
+    }
+    public sealed class MiddlewareRegistration : System.IEquatable<SourceFlow.Pipeline.MiddlewareRegistration>
+    {
+        public MiddlewareRegistration(System.Func<System.IServiceProvider, SourceFlow.Pipeline.IMessageMiddleware> Factory, SourceFlow.Pipeline.PipelineStage Stages, System.Func<SourceFlow.Pipeline.MessageContext, bool>? Filter = null) { }
+        public System.Func<System.IServiceProvider, SourceFlow.Pipeline.IMessageMiddleware> Factory { get; init; }
+        public System.Func<SourceFlow.Pipeline.MessageContext, bool>? Filter { get; init; }
+        public SourceFlow.Pipeline.PipelineStage Stages { get; init; }
+    }
+    public sealed class PermanentException : System.Exception
+    {
+        public PermanentException(string message, System.Exception? inner = null) { }
+    }
+    [System.Flags]
+    public enum PipelineStage
+    {
+        None = 0,
+        Send = 1,
+        Handle = 2,
+        Receive = 4,
+        Publish = 8,
+        Project = 16,
+        All = 31,
+    }
+}
+namespace SourceFlow.Query
+{
+    public sealed class AggregateSnapshot<TAggregate> : System.IEquatable<SourceFlow.Query.AggregateSnapshot<TAggregate>>
+    {
+        public AggregateSnapshot(TAggregate State, SourceFlow.StreamVersion Version) { }
+        public TAggregate State { get; init; }
+        public SourceFlow.StreamVersion Version { get; init; }
+    }
+    public readonly struct AsOf : System.IEquatable<SourceFlow.Query.AsOf>
+    {
+        public System.DateTimeOffset? TimeBound { get; }
+        public SourceFlow.StreamVersion? VersionBound { get; }
+        public static SourceFlow.Query.AsOf Latest { get; }
+        public static SourceFlow.Query.AsOf Time(System.DateTimeOffset time) { }
+        public static SourceFlow.Query.AsOf Version(long version) { }
+    }
+    public interface IAggregateReader
+    {
+        System.Threading.Tasks.ValueTask<SourceFlow.Query.AggregateSnapshot<TAggregate>> LoadAsync<TAggregate, TId>(TId id, SourceFlow.Query.AsOf asOf = default, string? tenantId = null, System.Threading.CancellationToken cancellationToken = default)
+            where TAggregate :  class, SourceFlow.IAggregateRuntime<TAggregate, TId>
+            where TId :  struct, SourceFlow.IStronglyTypedId<TId>;
+    }
+}
 namespace SourceFlow.Runtime
 {
     public abstract class AggregateDescriptor
@@ -584,6 +795,23 @@ namespace SourceFlow.Runtime
         public abstract System.Threading.Tasks.ValueTask<SourceFlow.Decision> HandleAsync(System.IServiceProvider scope, SourceFlow.ICommand command, object state, SourceFlow.DecisionContext context, System.Threading.CancellationToken cancellationToken);
         public abstract void RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services);
     }
+    public sealed class CommandProcessor
+    {
+        public CommandProcessor(SourceFlow.Runtime.SourceFlowRuntime runtime) { }
+        public string Consumer { get; }
+        public System.Threading.Tasks.ValueTask<SourceFlow.CommandResult> ProcessAsync(SourceFlow.ICommand command, SourceFlow.Messaging.MessageEnvelope envelope, bool keyed, SourceFlow.StreamVersion? expectedVersion, System.IServiceProvider services, System.Threading.CancellationToken cancellationToken) { }
+    }
+    public sealed class CommandRoute : System.IEquatable<SourceFlow.Runtime.CommandRoute>
+    {
+        public CommandRoute(string Endpoint, bool ReplyOnReject) { }
+        public string Endpoint { get; init; }
+        public bool ReplyOnReject { get; init; }
+    }
+    public sealed class CommandRouteBuilder
+    {
+        public SourceFlow.Runtime.CommandRouteBuilder ReplyOnReject() { }
+        public SourceFlow.Runtime.CommandRouteBuilder To(string endpoint) { }
+    }
     public abstract class EventHandlerDescriptor
     {
         protected EventHandlerDescriptor() { }
@@ -593,10 +821,34 @@ namespace SourceFlow.Runtime
         public abstract System.Threading.Tasks.ValueTask HandleAsync(System.IServiceProvider scope, SourceFlow.IMessage message, SourceFlow.EventContext context, System.Threading.CancellationToken cancellationToken);
         public abstract void RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services);
     }
+    public interface IActorAccessor
+    {
+        string? Actor { get; }
+    }
+    public interface IDeadLetterManager
+    {
+        System.Threading.Tasks.ValueTask DiscardAsync(System.Guid id, string reason, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.DeadLetter>> ListAsync(SourceFlow.Storage.DeadLetterQuery query, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask ReplayAsync(System.Guid id, string? note = null, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface ITenantResolver
+    {
+        string? TenantId { get; }
+    }
     public sealed class InvalidCommandException : System.ArgumentException
     {
         public InvalidCommandException(System.Type commandType, string message) { }
         public System.Type CommandType { get; }
+    }
+    public sealed class NoRouteException : System.InvalidOperationException
+    {
+        public NoRouteException(System.Type commandType) { }
+        public System.Type CommandType { get; }
+    }
+    public sealed class OutboxRelay
+    {
+        public OutboxRelay(SourceFlow.Runtime.SourceFlowRuntime runtime) { }
+        public System.Threading.Tasks.ValueTask<int> RunOnceAsync(System.Threading.CancellationToken cancellationToken) { }
     }
     public abstract class ProcessManagerDescriptor
     {
@@ -615,9 +867,59 @@ namespace SourceFlow.Runtime
         public abstract System.Type DocumentType { get; }
         public abstract System.Collections.Generic.IReadOnlyList<System.Type> HandledEvents { get; }
         public abstract string Name { get; }
+        public abstract System.Type ProjectionType { get; }
         public abstract int Version { get; }
         public abstract object? Apply(SourceFlow.IEvent @event, object? current, in SourceFlow.EventContext context);
         public abstract bool TryGetDocumentId(SourceFlow.IEvent @event, in SourceFlow.EventContext context, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? documentId);
+    }
+    public sealed class PublicationBuilder<TEvent>
+        where TEvent :  class, SourceFlow.IEvent
+    {
+        public SourceFlow.Runtime.PublicationTarget<TEvent> As<TContract>(System.Func<TEvent, TContract> map)
+            where TContract :  class, SourceFlow.IIntegrationEvent { }
+        public SourceFlow.Runtime.PublicationTarget<TEvent> AsIs() { }
+    }
+    public sealed class PublicationRoute : System.IEquatable<SourceFlow.Runtime.PublicationRoute>
+    {
+        public PublicationRoute(string Destination, System.Type ContractType, System.Func<SourceFlow.IEvent, SourceFlow.IMessage> Map, System.Func<SourceFlow.IEvent, string?>? PartitionKey) { }
+        public System.Type ContractType { get; init; }
+        public string Destination { get; init; }
+        public System.Func<SourceFlow.IEvent, SourceFlow.IMessage> Map { get; init; }
+        public System.Func<SourceFlow.IEvent, string?>? PartitionKey { get; init; }
+    }
+    public sealed class PublicationTarget<TEvent>
+        where TEvent :  class, SourceFlow.IEvent
+    {
+        public SourceFlow.Runtime.PublicationTarget<TEvent> OrderedBy(System.Func<TEvent, object> key) { }
+        public SourceFlow.Runtime.PublicationTarget<TEvent> To(string topic) { }
+    }
+    public sealed class ReceiveEndpoint : System.IAsyncDisposable
+    {
+        public ReceiveEndpoint(SourceFlow.Runtime.SourceFlowRuntime runtime, SourceFlow.Runtime.CommandProcessor commands, Microsoft.Extensions.DependencyInjection.IServiceScopeFactory scopes) { }
+        public int InFlight { get; }
+        public System.Threading.Tasks.ValueTask DisposeAsync() { }
+        public System.Threading.Tasks.ValueTask DrainAsync(System.TimeSpan timeout) { }
+        public System.Threading.Tasks.Task RunAsync(System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask StartAsync(System.Threading.CancellationToken cancellationToken) { }
+    }
+    public sealed class RoutingBuilder
+    {
+        public RoutingBuilder() { }
+        public SourceFlow.Runtime.RoutingTable Build(string serviceName, SourceFlow.Runtime.RuntimeModel model) { }
+        public SourceFlow.Runtime.CommandRouteBuilder Command<TCommand>()
+            where TCommand :  class, SourceFlow.ICommand { }
+        public SourceFlow.Runtime.RoutingBuilder Endpoint(string name) { }
+        public SourceFlow.Runtime.PublicationBuilder<TEvent> Publish<TEvent>()
+            where TEvent :  class, SourceFlow.IEvent { }
+        public SourceFlow.Runtime.RoutingBuilder Subscribe(string topic, System.Action<SourceFlow.Runtime.SubscriptionBuilder>? configure = null) { }
+    }
+    public sealed class RoutingTable
+    {
+        public System.Collections.Frozen.FrozenDictionary<System.Type, SourceFlow.Runtime.CommandRoute> Commands { get; }
+        public string Endpoint { get; }
+        public System.Collections.Frozen.FrozenDictionary<System.Type, System.Collections.Generic.IReadOnlyList<SourceFlow.Runtime.PublicationRoute>> Publications { get; }
+        public System.Collections.Generic.IEnumerable<string> PublishedTopics { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Runtime.SubscriptionRoute> Subscriptions { get; }
     }
     public sealed class RuntimeModel
     {
@@ -665,6 +967,104 @@ namespace SourceFlow.Runtime
         public SourceFlow.Runtime.RuntimeModel Build() { }
         public void RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services) { }
     }
+    public sealed class SourceFlowOptions
+    {
+        public SourceFlowOptions() { }
+        [System.ComponentModel.DataAnnotations.Required]
+        public string DefaultTenant { get; set; }
+        public System.Collections.Generic.IList<System.TimeSpan> DelayedRetries { get; }
+        [System.ComponentModel.DataAnnotations.Range(0, 10)]
+        public int ImmediateRetries { get; set; }
+        public System.TimeSpan LeaseTtl { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(0, 50)]
+        public int MaxConcurrencyRetries { get; set; }
+        [System.ComponentModel.DataAnnotations.Required]
+        public string NodeId { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(1, 10000)]
+        public int OutboxBatchSize { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(1, 1000)]
+        public int OutboxMaxAttempts { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(1, 1024)]
+        public int OutboxPartitions { get; set; }
+        public System.TimeSpan PollInterval { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(1, 10000)]
+        public int PrefetchPerWorker { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(1, 1024)]
+        public int ReceiveConcurrency { get; set; }
+        [System.ComponentModel.DataAnnotations.RegularExpression("^[a-z][a-z0-9-]{0,62}$", ErrorMessage="ServiceName must be lowercase letters, digits and dashes, starting with a letter.")]
+        [System.ComponentModel.DataAnnotations.Required]
+        public string ServiceName { get; set; }
+        public System.TimeSpan ShutdownTimeout { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(1, 10000)]
+        public int SubscriptionBatchSize { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(1, 1024)]
+        public int SubscriptionPartitions { get; set; }
+    }
+    public sealed class SourceFlowOptionsTimingValidator : Microsoft.Extensions.Options.IValidateOptions<SourceFlow.Runtime.SourceFlowOptions>
+    {
+        public SourceFlowOptionsTimingValidator() { }
+        public Microsoft.Extensions.Options.ValidateOptionsResult Validate(string? name, SourceFlow.Runtime.SourceFlowOptions options) { }
+    }
+    [Microsoft.Extensions.Options.OptionsValidator]
+    public sealed class SourceFlowOptionsValidator : Microsoft.Extensions.Options.IValidateOptions<SourceFlow.Runtime.SourceFlowOptions>
+    {
+        public SourceFlowOptionsValidator() { }
+        public Microsoft.Extensions.Options.ValidateOptionsResult Validate(string? name, SourceFlow.Runtime.SourceFlowOptions options) { }
+    }
+    public sealed class SourceFlowRuntime
+    {
+        public SourceFlowRuntime(SourceFlow.Runtime.RuntimeModel model, SourceFlow.Runtime.RoutingTable routing, Microsoft.Extensions.Options.IOptions<SourceFlow.Runtime.SourceFlowOptions> options, SourceFlow.Runtime.StoragePorts storage, SourceFlow.Transport.ITransport transport, SourceFlow.Messaging.IMessageSerializer serializer, SourceFlow.Pipeline.MessagePipeline pipeline, SourceFlow.Pipeline.ErrorClassifier classifier, SourceFlow.Diagnostics.SourceFlowMetrics metrics, System.TimeProvider time, Microsoft.Extensions.Logging.ILoggerFactory loggerFactory, SourceFlow.Runtime.IActorAccessor actor, SourceFlow.Runtime.ITenantResolver tenants) { }
+        public SourceFlow.Runtime.IActorAccessor Actor { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Runtime.ProjectionDescriptor> AsyncProjections { get; }
+        public SourceFlow.Pipeline.ErrorClassifier Classifier { get; }
+        public string CurrentTenant { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Runtime.ProjectionDescriptor> InlineProjections { get; }
+        public Microsoft.Extensions.Logging.ILoggerFactory LoggerFactory { get; }
+        public SourceFlow.Diagnostics.SourceFlowMetrics Metrics { get; }
+        public SourceFlow.Runtime.RuntimeModel Model { get; }
+        public SourceFlow.Runtime.SourceFlowOptions Options { get; }
+        public SourceFlow.Pipeline.MessagePipeline Pipeline { get; }
+        public SourceFlow.Runtime.RoutingTable Routing { get; }
+        public SourceFlow.Messaging.IMessageSerializer Serializer { get; }
+        public string ServiceName { get; }
+        public SourceFlow.Runtime.StoragePorts Storage { get; }
+        public SourceFlow.Runtime.ITenantResolver Tenants { get; }
+        public System.TimeProvider Time { get; }
+        public SourceFlow.Transport.ITransport Transport { get; }
+        public SourceFlow.Messaging.MessageEnvelope CreateEnvelope(object message, SourceFlow.Messaging.MessageEnvelope? cause = null, SourceFlow.MessageId? messageId = default, SourceFlow.CorrelationId? correlation = default, string? subject = null, string? partitionKey = null, string? tenant = null, System.Collections.Generic.IReadOnlyDictionary<string, string>? headers = null) { }
+        public void EnqueueCommand(SourceFlow.Storage.IStorageSession session, SourceFlow.ICommand command, SourceFlow.Messaging.MessageEnvelope? cause, SourceFlow.CorrelationId? correlation) { }
+        public void EnqueueScheduled(SourceFlow.Storage.IStorageSession session, SourceFlow.IMessage message, System.DateTimeOffset deliverAt, SourceFlow.Messaging.MessageEnvelope? cause, SourceFlow.CorrelationId? correlation) { }
+        public Microsoft.Extensions.Logging.ILogger Logger<T>() { }
+        public System.ReadOnlyMemory<byte> Serialize(object message, SourceFlow.Messaging.MessageTypeInfo type) { }
+        public SourceFlow.Storage.OutboxMessage ToOutbox(SourceFlow.Messaging.MessageEnvelope envelope, string destination, SourceFlow.Storage.OutboxKind kind, System.DateTimeOffset? deliverAt = default) { }
+        public string? TrySubjectOf(SourceFlow.ICommand command) { }
+    }
+    public sealed class StoragePorts : System.IEquatable<SourceFlow.Runtime.StoragePorts>
+    {
+        public StoragePorts(SourceFlow.Storage.IEventStore Events, SourceFlow.Storage.IEventLogReader Log, SourceFlow.Storage.IStorageSessionFactory Sessions, SourceFlow.Storage.ICheckpointStore Checkpoints, SourceFlow.Storage.ILeaseManager Leases, SourceFlow.Storage.IOutboxStore Outbox, SourceFlow.Storage.IDeadLetterStore DeadLetters, SourceFlow.Storage.ISnapshotStore Snapshots, SourceFlow.Storage.IDocumentReader Documents, SourceFlow.Storage.IStoreNotifications Notifications) { }
+        public SourceFlow.Storage.ICheckpointStore Checkpoints { get; init; }
+        public SourceFlow.Storage.IDeadLetterStore DeadLetters { get; init; }
+        public SourceFlow.Storage.IDocumentReader Documents { get; init; }
+        public SourceFlow.Storage.IEventStore Events { get; init; }
+        public SourceFlow.Storage.ILeaseManager Leases { get; init; }
+        public SourceFlow.Storage.IEventLogReader Log { get; init; }
+        public SourceFlow.Storage.IStoreNotifications Notifications { get; init; }
+        public SourceFlow.Storage.IOutboxStore Outbox { get; init; }
+        public SourceFlow.Storage.IStorageSessionFactory Sessions { get; init; }
+        public SourceFlow.Storage.ISnapshotStore Snapshots { get; init; }
+    }
+    public sealed class SubscriptionBuilder
+    {
+        public SubscriptionBuilder() { }
+        public SourceFlow.Runtime.SubscriptionBuilder Only<T>()
+            where T :  class, SourceFlow.IMessage { }
+    }
+    public sealed class SubscriptionRoute : System.IEquatable<SourceFlow.Runtime.SubscriptionRoute>
+    {
+        public SubscriptionRoute(string Topic, System.Collections.Generic.IReadOnlyList<System.Type> OnlyTypes) { }
+        public System.Collections.Generic.IReadOnlyList<System.Type> OnlyTypes { get; init; }
+        public string Topic { get; init; }
+    }
 }
 namespace SourceFlow.Storage
 {
@@ -701,6 +1101,8 @@ namespace SourceFlow.Storage
         public DeadLetter() { }
         public int Attempts { get; init; }
         public required string Consumer { get; init; }
+        public string? Destination { get; init; }
+        public bool DestinationIsTopic { get; init; }
         public required SourceFlow.Messaging.MessageEnvelope Envelope { get; init; }
         public string? ErrorDetail { get; init; }
         public string? ErrorMessage { get; init; }
@@ -981,6 +1383,7 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask CompleteAsync(SourceFlow.Storage.LeaseToken lease, System.Collections.Generic.IReadOnlyList<long> sequences, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<int> CountAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask DeleteStreamAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken) { }
+        public int DueOutboxCount() { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.DeadLetter?> GetAsync(System.Guid id, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetAsync(string subscription, int partition, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetSafeHorizonAsync(System.Threading.CancellationToken cancellationToken) { }
@@ -997,5 +1400,98 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask SetStatusAsync(System.Guid id, SourceFlow.Storage.DeadLetterStatus status, string? note, System.Threading.CancellationToken cancellationToken) { }
         public System.IDisposable Subscribe(System.Action onCommit) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.LeaseToken?> TryAcquireAsync(string name, string owner, System.TimeSpan ttl, System.Threading.CancellationToken cancellationToken) { }
+    }
+}
+namespace SourceFlow.Transport
+{
+    public interface ITransport
+    {
+        SourceFlow.Transport.TransportCapabilities Capabilities { get; }
+        string SystemName { get; }
+        System.Threading.Tasks.ValueTask<SourceFlow.Transport.ITransportReceiver> CreateReceiverAsync(SourceFlow.Transport.ReceiverOptions options, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask ProvisionAsync(SourceFlow.Transport.TransportTopology topology, SourceFlow.Transport.ProvisioningMode mode, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask PublishAsync(string topic, System.Collections.Generic.IReadOnlyList<SourceFlow.Messaging.MessageEnvelope> messages, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask SendAsync(string endpoint, System.Collections.Generic.IReadOnlyList<SourceFlow.Messaging.MessageEnvelope> messages, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface ITransportReceiver : System.IAsyncDisposable
+    {
+        System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Transport.ReceivedMessage>> ReceiveAsync(int maxMessages, System.TimeSpan wait, System.Threading.CancellationToken cancellationToken);
+    }
+    public enum ProvisioningMode
+    {
+        None = 0,
+        Validate = 1,
+        CreateIfMissing = 2,
+    }
+    public abstract class ReceivedMessage
+    {
+        protected ReceivedMessage() { }
+        public abstract int DeliveryCount { get; }
+        public abstract SourceFlow.Messaging.MessageEnvelope Envelope { get; }
+        public abstract System.Threading.Tasks.ValueTask AbandonAsync(System.TimeSpan delay, System.Threading.CancellationToken cancellationToken);
+        public abstract System.Threading.Tasks.ValueTask CompleteAsync(System.Threading.CancellationToken cancellationToken);
+    }
+    public sealed class ReceiverOptions : System.IEquatable<SourceFlow.Transport.ReceiverOptions>
+    {
+        public ReceiverOptions(string Endpoint, System.Collections.Generic.IReadOnlyList<string> SubscribedTopics) { }
+        public string Endpoint { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> SubscribedTopics { get; init; }
+    }
+    public sealed class TopologyValidationException : System.Exception
+    {
+        public TopologyValidationException(string message) { }
+    }
+    public sealed class TransportCapabilities : System.IEquatable<SourceFlow.Transport.TransportCapabilities>
+    {
+        public TransportCapabilities(int MaxBodyBytes, int MaxAttributes, System.TimeSpan MaxRetention, bool NativeDelay, System.TimeSpan MaxDelay) { }
+        public int MaxAttributes { get; init; }
+        public int MaxBodyBytes { get; init; }
+        public System.TimeSpan MaxDelay { get; init; }
+        public System.TimeSpan MaxRetention { get; init; }
+        public bool NativeDelay { get; init; }
+    }
+    public sealed class TransportTopology : System.IEquatable<SourceFlow.Transport.TransportTopology>
+    {
+        public TransportTopology(string Endpoint, System.Collections.Generic.IReadOnlyList<string> PublishedTopics, System.Collections.Generic.IReadOnlyList<string> SubscribedTopics, System.Collections.Generic.IReadOnlyList<string> SendEndpoints) { }
+        public string Endpoint { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> PublishedTopics { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> SendEndpoints { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> SubscribedTopics { get; init; }
+    }
+}
+namespace SourceFlow.Transport.InMemory
+{
+    public sealed class InMemoryBroker
+    {
+        public InMemoryBroker(System.TimeProvider? time = null) { }
+        public int ActiveCount { get; }
+        public SourceFlow.Transport.InMemory.InMemoryBrokerFaults Faults { get; }
+        public System.DateTimeOffset? NextVisibleAt { get; }
+        public int PendingCount { get; }
+        public static SourceFlow.Transport.TransportCapabilities Capabilities { get; }
+        public SourceFlow.Transport.InMemory.InMemoryTransport CreateTransport() { }
+        public void DeclareTopic(string topic) { }
+        public int DeliveredCount(string endpoint) { }
+        public bool EndpointExists(string endpoint) { }
+        public void Publish(string topic, SourceFlow.Messaging.MessageEnvelope envelope) { }
+        public void Pulse() { }
+        public void Send(string endpoint, SourceFlow.Messaging.MessageEnvelope envelope) { }
+        public void Subscribe(string topic, string endpoint) { }
+        public bool TopicExists(string topic) { }
+    }
+    public sealed class InMemoryBrokerFaults
+    {
+        public InMemoryBrokerFaults() { }
+        public void DropNextAcks(int count = 1) { }
+        public void DuplicateNext(int count = 1) { }
+    }
+    public sealed class InMemoryTransport : SourceFlow.Transport.ITransport
+    {
+        public SourceFlow.Transport.TransportCapabilities Capabilities { get; }
+        public string SystemName { get; }
+        public System.Threading.Tasks.ValueTask<SourceFlow.Transport.ITransportReceiver> CreateReceiverAsync(SourceFlow.Transport.ReceiverOptions options, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask ProvisionAsync(SourceFlow.Transport.TransportTopology topology, SourceFlow.Transport.ProvisioningMode mode, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask PublishAsync(string topic, System.Collections.Generic.IReadOnlyList<SourceFlow.Messaging.MessageEnvelope> messages, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask SendAsync(string endpoint, System.Collections.Generic.IReadOnlyList<SourceFlow.Messaging.MessageEnvelope> messages, System.Threading.CancellationToken cancellationToken) { }
     }
 }

@@ -58,6 +58,27 @@ public sealed class DependencyRuleTests
         others.ShouldBeEmpty($"{adapter} must depend on {Packages.Core} and its own SDK only (ARCH-03).");
     }
 
+    public static TheoryData<string> SampleDomains => new("Bank.Contracts", "Bank.Accounts", "Bank.Transfers", "Bank.Notifications");
+
+    [Theory]
+    [MemberData(nameof(SampleDomains))]
+    [Trait("Id", "ARCH-04")]
+    [Trait("Covers", "ARCH-04;ADR-027")]
+    public void Domain_code_uses_only_the_contract_namespaces(string domain)
+    {
+        Assembly assembly = Packages.Load(domain);
+
+        Packages.ReferencedSourceFlowAssemblies(assembly).ShouldAllBe(name => name == Packages.Core);
+        NetArchTest.Rules.TestResult result = Types.InAssembly(assembly)
+            .ShouldNot()
+            .HaveDependencyOnAny(
+                "SourceFlow.Runtime", "SourceFlow.Storage", "SourceFlow.Transport", "SourceFlow.Security", "SourceFlow.Hosting",
+                "SourceFlow.Diagnostics", "SourceFlow.Messaging", "SourceFlow.Query", "SourceFlow.Pipeline")
+            .GetResult();
+
+        result.IsSuccessful.ShouldBeTrue(Describe(result));
+    }
+
     [Theory]
     [MemberData(nameof(Packages.RuntimeData), MemberType = typeof(Packages))]
     [Trait("Id", "ARCH-05")]

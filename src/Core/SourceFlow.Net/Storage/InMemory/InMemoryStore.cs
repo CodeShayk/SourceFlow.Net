@@ -287,6 +287,16 @@ public sealed class InMemoryStore :
         }
     }
 
+    /// <summary>Outbox rows that are due now (excludes future timers), for idle detection in tests.</summary>
+    public int DueOutboxCount()
+    {
+        lock (_gate)
+        {
+            DateTimeOffset now = _time.GetUtcNow();
+            return _outbox.Values.Count(r => r.Message.DeliverAt <= now);
+        }
+    }
+
     /// <summary>Every outbox row, for tests and diagnostics.</summary>
     public IReadOnlyList<OutboxRecord> OutboxSnapshot()
     {

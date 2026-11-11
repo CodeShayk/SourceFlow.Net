@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Bank.Contracts;
 using SourceFlow;
 
 namespace Bank.Accounts;
@@ -31,10 +32,6 @@ public sealed partial class AccountSummaryProjection : IDocumentProjection<Accou
     }
 }
 
-/// <summary>Published to other services when an account is opened (no PII by design).</summary>
-[MessageType("accounts.account-opened", 1)]
-public sealed record AccountOpenedV1(Guid AccountId, DateTimeOffset OpenedAt) : IIntegrationEvent;
-
 /// <summary>Maps domain events to the public contract (doc 03 §7).</summary>
 public static class AccountContracts
 {
@@ -59,7 +56,6 @@ public sealed partial class AccountsModule;
 [JsonSerializable(typeof(MoneyDeposited))]
 [JsonSerializable(typeof(MoneyWithdrawn))]
 [JsonSerializable(typeof(AccountClosed))]
-[JsonSerializable(typeof(AccountOpenedV1))]
 [JsonSerializable(typeof(AccountSummary))]
 [JsonSerializable(typeof(BankAccount))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]

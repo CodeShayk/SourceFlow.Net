@@ -353,27 +353,27 @@ public sealed partial record MoneyTransfer : IProcessManager<MoneyTransfer, Tran
     // Starting events declare it explicitly:
     public static TransferId CorrelateBy(TransferRequested e) => e.TransferId;
 
-    public Reaction React(TransferRequested e, ReactionContext ctx) =>
+    public Reaction React(TransferRequested e, ReactionContext<TransferId> ctx) =>
         Reaction.Send(new Withdraw(e.From, e.Amount))
                 .Schedule(new TransferTimedOut(e.TransferId), ctx.Now.AddMinutes(5))
                 .AndBecome(this with { Stage = TransferStage.Withdrawing, From = e.From, To = e.To, Amount = e.Amount });
 
-    public Reaction React(MoneyWithdrawn e, ReactionContext ctx) => Stage switch
+    public Reaction React(MoneyWithdrawn e, ReactionContext<TransferId> ctx) => Stage switch
     {
         TransferStage.Withdrawing => Reaction.Send(new Deposit(To, Amount)).AndBecome(this with { Stage = TransferStage.Depositing }),
         _                         => Reaction.Ignore,
     };
 
-    public Reaction React(MoneyDeposited e, ReactionContext ctx) => Stage switch
+    public Reaction React(MoneyDeposited e, ReactionContext<TransferId> ctx) => Stage switch
     {
         TransferStage.Depositing => Reaction.Send(new CompleteTransfer(ctx.Id)).AndComplete(),
         _                        => Reaction.Ignore,
     };
 
-    public Reaction React(CommandRejected<Withdraw> r, ReactionContext ctx) =>
+    public Reaction React(CommandRejected<Withdraw> r, ReactionContext<TransferId> ctx) =>
         Reaction.Send(new FailTransfer(ctx.Id, r.Error.Code)).AndComplete();
 
-    public Reaction React(TransferTimedOut t, ReactionContext ctx) => Stage switch
+    public Reaction React(TransferTimedOut t, ReactionContext<TransferId> ctx) => Stage switch
     {
         TransferStage.Withdrawing => Reaction.Send(new FailTransfer(ctx.Id, "timeout")).AndComplete(),
         TransferStage.Depositing  => Reaction.Send(new Deposit(From, Amount)).AndSend(new FailTransfer(ctx.Id, "timeout")).AndComplete(), // compensate
@@ -384,7 +384,7 @@ public sealed partial record MoneyTransfer : IProcessManager<MoneyTransfer, Tran
 
 **Two ways to author a process manager.** Write the record by hand, as above, or describe the workflow in the YAML DSL and let the generator produce it ([doc 15](15-Workflow-DSL-and-Studio.md), [ADR-024](ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md)). Generated workflows add declarative business retries, reverse-order compensation, a pivot and manual intervention, and can be visualised and simulated in SourceFlow Studio. Both run on the same runtime.
 
-`Reaction` API (DC-3): static entry points `Reaction.Send(…)`, `Reaction.Become(…)`, `Reaction.Complete()` and `Reaction.Ignore`; chained instance methods `AndSend`, `Schedule`, `AndBecome` and `AndComplete`. C# can't have a static and an instance method with the same signature, so the earlier `.Send(…).Send(…)` shape isn't possible.
+`ReactionContext<TId>` carries the strongly typed instance id (`ctx.Id`), the reaction time, the message id and whether the message starts the instance. `Reaction` API (DC-3): static entry points `Reaction.Send(…)`, `Reaction.Become(…)`, `Reaction.Complete()` and `Reaction.Ignore`; chained instance methods `AndSend`, `Schedule`, `AndBecome` and `AndComplete`. C# can't have a static and an instance method with the same signature, so the earlier `.Send(…).Send(…)` shape isn't possible.
 
 **Runtime semantics** ([ADR-020](ADRs/ADR-020-process-managers-with-durable-state-and-timers.md)):
 

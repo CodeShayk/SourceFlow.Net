@@ -191,6 +191,9 @@ public abstract class ProjectionDescriptor
     /// <summary>The projection name.</summary>
     public abstract string Name { get; }
 
+    /// <summary>The projection class.</summary>
+    public abstract Type ProjectionType { get; }
+
     /// <summary>The projection version.</summary>
     public abstract int Version { get; }
 
@@ -218,6 +221,8 @@ internal sealed class ProjectionDescriptor<TProjection, TDocument, TKey> : Proje
     private readonly TProjection _projection = new();
 
     public override string Name => TProjection.ProjectionName;
+
+    public override Type ProjectionType => typeof(TProjection);
 
     public override int Version => TProjection.ProjectionVersion;
 
