@@ -175,7 +175,8 @@ public sealed class InMemoryBroker
 
         try
         {
-            await signal.WaitAsync(wait, _time, cancellationToken).ConfigureAwait(false);
+            // The long-poll timeout is infrastructure timing (system clock); visibility uses the broker clock.
+            await signal.WaitAsync(wait, TimeProvider.System, cancellationToken).ConfigureAwait(false);
         }
         catch (TimeoutException)
         {

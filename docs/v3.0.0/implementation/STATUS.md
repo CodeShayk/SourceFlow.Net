@@ -16,7 +16,7 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 | WP-1.5 | Runtime model and routing | 1.5 | done | RoutingBuilder/RoutingTable (RT-R1, RT-R5), options + validators; UT-RT |
 | WP-1.6 | Command processing + temporal reads | 3 | in progress | CommandProcessor, CommandSender, AggregateReader (AsOf) done; snapshots and aggregate cache not wired yet |
 | WP-1.7 | Middleware and diagnostics | 1.5 | done | MessagePipeline, built-in middleware, ErrorClassifier, SourceFlowMetrics with InstrumentAdvice; UT-MW |
-| WP-1.8 | Outbox, scheduler, transport SPI, in-memory broker, receive pipeline | 3.5 | in progress | Transport SPI, InMemoryBroker, OutboxRelay, ReceiveEndpoint, dead letters done; transport conformance kit (TCK) pending |
+| WP-1.8 | Outbox, scheduler, transport SPI, in-memory broker, receive pipeline | 3.5 | done | Transport SPI, InMemoryBroker, OutboxRelay, ReceiveEndpoint, dead letters; TCK-01..12 green on the in-memory broker |
 | WP-1.9 | Subscriptions, projections, process managers, event handlers | 4 | in progress | SubscriptionEngine (fenced, partitioned), projections, process managers, event handlers done; CommandRejected replies (E2E-15) and node fair-share pending |
 | WP-1.10 | Hosting, roles, tenancy context | 1.5 | done | AddSourceFlow, SourceFlowBuilder Use* slots, roles, SourceFlowHost lifecycle, health check |
 | WP-1.11 | `SourceFlow.Testing` | 2.5 | done | SourceFlowTestHost, AggregateSpec, ProcessManagerSpec, ProjectionSpec, approvals; UT-TST |

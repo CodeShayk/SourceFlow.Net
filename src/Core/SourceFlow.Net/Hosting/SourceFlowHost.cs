@@ -151,7 +151,8 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
             {
                 try
                 {
-                    await wake.WaitAsync(_runtime.Options.PollInterval, _runtime.Time, stopping).ConfigureAwait(false);
+                    // Poll fallback on the system clock: a fake business clock must not stop the loops.
+                    await wake.WaitAsync(_runtime.Options.PollInterval, TimeProvider.System, stopping).ConfigureAwait(false);
                 }
                 catch (TimeoutException)
                 {
