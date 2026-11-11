@@ -204,6 +204,10 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
     private async ValueTask ParkAsync(ReceivedMessage message, MessageContext context, string reason, CancellationToken cancellationToken)
     {
         Log.ReceiveParked(_logger, context.Exception, message.Envelope.MessageId.ToString(), message.Envelope.Type, reason);
+        if (_runtime.Options.LogPayloads && context.Services.GetService(typeof(PayloadRedaction)) is PayloadRedaction payloads)
+        {
+            Log.ParkedPayload(_logger, message.Envelope.MessageId.ToString(), payloads.ForLog(message.Envelope));
+        }
         DateTimeOffset now = _runtime.Time.GetUtcNow();
         await _runtime.Storage.DeadLetters.ParkAsync(new DeadLetter
         {

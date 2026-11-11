@@ -4,16 +4,16 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 
 ## Progress summary
 
-Updated 2026-11-11. **29 of 63 work packages are done (46%)**, 1 in progress and 33 not started. By estimated effort, 59.5 of 138.5 engineer-weeks are done (43%).
+Updated 2026-11-11. **32 of 63 work packages are done (51%)**, 1 in progress and 30 not started. By estimated effort, 61 of 138.5 engineer-weeks are done (44%).
 
 | Milestone | Done | In progress | Todo | Effort done (ew) |
 |-----------|------|-------------|------|------------------|
 | M0 Foundations | 5 | 0 | 0 | 4 of 4 |
-| M1 Core | 14 | 0 | 1 | 36.5 of 37 |
-| M2 PostgreSQL | 9 | 1 | 1 | 16.5 of 19 |
+| M1 Core | 15 | 0 | 0 | 37 of 37 |
+| M2 PostgreSQL | 10 | 1 | 0 | 17 of 19 |
 | M3 Cloud transports | 0 | 0 | 7 | 0 of 19 |
 | M4 Tooling and operations | 1 | 0 | 6 | 2.5 of 16.5 |
-| M5 Security and migration | 0 | 0 | 5 | 0 of 11 |
+| M5 Security and migration | 1 | 0 | 4 | 0.5 of 11 |
 | Track S: Workflow DSL and Studio | 0 | 0 | 13 | 0 of 32 |
 
 Completed in this round:
@@ -25,12 +25,14 @@ Completed in this round:
 - WP-1.14: the Bank.Api host, the Studio demo console, the docker-compose demo, and images on ghcr.io.
 - WP-4.2: the production query API and domain queries over HTTP.
 - WP-2.8: PostgreSQL index sync for `[Queryable]` fields.
+- WP-1.R and WP-2.R: v2 core and v2 EF stores retired after every plan 07 row was satisfied. This needed about 80 new v3 tests, the Stop subscription policy, the DC-2 guard, and dead-letter show/purge/filters.
+- WP-5.3: redaction wiring (taxonomy, Erasing/HMAC redactors, `LogPayloads`).
 
 Still in progress:
 
 - WP-2.7 (`SourceFlow.Storage.EntityFrameworkCore` read models): rebuilding a projection into a new schema, which waits for the blue/green rebuild tooling.
 
-Not started: the v2 retirements (1.R, 2.R, 3.R), every cloud transport (M3), the CLI, health and dashboards, SQL Server, event partitioning, chaos and load testing, payload protection, crypto-shredding, the v2 migration tool, and the whole Studio track.
+Not started: the v2 cloud retirement (3.R), every cloud transport (M3), the CLI, health and dashboards, SQL Server, event partitioning, chaos and load testing, payload protection, crypto-shredding (redaction is done), the v2 migration tool, and the whole Studio track.
 
 | WP | Title | Estimate (ew) | Status | Notes |
 |----|-------|---------------|--------|-------|
@@ -47,13 +49,13 @@ Not started: the v2 retirements (1.R, 2.R, 3.R), every cloud transport (M3), the
 | WP-1.6 | Command processing + temporal reads | 3 | done | CommandProcessor, CommandSender, AggregateReader (AsOf), snapshots (interval, schema hash); the aggregate cache landed with WP-2.5 |
 | WP-1.7 | Middleware and diagnostics | 1.5 | done | MessagePipeline, built-in middleware, ErrorClassifier, SourceFlowMetrics with InstrumentAdvice; UT-MW |
 | WP-1.8 | Outbox, scheduler, transport SPI, in-memory broker, receive pipeline | 3.5 | done | Transport SPI, InMemoryBroker, OutboxRelay, ReceiveEndpoint, dead letters; TCK-01..12 green on the in-memory broker |
-| WP-1.9 | Subscriptions, projections, process managers, event handlers | 4 | done | SubscriptionEngine (fenced, partitioned, adaptive batches, park policy with per-event isolation), projections, process managers (incl. `CommandRejected<T>` replies: `sf-reply-to` header for local owners and `ReplyOnReject()` routes, reply committed with the rejection, ADR-018), event handlers; `INodeRegistry` heartbeat + fair-share rebalancer (one lease released per pass, graceful hand-back on stop). UT-SUB-01/05/06/08/09/10/12/17, UT-PRJ-01, UT-PM-01/10..13, E2E-09..15. Repartition and blue/green rebuild (UT-SUB-21..28) and the `projection skip` Stop policy come with the CLI (WP-4.1) |
+| WP-1.9 | Subscriptions, projections, process managers, event handlers | 4 | done | SubscriptionEngine (fenced, partitioned, adaptive batches, park policy with per-event isolation), projections, process managers (incl. `CommandRejected<T>` replies: `sf-reply-to` header for local owners and `ReplyOnReject()` routes, reply committed with the rejection, ADR-018), event handlers; `INodeRegistry` heartbeat + fair-share rebalancer (one lease released per pass, graceful hand-back on stop). Stop policy (projection default: backoff, halted partition, `sourceflow.subscription.stalled`, audited `ISubscriptionAdmin.SkipAsync`) and Park policy; DC-2 on-read version guard. UT-SUB-01..13, 17, UT-PRJ-01..06, UT-PM-01..13, E2E-09..15. Repartition and blue/green rebuild (UT-SUB-21..28) come with the CLI (WP-4.1) |
 | WP-1.10 | Hosting, roles, tenancy context | 1.5 | done | AddSourceFlow, SourceFlowBuilder Use* slots, roles, SourceFlowHost lifecycle, health check |
 | WP-1.11 | `SourceFlow.Testing` | 2.5 | done | SourceFlowTestHost, AggregateSpec, ProcessManagerSpec, ProjectionSpec, approvals; UT-TST |
 | WP-1.12 | Schema catalog | 2 | done | JSON Schema 2020-12 per message type and version, read-model document and process state, derived from the serializer's JsonTypeInfo with `x-sourceflow-*` extensions (ADR-029); canonical text + SHA-256 fingerprints; `ISchemaStore` (in-memory, PostgreSQL `schemas`) registered at startup, a changed published `(type, version)` fails startup (`SchemaRegistration` = Enforce/Warn/Off); lock file; `SchemaCompatibility` rules SFC01–SFC10; AsyncAPI 3.0 exporter. UT-CAT-01..18 |
 | WP-1.13 | SFQL front end (pipeline + SQL syntax) + in-memory interpreter + domain queries | 5.5 | done | Request guard, lexer, both parsers into one AST; catalog, binder, policy (SFQ0101–0602); in-memory interpreter and `IQueryService` (typed parameters, PII redaction, tenancy, keyset continuation, `at_least` waits, plan cache, `IQueryEngine` SPI); named domain queries (`[DomainQuery]`, generated runtime, `ExecuteAsync`, startup binding, ADR-030); typed builder (`Events<T>()`, `ReadModel<T>()`); analyzers SF0015/SF0016/SF0018. UT-QL-01..95, GEN-47..50; PostgreSQL compiler in WP-2.8 |
 | WP-1.14 | Bank sample (ported v2 E2E domain) | 1.5 | done | Bank.Contracts/Accounts/Transfers/Notifications + E2E-01..07, 11, 13, 14, 17..20 green; Bank.Api host (commands, demo query endpoints), Studio demo console, docker-compose demo and ghcr.io images (`v3-images` workflow) |
-| WP-1.R | Retire v2 core | 0.5 | todo | |
+| WP-1.R | Retire v2 core | 0.5 | done | Every `SourceFlow.Core.Tests` row in plan 07 is satisfied: v3 suites for commands, middleware and built-ins, dead letters, hosting, options, subscriptions, projections (incl. the DC-2 on-read version guard) and process managers, plus redaction (WP-5.3). E2E-08 (rebuild) is tracked under WP-4.1. `src/SourceFlow` and `tests/SourceFlow.Core.Tests` are deleted; the v2 cloud projects that still reference it go with WP-3.R |
 | WP-2.1 | PostgreSQL schema and migrator | 1.5 | done | V001 schema (ADR-028: json payload columns, tenant columns), PostgreSqlSchemaMigrator (advisory lock, checksummed schema_history, db script), UsePostgreSql with AutoMigrate (Development only by default); SCK-M01..M06. V002 (RLS) and V003 (partitioned events) come with WP-2.6 and WP-4.5 |
 | WP-2.2 | PostgreSQL append and stream read | 2 | done | Write-behind session (one NpgsqlBatch, append first; ES-R1/ES-R2), CTE append for all ExpectedVersion kinds, conflict and closed-stream diagnosis, single-statement stream read; SCK-01..19 green. Commit is batch + COMMIT (two round trips; folding COMMIT in is WP-2.10) |
 | WP-2.3 | Global log reader and notifications | 1.5 | done | (tx_id, seq) read below pg_snapshot_xmin with bucket filter, inclusive horizon, GetHorizonAgeAsync; LISTEN/NOTIFY with origin filtering, reconnect, ListenConnectionString; SCK-21..28 incl. SCK-24 (32 writers) and the held-horizon test. Wiring horizon_age into metrics/health is WP-4.3 |
@@ -64,7 +66,7 @@ Not started: the v2 retirements (1.R, 2.R, 3.R), every cloud transport (M3), the
 | WP-2.8 | SFQL on PostgreSQL (incl. joins and grouping) + index sync + domain queries | 3.5 | done | PostgreSqlQueryEngine (`IQueryEngine`): one parameterised statement per page (every request value a typed `$n` parameter, I-3), keyset predicate and ORDER BY outside a derived table, `COLLATE "C"` text ordering, horizon predicate, per-version rename CASE, tenant predicates (G-9), `NULLIF` division, read-only transaction with `statement_timeout` (`QueryTimeout`, default 5 s) and the RLS tenant setting; aggregate and schema sources stay in the interpreter. Cross-provider equivalence with the interpreter on the same data (QRY-01..20, incl. joins, grouping/having, distinct, subqueries, keyset pages interchangeable between engines), golden SQL (QRY-42/43), injection corpus (QRY-44), no-literal CsCheck property (QRY-60). Catalog now types enums by their JSON (number or string). Domain queries run through the engine (ExecuteAsync and `/queries`). `/query/explain` shows the parameterised SQL. `PostgreSqlIndexSync` (plan/apply, CONCURRENTLY by default): one partial expression index per `[Queryable]` field over `events` (per type) and `documents` (per collection), using the compiler's exact expression, `sfq_` hash names, stale ones dropped; QRY-45 shows the planner using it. The CLI command (`db index sync`) is WP-4.1 |
 | WP-2.9 | Storage conformance kit complete | 2 | done | SCK-01..58 in SourceFlow.Testing, run on in-memory, PostgreSQL and PostgreSQL with RLS. New in this package: SCK-23 (in-flight writes invisible), SCK-37 (batched retention via IStoreRetention, plus the host retention loop), SCK-54 (CsCheck property: snapshot + tail = full fold), PostgreSQL SCK-28 (LISTEN loss and reconnect), and SCK-L01 CsCheck linearisability of appends and the outbox. SCK-36 is covered by SCK-34. SCK-20 (one round trip) moves to WP-2.10, and SCK-65..72 (partitioned events) to WP-4.5 |
 | WP-2.10 | Performance baseline | 1 | done | benchmarks/SourceFlow.Benchmarks (BenchmarkDotNet PERF-01..04, 06; measurement harness PERF-05, 08, 10); baselines in benchmarks/baselines and the report in implementation/perf-baseline.md. One-round-trip PostgreSQL commit (SCK-20), batch-aware document projections and adaptive subscription batches. Deviations logged with owners (PERF-01/02 allocations, PERF-10 borderline). PERF-07 waits for M3 and PERF-09 for WP-4.7 |
-| WP-2.R | Retire v2 EF stores | 0.5 | todo | |
+| WP-2.R | Retire v2 EF stores | 0.5 | done | Every `SourceFlow.Stores.EntityFramework.Tests` row is satisfied (SCK on three adapters, UT-EF-01..10). `src/SourceFlow.Stores.EntityFramework` and its tests are deleted |
 | WP-3.1 | Transport SPI final + Transport Conformance Kit | 3 | todo | |
 | WP-3.2 | `SourceFlow.Cloud.Aws` | 4 | todo | |
 | WP-3.3 | `SourceFlow.Cloud.Gcp` | 3.5 | todo | |
@@ -81,7 +83,7 @@ Not started: the v2 retirements (1.R, 2.R, 3.R), every cloud transport (M3), the
 | WP-4.7 | Chaos suite + tier-M load test | 2.5 | todo | |
 | WP-5.1 | Payload protection + KMS key providers | 3 | todo | |
 | WP-5.2 | Crypto-shredding | 3 | todo | |
-| WP-5.3 | Redaction wiring | 0.5 | todo | |
+| WP-5.3 | Redaction wiring | 0.5 | done | SourceFlow taxonomy (`SourceFlowTaxonomy.PersonalData`/`Secret`); `[PersonalData]` and `[Secret]` are `DataClassificationAttribute`s; `UseRedaction(...)` with Erasing as the default and HMAC as an option; `LogPayloads` (off by default) logs parked payloads with classified members redacted. UT-RED-01..06 |
 | WP-5.4 | v2 migration tool + v2 wire bridge | 3 | todo | |
 | WP-5.5 | Fuzzing + security review | 1.5 | todo | |
 | WP-S.1 | Static manifest emission | 2 | todo | |

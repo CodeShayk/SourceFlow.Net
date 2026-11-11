@@ -383,7 +383,7 @@ namespace SourceFlow
         public int Version { get; }
     }
     [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field | System.AttributeTargets.Parameter, Inherited=false)]
-    public sealed class PersonalDataAttribute : System.Attribute
+    public sealed class PersonalDataAttribute : Microsoft.Extensions.Compliance.Classification.DataClassificationAttribute
     {
         public PersonalDataAttribute() { }
     }
@@ -449,6 +449,11 @@ namespace SourceFlow
         public System.DateTimeOffset DeliverAt { get; init; }
         public SourceFlow.IMessage Message { get; init; }
     }
+    [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field | System.AttributeTargets.Parameter, Inherited=false)]
+    public sealed class SecretAttribute : Microsoft.Extensions.Compliance.Classification.DataClassificationAttribute
+    {
+        public SecretAttribute() { }
+    }
     public sealed class SendOptions : System.IEquatable<SourceFlow.SendOptions>
     {
         public SendOptions() { }
@@ -462,6 +467,13 @@ namespace SourceFlow
     {
         public SourceFlowModuleAttribute(System.Type? jsonContext = null) { }
         public System.Type? JsonContext { get; }
+    }
+    public static class SourceFlowTaxonomy
+    {
+        public const string TaxonomyName = "SourceFlow";
+        public static Microsoft.Extensions.Compliance.Classification.DataClassificationSet All { get; }
+        public static Microsoft.Extensions.Compliance.Classification.DataClassification PersonalData { get; }
+        public static Microsoft.Extensions.Compliance.Classification.DataClassification Secret { get; }
     }
     public readonly struct StreamId : System.IEquatable<SourceFlow.StreamId>
     {
@@ -596,7 +608,9 @@ namespace SourceFlow.Diagnostics
         public System.Diagnostics.Metrics.Histogram<double> CommandDuration { get; }
         public System.Diagnostics.Metrics.Counter<long> ConcurrencyConflicts { get; }
         public System.Diagnostics.Metrics.Counter<long> ConsumedMessages { get; }
+        public System.Diagnostics.Metrics.Counter<long> DeadLettersDiscarded { get; }
         public System.Diagnostics.Metrics.Counter<long> DeadLettersParked { get; }
+        public System.Diagnostics.Metrics.Counter<long> DeadLettersReplayed { get; }
         public System.Diagnostics.Metrics.Counter<long> InboxDuplicates { get; }
         public System.Diagnostics.Metrics.Histogram<long> LoadEvents { get; }
         public System.Diagnostics.Metrics.Meter Meter { get; }
@@ -658,6 +672,7 @@ namespace SourceFlow.Hosting
     {
         public SourceFlow.Hosting.ProjectionModeBuilder Async() { }
         public SourceFlow.Hosting.ProjectionModeBuilder Inline() { }
+        public SourceFlow.Hosting.ProjectionModeBuilder OnFailure(SourceFlow.Hosting.SubscriptionFailurePolicy policy) { }
     }
     public sealed class ProjectionsBuilder
     {
@@ -684,6 +699,7 @@ namespace SourceFlow.Hosting
         public SourceFlow.Hosting.SourceFlowBuilder UseInMemoryStorage(SourceFlow.Storage.InMemory.InMemoryStore? store = null) { }
         public SourceFlow.Hosting.SourceFlowBuilder UseInMemoryTransport(SourceFlow.Transport.InMemory.InMemoryBroker? broker = null) { }
         public SourceFlow.Hosting.SourceFlowBuilder UseMiddleware(System.Func<System.IServiceProvider, SourceFlow.Pipeline.IMessageMiddleware> factory, SourceFlow.Pipeline.PipelineStage stages = 31, System.Func<SourceFlow.Pipeline.MessageContext, bool>? filter = null) { }
+        public SourceFlow.Hosting.SourceFlowBuilder UseRedaction(System.Action<Microsoft.Extensions.Compliance.Redaction.IRedactionBuilder> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder UseStorage(System.Func<System.IServiceProvider, SourceFlow.Runtime.StoragePorts> factory) { }
         public SourceFlow.Hosting.SourceFlowBuilder UseTransport(System.Func<System.IServiceProvider, SourceFlow.Transport.ITransport> factory) { }
     }
@@ -707,6 +723,11 @@ namespace SourceFlow.Hosting
         Relay = 2,
         Subscriptions = 4,
         All = 7,
+    }
+    public enum SubscriptionFailurePolicy
+    {
+        Stop = 0,
+        Park = 1,
     }
 }
 namespace SourceFlow.Messaging
@@ -1691,8 +1712,15 @@ namespace SourceFlow.Runtime
     public interface IDeadLetterManager
     {
         System.Threading.Tasks.ValueTask DiscardAsync(System.Guid id, string reason, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.DeadLetter?> GetAsync(System.Guid id, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.DeadLetter>> ListAsync(SourceFlow.Storage.DeadLetterQuery query, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<int> PurgeAsync(System.DateTimeOffset resolvedBefore, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask ReplayAsync(System.Guid id, string? note = null, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface ISubscriptionAdmin
+    {
+        System.Collections.Generic.IReadOnlyList<SourceFlow.Runtime.SubscriptionStall> Stalls { get; }
+        System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> SkipAsync(string subscription, int partition, string reason, System.Threading.CancellationToken cancellationToken = default);
     }
     public interface ITenantResolver
     {
@@ -1854,6 +1882,7 @@ namespace SourceFlow.Runtime
         public int ImmediateRetries { get; set; }
         public System.TimeSpan InboxRetention { get; set; }
         public System.TimeSpan LeaseTtl { get; set; }
+        public bool LogPayloads { get; set; }
         [System.ComponentModel.DataAnnotations.Range(0, 50)]
         public int MaxConcurrencyRetries { get; set; }
         public System.TimeSpan NodeHeartbeatInterval { get; set; }
@@ -1953,6 +1982,19 @@ namespace SourceFlow.Runtime
         public System.Collections.Generic.IReadOnlyList<System.Type> OnlyTypes { get; init; }
         public string Topic { get; init; }
     }
+    public sealed class SubscriptionStall : System.IEquatable<SourceFlow.Runtime.SubscriptionStall>
+    {
+        public SubscriptionStall(string Subscription, int Partition, SourceFlow.GlobalPosition Position, SourceFlow.MessageId EventId, string EventType, int Attempts, string ErrorType, string ErrorMessage, System.DateTimeOffset RetryAt) { }
+        public int Attempts { get; init; }
+        public string ErrorMessage { get; init; }
+        public string ErrorType { get; init; }
+        public SourceFlow.MessageId EventId { get; init; }
+        public string EventType { get; init; }
+        public int Partition { get; init; }
+        public SourceFlow.GlobalPosition Position { get; init; }
+        public System.DateTimeOffset RetryAt { get; init; }
+        public string Subscription { get; init; }
+    }
 }
 namespace SourceFlow.Storage
 {
@@ -2006,9 +2048,12 @@ namespace SourceFlow.Storage
     }
     public sealed class DeadLetterQuery : System.IEquatable<SourceFlow.Storage.DeadLetterQuery>
     {
-        public DeadLetterQuery(string? Consumer = null, string? Reason = null, SourceFlow.Storage.DeadLetterStatus? Status = 0, int Limit = 100) { }
+        public DeadLetterQuery(string? Consumer = null, string? Reason = null, SourceFlow.Storage.DeadLetterStatus? Status = 0, int Limit = 100, string? MessageType = null, System.DateTimeOffset? ParkedAfter = default, System.DateTimeOffset? ParkedBefore = default) { }
         public string? Consumer { get; init; }
         public int Limit { get; init; }
+        public string? MessageType { get; init; }
+        public System.DateTimeOffset? ParkedAfter { get; init; }
+        public System.DateTimeOffset? ParkedBefore { get; init; }
         public string? Reason { get; init; }
         public SourceFlow.Storage.DeadLetterStatus? Status { get; init; }
     }

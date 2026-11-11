@@ -66,6 +66,21 @@ public sealed class SourceFlowBuilder
 
     internal Dictionary<Type, ProjectionMode> ProjectionModes { get; } = [];
 
+    internal Action<Microsoft.Extensions.Compliance.Redaction.IRedactionBuilder>? Redaction { get; private set; }
+
+    /// <summary>
+    /// Configures the redactors for the SourceFlow taxonomy (doc 10 §5). Without a call, <see cref="SourceFlowTaxonomy.PersonalData"/>
+    /// and <see cref="SourceFlowTaxonomy.Secret"/> are erased (the Production default). Development can use an HMAC
+    /// redactor (correlatable, not reversible): <c>r.SetHmacRedactor(o =&gt; { o.Key = …; o.KeyId = 1; }, SourceFlowTaxonomy.PersonalData)</c>.
+    /// </summary>
+    public SourceFlowBuilder UseRedaction(Action<Microsoft.Extensions.Compliance.Redaction.IRedactionBuilder> configure)
+    {
+        Redaction = configure ?? throw new ArgumentNullException(nameof(configure));
+        return this;
+    }
+
+    internal Dictionary<Type, SubscriptionFailurePolicy> ProjectionPolicies { get; } = [];
+
     internal List<MiddlewareRegistration> Middleware { get; } = [];
 
     internal ErrorClassifier ErrorRules { get; } = new();
@@ -199,4 +214,28 @@ public sealed class ProjectionModeBuilder
         _builder.ProjectionModes[_projection] = ProjectionMode.Async;
         return this;
     }
+
+    /// <summary>
+    /// What an async projection does with an event that keeps failing (doc 06 §7): <see cref="SubscriptionFailurePolicy.Stop"/>
+    /// (the default for projections) or <see cref="SubscriptionFailurePolicy.Park"/>.
+    /// </summary>
+    public ProjectionModeBuilder OnFailure(SubscriptionFailurePolicy policy)
+    {
+        _builder.ProjectionPolicies[_projection] = policy;
+        return this;
+    }
+}
+
+/// <summary>What a subscription does with an event that keeps failing (doc 06 §7, GAP-07).</summary>
+public enum SubscriptionFailurePolicy
+{
+    /// <summary>
+    /// Retry with backoff (1 s doubling to 5 min); the partition halts at the event while others continue, and
+    /// <c>sourceflow.subscription.stalled</c> is 1 until the code is fixed or an operator skips the event (audited).
+    /// The default for projections, where correctness matters more than freshness.
+    /// </summary>
+    Stop = 0,
+
+    /// <summary>After the retry budget, park the event in dead letters and move past it. The default for process managers and handlers.</summary>
+    Park = 1,
 }

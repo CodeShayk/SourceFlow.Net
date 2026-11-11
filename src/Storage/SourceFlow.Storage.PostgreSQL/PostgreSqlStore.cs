@@ -449,6 +449,9 @@ public sealed partial class PostgreSqlStore :
         command.Parameters.Add(Text("reason", query.Reason));
         command.Parameters.Add(new NpgsqlParameter("status", NpgsqlDbType.Smallint) { Value = query.Status is { } s ? (short)s : DBNull.Value });
         command.Parameters.Add(new NpgsqlParameter<int>("max", Math.Max(0, query.Limit)));
+        command.Parameters.Add(Text("type", query.MessageType));
+        command.Parameters.Add(new NpgsqlParameter("after", NpgsqlDbType.TimestampTz) { Value = query.ParkedAfter is { } after ? after.ToUniversalTime() : DBNull.Value });
+        command.Parameters.Add(new NpgsqlParameter("before", NpgsqlDbType.TimestampTz) { Value = query.ParkedBefore is { } before ? before.ToUniversalTime() : DBNull.Value });
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         var result = new List<DeadLetter>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))

@@ -2,7 +2,10 @@ using SourceFlow.Storage;
 
 namespace SourceFlow.Runtime;
 
-/// <summary>Operator actions on parked messages (doc 04 §9.3): list, replay, discard. Every action is audited with a note.</summary>
+/// <summary>
+/// Operator actions on parked messages (doc 04 §9.3): list and filter, show, replay, discard and purge. Replays and discards
+/// are audited with a note and counted (<c>sourceflow.deadletter.replayed</c>, <c>sourceflow.deadletter.discarded</c>).
+/// </summary>
 public interface IDeadLetterManager
 {
     /// <summary>Lists dead letters.</summary>
@@ -16,6 +19,13 @@ public interface IDeadLetterManager
 
     /// <summary>Discards a dead letter with a reason.</summary>
     ValueTask DiscardAsync(Guid id, string reason, CancellationToken cancellationToken = default);
+
+    /// <summary>Shows one dead letter with its full envelope and error, or null.</summary>
+    ValueTask<DeadLetter?> GetAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>Deletes replayed and discarded dead letters resolved before <paramref name="resolvedBefore"/>; parked ones are kept.</summary>
+    /// <returns>The dead letters deleted.</returns>
+    ValueTask<int> PurgeAsync(DateTimeOffset resolvedBefore, CancellationToken cancellationToken = default);
 }
 
 internal sealed class DeadLetterManager(SourceFlowRuntime runtime) : IDeadLetterManager
@@ -50,11 +60,36 @@ internal sealed class DeadLetterManager(SourceFlowRuntime runtime) : IDeadLetter
         }
 
         await runtime.Storage.DeadLetters.SetStatusAsync(id, DeadLetterStatus.Replayed, note, cancellationToken).ConfigureAwait(false);
+        runtime.Metrics.DeadLettersReplayed.Add(1, new KeyValuePair<string, object?>(Diagnostics.SourceFlowTelemetry.Tags.Consumer, deadLetter.Consumer));
     }
 
-    public ValueTask DiscardAsync(Guid id, string reason, CancellationToken cancellationToken = default)
+    public async ValueTask DiscardAsync(Guid id, string reason, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        return runtime.Storage.DeadLetters.SetStatusAsync(id, DeadLetterStatus.Discarded, reason, cancellationToken);
+        DeadLetter deadLetter = await runtime.Storage.DeadLetters.GetAsync(id, cancellationToken).ConfigureAwait(false)
+            ?? throw new KeyNotFoundException($"Dead letter {id} does not exist.");
+        await runtime.Storage.DeadLetters.SetStatusAsync(id, DeadLetterStatus.Discarded, reason, cancellationToken).ConfigureAwait(false);
+        runtime.Metrics.DeadLettersDiscarded.Add(1, new KeyValuePair<string, object?>(Diagnostics.SourceFlowTelemetry.Tags.Consumer, deadLetter.Consumer));
+    }
+
+    public ValueTask<DeadLetter?> GetAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return runtime.Storage.DeadLetters.GetAsync(id, cancellationToken);
+    }
+
+    public async ValueTask<int> PurgeAsync(DateTimeOffset resolvedBefore, CancellationToken cancellationToken = default)
+    {
+        IStoreRetention retention = runtime.Storage.Retention
+            ?? throw new NotSupportedException("The storage adapter has no retention support (doc 05 §9).");
+        int total = 0;
+        int deleted;
+        do
+        {
+            deleted = await retention.PurgeDeadLettersAsync(resolvedBefore, runtime.Options.RetentionBatchSize, cancellationToken).ConfigureAwait(false);
+            total += deleted;
+        }
+        while (deleted > 0);
+
+        return total;
     }
 }

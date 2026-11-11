@@ -13,6 +13,9 @@ namespace SourceFlow.Runtime;
 /// <param name="Apply">Applies one event inside the session.</param>
 internal sealed record SubscriptionDefinition(string Name, Func<Type, bool> Handles, Func<SubscriptionContext, ValueTask> Apply)
 {
+    /// <summary>What happens to an event that keeps failing (doc 06 §7).</summary>
+    public Hosting.SubscriptionFailurePolicy Policy { get; init; } = Hosting.SubscriptionFailurePolicy.Park;
+
     /// <summary>Loads what a batch needs before it is applied (document projections read their documents in one query).</summary>
     public Func<ProjectionScope, IReadOnlyList<(IEvent Event, EventContext Context)>, CancellationToken, ValueTask>? Prefetch { get; init; }
 }
@@ -40,6 +43,13 @@ internal sealed class SubscriptionEngine
         _decoder = new AggregateStore(runtime);
         _logger = runtime.Logger<SubscriptionEngine>();
         Definitions = BuildDefinitions();
+        runtime.Metrics.Meter.CreateObservableGauge(
+            "sourceflow.subscription.stalled",
+            () => _stalls.Values.Select(s => new System.Diagnostics.Metrics.Measurement<int>(1,
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Subscription, s.Subscription),
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Partition, s.Partition))),
+            "{partition}",
+            "Subscription partitions halted at a failing event (Stop policy).");
     }
 
     public IReadOnlyList<SubscriptionDefinition> Definitions { get; }
@@ -49,6 +59,16 @@ internal sealed class SubscriptionEngine
     private readonly System.Collections.Concurrent.ConcurrentDictionary<(string Subscription, int Partition), int> _batchSizes = new();
 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<(string Subscription, int Partition), LeaseToken> _owned = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<(string Subscription, int Partition), SubscriptionStall> _stalls = new();
+
+    /// <summary>Partitions halted at a failing event (Stop policy).</summary>
+    internal IReadOnlyList<SubscriptionStall> Stalls => [.. _stalls.Values.OrderBy(s => s.Subscription, StringComparer.Ordinal).ThenBy(s => s.Partition)];
+
+    /// <summary>Clears a stall after an operator skipped the event.</summary>
+    internal void ClearStall(string subscription, int partition)
+    {
+        _stalls.TryRemove((subscription, partition), out _);
+    }
 
     /// <summary>The (subscription, partition) leases this node holds.</summary>
     internal int OwnedLeases => _owned.Count;
@@ -149,6 +169,11 @@ internal sealed class SubscriptionEngine
 
         _owned[(definition.Name, partition)] = lease;
 
+        if (_stalls.TryGetValue((definition.Name, partition), out SubscriptionStall? stall) && _runtime.Time.GetUtcNow() < stall.RetryAt)
+        {
+            return 0;   // halted at the poison event until the backoff elapses (Stop policy)
+        }
+
         GlobalPosition checkpoint = await _runtime.Storage.Checkpoints.GetAsync(definition.Name, partition, cancellationToken).ConfigureAwait(false);
         int max = _runtime.Options.SubscriptionBatchSize;
         int size = _batchSizes.GetOrAdd((definition.Name, partition), Math.Min(InitialBatchSize, max));
@@ -181,10 +206,13 @@ internal sealed class SubscriptionEngine
                 }
                 catch (Exception) when (!cancellationToken.IsCancellationRequested)
                 {
-                    // Isolate the poison event: apply one by one, park what still fails.
+                    // Isolate the poison event: apply one by one; then park it, or stop the partition at it.
                     foreach (StoredEvent single in events)
                     {
-                        await ApplyIsolatedAsync(definition, partition, lease, single, cancellationToken).ConfigureAwait(false);
+                        if (!await ApplyIsolatedAsync(definition, partition, lease, single, cancellationToken).ConfigureAwait(false))
+                        {
+                            return 0;
+                        }
                     }
                 }
             }
@@ -233,7 +261,8 @@ internal sealed class SubscriptionEngine
         await session.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async ValueTask ApplyIsolatedAsync(SubscriptionDefinition definition, int partition, LeaseToken lease, StoredEvent stored, CancellationToken cancellationToken)
+    // Returns false when the partition stops at this event (Stop policy).
+    private async ValueTask<bool> ApplyIsolatedAsync(SubscriptionDefinition definition, int partition, LeaseToken lease, StoredEvent stored, CancellationToken cancellationToken)
     {
         Exception? last = null;
         for (int attempt = 0; attempt <= _runtime.Options.ImmediateRetries; attempt++)
@@ -241,7 +270,8 @@ internal sealed class SubscriptionEngine
             try
             {
                 await ApplyAsync(definition, partition, lease, stored.TenantId, [stored], cancellationToken).ConfigureAwait(false);
-                return;
+                _stalls.TryRemove((definition.Name, partition), out _);
+                return true;
             }
             catch (LeaseLostException)
             {
@@ -255,6 +285,16 @@ internal sealed class SubscriptionEngine
                     break;
                 }
             }
+        }
+
+        if (definition.Policy == Hosting.SubscriptionFailurePolicy.Stop)
+        {
+            // doc 06 §7: halt the partition at the event; retry with backoff (1 s doubling, capped at 5 min).
+            SubscriptionStall stall = _stalls.AddOrUpdate((definition.Name, partition),
+                _ => Stall(definition.Name, partition, stored, last!, 1),
+                (_, previous) => Stall(definition.Name, partition, stored, last!, previous.Position == stored.Position ? previous.Attempts + 1 : 1));
+            Log.SubscriptionFailed(_logger, last!, definition.Name, partition, stored.EventId.ToString(), $"stopped (attempt {stall.Attempts}, retry at {stall.RetryAt:O})");
+            return false;
         }
 
         Log.SubscriptionFailed(_logger, last!, definition.Name, partition, stored.EventId.ToString(), "parked");
@@ -280,6 +320,13 @@ internal sealed class SubscriptionEngine
         await using IStorageSession skip = await _runtime.Storage.Sessions.BeginAsync(stored.TenantId, cancellationToken).ConfigureAwait(false);
         skip.SaveCheckpoint(definition.Name, partition, stored.Position, lease);
         await skip.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    private SubscriptionStall Stall(string subscription, int partition, StoredEvent stored, Exception error, int attempts)
+    {
+        TimeSpan backoff = TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2, Math.Min(attempts - 1, 9))));
+        return new SubscriptionStall(subscription, partition, stored.Position, stored.EventId, stored.Type, attempts, error.GetType().Name, error.Message, _runtime.Time.GetUtcNow() + backoff);
     }
 
     private static bool Relevant(SubscriptionDefinition definition, MessageTypeInfo type)
@@ -325,6 +372,7 @@ internal sealed class SubscriptionEngine
                 projection.Handles,
                 ctx => ctx.Projections.ApplyAsync(projection, ctx.Event, ctx.Stored.ToContext(), ctx.CancellationToken))
             {
+                Policy = _runtime.ProjectionPolicies.GetValueOrDefault(projection.ProjectionType, Hosting.SubscriptionFailurePolicy.Stop),
                 Prefetch = projection is DocumentProjectionDescriptor document
                     ? (scope, batch, ct) => scope.PrefetchAsync(document, batch, ct)
                     : null,
@@ -376,3 +424,24 @@ internal sealed class SubscriptionEngine
         }
     }
 }
+
+/// <summary>A subscription partition halted at a failing event (doc 06 §7, Stop policy).</summary>
+/// <param name="Subscription">The subscription.</param>
+/// <param name="Partition">The partition.</param>
+/// <param name="Position">The failing event's position.</param>
+/// <param name="EventId">The failing event's id.</param>
+/// <param name="EventType">The failing event's type.</param>
+/// <param name="Attempts">Failed attempts so far.</param>
+/// <param name="ErrorType">The last error's type.</param>
+/// <param name="ErrorMessage">The last error's message.</param>
+/// <param name="RetryAt">When the next attempt runs.</param>
+public sealed record SubscriptionStall(
+    string Subscription,
+    int Partition,
+    GlobalPosition Position,
+    MessageId EventId,
+    string EventType,
+    int Attempts,
+    string ErrorType,
+    string ErrorMessage,
+    DateTimeOffset RetryAt);

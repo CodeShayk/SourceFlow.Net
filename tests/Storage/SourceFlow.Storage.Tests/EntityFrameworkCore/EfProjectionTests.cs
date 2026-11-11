@@ -84,6 +84,8 @@ public sealed class EfProjectionTests(PostgreSqlServer server) : PostgreSqlTest(
     [Fact]
     [Trait("Id", "SCK-61")]
     [Trait("Covers", "doc 05 8.1")]
+    [Trait("Id", "UT-EF-05")]
+    [Trait("Id", "UT-EF-06")]
     public async Task InlineEfProjection_CommitsWithTheEvents()
     {
         using IHost host = await StartAsync(ProjectionMode.Inline);
@@ -105,6 +107,7 @@ public sealed class EfProjectionTests(PostgreSqlServer server) : PostgreSqlTest(
     [Fact]
     [Trait("Id", "SCK-62")]
     [Trait("Covers", "ADR-008")]
+    [Trait("Id", "UT-EF-07")]
     public async Task InlineEfProjection_ConflictingAttempts_LeaveNoTrace()
     {
         using IHost host = await StartAsync(ProjectionMode.Inline, sf => sf.Configure(o => o.MaxConcurrencyRetries = 50));
@@ -125,6 +128,7 @@ public sealed class EfProjectionTests(PostgreSqlServer server) : PostgreSqlTest(
     [Fact]
     [Trait("Id", "SCK-62")]
     [Trait("Covers", "ES-R1")]
+    [Trait("Id", "UT-EF-08")]
     public async Task Flush_SendsTheAppendFirst_SoAConflictSurfacesBeforeAnyEfWrite()
     {
         await using PostgreSqlStore store = await Server.CreateStoreAsync();
@@ -141,6 +145,7 @@ public sealed class EfProjectionTests(PostgreSqlServer server) : PostgreSqlTest(
     [Fact]
     [Trait("Id", "SCK-63")]
     [Trait("Covers", "ADR-016")]
+    [Trait("Id", "UT-EF-09")]
     public async Task LostLease_RollsBackTheEfChanges()
     {
         await using PostgreSqlStore store = await Server.CreateStoreAsync();
@@ -164,6 +169,7 @@ public sealed class EfProjectionTests(PostgreSqlServer server) : PostgreSqlTest(
     [Fact]
     [Trait("Id", "SCK-64")]
     [Trait("Covers", "ADR-016")]
+    [Trait("Id", "UT-EF-10")]
     public async Task AsyncEfProjection_CatchesUpThroughFencedCheckpoints()
     {
         using IHost host = await StartAsync(ProjectionMode.Async, sf => sf.Configure(o => o.SubscriptionPartitions = 2));

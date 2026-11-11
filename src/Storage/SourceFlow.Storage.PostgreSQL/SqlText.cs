@@ -220,6 +220,9 @@ internal sealed class SqlText
              WHERE (@consumer IS NULL OR consumer = @consumer)
                AND (@reason IS NULL OR reason = @reason)
                AND (@status IS NULL OR status = @status)
+               AND (@type IS NULL OR message_type = @type)
+               AND (@after IS NULL OR parked_at >= @after)
+               AND (@before IS NULL OR parked_at < @before)
              ORDER BY parked_at DESC, id
              LIMIT @max
             """);

@@ -49,6 +49,12 @@ public sealed class SourceFlowOptions
     /// </summary>
     public SchemaRegistrationMode SchemaRegistration { get; set; } = SchemaRegistrationMode.Enforce;
 
+    /// <summary>
+    /// Logs message payloads (with <c>[PersonalData]</c> and <c>[Secret]</c> members redacted) when a message fails
+    /// permanently. Off by default (doc 08 §4, doc 10 §5).
+    /// </summary>
+    public bool LogPayloads { get; set; }
+
     /// <summary>Concurrent receive workers (RX-R1).</summary>
     [Range(1, 1024)]
     public int ReceiveConcurrency { get; set; } = Math.Max(2, Environment.ProcessorCount * 2);

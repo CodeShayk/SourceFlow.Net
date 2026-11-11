@@ -55,6 +55,7 @@ public static class ServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SourceFlowOptions>, SourceFlowOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SourceFlowOptions>, SourceFlowOptionsTimingValidator>());
 
+        services.AddRedaction(builder.Redaction ?? (r => r.SetRedactor<Microsoft.Extensions.Compliance.Redaction.ErasingRedactor>(SourceFlowTaxonomy.All)));
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         services.TryAddSingleton<IActorAccessor, NullActorAccessor>();
@@ -73,6 +74,7 @@ public static class ServiceCollectionExtensions
             var runtime = ActivatorUtilities.CreateInstance<SourceFlowRuntime>(sp);
             runtime.InlineProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Inline)];
             runtime.AsyncProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Async)];
+            runtime.ProjectionPolicies = builder.ProjectionPolicies.ToDictionary();
             string[] missing = [.. model.Projections.Select(p => p.MissingDependency(sp)).OfType<string>()];
             if (missing.Length > 0)
             {
@@ -87,6 +89,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ReceiveEndpoint>();
         services.AddSingleton<SubscriptionEngine>();
         services.AddSingleton<IDeadLetterManager, DeadLetterManager>();
+        services.AddSingleton<ISubscriptionAdmin, SubscriptionAdmin>();
+        services.AddSingleton<PayloadRedaction>();
         services.AddSingleton<Query.IAggregateReader, Query.AggregateReader>();
         services.TryAddSingleton(Query.QueryPolicySettings.Default);
         services.AddSingleton<Query.IQueryService>(sp => new Query.QueryService(

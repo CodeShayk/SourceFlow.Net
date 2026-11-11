@@ -1,3 +1,5 @@
+using SourceFlow.Hosting;
+using System.Collections.Frozen;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -160,6 +162,9 @@ public sealed class SourceFlowRuntime
     /// <summary>The service name.</summary>
     public string ServiceName => Options.ServiceName;
 
+    /// <summary>Failure policies of async projections that override the default (<see cref="SubscriptionFailurePolicy.Stop"/>).</summary>
+    internal IReadOnlyDictionary<Type, SubscriptionFailurePolicy> ProjectionPolicies { get; set; } = new Dictionary<Type, SubscriptionFailurePolicy>();
+
     /// <summary>Live nodes running subscriptions, from the last heartbeat (1 without a node registry).</summary>
     internal int LiveSubscriptionNodes { get; set; } = 1;
 
@@ -204,7 +209,7 @@ public sealed class SourceFlowRuntime
             Actor = cause?.Actor ?? Actor.Actor,
             TraceParent = trace?.Id ?? cause?.TraceParent,
             TraceState = trace?.TraceStateString ?? cause?.TraceState,
-            Headers = headers ?? Inherited(cause?.Headers),
+            Headers = headers is null ? Inherited(cause?.Headers) : headers.ToFrozenDictionary(StringComparer.Ordinal),   // never the caller's mutable instance
             Body = Serialize(message, type),
         };
     }

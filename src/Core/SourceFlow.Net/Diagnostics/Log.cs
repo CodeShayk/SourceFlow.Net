@@ -29,6 +29,9 @@ internal static partial class Log
     [LoggerMessage(1105, LogLevel.Information, "Retention cleanup deleted {Inbox} inbox rows and {DeadLetters} resolved dead letters")]
     public static partial void RetentionPurged(ILogger logger, int inbox, int deadLetters);
 
+    [LoggerMessage(1108, LogLevel.Debug, "Payload of parked message {MessageId}: {Payload}")]
+    public static partial void ParkedPayload(ILogger logger, string messageId, string payload);
+
     [LoggerMessage(1107, LogLevel.Warning, "Schema {Type} v{Version} changed without a new version (registered {Registered}, now {Current}); a published version is immutable")]
     public static partial void SchemaConflict(ILogger logger, string type, int version, string registered, string current);
 
@@ -46,6 +49,9 @@ internal static partial class Log
 
     [LoggerMessage(1301, LogLevel.Error, "Subscription {Subscription} partition {Partition} failed on event {EventId}; {Policy}")]
     public static partial void SubscriptionFailed(ILogger logger, Exception exception, string subscription, int partition, string eventId, string policy);
+
+    [LoggerMessage(1303, LogLevel.Warning, "Subscription {Subscription} partition {Partition} skipped event {EventId} at {Position}: {Reason}")]
+    public static partial void SubscriptionSkipped(ILogger logger, string subscription, int partition, string eventId, string position, string reason);
 
     [LoggerMessage(1302, LogLevel.Warning, "Subscription {Subscription} partition {Partition} lost its lease")]
     public static partial void SubscriptionLeaseLost(ILogger logger, string subscription, int partition);

@@ -235,7 +235,21 @@ public sealed record DeadLetter
 }
 
 /// <summary>A dead-letter query.</summary>
-public sealed record DeadLetterQuery(string? Consumer = null, string? Reason = null, DeadLetterStatus? Status = DeadLetterStatus.Parked, int Limit = 100);
+/// <param name="Consumer">Only this consumer.</param>
+/// <param name="Reason">Only this reason.</param>
+/// <param name="Status">Only this status (default parked; null for any).</param>
+/// <param name="Limit">The most rows (newest first).</param>
+/// <param name="MessageType">Only this message type (the envelope's <c>type</c>).</param>
+/// <param name="ParkedAfter">Only parked at or after this time.</param>
+/// <param name="ParkedBefore">Only parked before this time.</param>
+public sealed record DeadLetterQuery(
+    string? Consumer = null,
+    string? Reason = null,
+    DeadLetterStatus? Status = DeadLetterStatus.Parked,
+    int Limit = 100,
+    string? MessageType = null,
+    DateTimeOffset? ParkedAfter = null,
+    DateTimeOffset? ParkedBefore = null);
 
 /// <summary>A contiguous range of buckets, inclusive (doc 06 §3).</summary>
 public readonly record struct BucketRange(int Low, int High)

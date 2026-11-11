@@ -89,6 +89,8 @@ public sealed class SourceFlowMetrics : IDisposable
         SnapshotsDropped = Meter.CreateCounter<long>("sourceflow.snapshot.dropped", "{snapshot}", "Snapshots dropped because the queue was full or the write failed.");
         RetryAttempts = Meter.CreateCounter<long>("sourceflow.retry.attempts", "{attempt}", "Retry attempts.");
         DeadLettersParked = Meter.CreateCounter<long>("sourceflow.deadletter.parked", "{message}", "Messages parked to dead letters.");
+        DeadLettersReplayed = Meter.CreateCounter<long>("sourceflow.deadletter.replayed", "{message}", "Dead letters replayed by an operator.");
+        DeadLettersDiscarded = Meter.CreateCounter<long>("sourceflow.deadletter.discarded", "{message}", "Dead letters discarded by an operator.");
         SubscriptionBatchDuration = Meter.CreateHistogram("sourceflow.subscription.batch.duration", "s", "Subscription batch duration.", tags: null, advice: duration);
         SentMessages = Meter.CreateCounter<long>("messaging.client.sent.messages", "{message}", "Messages sent to the broker.");
         ConsumedMessages = Meter.CreateCounter<long>("messaging.client.consumed.messages", "{message}", "Messages received from the broker.");
@@ -125,6 +127,10 @@ public sealed class SourceFlowMetrics : IDisposable
     public Counter<long> RetryAttempts { get; }
 
     public Counter<long> DeadLettersParked { get; }
+
+    public Counter<long> DeadLettersReplayed { get; }
+
+    public Counter<long> DeadLettersDiscarded { get; }
 
     public Histogram<double> SubscriptionBatchDuration { get; }
 

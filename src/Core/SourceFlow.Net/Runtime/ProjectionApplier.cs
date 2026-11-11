@@ -200,6 +200,14 @@ internal static class ProjectionApplier
         }
 
         CachedDocument document = await scope.DocumentAsync(projection, id, cancellationToken).ConfigureAwait(false);
+
+        // DC-2 (doc 06 §5): a document keyed by the event's own stream already reflects every event up to its version;
+        // re-applying one (a redelivery, a repartition) would double-count incremental projections, so it is skipped.
+        if (document.Value is not null && id == context.AggregateKey && document.Version >= context.StreamVersion.Value)
+        {
+            return;
+        }
+
         object? next = projection.Apply(@event, document.Value, context);
         if (next is null)
         {

@@ -11,6 +11,13 @@ Every v2 test file gets exactly one disposition. The retirement work packages (W
 
 ## 1. `tests/SourceFlow.Core.Tests` (NUnit, 237 tests, 28 files) → WP-1.R
 
+**Retired 2026-11-11.** Every named v3 test exists and passes, except two:
+
+- **E2E-08:** projection rebuild. The v2 replay concept moves to the blue/green rebuild, which ships with the CLI (WP-4.1) and is tracked there.
+- **SCK-36:** covered by SCK-34.
+
+`src/SourceFlow` and this project are deleted. The v2 cloud projects that reference `src/SourceFlow` (`src/SourceFlow.Cloud.AWS`, `src/SourceFlow.Cloud.GCP`) remain only as reference input for M3 and are deleted by WP-3.R.
+
 | v2 file (tests) | Disposition | v3 tests | Notes |
 |-----------------|-------------|----------|-------|
 | `E2E/E2E.Tests` (1 scenario) | **Port** | E2E-01, E2E-02, E2E-08 | The bank-account domain becomes `samples/Bank` (WP-1.14). Replay becomes a rebuild |
@@ -43,6 +50,8 @@ Every v2 test file gets exactly one disposition. The retirement work packages (W
 **Tally**: Port 5 · Rewrite 13 · Kit 1 · Retire 9. All 237 scenarios are accounted for.
 
 ## 2. `tests/SourceFlow.Stores.EntityFramework.Tests` (NUnit, 52 tests, 7 files) → WP-2.R
+
+**Retired 2026-11-11.** Every named v3 test exists and passes. SCK cases run on in-memory, PostgreSQL and PostgreSQL with RLS, and UT-EF-01..10 run on PostgreSQL. E2E-08 follows with the rebuild tooling (WP-4.1). `src/SourceFlow.Stores.EntityFramework` and this project are deleted.
 
 | v2 file (tests) | Disposition | v3 tests | Notes |
 |-----------------|-------------|----------|-------|

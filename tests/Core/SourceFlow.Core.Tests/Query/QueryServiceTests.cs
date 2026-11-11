@@ -325,10 +325,16 @@ public sealed class QueryServiceTests : IAsyncLifetime
     [Trait("Covers", "doc 14 6")]
     public async Task AtLeast_WaitsForTheProjection_ThenTimesOutOrReturnsStale()
     {
-        await using SourceFlowTestHost host = await StartAsync();
-        ProjectionDescriptor projection = host.Runtime.AsyncProjections.ShouldHaveSingleItem();
-        LeaseToken? held = await host.Store.TryAcquireAsync($"sub:projection:{projection.Collection}:0", "someone-else", TimeSpan.FromMinutes(5), Ct);
+        // Another node holds the projection's only lease before this host starts, so the read model can't catch up.
+        var store = new SourceFlow.Storage.InMemory.InMemoryStore();
+        LeaseToken? held = await store.TryAcquireAsync("sub:projection:account-summary@1:0", "someone-else", TimeSpan.FromMinutes(5), Ct);
         held.ShouldNotBeNull();
+        await using SourceFlowTestHost host = await SourceFlowTestHost.StartAsync(sf =>
+        {
+            sf.ServiceName = "bank";
+            sf.AddModule<AccountsModule>();
+        }, store: store);
+        host.Runtime.AsyncProjections.ShouldHaveSingleItem().Collection.ShouldBe("account-summary@1");
         var id = AccountId.New();
         CommandResult result = await host.SendAsync(new OpenAccount(id, "Ada", 100m), cancellationToken: Ct);
         IQueryService queries = host.Services.GetRequiredService<IQueryService>();

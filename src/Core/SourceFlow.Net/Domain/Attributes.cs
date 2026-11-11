@@ -92,9 +92,30 @@ public sealed class SourceFlowModuleAttribute : Attribute
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter | AttributeTargets.Field, Inherited = false)]
 public sealed class AggregateIdAttribute : Attribute;
 
-/// <summary>Marks a member as personal data: encrypted per subject and erasable (doc 10 §4).</summary>
+/// <summary>
+/// Marks a member as personal data: encrypted per subject and erasable (doc 10 §4), and classified as
+/// <see cref="SourceFlowTaxonomy.PersonalData"/> so logs and telemetry redact it (doc 10 §5).
+/// </summary>
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter | AttributeTargets.Field, Inherited = false)]
-public sealed class PersonalDataAttribute : Attribute;
+public sealed class PersonalDataAttribute : Microsoft.Extensions.Compliance.Classification.DataClassificationAttribute
+{
+    /// <summary>Marks the member.</summary>
+    public PersonalDataAttribute()
+        : base(SourceFlowTaxonomy.PersonalData)
+    {
+    }
+}
+
+/// <summary>Marks a member as a secret (tokens, keys): always redacted in logs and telemetry (doc 10 §5).</summary>
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter | AttributeTargets.Field, Inherited = false)]
+public sealed class SecretAttribute : Microsoft.Extensions.Compliance.Classification.DataClassificationAttribute
+{
+    /// <summary>Marks the member.</summary>
+    public SecretAttribute()
+        : base(SourceFlowTaxonomy.Secret)
+    {
+    }
+}
 
 /// <summary>Makes a member indexed and filterable in SFQL (DM-R6).</summary>
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Parameter | AttributeTargets.Field, Inherited = false)]
