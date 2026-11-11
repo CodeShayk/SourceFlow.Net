@@ -25,6 +25,12 @@
     <SourceFlowCategory>$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName($(MSBuildProjectDirectory)))))</SourceFlowCategory>
   </PropertyGroup>
 
+  <!-- ARCH-02/ARCH-05 at compile time: no reflection activation, CLR-name type lookup or wall-clock reads. -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'SourceFlow.Generators'">
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
+
   <!-- One test project per category (tests/<Category>/SourceFlow.<Category>.Tests), plus the per-project convention. -->
   <ItemGroup>
     <InternalsVisibleTo Include="SourceFlow.$(SourceFlowCategory).Tests" />

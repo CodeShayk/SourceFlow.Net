@@ -1,0 +1,9 @@
+id,source,description
+# Ids are added by the work package that implements them; ARCH-08 fails while any listed id has no covering test.
+ARCH-01,ADR-027,Core references only the BCL Microsoft.Extensions and Polly
+ARCH-02,ADR-027,Core never references an adapter
+ARCH-03,ADR-027,Adapters reference the core only
+ARCH-05,plan 06 9,No reflection activation in runtime packages
+ARCH-07,plan 06 9,Public adapter classes are sealed
+ARCH-08,plan 04 7,Traceability ids are covered
+ADR-027,ADRs,Single core package with extensibility SPIs

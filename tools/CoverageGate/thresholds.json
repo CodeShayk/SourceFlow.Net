@@ -1,0 +1,18 @@
+{
+  "$comment": "Plan 04 §5. Set enforce=true for a package when its milestone exits; before that the gate only reports.",
+  "maxDropPoints": 0.5,
+  "packages": {
+    "SourceFlow.Net": { "line": 90, "branch": 85, "enforce": false },
+    "SourceFlow.Generators": { "line": 90, "branch": 85, "enforce": false },
+    "SourceFlow.Testing": { "line": 85, "branch": 75, "enforce": false },
+    "SourceFlow.Storage.PostgreSQL": { "line": 90, "branch": 80, "enforce": false },
+    "SourceFlow.Storage.SqlServer": { "line": 90, "branch": 80, "enforce": false },
+    "SourceFlow.Storage.EntityFrameworkCore": { "line": 85, "branch": 75, "enforce": false },
+    "SourceFlow.Cloud.Aws": { "line": 85, "branch": 75, "enforce": false },
+    "SourceFlow.Cloud.Azure": { "line": 85, "branch": 75, "enforce": false },
+    "SourceFlow.Cloud.Gcp": { "line": 85, "branch": 75, "enforce": false },
+    "SourceFlow.AspNetCore": { "line": 90, "branch": 80, "enforce": false },
+    "SourceFlow.Tool": { "line": 80, "branch": 70, "enforce": false },
+    "SourceFlow.Studio": { "line": 90, "branch": 85, "enforce": false }
+  }
+}

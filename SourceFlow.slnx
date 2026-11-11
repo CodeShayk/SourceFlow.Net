@@ -57,4 +57,7 @@
   <Folder Name="/tests/Architecture/">
     <Project Path="tests/Architecture/SourceFlow.Architecture.Tests/SourceFlow.Architecture.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/CoverageGate/CoverageGate.csproj" />
+  </Folder>
 </Solution>

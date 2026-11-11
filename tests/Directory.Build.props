@@ -19,4 +19,10 @@
     <Using Include="Xunit" />
     <Using Include="Shouldly" />
   </ItemGroup>
+
+  <!-- Public API approval (plan 04 §6): opt in per test project with IncludePublicApiApproval=true. -->
+  <ItemGroup Condition="'$(IncludePublicApiApproval)' == 'true'">
+    <PackageReference Include="PublicApiGenerator" />
+    <Compile Include="$(MSBuildThisFileDirectory)Shared\PublicApiApproval.cs" Link="Shared\PublicApiApproval.cs" />
+  </ItemGroup>
 </Project>

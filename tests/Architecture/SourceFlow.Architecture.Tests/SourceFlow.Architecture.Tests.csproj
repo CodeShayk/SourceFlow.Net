@@ -2,6 +2,7 @@
   <!-- Architecture rules (ARCH-01..08, plan 06 §9) over every built package. -->
   <ItemGroup>
     <PackageReference Include="NetArchTest.Rules" />
+    <PackageReference Include="System.Reflection.MetadataLoadContext" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />

@@ -1,0 +1,17 @@
+M:System.Activator.CreateInstance(System.Type);ARCH-05/HP-1: use generated factories (ADR-004)
+M:System.Activator.CreateInstance(System.Type,System.Object[]);ARCH-05/HP-1: use generated factories (ADR-004)
+M:System.Activator.CreateInstance(System.Type,System.Boolean);ARCH-05/HP-1: use generated factories (ADR-004)
+M:System.Activator.CreateInstance``1;ARCH-05/HP-1: use generated factories (ADR-004)
+M:System.Reflection.MethodInfo.MakeGenericMethod(System.Type[]);ARCH-05/HP-1: no runtime generic instantiation (AOT)
+M:System.Type.MakeGenericType(System.Type[]);ARCH-05/HP-1: no runtime generic instantiation (AOT)
+M:System.Type.GetType(System.String);ARCH-05: message types resolve through the registry, never by CLR name (GAP-04)
+M:System.Type.GetType(System.String,System.Boolean);ARCH-05: message types resolve through the registry (GAP-04)
+M:System.Type.GetType(System.String,System.Boolean,System.Boolean);ARCH-05: message types resolve through the registry (GAP-04)
+M:System.Reflection.Assembly.Load(System.String);ARCH-02: the core never loads adapters by reflection
+M:System.Reflection.Assembly.LoadFrom(System.String);ARCH-02: the core never loads adapters by reflection
+M:System.Reflection.Assembly.LoadFile(System.String);ARCH-02: the core never loads adapters by reflection
+M:System.Guid.NewGuid;Use Guid.CreateVersion7(TimeProvider time) or MessageIds (ADR-015)
+P:System.DateTime.Now;Use TimeProvider (deterministic, testable)
+P:System.DateTime.UtcNow;Use TimeProvider (deterministic, testable)
+P:System.DateTimeOffset.Now;Use TimeProvider (deterministic, testable)
+P:System.DateTimeOffset.UtcNow;Use TimeProvider (deterministic, testable)
