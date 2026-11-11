@@ -8,6 +8,12 @@ v2 put retries, idempotency, dead-lettering, encryption and telemetry *inside* e
 
 ## 2. Transport SPI
 
+> **As built ([ADR-033](ADRs/ADR-033-final-transport-spi-pull-receivers-and-the-in-memory-reference-broker.md)).** The SPI is pull-based: `ITransport` has `SendAsync`, `PublishAsync`, `CreateReceiverAsync`, `CreateDeadLetterReceiverAsync` and `ProvisionAsync`. `ITransportReceiver.ReceiveAsync(max, wait)` feeds the core's receive loop, and `ReceivedMessage` settles with `CompleteAsync`, `AbandonAsync(delay)`, `RenewAsync` or `DeadLetterAsync(reason)`.
+>
+> `TransportCapabilities` adds `OrderedDelivery`, `NativeDeadLetter`, `SubscriptionFilters`, `MaxBatchSize`, `Deduplication` and `MaxLockDuration`. Errors are typed: `TransportException.IsTransient`, a per-message `TransportSendException`, and `TopologyValidationException.Problems`.
+>
+> The callback-based sketch below is the original design input.
+
 ```csharp
 public interface ITransport
 {

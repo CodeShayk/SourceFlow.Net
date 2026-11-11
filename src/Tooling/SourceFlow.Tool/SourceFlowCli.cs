@@ -694,11 +694,7 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
         validate.SetAction((_, ct) => Guard(async () =>
         {
             SourceFlowRuntime runtime = Service("topology validate").GetRequiredService<SourceFlowRuntime>();
-            var topology = new TransportTopology(
-                runtime.Routing.Endpoint,
-                [.. runtime.Routing.PublishedTopics],
-                [.. runtime.Routing.Subscriptions.Select(s => s.Topic)],
-                [.. runtime.Routing.Commands.Values.Select(c => c.Endpoint).Distinct(StringComparer.Ordinal)]);
+            TransportTopology topology = runtime.Topology();
             try
             {
                 await runtime.Transport.ProvisionAsync(topology, ProvisioningMode.Validate, ct);

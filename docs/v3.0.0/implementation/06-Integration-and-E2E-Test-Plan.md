@@ -64,7 +64,14 @@ Isolation: every test uses a unique prefix (`t{testId}{random}`) for schemas, qu
 
 ## 3. Transport Conformance Kit (TCK)
 
-`TransportConformanceTests` lives in `SourceFlow.Testing` and runs against in-memory, AWS (LocalStack, then real), Google Cloud (emulator, then real) and Azure (emulator, then real). Cases marked † may be `RealCloudOnly` with a written reason when an emulator diverges (as was already the case for two Azure session tests on `azure-cloud`).
+`TransportConformanceTests` lives in `SourceFlow.Testing` and runs against in-memory, AWS (LocalStack, then real), Google Cloud (emulator, then real) and Azure (emulator, then real).
+
+As built ([ADR-033](../ADRs/ADR-033-final-transport-spi-pull-receivers-and-the-in-memory-reference-broker.md)):
+- TCK-18, 24, 25 and 45 start real services on the transport under test, using the kit's generated `TckModule`.
+- TCK-32..34 need fault injection (`ITransportFixture.Faults`) and are skipped on real cloud.
+- TCK-37..40 use `InjectDefectAsync`.
+- TCK-41..43 cover the transport side of payload protection; decryption and `DecryptionFailed` parking come with WP-5.1.
+- TCK-00 checks the case list. Cases marked † may be `RealCloudOnly` with a written reason when an emulator diverges (as was already the case for two Azure session tests on `azure-cloud`).
 
 | ID | Case | v2 scenario sources |
 |----|------|---------------------|

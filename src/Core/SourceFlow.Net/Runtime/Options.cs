@@ -91,6 +91,15 @@ public sealed class SourceFlowOptions
     /// <summary>How long a retired read-model generation's data is kept after the switch before it is dropped (doc 06 §6).</summary>
     public TimeSpan RetainPreviousFor { get; set; } = TimeSpan.FromDays(7);
 
+    /// <summary>
+    /// How long a received message stays locked by this instance (visibility timeout, lease); the receiver renews it at
+    /// half this interval while the handler runs.
+    /// </summary>
+    public TimeSpan ReceiveLockDuration { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Moves messages from the endpoint's native dead-letter queue into the dead-letter store (doc 07 §3); on by default.</summary>
+    public bool IngestBrokerDeadLetters { get; set; } = true;
+
     /// <summary>The in-process aggregate state cache (doc 05 §8.2); off by default.</summary>
     public AggregateCacheMode AggregateCache { get; set; } = AggregateCacheMode.Off;
 
@@ -146,6 +155,7 @@ public sealed class SourceFlowOptionsTimingValidator : IValidateOptions<SourceFl
         Between(options.DeadLetterRetention, TimeSpan.FromMinutes(1), TimeSpan.FromDays(3650), nameof(options.DeadLetterRetention), failures);
         Between(options.RetentionInterval, TimeSpan.FromSeconds(1), TimeSpan.FromDays(7), nameof(options.RetentionInterval), failures);
         Between(options.RetainPreviousFor, TimeSpan.Zero, TimeSpan.FromDays(3650), nameof(options.RetainPreviousFor), failures);
+        Between(options.ReceiveLockDuration, TimeSpan.FromSeconds(1), TimeSpan.FromHours(12), nameof(options.ReceiveLockDuration), failures);
         if (options.LeaseTtl <= options.PollInterval)
         {
             failures.Add($"{nameof(options.LeaseTtl)} ({options.LeaseTtl}) must be longer than {nameof(options.PollInterval)} ({options.PollInterval}) so leases are renewed in time.");

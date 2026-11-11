@@ -115,7 +115,8 @@ public static class Check
 /// <param name="Name">A short description.</param>
 /// <param name="Run">The case body.</param>
 /// <param name="RequiresClockControl">True when the case advances the store clock.</param>
-public sealed record ConformanceCase<TFixture>(string Id, string Name, Func<TFixture, CancellationToken, Task> Run, bool RequiresClockControl = false)
+/// <param name="RequiresFaultInjection">True when the case injects broker faults (emulators and in-memory only).</param>
+public sealed record ConformanceCase<TFixture>(string Id, string Name, Func<TFixture, CancellationToken, Task> Run, bool RequiresClockControl = false, bool RequiresFaultInjection = false)
 {
     /// <inheritdoc />
     public override string ToString()

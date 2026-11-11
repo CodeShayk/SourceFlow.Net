@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using SourceFlow.Messaging;
 
 namespace SourceFlow.Runtime;
 
@@ -40,7 +41,7 @@ public sealed class RoutingBuilder
         string name = ValidateName(topic, nameof(topic));
         var builder = new SubscriptionBuilder();
         configure?.Invoke(builder);
-        _subscriptions[name] = new SubscriptionRoute(name, [.. builder.Types]);
+        _subscriptions[name] = new SubscriptionRoute(name, [.. builder.Types]) { Where = builder.Filter };
         return this;
     }
 
@@ -112,7 +113,26 @@ public sealed class RoutingBuilder
             _endpoint ?? serviceName,
             _commands.ToFrozenDictionary(),
             _publications.ToFrozenDictionary(p => p.Key, p => (IReadOnlyList<PublicationRoute>)[.. p.Value]),
-            [.. _subscriptions.Values]);
+            [.. _subscriptions.Values.Select(s => s with { Filter = EffectiveFilter(s, model) })]);
+    }
+
+    // Only<T>() becomes `type IN (…)` on the CloudEvents types; Where(…) is ANDed with it (doc 07 §7).
+    private static string? EffectiveFilter(SubscriptionRoute subscription, RuntimeModel model)
+    {
+        string? types = subscription.OnlyTypes.Count == 0
+            ? null
+            : Transport.CloudEventFilter.ForTypes(subscription.OnlyTypes.Select(t =>
+            {
+                MessageTypeInfo info = model.Registry.Get(t);
+                return CloudEvents.FormatType(info.Name, info.Version);
+            })).Expression;
+        return (types, subscription.Where) switch
+        {
+            (null, null) => null,
+            (string t, null) => t,
+            (null, string w) => w,
+            (string t, string w) => $"({t}) AND ({w})",
+        };
     }
 
     internal static string ValidateName(string name, string parameter)
@@ -234,6 +254,20 @@ public sealed class SubscriptionBuilder
 {
     internal List<Type> Types { get; } = [];
 
+    internal string? Filter { get; private set; }
+
+    /// <summary>
+    /// Filters the subscription with a CloudEvents SQL expression over the event's attributes, for example
+    /// <c>type LIKE 'payments.%' AND sftenant = 'eu'</c> (doc 07 §7). Translated to the broker's native filter where
+    /// it can be, otherwise evaluated on receipt, with identical results.
+    /// </summary>
+    /// <exception cref="FormatException">The expression is not valid CESQL.</exception>
+    public SubscriptionBuilder Where(string filter)
+    {
+        Filter = Transport.CloudEventFilter.Parse(filter).Expression;
+        return this;
+    }
+
     /// <summary>Restricts the subscription to <typeparamref name="T"/> (broker-side filter where supported).</summary>
     public SubscriptionBuilder Only<T>()
         where T : class, IMessage
@@ -254,7 +288,16 @@ public sealed record CommandRoute(string Endpoint, bool ReplyOnReject);
 public sealed record PublicationRoute(string Destination, Type ContractType, Func<IEvent, IMessage> Map, Func<IEvent, string?>? PartitionKey);
 
 /// <summary>A topic subscription.</summary>
-public sealed record SubscriptionRoute(string Topic, IReadOnlyList<Type> OnlyTypes);
+/// <param name="Topic">The topic.</param>
+/// <param name="OnlyTypes">The accepted message types (<c>Only&lt;T&gt;()</c>); empty accepts all.</param>
+public sealed record SubscriptionRoute(string Topic, IReadOnlyList<Type> OnlyTypes)
+{
+    /// <summary>The <c>Where(…)</c> CESQL expression, if any.</summary>
+    public string? Where { get; init; }
+
+    /// <summary>The effective CESQL filter (the types and the <c>Where</c> expression), or null for every event.</summary>
+    public string? Filter { get; init; }
+}
 
 /// <summary>The frozen routing table.</summary>
 public sealed class RoutingTable

@@ -224,6 +224,10 @@ These are additional to the SCK, which the in-memory store also runs.
 | UT-RX-14..16 | Shutdown: stop pulling; in-flight complete within timeout; remainder released | RX-R6 | new |
 | UT-RX-17..19 | Trace: consumer span linked to the producer `traceparent`; consumed and process-duration metrics | ADR-019 | → `CloudTelemetryTests.ExtractTraceParent_*` |
 | UT-RX-20..22 | Tenant restored from the envelope; actor restored; CESQL subscription filter applied client-side when not native | ADR-022, doc 07 | → `SnsMessageFilteringIntegrationTests` (concept) |
+| UT-RX-23 | Transport errors classified by `IsTransient` (outage and throttling transient; missing destination and oversized body permanent) | ADR-033 | → `AwsServiceThrottlingAndFailureTests` (concept) |
+| UT-RX-24 | A handler longer than the lock renews it, so the message is not redelivered | doc 07 §4, ADR-033 | new |
+| UT-RT-21..22 | Subscription filter from routing: `Only<T>()` becomes `type IN (…)` and is ANDed with `Where(…)`; a malformed filter fails at configuration | doc 07 §7 | new |
+| UT-CE-01..08 | CloudEvents SQL filter: operators and precedence, `LIKE` with escapes, `IN`/`EXISTS`, errors never match, functions, parse errors with positions, native translation (`ExactTypes`, `TypePrefixes`), envelope attributes | doc 07 §7, ADR-033 | new |
 | UT-DLQ-01..10 | Dead-letter manager: list and filter (consumer, reason, type, date), show, replay keeps the message id (the inbox still protects), discard with an audited reason, purge older than a cutoff, metrics | GAP-11 | → `InMemoryDeadLetterStoreTests` (11), `AwsDeadLetterQueuePropertyTests` (replay concepts) |
 
 ### 3.7 Subscriptions, projections, process managers (UT-SUB, UT-PRJ, UT-PM, WP-1.9)

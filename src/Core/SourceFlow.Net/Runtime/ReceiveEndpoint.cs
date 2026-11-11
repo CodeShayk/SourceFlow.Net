@@ -25,6 +25,7 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
     private readonly Channel<ReceivedMessage>[] _channels;
     private readonly IMessageMiddleware[] _builtIns;
     private ITransportReceiver? _receiver;
+    private Transport.CloudEventFilter[]? _clientFilters;
     private Task[] _workers = [];
     private int _inFlight;
 
@@ -51,7 +52,17 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
     /// <summary>Opens the receiver and starts the workers.</summary>
     public async ValueTask StartAsync(CancellationToken cancellationToken)
     {
-        var options = new ReceiverOptions(_runtime.Routing.Endpoint, [.. _runtime.Routing.Subscriptions.Select(s => s.Topic)]);
+        IReadOnlyList<SubscriptionRoute> subscriptions = _runtime.Routing.Subscriptions;
+        var options = new ReceiverOptions(_runtime.Routing.Endpoint, [.. subscriptions.Select(s => s.Topic)])
+        {
+            Filters = subscriptions.Where(s => s.Filter is not null).ToDictionary(s => s.Topic, s => s.Filter!, StringComparer.Ordinal),
+            LockDuration = _runtime.Options.ReceiveLockDuration,
+        };
+
+        // Without native filters every subscribed event arrives; drop those no subscription's filter accepts (UT-RX-22).
+        _clientFilters = !_runtime.Transport.Capabilities.SubscriptionFilters && subscriptions.Count > 0 && subscriptions.All(s => s.Filter is not null)
+            ? [.. subscriptions.Select(s => Transport.CloudEventFilter.Parse(s.Filter!))]
+            : null;
         _receiver = await _runtime.Transport.CreateReceiverAsync(options, cancellationToken).ConfigureAwait(false);
         _workers = [.. _channels.Select(channel => Task.Run(() => WorkAsync(channel.Reader, cancellationToken), CancellationToken.None))];
     }
@@ -69,6 +80,12 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
                     IReadOnlyList<ReceivedMessage> batch = await receiver.ReceiveAsync(_runtime.Options.PrefetchPerWorker, _runtime.Options.PollInterval, cancellationToken).ConfigureAwait(false);
                     foreach (ReceivedMessage message in batch)
                     {
+                        if (FilteredOut(message))
+                        {
+                            await message.CompleteAsync(cancellationToken).ConfigureAwait(false);
+                            continue;
+                        }
+
                         Interlocked.Increment(ref _inFlight);
                         _runtime.Metrics.ConsumedMessages.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.ConsumerGroup, _runtime.Routing.Endpoint));
                         await _channels[WorkerOf(message)].Writer.WriteAsync(message, cancellationToken).ConfigureAwait(false);
@@ -116,6 +133,19 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
         }
     }
 
+    // An event no subscription filter accepts (client-side filtering, for brokers without native filters).
+    private bool FilteredOut(ReceivedMessage message)
+    {
+        if (_clientFilters is null)
+        {
+            return false;
+        }
+
+        Messaging.MessageEnvelope envelope = message.Envelope;
+        bool isEvent = _runtime.Model.Registry.TryGet(envelope.Type, envelope.TypeVersion, out Messaging.MessageTypeInfo? type) && type.Kind == MessageKind.Event;
+        return isEvent && !Array.Exists(_clientFilters, f => f.Matches(envelope));
+    }
+
     private int WorkerOf(ReceivedMessage message)
     {
         string key = message.Envelope.EffectivePartitionKey ?? message.Envelope.MessageId.ToString();
@@ -138,6 +168,43 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
     }
 
     private async Task HandleAsync(ReceivedMessage message, CancellationToken cancellationToken)
+    {
+        // Keep the lock while the handler runs (visibility heartbeat, doc 07 §4).
+        using var renewing = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task renewal = RenewAsync(message, renewing.Token);
+        try
+        {
+            await HandleLockedAsync(message, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            await renewing.CancelAsync().ConfigureAwait(false);
+            await renewal.ConfigureAwait(false);
+        }
+    }
+
+    private async Task RenewAsync(ReceivedMessage message, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(_runtime.Options.ReceiveLockDuration / 2, TimeProvider.System);
+            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+            {
+                await message.RenewAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The handler finished.
+        }
+        catch (Exception exception)
+        {
+            // A lost lock means a redelivery; the inbox absorbs the duplicate.
+            Log.ReceiveLoopFailed(_logger, exception, _runtime.Routing.Endpoint);
+        }
+    }
+
+    private async Task HandleLockedAsync(ReceivedMessage message, CancellationToken cancellationToken)
     {
         MessageContext context;
         int immediate = 0;

@@ -45,3 +45,4 @@ Every ADR is **Proposed** until the v3 architecture review. "Traces" lists the [
 | [ADR-030](ADR-030-domain-queries-bind-at-startup.md) | Domain queries are checked in two stages: shape at build time, binding at startup | Accepted |
 | [ADR-031](ADR-031-cli-runs-store-commands-globally-and-model-commands-in-the-service.md) | The CLI runs store commands as a global tool and model commands inside the service | Accepted |
 | [ADR-032](ADR-032-blue-green-read-model-generations-behind-forward-only-aliases.md) | Blue/green read-model generations behind forward-only aliases | Accepted |
+| [ADR-033](ADR-033-final-transport-spi-pull-receivers-and-the-in-memory-reference-broker.md) | The final transport SPI: pull receivers, CESQL filters and the in-memory reference broker | Accepted |

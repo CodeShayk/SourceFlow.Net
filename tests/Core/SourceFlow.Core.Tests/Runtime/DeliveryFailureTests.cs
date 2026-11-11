@@ -181,6 +181,11 @@ public sealed class DeliveryFailureTests
             throw new NotSupportedException();
         }
 
+        public ValueTask<ITransportReceiver> CreateDeadLetterReceiverAsync(string endpoint, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
+
         public ValueTask ProvisionAsync(TransportTopology topology, ProvisioningMode mode, CancellationToken cancellationToken)
         {
             return ValueTask.CompletedTask;

@@ -27,6 +27,7 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
     private volatile bool _ready;
 
     private readonly Query.QueryService? _queries;
+    private DeadLetterIngestor? _ingestor;
 
     internal SourceFlowHost(SourceFlowRuntime runtime, OutboxRelay relay, ReceiveEndpoint receiver, SubscriptionEngine subscriptions, HostSettings settings, Query.QueryService? queries = null)
     {
@@ -57,12 +58,7 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
     /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var topology = new TransportTopology(
-            _runtime.Routing.Endpoint,
-            [.. _runtime.Routing.PublishedTopics],
-            [.. _runtime.Routing.Subscriptions.Select(s => s.Topic)],
-            [.. _runtime.Routing.Commands.Values.Select(c => c.Endpoint).Distinct(StringComparer.Ordinal)]);
-        await _runtime.Transport.ProvisionAsync(topology, _settings.Provisioning, cancellationToken).ConfigureAwait(false);
+        await _runtime.Transport.ProvisionAsync(_runtime.Topology(), _settings.Provisioning, cancellationToken).ConfigureAwait(false);
 
         await RegisterSchemasAsync(cancellationToken).ConfigureAwait(false);
         CheckDomainQueries();
@@ -75,6 +71,11 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
         {
             await _receiver.StartAsync(stopping).ConfigureAwait(false);
             _loops.Add(Task.Run(() => _receiver.RunAsync(stopping), CancellationToken.None));
+            if (_runtime.Options.IngestBrokerDeadLetters && _runtime.Transport.Capabilities.NativeDeadLetter)
+            {
+                _ingestor = new DeadLetterIngestor(_runtime);
+                _loops.Add(Task.Run(() => LoopAsync(ct => _ingestor.RunOnceAsync(ct), stopping), CancellationToken.None));
+            }
         }
 
         if (_settings.Roles.HasFlag(SourceFlowRoles.Relay))
@@ -159,6 +160,10 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
     {
         _stopping?.Dispose();
         await _receiver.DisposeAsync().ConfigureAwait(false);
+        if (_ingestor is not null)
+        {
+            await _ingestor.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     // Batched retention cleanup (doc 05 §9): cutoffs on the business clock, the interval on the system clock.

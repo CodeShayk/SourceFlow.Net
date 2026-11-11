@@ -1891,6 +1891,7 @@ namespace SourceFlow.Runtime
         [System.ComponentModel.DataAnnotations.Range(0, 10)]
         public int ImmediateRetries { get; set; }
         public System.TimeSpan InboxRetention { get; set; }
+        public bool IngestBrokerDeadLetters { get; set; }
         public System.TimeSpan LeaseTtl { get; set; }
         public bool LogPayloads { get; set; }
         [System.ComponentModel.DataAnnotations.Range(0, 50)]
@@ -1909,6 +1910,7 @@ namespace SourceFlow.Runtime
         public int PrefetchPerWorker { get; set; }
         [System.ComponentModel.DataAnnotations.Range(1, 1024)]
         public int ReceiveConcurrency { get; set; }
+        public System.TimeSpan ReceiveLockDuration { get; set; }
         public System.TimeSpan RetainPreviousFor { get; set; }
         [System.ComponentModel.DataAnnotations.Range(1, 100000)]
         public int RetentionBatchSize { get; set; }
@@ -1964,6 +1966,7 @@ namespace SourceFlow.Runtime
         public Microsoft.Extensions.Logging.ILogger Logger<T>() { }
         public System.ReadOnlyMemory<byte> Serialize(object message, SourceFlow.Messaging.MessageTypeInfo type) { }
         public SourceFlow.Storage.OutboxMessage ToOutbox(SourceFlow.Messaging.MessageEnvelope envelope, string destination, SourceFlow.Storage.OutboxKind kind, System.DateTimeOffset? deliverAt = default) { }
+        public SourceFlow.Transport.TransportTopology Topology() { }
         public string? TrySubjectOf(SourceFlow.ICommand command) { }
     }
     public sealed class StoragePorts : System.IEquatable<SourceFlow.Runtime.StoragePorts>
@@ -1990,12 +1993,15 @@ namespace SourceFlow.Runtime
         public SubscriptionBuilder() { }
         public SourceFlow.Runtime.SubscriptionBuilder Only<T>()
             where T :  class, SourceFlow.IMessage { }
+        public SourceFlow.Runtime.SubscriptionBuilder Where(string filter) { }
     }
     public sealed class SubscriptionRoute : System.IEquatable<SourceFlow.Runtime.SubscriptionRoute>
     {
         public SubscriptionRoute(string Topic, System.Collections.Generic.IReadOnlyList<System.Type> OnlyTypes) { }
+        public string? Filter { get; init; }
         public System.Collections.Generic.IReadOnlyList<System.Type> OnlyTypes { get; init; }
         public string Topic { get; init; }
+        public string? Where { get; init; }
     }
     public sealed class SubscriptionStall : System.IEquatable<SourceFlow.Runtime.SubscriptionStall>
     {
@@ -2430,10 +2436,29 @@ namespace SourceFlow.Storage.InMemory
 }
 namespace SourceFlow.Transport
 {
+    public sealed class CloudEventFilter
+    {
+        public System.Collections.Generic.IReadOnlyList<string>? ExactTypes { get; }
+        public string Expression { get; }
+        public System.Collections.Generic.IReadOnlyList<string>? TypePrefixes { get; }
+        public bool Matches(SourceFlow.Messaging.MessageEnvelope envelope) { }
+        public bool Matches(System.Collections.Generic.IReadOnlyDictionary<string, string> attributes) { }
+        public override string ToString() { }
+        public static SourceFlow.Transport.CloudEventFilter ForTypes(System.Collections.Generic.IEnumerable<string> types) { }
+        public static SourceFlow.Transport.CloudEventFilter Parse(string expression) { }
+        public static string Quote(string value) { }
+        public static bool TryParse(string expression, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out SourceFlow.Transport.CloudEventFilter? filter, out string? error) { }
+    }
+    public sealed class DestinationNotFoundException : SourceFlow.Transport.TransportException
+    {
+        public DestinationNotFoundException(string destination) { }
+        public string Destination { get; }
+    }
     public interface ITransport
     {
         SourceFlow.Transport.TransportCapabilities Capabilities { get; }
         string SystemName { get; }
+        System.Threading.Tasks.ValueTask<SourceFlow.Transport.ITransportReceiver> CreateDeadLetterReceiverAsync(string endpoint, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<SourceFlow.Transport.ITransportReceiver> CreateReceiverAsync(SourceFlow.Transport.ReceiverOptions options, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask ProvisionAsync(SourceFlow.Transport.TransportTopology topology, SourceFlow.Transport.ProvisioningMode mode, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask PublishAsync(string topic, System.Collections.Generic.IReadOnlyList<SourceFlow.Messaging.MessageEnvelope> messages, System.Threading.CancellationToken cancellationToken);
@@ -2452,37 +2477,99 @@ namespace SourceFlow.Transport
     public abstract class ReceivedMessage
     {
         protected ReceivedMessage() { }
+        public virtual string? DeadLetterReason { get; }
         public abstract int DeliveryCount { get; }
         public abstract SourceFlow.Messaging.MessageEnvelope Envelope { get; }
         public abstract System.Threading.Tasks.ValueTask AbandonAsync(System.TimeSpan delay, System.Threading.CancellationToken cancellationToken);
         public abstract System.Threading.Tasks.ValueTask CompleteAsync(System.Threading.CancellationToken cancellationToken);
+        public abstract System.Threading.Tasks.ValueTask DeadLetterAsync(string reason, System.Threading.CancellationToken cancellationToken);
+        public abstract System.Threading.Tasks.ValueTask RenewAsync(System.Threading.CancellationToken cancellationToken);
     }
     public sealed class ReceiverOptions : System.IEquatable<SourceFlow.Transport.ReceiverOptions>
     {
         public ReceiverOptions(string Endpoint, System.Collections.Generic.IReadOnlyList<string> SubscribedTopics) { }
         public string Endpoint { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string> Filters { get; init; }
+        public System.TimeSpan LockDuration { get; init; }
         public System.Collections.Generic.IReadOnlyList<string> SubscribedTopics { get; init; }
+    }
+    public sealed class SendFailure : System.IEquatable<SourceFlow.Transport.SendFailure>
+    {
+        public SendFailure(SourceFlow.MessageId MessageId, System.Exception Error) { }
+        public System.Exception Error { get; init; }
+        public SourceFlow.MessageId MessageId { get; init; }
+    }
+    public sealed class TopologyProblem : System.IEquatable<SourceFlow.Transport.TopologyProblem>
+    {
+        public TopologyProblem(SourceFlow.Transport.TopologyProblemKind Kind, string Resource, string Detail) { }
+        public string Detail { get; init; }
+        public SourceFlow.Transport.TopologyProblemKind Kind { get; init; }
+        public string Resource { get; init; }
+    }
+    public enum TopologyProblemKind
+    {
+        MissingEndpoint = 0,
+        MissingTopic = 1,
+        MissingSubscription = 2,
+        OrderingMismatch = 3,
+        MissingDeadLetter = 4,
+        FilterDrift = 5,
+        Misconfigured = 6,
     }
     public sealed class TopologyValidationException : System.Exception
     {
+        public TopologyValidationException(System.Collections.Generic.IReadOnlyList<SourceFlow.Transport.TopologyProblem> problems) { }
         public TopologyValidationException(string message) { }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Transport.TopologyProblem> Problems { get; }
     }
     public sealed class TransportCapabilities : System.IEquatable<SourceFlow.Transport.TransportCapabilities>
     {
         public TransportCapabilities(int MaxBodyBytes, int MaxAttributes, System.TimeSpan MaxRetention, bool NativeDelay, System.TimeSpan MaxDelay) { }
+        public bool Deduplication { get; init; }
+        public System.TimeSpan DeduplicationWindow { get; init; }
         public int MaxAttributes { get; init; }
+        public int MaxBatchSize { get; init; }
         public int MaxBodyBytes { get; init; }
         public System.TimeSpan MaxDelay { get; init; }
+        public System.TimeSpan MaxLockDuration { get; init; }
         public System.TimeSpan MaxRetention { get; init; }
+        public bool NativeDeadLetter { get; init; }
         public bool NativeDelay { get; init; }
+        public bool OrderedDelivery { get; init; }
+        public bool SubscriptionFilters { get; init; }
+    }
+    public class TransportException : System.Exception
+    {
+        public TransportException(string message, bool transient, System.Exception? inner = null) { }
+        public bool IsTransient { get; }
+        public System.TimeSpan? RetryAfter { get; init; }
+    }
+    public sealed class TransportSendException : SourceFlow.Transport.TransportException
+    {
+        public TransportSendException(string destination, System.Collections.Generic.IReadOnlyList<SourceFlow.Transport.SendFailure> failures, int sent) { }
+        public string Destination { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Transport.SendFailure> Failures { get; }
+        public int Sent { get; }
+    }
+    public sealed class TransportThrottledException : SourceFlow.Transport.TransportException
+    {
+        public TransportThrottledException(string message, System.Exception? inner = null) { }
     }
     public sealed class TransportTopology : System.IEquatable<SourceFlow.Transport.TransportTopology>
     {
         public TransportTopology(string Endpoint, System.Collections.Generic.IReadOnlyList<string> PublishedTopics, System.Collections.Generic.IReadOnlyList<string> SubscribedTopics, System.Collections.Generic.IReadOnlyList<string> SendEndpoints) { }
         public string Endpoint { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string> Filters { get; init; }
+        public int MaxDeliveries { get; init; }
+        public bool OrderedEndpoint { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> OrderedTopics { get; init; }
         public System.Collections.Generic.IReadOnlyList<string> PublishedTopics { get; init; }
         public System.Collections.Generic.IReadOnlyList<string> SendEndpoints { get; init; }
         public System.Collections.Generic.IReadOnlyList<string> SubscribedTopics { get; init; }
+    }
+    public sealed class TransportUnavailableException : SourceFlow.Transport.TransportException
+    {
+        public TransportUnavailableException(string message, System.Exception? inner = null) { }
     }
 }
 namespace SourceFlow.Transport.InMemory
@@ -2494,27 +2581,40 @@ namespace SourceFlow.Transport.InMemory
         public SourceFlow.Transport.InMemory.InMemoryBrokerFaults Faults { get; }
         public System.DateTimeOffset? NextVisibleAt { get; }
         public int PendingCount { get; }
+        public bool StrictDestinations { get; set; }
         public static SourceFlow.Transport.TransportCapabilities Capabilities { get; }
         public SourceFlow.Transport.InMemory.InMemoryTransport CreateTransport() { }
-        public void DeclareTopic(string topic) { }
+        public int DeadLetterCount(string endpoint) { }
+        public void DeclareEndpoint(string endpoint, bool ordered = false, int maxDeliveries = 10) { }
+        public void DeclareTopic(string topic, bool ordered = false) { }
+        public void DeleteEndpoint(string endpoint) { }
+        public void DeleteTopic(string topic) { }
         public int DeliveredCount(string endpoint) { }
+        public void DetachDeadLetterQueue(string endpoint) { }
         public bool EndpointExists(string endpoint) { }
         public void Publish(string topic, SourceFlow.Messaging.MessageEnvelope envelope) { }
         public void Pulse() { }
         public void Send(string endpoint, SourceFlow.Messaging.MessageEnvelope envelope) { }
-        public void Subscribe(string topic, string endpoint) { }
+        public void SetOrdered(string resource, bool ordered) { }
+        public void Subscribe(string topic, string endpoint, string? filter = null) { }
         public bool TopicExists(string topic) { }
+        public void Unsubscribe(string topic, string endpoint) { }
     }
     public sealed class InMemoryBrokerFaults
     {
         public InMemoryBrokerFaults() { }
+        public int CredentialRefreshes { get; }
+        public bool Unavailable { get; set; }
         public void DropNextAcks(int count = 1) { }
         public void DuplicateNext(int count = 1) { }
+        public void ExpireCredentials() { }
+        public void ThrottleNext(int count, System.TimeSpan retryAfter) { }
     }
     public sealed class InMemoryTransport : SourceFlow.Transport.ITransport
     {
         public SourceFlow.Transport.TransportCapabilities Capabilities { get; }
         public string SystemName { get; }
+        public System.Threading.Tasks.ValueTask<SourceFlow.Transport.ITransportReceiver> CreateDeadLetterReceiverAsync(string endpoint, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Transport.ITransportReceiver> CreateReceiverAsync(SourceFlow.Transport.ReceiverOptions options, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask ProvisionAsync(SourceFlow.Transport.TransportTopology topology, SourceFlow.Transport.ProvisioningMode mode, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask PublishAsync(string topic, System.Collections.Generic.IReadOnlyList<SourceFlow.Messaging.MessageEnvelope> messages, System.Threading.CancellationToken cancellationToken) { }

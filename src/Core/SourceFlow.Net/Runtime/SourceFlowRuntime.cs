@@ -118,6 +118,23 @@ public sealed class SourceFlowRuntime
         Generations = new ReadModelGenerations(this);
     }
 
+    /// <summary>
+    /// The service's transport topology (ADR-017): its endpoint with a dead-letter backstop after the retry budget plus
+    /// two deliveries (doc 07 §4), published and subscribed topics with their CloudEvents SQL filters, and remote endpoints.
+    /// </summary>
+    public TransportTopology Topology()
+    {
+        return new TransportTopology(
+            Routing.Endpoint,
+            [.. Routing.PublishedTopics],
+            [.. Routing.Subscriptions.Select(s => s.Topic)],
+            [.. Routing.Commands.Values.Select(c => c.Endpoint).Distinct(StringComparer.Ordinal)])
+        {
+            MaxDeliveries = 1 + Options.DelayedRetries.Count + 2,
+            Filters = Routing.Subscriptions.Where(s => s.Filter is not null).ToDictionary(s => s.Topic, s => s.Filter!, StringComparer.Ordinal),
+        };
+    }
+
     /// <summary>Read-model generations and aliases (doc 06 §6).</summary>
     internal ReadModelGenerations Generations { get; }
 

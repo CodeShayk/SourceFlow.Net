@@ -2,6 +2,8 @@
   <!-- Test toolkit shipped to users (design doc 11 §2-3): specs, test host, conformance-kit bases. Test-framework agnostic. -->
   <PropertyGroup>
     <RootNamespace>SourceFlow.Testing</RootNamespace>
+    <!-- The transport conformance kit's end-to-end domain (Conformance/TckDomain.cs) is generated. -->
+    <UseSourceFlowGenerator>true</UseSourceFlowGenerator>
     <Description>SourceFlow.Net v3 testing toolkit: Given/When/Then specs for aggregates, process managers and projections, an in-memory test host, and the storage and transport conformance kits.</Description>
   </PropertyGroup>
   <ItemGroup>
