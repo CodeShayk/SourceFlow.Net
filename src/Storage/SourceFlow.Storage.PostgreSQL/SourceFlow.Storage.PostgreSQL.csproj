@@ -6,6 +6,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
     <PackageReference Include="Npgsql" />
+    <InternalsVisibleTo Include="SourceFlow.Storage.Tests" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Schema\*.sql" LogicalName="SourceFlow.Storage.PostgreSQL.Schema.%(Filename)%(Extension)" />

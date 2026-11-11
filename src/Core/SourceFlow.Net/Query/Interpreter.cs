@@ -206,6 +206,7 @@ internal sealed class Interpreter(BoundQuery query, QueryEnvironment environment
             case SourceKind.Events:
             {
                 var names = new HashSet<string>(source.EventTypes.Select(t => t.Name), StringComparer.Ordinal);
+                long? version = source.Version ?? (((EventsSource)source.Syntax).Version is { } v ? Evaluate(v, new Frame(null, null, null, null)) as long? : null);
                 var rows = new List<SourceRow>();
                 GlobalPosition after = GlobalPosition.Start;
                 while (true)
@@ -220,7 +221,7 @@ internal sealed class Interpreter(BoundQuery query, QueryEnvironment environment
                     {
                         if ((query.Options.AllTenants || e.TenantId == environment.Tenant)
                             && (names.Count == 0 || names.Contains(e.Type))
-                            && (source.Version is null || e.TypeVersion == source.Version))
+                            && (version is null || e.TypeVersion == version))
                         {
                             rows.Add(new EventRow(e));
                         }
@@ -456,6 +457,7 @@ internal sealed class Interpreter(BoundQuery query, QueryEnvironment environment
             "sfcausationid" => e.Metadata.CausationId?.ToString(),
             "tenant" => e.TenantId,
             "tags" => e.Tags.ToArray(),
+            "data" => row.Data,
             _ => null,
         };
     }

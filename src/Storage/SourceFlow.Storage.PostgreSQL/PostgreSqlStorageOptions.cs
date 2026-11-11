@@ -53,6 +53,9 @@ public sealed partial class PostgreSqlStorageOptions
     /// <summary>An existing data source for cross-tenant readers; takes precedence over <see cref="SystemConnectionString"/>.</summary>
     public NpgsqlDataSource? SystemDataSource { get; set; }
 
+    /// <summary>The statement timeout for SFQL queries (doc 14 §9.4: default 5 s, at most 30 s).</summary>
+    public TimeSpan QueryTimeout { get; set; } = TimeSpan.FromSeconds(5);
+
     internal string Channel => NotificationChannel ?? Schema;
 
     internal bool RowLevelSecurity => TenantIsolation == TenantIsolation.RowLevelSecurity;
@@ -77,6 +80,11 @@ public sealed partial class PostgreSqlStorageOptions
         if (ListenReconnectDelay <= TimeSpan.Zero)
         {
             throw new InvalidOperationException("ListenReconnectDelay must be positive.");
+        }
+
+        if (QueryTimeout <= TimeSpan.Zero || QueryTimeout > TimeSpan.FromSeconds(30))
+        {
+            throw new InvalidOperationException("QueryTimeout must be positive and at most 30 seconds.");
         }
 
         if (RowLevelSecurity && SystemDataSource is null && string.IsNullOrWhiteSpace(SystemConnectionString))

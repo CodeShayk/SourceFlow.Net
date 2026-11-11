@@ -222,12 +222,15 @@ public sealed class QueryCatalog
             return (QueryType.Duration, [], null);
         }
 
+        JsonTypeInfo? info = TryGetTypeInfo(type, options);
         if (type.IsEnum)
         {
-            return (QueryType.Any, [], null);
+            // Numbers by default; strings with a string-enum converter. Serialize a value to see which.
+            return (info is not null && JsonSerializer.SerializeToElement(Enum.ToObject(type, 0), info).ValueKind == JsonValueKind.String
+                ? QueryType.String
+                : QueryType.Integer, [], null);
         }
 
-        JsonTypeInfo? info = TryGetTypeInfo(type, options);
         return info?.Kind switch
         {
             JsonTypeInfoKind.Object => (QueryType.Object, Fields(info, options, depth + 1), null),

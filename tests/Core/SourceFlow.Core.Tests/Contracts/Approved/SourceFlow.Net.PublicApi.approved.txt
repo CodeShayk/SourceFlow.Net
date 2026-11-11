@@ -961,6 +961,7 @@ namespace SourceFlow.Query
     {
         protected Expr(SourceFlow.Query.TextSpan Span) { }
         public SourceFlow.Query.TextSpan Span { get; init; }
+        public override sealed string ToString() { }
     }
     public interface IAggregateReader
     {

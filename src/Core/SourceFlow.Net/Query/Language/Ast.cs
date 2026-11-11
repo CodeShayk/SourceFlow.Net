@@ -27,7 +27,14 @@ public enum QueryLanguage
 // ---------------------------------------------------------------- expressions
 
 /// <summary>An SFQL expression (CESQL v1 extended, doc 14 §4.1).</summary>
-public abstract record Expr(TextSpan Span);
+public abstract record Expr(TextSpan Span)
+{
+    /// <summary>The canonical text of the expression, independent of syntax and positions.</summary>
+    public sealed override string ToString()
+    {
+        return AstPrinter.Expr(this);
+    }
+}
 
 /// <summary>The kind of a literal.</summary>
 public enum LiteralKind

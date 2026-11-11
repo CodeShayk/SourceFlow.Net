@@ -369,6 +369,21 @@ public sealed class QueryServiceTests : IAsyncLifetime
         (await Queries.QueryPageAsync(Summary + " | where balance > @min", Params(("min", "500.5")), cancellationToken: Ct)).Rows.Count.ShouldBe(2);
     }
 
+    [Fact]
+    [Trait("Id", "UT-QL-66")]
+    [Trait("Covers", "doc 14 5.2")]
+    public async Task DefaultEventColumns_IncludeData_AndEnumsAreTypedByTheirJson()
+    {
+        QueryPage events = await Queries.QueryPageAsync("from events of \"bank.account.opened\" | where stream = @s", Params(("s", Stream(_accounts[0]))), cancellationToken: Ct);
+        QueryPage summary = await Queries.QueryPageAsync(Summary + " | where status = 2 | project holder, status", cancellationToken: Ct);
+
+        events.Columns.Select(c => c.Name).ShouldBe(["position", "stream", "version", "type", "typeversion", "time", "data"]);
+        System.Text.Json.JsonElement data = events.Rows.ShouldHaveSingleItem()["data"].ShouldBeOfType<System.Text.Json.JsonElement>();
+        data.GetProperty("holder").GetString().ShouldBe("Ada");
+        summary.Columns[1].Type.ShouldBe(QueryType.Integer);   // AccountStatus is serialized as a number
+        summary.Rows.ShouldHaveSingleItem().Values.ShouldBe(["Edsger", 2L]);
+    }
+
     private static Task<SourceFlowTestHost> StartAsync()
     {
         return SourceFlowTestHost.StartAsync(sf =>

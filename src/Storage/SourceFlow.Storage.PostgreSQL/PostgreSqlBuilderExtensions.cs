@@ -34,6 +34,8 @@ public static class PostgreSqlBuilderExtensions
         builder.Services.TryAddSingleton(sp => new PostgreSqlStore(options, sp.GetService<TimeProvider>()));
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, PostgreSqlSchemaStartup>(sp =>
             new PostgreSqlSchemaStartup(sp.GetRequiredService<PostgreSqlStore>(), sp.GetService<IHostEnvironment>())));
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<SourceFlow.Query.IQueryEngine, Query.PostgreSqlQueryEngine>(sp =>
+            new Query.PostgreSqlQueryEngine(sp.GetRequiredService<PostgreSqlStore>())));
         return builder.UseStorage(sp => sp.GetRequiredService<PostgreSqlStore>().ToPorts());
     }
 }
