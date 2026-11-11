@@ -1,0 +1,37 @@
+<Project>
+  <!--
+    Shared settings for every v3 project (implementation plan 02 §6, ADR-001).
+    v2 projects under src/SourceFlow*, tests/SourceFlow.Core.Tests etc. are not part of SourceFlow.slnx
+    and are retired by WP-1.R / WP-2.R / WP-3.R.
+  -->
+  <PropertyGroup>
+    <!--
+      v3 targets .NET 10 only. Every package ships lib/net10.0 and nothing else.
+      Single exception: src/Core/SourceFlow.Generators targets netstandard2.0 because Roslyn requires it for
+      compiler plugins (RS1041). It runs inside the compiler/IDE, never in the application, and ships in
+      SourceFlow.Net's analyzers/dotnet/cs folder (ADR-004, ADR-027).
+    -->
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <Authors>SourceFlow.Net contributors</Authors>
+    <Company>CodeShayk</Company>
+    <Copyright>Copyright © SourceFlow.Net contributors</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/CodeShayk/SourceFlow.Net</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/CodeShayk/SourceFlow.Net</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <!-- Version is computed by GitVersion in CI; this is the local fallback. -->
+    <Version Condition="'$(Version)' == ''">3.0.0-alpha.0</Version>
+    <!-- Generated sources are written to obj/ so reviewers can read them. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <AnalysisLevel>latest</AnalysisLevel>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(CI)' == 'true' OR '$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+</Project>

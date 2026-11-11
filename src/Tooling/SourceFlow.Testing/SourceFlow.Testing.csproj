@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Test toolkit shipped to users (design doc 11 §2-3): specs, test host, conformance-kit bases. Test-framework agnostic. -->
+  <PropertyGroup>
+    <RootNamespace>SourceFlow.Testing</RootNamespace>
+    <Description>SourceFlow.Net v3 testing toolkit: Given/When/Then specs for aggregates, process managers and projections, an in-memory test host, and the storage and transport conformance kits.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+  </ItemGroup>
+</Project>

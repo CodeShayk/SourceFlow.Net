@@ -114,3 +114,21 @@ csharp_style_conditional_delegate_call = true:suggestion
 
 # Code quality
 dotnet_code_quality_unused_parameters = all:suggestion
+
+# ---------------------------------------------------------------------------
+# SourceFlow v3 additions (implementation plan 02 §6, plan 04 §8)
+# ---------------------------------------------------------------------------
+[*.cs]
+# v3 code uses file-scoped namespaces.
+csharp_style_namespace_declarations = file_scoped:suggestion
+# Library code awaits with ConfigureAwait(false) (design doc 09 HP-2).
+dotnet_diagnostic.CA2007.severity = suggestion
+
+# Generated code
+[*.g.cs]
+generated_code = true
+
+# Test projects: underscores in test names and no ConfigureAwait.
+[tests/**.cs]
+dotnet_diagnostic.CA2007.severity = none
+dotnet_diagnostic.CA1707.severity = none

@@ -1,0 +1,33 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- Library packages: warnings are errors, XML docs on, trim/AOT analysis on (plan 02 §6). -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591 (missing XML doc) is enforced per package once its public API is frozen (end of M1). -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <IsPackable>true</IsPackable>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+  </PropertyGroup>
+
+  <!-- AOT-compatible runtime packages. EF Core, the CLI and the generator are excluded (plan 02 §6). -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' != 'SourceFlow.Generators'
+                         AND '$(MSBuildProjectName)' != 'SourceFlow.Storage.EntityFrameworkCore'
+                         AND '$(MSBuildProjectName)' != 'SourceFlow.Tool'">
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <!-- Category of a project = its parent folder under src/ (Core, Storage, Cloud, Hosting, Tooling, Workflows). ADR-027 §7. -->
+  <PropertyGroup>
+    <SourceFlowCategory>$([System.IO.Path]::GetFileName($([System.IO.Path]::GetDirectoryName($(MSBuildProjectDirectory)))))</SourceFlowCategory>
+  </PropertyGroup>
+
+  <!-- One test project per category (tests/<Category>/SourceFlow.<Category>.Tests), plus the per-project convention. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="SourceFlow.$(SourceFlowCategory).Tests" />
+    <InternalsVisibleTo Include="$(MSBuildProjectName).Tests" Condition="'$(MSBuildProjectName).Tests' != 'SourceFlow.$(SourceFlowCategory).Tests'" />
+  </ItemGroup>
+</Project>

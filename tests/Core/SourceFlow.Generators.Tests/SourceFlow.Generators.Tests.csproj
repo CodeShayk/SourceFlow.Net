@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Generator and analyzer tests (GEN-xx, plan 05 §2). -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Core\SourceFlow.Generators\SourceFlow.Generators.csproj" />
+    <ProjectReference Include="..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+  </ItemGroup>
+</Project>

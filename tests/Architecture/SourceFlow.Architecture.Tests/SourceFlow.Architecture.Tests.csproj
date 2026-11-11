@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Architecture rules (ARCH-01..08, plan 06 §9) over every built package. -->
+  <ItemGroup>
+    <PackageReference Include="NetArchTest.Rules" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
+    <ProjectReference Include="..\..\..\src\Storage\SourceFlow.Storage.PostgreSQL\SourceFlow.Storage.PostgreSQL.csproj" />
+    <ProjectReference Include="..\..\..\src\Storage\SourceFlow.Storage.SqlServer\SourceFlow.Storage.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Storage\SourceFlow.Storage.EntityFrameworkCore\SourceFlow.Storage.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\..\src\Cloud\SourceFlow.Cloud.Aws\SourceFlow.Cloud.Aws.csproj" />
+    <ProjectReference Include="..\..\..\src\Cloud\SourceFlow.Cloud.Azure\SourceFlow.Cloud.Azure.csproj" />
+    <ProjectReference Include="..\..\..\src\Cloud\SourceFlow.Cloud.Gcp\SourceFlow.Cloud.Gcp.csproj" />
+    <ProjectReference Include="..\..\..\src\Hosting\SourceFlow.AspNetCore\SourceFlow.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\..\src\Workflows\SourceFlow.Studio\SourceFlow.Studio.csproj" />
+  </ItemGroup>
+</Project>

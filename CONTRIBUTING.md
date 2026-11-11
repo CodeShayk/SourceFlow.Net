@@ -27,8 +27,10 @@ A PR into `v3.0.0` merges only when it meets the work package's **Definition of 
 
 ```bash
 dotnet build SourceFlow.slnx -c Release
-dotnet test SourceFlow.slnx -c Release --filter "Category!=Integration"
+dotnet test --solution SourceFlow.slnx -c Release --filter-not-trait "Category=Integration"
 ```
+
+`dotnet test` runs on Microsoft.Testing.Platform (opted in by `global.json`), so filters use the xUnit v3 options (`--filter-trait`, `--filter-not-trait`, `--filter-query`), not the VSTest `--filter` syntax.
 
 Integration tests need Docker. See [plan 06](docs/v3.0.0/implementation/06-Integration-and-E2E-Test-Plan.md).
 

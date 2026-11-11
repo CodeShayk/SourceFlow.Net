@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Scaffold (WP-0.2). Implemented in WP-2.7; packable once implemented. -->
+  <PropertyGroup>
+    <Description>SourceFlow.Net v3: EF Core read-model projections bound to the SourceFlow storage session.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+  </ItemGroup>
+</Project>

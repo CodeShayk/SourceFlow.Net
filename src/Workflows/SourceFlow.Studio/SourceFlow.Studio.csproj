@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Scaffold (WP-0.2). Implemented in WP-S.3; packable once implemented. -->
+  <PropertyGroup>
+    <Description>SourceFlow.Net v3: SourceFlow Studio core: workflow DSL model, validator, simulator and exporters behind the visual designer (track S).</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+  </ItemGroup>
+</Project>

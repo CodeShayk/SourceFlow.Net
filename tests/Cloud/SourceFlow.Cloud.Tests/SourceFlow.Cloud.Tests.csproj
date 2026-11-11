@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Transport unit tests, transport conformance kit and KMS round trips. Trait Cloud=Aws|Azure|Gcp (plan 04 §3). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Cloud\SourceFlow.Cloud.Aws\SourceFlow.Cloud.Aws.csproj" />
+    <ProjectReference Include="..\..\..\src\Cloud\SourceFlow.Cloud.Azure\SourceFlow.Cloud.Azure.csproj" />
+    <ProjectReference Include="..\..\..\src\Cloud\SourceFlow.Cloud.Gcp\SourceFlow.Cloud.Gcp.csproj" />
+    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
+  </ItemGroup>
+</Project>

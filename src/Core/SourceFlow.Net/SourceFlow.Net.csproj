@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The single SourceFlow core (ADR-027): domain contracts (namespace SourceFlow), runtime engine, and the
+    extensibility SPIs that adapter packages implement:
+      SourceFlow.Storage    persistence   (IEventStore, IStorageSession, IOutboxStore, ILeaseManager, ...)
+      SourceFlow.Transport  cloud/broker  (ITransport, ITransportReceiver, TransportCapabilities, ...)
+      SourceFlow.Security   security      (IKeyProvider, IPayloadProtector)
+      SourceFlow.Query      query engine  (ISqlDialect / query compiler SPI)
+      SourceFlow.Pipeline   middleware    (IMessageMiddleware)
+      SourceFlow.Hosting    composition   (SourceFlowBuilder with Use* slots)
+    Dependencies: BCL, Microsoft.Extensions.* and Polly only (ARCH-01). Domain code uses only the SourceFlow and
+    SourceFlow.Workflows namespaces (ARCH-04).
+    The source generator (src/Core/SourceFlow.Generators) is packed into this package's analyzers folder.
+  -->
+  <PropertyGroup>
+    <RootNamespace>SourceFlow</RootNamespace>
+    <PackageId>SourceFlow.Net</PackageId>
+    <Description>SourceFlow.Net v3 core: event-sourced aggregates (pure deciders), process managers, projections, commit-ordered event store and transactional outbox/inbox contracts, subscriptions, middleware, telemetry, in-memory adapters, and the extensibility interfaces for persistence, cloud transports, security and querying. Includes the SourceFlow source generator and analyzers.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SourceFlow.Generators\SourceFlow.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <None Include="..\SourceFlow.Generators\bin\$(Configuration)\netstandard2.0\SourceFlow.Generators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="SourceFlow.Testing" />
+  </ItemGroup>
+</Project>

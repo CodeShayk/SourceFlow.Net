@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Scaffold (WP-0.2). Implemented in WP-4.1 (db, dlq, projection, topology, query, schema), WP-5.4 (migrate v2), track S. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>sourceflow</ToolCommandName>
+    <Description>The dotnet sourceflow command-line tool.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+  </ItemGroup>
+</Project>

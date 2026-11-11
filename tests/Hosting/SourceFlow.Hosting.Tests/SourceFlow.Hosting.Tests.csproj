@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ASP.NET Core endpoints: MapCommand and the query API (UT-ASP). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Hosting\SourceFlow.AspNetCore\SourceFlow.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
+  </ItemGroup>
+</Project>

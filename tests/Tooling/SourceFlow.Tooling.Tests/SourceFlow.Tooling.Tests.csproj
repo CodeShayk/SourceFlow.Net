@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Testing toolkit (UT-TST), CLI (UT-CLI) and v2 migration (MIG). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
+    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Tool\SourceFlow.Tool.csproj" />
+  </ItemGroup>
+</Project>

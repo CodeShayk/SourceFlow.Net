@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Unit tests for the core and the in-memory storage and transport conformance kits (plan 05 §1, §3). -->
+  <PropertyGroup>
+    <UseSourceFlowGenerator>true</UseSourceFlowGenerator>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="CsCheck" />
+    <PackageReference Include="PublicApiGenerator" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
+  </ItemGroup>
+</Project>

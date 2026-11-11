@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Scaffold (WP-0.2). Implemented in WP-4.2; packable once implemented. -->
+  <PropertyGroup>
+    <Description>SourceFlow.Net v3: ASP.NET Core integration: command endpoints, named domain queries and the per-service query API.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+  </ItemGroup>
+</Project>

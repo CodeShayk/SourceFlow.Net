@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    In-repo consumers of the source generator (samples, tests that declare aggregates) set
+    UseSourceFlowGenerator=true. NuGet consumers get the generator from the SourceFlow.Net package.
+  -->
+  <ItemGroup Condition="'$(UseSourceFlowGenerator)' == 'true'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)src\Core\SourceFlow.Generators\SourceFlow.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

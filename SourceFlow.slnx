@@ -1,0 +1,60 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="global.json" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="Directory.Packages.props" />
+    <File Path=".editorconfig" />
+    <File Path="GitVersion.yml" />
+    <File Path="CONTRIBUTING.md" />
+  </Folder>
+  <Folder Name="/src/Core/">
+    <Project Path="src/Core/SourceFlow.Net/SourceFlow.Net.csproj" />
+    <Project Path="src/Core/SourceFlow.Generators/SourceFlow.Generators.csproj" />
+  </Folder>
+  <Folder Name="/src/Storage/">
+    <Project Path="src/Storage/SourceFlow.Storage.PostgreSQL/SourceFlow.Storage.PostgreSQL.csproj" />
+    <Project Path="src/Storage/SourceFlow.Storage.SqlServer/SourceFlow.Storage.SqlServer.csproj" />
+    <Project Path="src/Storage/SourceFlow.Storage.EntityFrameworkCore/SourceFlow.Storage.EntityFrameworkCore.csproj" />
+  </Folder>
+  <Folder Name="/src/Cloud/">
+    <Project Path="src/Cloud/SourceFlow.Cloud.Aws/SourceFlow.Cloud.Aws.csproj" />
+    <Project Path="src/Cloud/SourceFlow.Cloud.Azure/SourceFlow.Cloud.Azure.csproj" />
+    <Project Path="src/Cloud/SourceFlow.Cloud.Gcp/SourceFlow.Cloud.Gcp.csproj" />
+  </Folder>
+  <Folder Name="/src/Hosting/">
+    <Project Path="src/Hosting/SourceFlow.AspNetCore/SourceFlow.AspNetCore.csproj" />
+  </Folder>
+  <Folder Name="/src/Tooling/">
+    <Project Path="src/Tooling/SourceFlow.Testing/SourceFlow.Testing.csproj" />
+    <Project Path="src/Tooling/SourceFlow.Tool/SourceFlow.Tool.csproj" />
+  </Folder>
+  <Folder Name="/src/Workflows/">
+    <Project Path="src/Workflows/SourceFlow.Studio/SourceFlow.Studio.csproj" />
+  </Folder>
+  <Folder Name="/tests/Core/">
+    <Project Path="tests/Core/SourceFlow.Core.Tests/SourceFlow.Core.Tests.csproj" />
+    <Project Path="tests/Core/SourceFlow.Generators.Tests/SourceFlow.Generators.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Storage/">
+    <Project Path="tests/Storage/SourceFlow.Storage.Tests/SourceFlow.Storage.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Cloud/">
+    <Project Path="tests/Cloud/SourceFlow.Cloud.Tests/SourceFlow.Cloud.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Hosting/">
+    <Project Path="tests/Hosting/SourceFlow.Hosting.Tests/SourceFlow.Hosting.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Tooling/">
+    <Project Path="tests/Tooling/SourceFlow.Tooling.Tests/SourceFlow.Tooling.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Workflows/">
+    <Project Path="tests/Workflows/SourceFlow.Studio.Tests/SourceFlow.Studio.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/EndToEnd/">
+    <Project Path="tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Architecture/">
+    <Project Path="tests/Architecture/SourceFlow.Architecture.Tests/SourceFlow.Architecture.Tests.csproj" />
+  </Folder>
+</Solution>
