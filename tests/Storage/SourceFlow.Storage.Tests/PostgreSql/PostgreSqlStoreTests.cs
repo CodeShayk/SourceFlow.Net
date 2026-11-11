@@ -72,6 +72,68 @@ public sealed class PostgreSqlStoreTests(PostgreSqlServer server) : PostgreSqlTe
     }
 
     [Fact]
+    [Trait("Id", "SCK-20")]
+    [Trait("Covers", "doc 05 8.1")]
+    public async Task Commit_IsOneRoundTrip_WithEveryKindOfWrite()
+    {
+        await using PostgreSqlStore store = await Server.CreateStoreAsync();
+        LeaseToken lease = (await store.TryAcquireAsync("sub:p:0", "node-1", TimeSpan.FromSeconds(30), Ct))!;
+        await using IStorageSession session = await store.BeginAsync(Tenant, Ct);
+        session.Append(Stream, "pg", ExpectedVersion.NoStream, [StorageConformance.Event(), StorageConformance.Event()]);
+        session.EnqueueOutbox(Row("k", DateTimeOffset.UnixEpoch));
+        session.RecordInbox("pg", new MessageId(Guid.CreateVersion7()), new InboxResult(CommandStatus.Accepted, new StreamVersion(2), null));
+        session.Documents.Upsert("docs", "1", 1, "{}"u8.ToArray());
+        session.SaveProcessState("pm", "1", 0, "{}"u8.ToArray(), completed: false);
+        session.SaveCheckpoint("p", 0, new GlobalPosition(1, 1), lease);
+
+        int roundTrips = await CountRoundTripsAsync(() => session.CommitAsync(Ct).AsTask());
+
+        roundTrips.ShouldBe(1);
+        (await store.GetStreamInfoAsync(Tenant, Stream, Ct))!.Version.ShouldBe(new StreamVersion(2));
+        (await store.GetAsync("p", 0, Ct)).ShouldBe(new GlobalPosition(1, 1));
+    }
+
+    [Fact]
+    [Trait("Id", "SCK-20")]
+    public async Task FailedCheck_InTheBatch_AbortsTheCommit_InOneRoundTrip()
+    {
+        await using PostgreSqlStore store = await Server.CreateStoreAsync();
+        LeaseToken lease = (await store.TryAcquireAsync("sub:p:0", "node-1", TimeSpan.FromSeconds(30), Ct))!;
+        await using IStorageSession session = await store.BeginAsync(Tenant, Ct);
+        session.Documents.Upsert("docs", "1", 1, "{}"u8.ToArray());
+        session.SaveCheckpoint("p", 0, new GlobalPosition(1, 1), lease with { Token = lease.Token + 5 });
+
+        await Should.ThrowAsync<LeaseLostException>(() => session.CommitAsync(Ct).AsTask());
+        (await ((IDocumentReader)store).GetAsync(Tenant, "docs", "1", Ct)).ShouldBeNull();
+    }
+
+    private static async Task<int> CountRoundTripsAsync(Func<Task> action)
+    {
+        using var source = new System.Diagnostics.ActivitySource("SourceFlow.Tests.RoundTrips");
+        int count = 0;
+        System.Diagnostics.Activity? parent = null;
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = s => s.Name is "Npgsql" or "SourceFlow.Tests.RoundTrips",
+            Sample = (ref System.Diagnostics.ActivityCreationOptions<System.Diagnostics.ActivityContext> _) => System.Diagnostics.ActivitySamplingResult.AllData,
+            ActivityStopped = a =>
+            {
+                if (a.Source.Name == "Npgsql" && parent is not null && a.ParentSpanId == parent.SpanId)
+                {
+                    Interlocked.Increment(ref count);
+                }
+            },
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        using (parent = source.StartActivity("commit"))
+        {
+            await action();
+        }
+
+        return count;
+    }
+
+    [Fact]
     [Trait("Id", "SCK-28")]
     public async Task Listen_RelaysCommitsFromAnotherProcess()
     {

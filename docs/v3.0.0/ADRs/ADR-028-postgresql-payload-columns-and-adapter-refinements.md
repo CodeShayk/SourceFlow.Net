@@ -36,10 +36,11 @@ Building the adapter also settled four points that doc 05 left open or stated di
 4. **The safe horizon is inclusive.** Every position at or below `LogBatch.Horizon` is final. PostgreSQL reports `(pg_snapshot_xmin − 1, long.MaxValue)` and the in-memory store reports its last position.
    - Conformance cases that assert on the log read until the horizon passes their own last commit. A database may hold the horizon back briefly while any writing transaction runs (doc 05 §5.4).
 5. **Tenant columns are added.** `process_instances`, `snapshots` and `documents` carry `tenant_id` in their primary keys (ADR-022).
-6. **Commit is two round trips for now.**
-   - The write batch, append first, is one `NpgsqlBatch` round trip.
-   - `COMMIT` is the second. Conditional failures (append CAS, process state CAS, checkpoint fence) are detected from the batch results and rolled back, so `COMMIT` cannot be folded into the batch without moving those checks into SQL raises.
-   - That optimisation belongs to the performance baseline (WP-2.10).
+6. **Commit is one round trip (WP-2.10).**
+   - Conditional writes assert their outcome in SQL with `sf_assert` (migration V003). These are the append compare-and-set, the process-state version and the fenced checkpoint. A failed check raises SQLSTATE `SF001` with a code naming the check.
+   - PostgreSQL then skips the rest of the batch, including its trailing `COMMIT`. The adapter rolls back and maps the code to `ConcurrencyException`, `StreamClosedException` (diagnosed after rollback) or `LeaseLostException`.
+   - A successful commit therefore sends one `NpgsqlBatch` that ends with `COMMIT`. SCK-20 asserts this by counting Npgsql activities.
+   - Under row-level security, `BeginAsync` adds one round trip to set the tenant (ADR-022).
 
 ## Consequences
 

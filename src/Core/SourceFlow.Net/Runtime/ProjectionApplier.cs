@@ -7,13 +7,21 @@ namespace SourceFlow.Runtime;
 
 /// <summary>
 /// The projections of one storage session: inline projections in the command transaction, or async projections in a
-/// subscription transaction. Session projections share one unit of work per type, which is completed (for example
-/// <c>SaveChangesAsync</c>) by <see cref="CompleteAsync"/> before the session commits, so read models, events and
-/// checkpoints commit or roll back together (doc 05 §10).
+/// subscription transaction.
+/// <list type="bullet">
+/// <item>Document projections work on a per-session document cache. A batch can prefetch its documents in one read
+/// (<see cref="PrefetchAsync"/>), events apply to the deserialized documents in memory, and each changed document is
+/// written once by <see cref="CompleteAsync"/> (PERF-05).</item>
+/// <item>Session projections share one unit of work per type, completed (for example <c>SaveChangesAsync</c>) by
+/// <see cref="CompleteAsync"/>.</item>
+/// </list>
+/// Call <see cref="CompleteAsync"/> before committing the session, so read models, events and checkpoints commit or roll
+/// back together (doc 05 §10).
 /// </summary>
 internal sealed class ProjectionScope : IAsyncDisposable
 {
     private readonly List<UnitOfWork> _units = [];
+    private readonly Dictionary<(string Collection, string Id), CachedDocument> _documents = [];
 
     public ProjectionScope(SourceFlowRuntime runtime, IStorageSession session, IServiceProvider services)
     {
@@ -31,6 +39,49 @@ internal sealed class ProjectionScope : IAsyncDisposable
     public ValueTask ApplyAsync(ProjectionDescriptor projection, IEvent @event, EventContext context, CancellationToken cancellationToken)
     {
         return projection.ApplyAsync(this, @event, context, cancellationToken);
+    }
+
+    /// <summary>Loads, in one read, every document the batch will touch that is not cached yet.</summary>
+    public async ValueTask PrefetchAsync(DocumentProjectionDescriptor projection, IReadOnlyList<(IEvent Event, EventContext Context)> batch, CancellationToken cancellationToken)
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach ((IEvent @event, EventContext context) in batch)
+        {
+            if (projection.Handles(@event.GetType()) && projection.TryGetDocumentId(@event, context, out string? id) && !_documents.ContainsKey((projection.Collection, id)))
+            {
+                ids.Add(id);
+            }
+        }
+
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        foreach (StoredDocument stored in await Session.Documents.GetManyAsync(projection.Collection, ids, cancellationToken).ConfigureAwait(false))
+        {
+            _documents[(projection.Collection, stored.Id)] = Cached(projection, stored);
+            ids.Remove(stored.Id);
+        }
+
+        foreach (string missing in ids)
+        {
+            _documents[(projection.Collection, missing)] = new CachedDocument(projection);
+        }
+    }
+
+    /// <summary>The cached document, read from the session on a miss.</summary>
+    public async ValueTask<CachedDocument> DocumentAsync(DocumentProjectionDescriptor projection, string id, CancellationToken cancellationToken)
+    {
+        if (_documents.TryGetValue((projection.Collection, id), out CachedDocument? cached))
+        {
+            return cached;
+        }
+
+        StoredDocument? stored = await Session.Documents.GetAsync(projection.Collection, id, cancellationToken).ConfigureAwait(false);
+        cached = stored is null ? new CachedDocument(projection) : Cached(projection, stored);
+        _documents[(projection.Collection, id)] = cached;
+        return cached;
     }
 
     public async ValueTask<TUnitOfWork> UnitOfWorkAsync<TUnitOfWork>(Type projectionType, CancellationToken cancellationToken)
@@ -59,9 +110,33 @@ internal sealed class ProjectionScope : IAsyncDisposable
         return created;
     }
 
-    /// <summary>Flushes every unit of work; call before committing the session.</summary>
+    /// <summary>Writes each changed document once, then flushes every unit of work; call before committing the session.</summary>
     public async ValueTask CompleteAsync(CancellationToken cancellationToken)
     {
+        foreach (((string collection, string id), CachedDocument document) in _documents)
+        {
+            if (!document.Dirty)
+            {
+                continue;
+            }
+
+            if (document.Value is null)
+            {
+                if (document.Stored)
+                {
+                    Session.Documents.Delete(collection, id);
+                }
+            }
+            else
+            {
+                JsonTypeInfo typeInfo = Runtime.Model.JsonTypeInfoFor(document.Projection.DocumentType);
+                Session.Documents.Upsert(collection, id, document.Version, JsonSerializer.SerializeToUtf8Bytes(document.Value, typeInfo));
+            }
+
+            document.Stored = document.Value is not null;
+            document.Dirty = false;
+        }
+
         foreach (UnitOfWork unit in _units)
         {
             await unit.Complete(cancellationToken).ConfigureAwait(false);
@@ -84,14 +159,36 @@ internal sealed class ProjectionScope : IAsyncDisposable
         }
 
         _units.Clear();
+        _documents.Clear();
+    }
+
+    private CachedDocument Cached(DocumentProjectionDescriptor projection, StoredDocument stored)
+    {
+        JsonTypeInfo typeInfo = Runtime.Model.JsonTypeInfoFor(projection.DocumentType);
+        return new CachedDocument(projection) { Value = JsonSerializer.Deserialize(stored.Data.Span, typeInfo), Version = stored.Version, Stored = true };
     }
 
     private sealed record UnitOfWork(object Instance, Func<CancellationToken, ValueTask> Complete);
 }
 
+/// <summary>A document in a <see cref="ProjectionScope"/>: its current value, version and whether it must be written.</summary>
+internal sealed class CachedDocument(DocumentProjectionDescriptor projection)
+{
+    public DocumentProjectionDescriptor Projection { get; } = projection;
+
+    public object? Value { get; set; }
+
+    public long Version { get; set; }
+
+    /// <summary>True when the document exists in the store (so a null value means delete).</summary>
+    public bool Stored { get; set; }
+
+    public bool Dirty { get; set; }
+}
+
 /// <summary>
-/// Applies document projections inside a storage session. Document versions follow the source stream when the
-/// document is keyed by the stream's aggregate id, otherwise they count writes (DC-2, doc 06 §5).
+/// Applies document projections inside a <see cref="ProjectionScope"/>. Document versions follow the source stream when
+/// the document is keyed by the stream's aggregate id, otherwise they count writes (DC-2, doc 06 §5).
 /// </summary>
 internal static class ProjectionApplier
 {
@@ -102,22 +199,21 @@ internal static class ProjectionApplier
             return;
         }
 
-        IStorageSession session = scope.Session;
-        JsonTypeInfo typeInfo = scope.Runtime.Model.JsonTypeInfoFor(projection.DocumentType);
-        StoredDocument? stored = await session.Documents.GetAsync(projection.Collection, id, cancellationToken).ConfigureAwait(false);
-        object? current = stored is null ? null : JsonSerializer.Deserialize(stored.Data.Span, typeInfo);
-        object? next = projection.Apply(@event, current, context);
+        CachedDocument document = await scope.DocumentAsync(projection, id, cancellationToken).ConfigureAwait(false);
+        object? next = projection.Apply(@event, document.Value, context);
         if (next is null)
         {
-            if (stored is not null)
+            if (document.Value is not null)
             {
-                session.Documents.Delete(projection.Collection, id);
+                document.Value = null;
+                document.Dirty = true;
             }
 
             return;
         }
 
-        long version = id == context.AggregateKey ? context.StreamVersion.Value : (stored?.Version ?? 0) + 1;
-        session.Documents.Upsert(projection.Collection, id, version, JsonSerializer.SerializeToUtf8Bytes(next, typeInfo));
+        document.Version = id == context.AggregateKey ? context.StreamVersion.Value : document.Version + 1;
+        document.Value = next;
+        document.Dirty = true;
     }
 }

@@ -1,0 +1,56 @@
+{
+  "environment": {
+    "os": "Microsoft Windows 10.0.26300",
+    "runtime": ".NET 10.0.14",
+    "processors": 20,
+    "database": "postgres:17-alpine (Testcontainers, local Docker)",
+    "recordedAt": "2026-11-11"
+  },
+  "results": [
+    {
+      "Id": "PERF-10",
+      "Name": "Startup to ready, first start in process (JIT)",
+      "Value": 98.6494,
+      "Unit": "ms",
+      "Target": "\u003C= 150 ms",
+      "Met": true,
+      "Notes": "In-memory storage; excludes process start and provisioning"
+    },
+    {
+      "Id": "PERF-10",
+      "Name": "Startup to ready, warm (median of 20)",
+      "Value": 1.7268,
+      "Unit": "ms",
+      "Target": "-",
+      "Met": true,
+      "Notes": "Reference only"
+    },
+    {
+      "Id": "PERF-05",
+      "Name": "Document projection rebuild, one partition, max batch 1000",
+      "Value": 32654.116818796752,
+      "Unit": "events/s",
+      "Target": "\u003E= 20,000 events/s",
+      "Met": true,
+      "Notes": "20000 events, adaptive batches up to SubscriptionBatchSize 1000, timed after host start"
+    },
+    {
+      "Id": "PERF-05",
+      "Name": "Document projection rebuild, one partition, max batch 256",
+      "Value": 14847.808845745445,
+      "Unit": "events/s",
+      "Target": "\u003E= 20,000 events/s",
+      "Met": false,
+      "Notes": "20000 events, adaptive batches up to SubscriptionBatchSize 256, timed after host start"
+    },
+    {
+      "Id": "PERF-08",
+      "Name": "Event to async projection latency (p95)",
+      "Value": 14.8324,
+      "Unit": "ms",
+      "Target": "\u003C= 100 ms (p95)",
+      "Met": true,
+      "Notes": "p50 9.3 ms over 180 commands after 20 warm-up; includes the command itself"
+    }
+  ]
+}

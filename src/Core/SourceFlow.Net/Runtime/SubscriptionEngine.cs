@@ -11,7 +11,11 @@ namespace SourceFlow.Runtime;
 /// <param name="Name">The subscription name (checkpoint and lease key).</param>
 /// <param name="Handles">Whether a deserialized event is relevant.</param>
 /// <param name="Apply">Applies one event inside the session.</param>
-internal sealed record SubscriptionDefinition(string Name, Func<Type, bool> Handles, Func<SubscriptionContext, ValueTask> Apply);
+internal sealed record SubscriptionDefinition(string Name, Func<Type, bool> Handles, Func<SubscriptionContext, ValueTask> Apply)
+{
+    /// <summary>Loads what a batch needs before it is applied (document projections read their documents in one query).</summary>
+    public Func<ProjectionScope, IReadOnlyList<(IEvent Event, EventContext Context)>, CancellationToken, ValueTask>? Prefetch { get; init; }
+}
 
 /// <summary>Inputs to one subscription apply.</summary>
 internal sealed record SubscriptionContext(IStorageSession Session, IEvent Event, StoredEvent Stored, IServiceProvider Services, ProjectionScope Projections, CancellationToken CancellationToken);
@@ -41,6 +45,9 @@ internal sealed class SubscriptionEngine
     public IReadOnlyList<SubscriptionDefinition> Definitions { get; }
 
     /// <summary>Runs one pass over every subscription partition; returns the number of events processed.</summary>
+    private const int InitialBatchSize = 100;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<(string Subscription, int Partition), int> _batchSizes = new();
+
     public async ValueTask<int> RunOnceAsync(CancellationToken cancellationToken)
     {
         int processed = 0;
@@ -85,7 +92,12 @@ internal sealed class SubscriptionEngine
         }
 
         GlobalPosition checkpoint = await _runtime.Storage.Checkpoints.GetAsync(definition.Name, partition, cancellationToken).ConfigureAwait(false);
-        LogBatch batch = await _runtime.Storage.Log.ReadAsync(checkpoint, Buckets.Range(partition, partitions), _runtime.Options.SubscriptionBatchSize, cancellationToken).ConfigureAwait(false);
+        int max = _runtime.Options.SubscriptionBatchSize;
+        int size = _batchSizes.GetOrAdd((definition.Name, partition), Math.Min(InitialBatchSize, max));
+        LogBatch batch = await _runtime.Storage.Log.ReadAsync(checkpoint, Buckets.Range(partition, partitions), size, cancellationToken).ConfigureAwait(false);
+
+        // Adaptive batches (doc 06 §2): a full batch means the partition is behind, so read more next time.
+        _batchSizes[(definition.Name, partition)] = batch.Events.Count == size ? Math.Min(size * 2, max) : Math.Min(InitialBatchSize, max);
         if (batch.Events.Count == 0)
         {
             return 0;
@@ -138,14 +150,22 @@ internal sealed class SubscriptionEngine
         await using AsyncServiceScope scope = _scopes.CreateAsyncScope();
         await using IStorageSession session = await _runtime.Storage.Sessions.BeginAsync(tenant, cancellationToken).ConfigureAwait(false);
         await using var projections = new ProjectionScope(_runtime, session, scope.ServiceProvider);
+        var relevant = new List<(IEvent Event, StoredEvent Stored)>(events.Count);
         foreach (StoredEvent stored in events)
         {
-            if (!_runtime.Model.Registry.TryGet(stored.Type, stored.TypeVersion, out MessageTypeInfo? type) || !Relevant(definition, type))
+            if (_runtime.Model.Registry.TryGet(stored.Type, stored.TypeVersion, out MessageTypeInfo? type) && Relevant(definition, type))
             {
-                continue;
+                relevant.Add(((IEvent)_decoder.Deserialize(stored, upcast: true), stored));
             }
+        }
 
-            var @event = (IEvent)_decoder.Deserialize(stored, upcast: true);
+        if (definition.Prefetch is { } prefetch && relevant.Count > 1)
+        {
+            await prefetch(projections, [.. relevant.Select(r => (r.Event, r.Stored.ToContext()))], cancellationToken).ConfigureAwait(false);
+        }
+
+        foreach ((IEvent @event, StoredEvent stored) in relevant)
+        {
             await definition.Apply(new SubscriptionContext(session, @event, stored, scope.ServiceProvider, projections, cancellationToken)).ConfigureAwait(false);
         }
 
@@ -245,7 +265,12 @@ internal sealed class SubscriptionEngine
             definitions.Add(new SubscriptionDefinition(
                 "projection:" + projection.Collection,
                 projection.Handles,
-                ctx => ctx.Projections.ApplyAsync(projection, ctx.Event, ctx.Stored.ToContext(), ctx.CancellationToken)));
+                ctx => ctx.Projections.ApplyAsync(projection, ctx.Event, ctx.Stored.ToContext(), ctx.CancellationToken))
+            {
+                Prefetch = projection is DocumentProjectionDescriptor document
+                    ? (scope, batch, ct) => scope.PrefetchAsync(document, batch, ct)
+                    : null,
+            });
         }
 
         var processes = new ProcessManagerRunner(_runtime);

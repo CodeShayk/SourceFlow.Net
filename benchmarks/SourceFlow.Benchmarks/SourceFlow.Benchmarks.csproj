@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Performance baseline (WP-2.10, plan 06 §8, doc 09 §7). BenchmarkDotNet micro and component benchmarks (PERF-01..04,
+    PERF-06) plus a measurement harness for throughput and latency targets (PERF-05, PERF-08, PERF-10):
+      bench     BenchmarkDotNet (filter and job arguments pass through)
+      measure   the measurement harness
+      baseline  both; writes benchmarks/baselines/*.json
+    See Program.cs for the command lines.
+    PostgreSQL runs in a Testcontainers container, or against SOURCEFLOW_BENCH_POSTGRES when set.
+    Results are written to benchmarks/baselines/ (updated only by a PR labelled perf-baseline, plan 08 §4).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <UseSourceFlowGenerator>true</UseSourceFlowGenerator>
+    <NoWarn>$(NoWarn);CA1001;CA1515;CA1822;CA2007</NoWarn>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <ProjectReference Include="..\..\src\Storage\SourceFlow.Storage.PostgreSQL\SourceFlow.Storage.PostgreSQL.csproj" />
+    <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+</Project>

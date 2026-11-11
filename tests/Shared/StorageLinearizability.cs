@@ -176,6 +176,8 @@ internal static class StorageLinearizability
                 await f.Outbox.CompleteAsync(lease, [.. claimed.Select(r => r.Sequence)], CancellationToken.None);
             }
 
+            // The final state is read once; release the store's connections now.
+            await f.DisposeAsync();
             return new State(streams, outbox);
         }
 

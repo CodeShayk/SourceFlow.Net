@@ -51,7 +51,7 @@ public sealed class PostgreSqlServer : IAsyncLifetime
         else
         {
             string image = Environment.GetEnvironmentVariable("SOURCEFLOW_TEST_POSTGRES_IMAGE") is { Length: > 0 } custom ? custom : DefaultImage;
-            _container = new PostgreSqlBuilder(image).Build();
+            _container = new PostgreSqlBuilder(image).WithCommand("-c", "max_connections=300").Build();
             await _container.StartAsync();
             ConnectionString = _container.GetConnectionString();
         }

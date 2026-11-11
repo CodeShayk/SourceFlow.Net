@@ -29,13 +29,18 @@ public sealed class AggregateCacheTests
         });
         var id = CounterId.New();
 
-        // SnapshotEvery = 3: snapshots at 3 (taken by the writer, which blocks), 6 (queued) and 9 (drops 6).
-        for (int i = 0; i < 9; i++)
+        // SnapshotEvery = 3: snapshot 3 is taken by the writer, which blocks; 6 is queued; 9 drops 6.
+        for (int i = 0; i < 3; i++)
         {
             (await host.SendAsync(new Increment(id))).Status.ShouldBe(CommandStatus.Accepted);
         }
 
-        await gated.Started.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);
+        await gated.Started.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);   // the writer holds snapshot 3
+        for (int i = 0; i < 6; i++)
+        {
+            (await host.SendAsync(new Increment(id))).Status.ShouldBe(CommandStatus.Accepted);   // never blocked by the writer
+        }
+
         gated.Release();
         await host.WaitForIdleAsync();
 

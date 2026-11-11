@@ -1,0 +1,115 @@
+{
+  "environment": {
+    "os": "Microsoft Windows 10.0.26300",
+    "runtime": ".NET 10.0.14",
+    "processors": 20,
+    "database": "postgres:17-alpine (Testcontainers, local Docker)",
+    "recordedAt": "2026-11-11"
+  },
+  "results": [
+    {
+      "benchmark": "\u0027PERF-01 in-memory command, 1 event\u0027",
+      "parameters": "",
+      "meanMicroseconds": 4.422,
+      "p50Microseconds": 4.408,
+      "p95Microseconds": 4.469,
+      "allocatedBytesPerOperation": 6171
+    },
+    {
+      "benchmark": "\u0027PERF-02 pipeline, no middleware\u0027",
+      "parameters": "",
+      "meanMicroseconds": 0.008,
+      "p50Microseconds": 0.008,
+      "p95Microseconds": 0.008,
+      "allocatedBytesPerOperation": 40
+    },
+    {
+      "benchmark": "\u0027PERF-02 pipeline, 3 middleware\u0027",
+      "parameters": "",
+      "meanMicroseconds": 0.053,
+      "p50Microseconds": 0.053,
+      "p95Microseconds": 0.058,
+      "allocatedBytesPerOperation": 352
+    },
+    {
+      "benchmark": "\u0027PERF-03 PostgreSQL commit \u002B outbox\u0027",
+      "parameters": "[Events=1]",
+      "meanMicroseconds": 2248.799,
+      "p50Microseconds": 2197.362,
+      "p95Microseconds": 2680.482,
+      "allocatedBytesPerOperation": 20521
+    },
+    {
+      "benchmark": "\u0027PERF-03 PostgreSQL commit \u002B outbox\u0027",
+      "parameters": "[Events=3]",
+      "meanMicroseconds": 2505.047,
+      "p50Microseconds": 2303.685,
+      "p95Microseconds": 3047.812,
+      "allocatedBytesPerOperation": 22128
+    },
+    {
+      "benchmark": "\u0027PERF-03 PostgreSQL commit \u002B outbox\u0027",
+      "parameters": "[Events=10]",
+      "meanMicroseconds": 2653.369,
+      "p50Microseconds": 2644.358,
+      "p95Microseconds": 2815.239,
+      "allocatedBytesPerOperation": 27935
+    },
+    {
+      "benchmark": "\u0027PERF-04 load \u002B decide (PostgreSQL)\u0027",
+      "parameters": "[Events=0, Snapshots=False]",
+      "meanMicroseconds": 2090.73,
+      "p50Microseconds": 2028.43,
+      "p95Microseconds": 2439.88,
+      "allocatedBytesPerOperation": 10263
+    },
+    {
+      "benchmark": "\u0027PERF-04 load \u002B decide (PostgreSQL)\u0027",
+      "parameters": "[Events=0, Snapshots=True]",
+      "meanMicroseconds": 3129.1,
+      "p50Microseconds": 3137.296,
+      "p95Microseconds": 3477.33,
+      "allocatedBytesPerOperation": 13221
+    },
+    {
+      "benchmark": "\u0027PERF-04 load \u002B decide (PostgreSQL)\u0027",
+      "parameters": "[Events=100, Snapshots=False]",
+      "meanMicroseconds": 3395.602,
+      "p50Microseconds": 3357.362,
+      "p95Microseconds": 3781.861,
+      "allocatedBytesPerOperation": 139491
+    },
+    {
+      "benchmark": "\u0027PERF-04 load \u002B decide (PostgreSQL)\u0027",
+      "parameters": "[Events=100, Snapshots=True]",
+      "meanMicroseconds": 3352.94,
+      "p50Microseconds": 3466.807,
+      "p95Microseconds": 3783.517,
+      "allocatedBytesPerOperation": 13757
+    },
+    {
+      "benchmark": "\u0027PERF-04 load \u002B decide (PostgreSQL)\u0027",
+      "parameters": "[Events=1000, Snapshots=False]",
+      "meanMicroseconds": 9504.151,
+      "p50Microseconds": 9583.016,
+      "p95Microseconds": 10302.647,
+      "allocatedBytesPerOperation": 1310292
+    },
+    {
+      "benchmark": "\u0027PERF-04 load \u002B decide (PostgreSQL)\u0027",
+      "parameters": "[Events=1000, Snapshots=True]",
+      "meanMicroseconds": 3055.627,
+      "p50Microseconds": 3036.374,
+      "p95Microseconds": 3427.354,
+      "allocatedBytesPerOperation": 13755
+    },
+    {
+      "benchmark": "\u0027PERF-06 global log read (per event)\u0027",
+      "parameters": "",
+      "meanMicroseconds": 6.744,
+      "p50Microseconds": 6.543,
+      "p95Microseconds": 7.292,
+      "allocatedBytesPerOperation": 650
+    }
+  ]
+}

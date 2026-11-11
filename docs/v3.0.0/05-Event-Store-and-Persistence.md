@@ -147,7 +147,18 @@ Both take the stream row lock and apply to the committed version they then obser
 
 ### 3.2 One round trip
 
-`CommitAsync` sends one `NpgsqlBatch`: `BEGIN` (implicit), then append CTE(s), then outbox `INSERT … SELECT unnest(…)`, then the inbox insert, then projection and document upserts, then the checkpoint update, then `SELECT pg_notify('sourceflow', '')`, then `COMMIT`. `Max Auto Prepare` keeps these statements prepared on the server.
+`CommitAsync` sends one `NpgsqlBatch`. In order, it contains:
+
+1. `BEGIN` (implicit).
+2. The append CTE.
+3. The outbox `INSERT … SELECT unnest(…)`.
+4. The inbox insert.
+5. The document upserts: one multi-row `unnest` upsert when each document is written once.
+6. The process-state and checkpoint writes.
+7. `SELECT pg_notify(…)`.
+8. `COMMIT`.
+
+The conditional statements assert in SQL (`sf_assert`, SQLSTATE `SF001`), so a failed check aborts the batch before its `COMMIT` ([ADR-028](ADRs/ADR-028-postgresql-payload-columns-and-adapter-refinements.md)). `Max Auto Prepare` keeps these statements prepared on the server.
 
 ### 3.3 Cost
 

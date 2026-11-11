@@ -1222,6 +1222,7 @@ namespace SourceFlow.Storage
     {
         void Delete(string collection, string id);
         System.Threading.Tasks.ValueTask<SourceFlow.Storage.StoredDocument?> GetAsync(string collection, string id, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.StoredDocument>> GetManyAsync(string collection, System.Collections.Generic.IReadOnlyCollection<string> ids, System.Threading.CancellationToken cancellationToken);
         void Upsert(string collection, string id, long version, System.ReadOnlyMemory<byte> data);
     }
     public interface IEventLogReader

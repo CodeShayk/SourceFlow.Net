@@ -19,7 +19,7 @@ internal sealed class SqlText
                    WITH ORDINALITY AS e(id, type, ver, tags, data, meta, at, ord)
              ORDER BY e.ord
             RETURNING stream_version, seq)
-        SELECT count(*), coalesce(max(stream_version), 0), coalesce(max(seq), 0), pg_current_xact_id_if_assigned() FROM ins
+        SELECT count(*), coalesce(max(stream_version), 0), coalesce(max(seq), 0), pg_current_xact_id_if_assigned(), {s}.sf_assert(count(*) > 0, 'append') FROM ins
         """;
 
     public SqlText(string schema)
@@ -84,33 +84,51 @@ internal sealed class SqlText
             """);
         InboxSeen = R("SELECT processed_at, result_status, result_version, result_error, result_commit, result_seq FROM {s}.inbox WHERE consumer = @consumer AND message_id = @id");
 
+        // Conditional writes assert their outcome in SQL, so a failure aborts the batch before its COMMIT (V003).
         SaveCheckpoint = R("""
-            INSERT INTO {s}.checkpoints AS c (subscription, partition, commit_pos, seq_pos, updated_at)
-            SELECT @sub, @p, @tx, @seq, now() FROM {s}.leases l
-             WHERE l.name = @lease AND l.owner = @lease_owner AND l.token = @lease_token AND l.expires_at > now()
-            ON CONFLICT (subscription, partition) DO UPDATE
-               SET commit_pos = excluded.commit_pos, seq_pos = excluded.seq_pos, updated_at = excluded.updated_at
+            WITH c AS (
+                INSERT INTO {s}.checkpoints AS c (subscription, partition, commit_pos, seq_pos, updated_at)
+                SELECT @sub, @p, @tx, @seq, now() FROM {s}.leases l
+                 WHERE l.name = @lease AND l.owner = @lease_owner AND l.token = @lease_token AND l.expires_at > now()
+                ON CONFLICT (subscription, partition) DO UPDATE
+                   SET commit_pos = excluded.commit_pos, seq_pos = excluded.seq_pos, updated_at = excluded.updated_at
+                RETURNING 1)
+            SELECT {s}.sf_assert(count(*) = 1, @check) FROM c
             """);
         GetCheckpoint = R("SELECT commit_pos, seq_pos FROM {s}.checkpoints WHERE subscription = @sub AND partition = @p");
 
         LoadProcess = R("SELECT version, state, completed, updated_at FROM {s}.process_instances WHERE tenant_id = @tenant AND process_type = @type AND process_id = @id");
         InsertProcess = R("""
-            INSERT INTO {s}.process_instances (tenant_id, process_type, process_id, version, state, completed)
-            VALUES (@tenant, @type, @id, 1, @state, @completed)
-            ON CONFLICT (tenant_id, process_type, process_id) DO NOTHING
+            WITH i AS (
+                INSERT INTO {s}.process_instances (tenant_id, process_type, process_id, version, state, completed)
+                VALUES (@tenant, @type, @id, 1, @state, @completed)
+                ON CONFLICT (tenant_id, process_type, process_id) DO NOTHING
+                RETURNING 1)
+            SELECT {s}.sf_assert(count(*) = 1, @check) FROM i
             """);
         UpdateProcess = R("""
-            UPDATE {s}.process_instances SET version = version + 1, state = @state, completed = @completed, updated_at = now()
-             WHERE tenant_id = @tenant AND process_type = @type AND process_id = @id AND version = @expected
+            WITH u AS (
+                UPDATE {s}.process_instances SET version = version + 1, state = @state, completed = @completed, updated_at = now()
+                 WHERE tenant_id = @tenant AND process_type = @type AND process_id = @id AND version = @expected
+                RETURNING 1)
+            SELECT {s}.sf_assert(count(*) = 1, @check) FROM u
             """);
 
         GetDocument = R("SELECT version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = @id");
+        GetDocuments = R("SELECT id, version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = ANY(@ids)");
         ListDocuments = R("SELECT id, version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection ORDER BY id COLLATE \"C\" LIMIT @max");
         UpsertDocument = R("""
             INSERT INTO {s}.documents AS d (tenant_id, collection, id, version, data) VALUES (@tenant, @collection, @id, @version, @data)
             ON CONFLICT (tenant_id, collection, id) DO UPDATE SET version = excluded.version, data = excluded.data, updated_at = now()
              WHERE d.version <= excluded.version
             """);
+        UpsertDocuments = R("""
+            INSERT INTO {s}.documents AS d (tenant_id, collection, id, version, data)
+            SELECT @tenant, u.c, u.i, u.v, u.j::json FROM unnest(@collections::text[], @ids::text[], @versions::bigint[], @datas::text[]) AS u(c, i, v, j)
+            ON CONFLICT (tenant_id, collection, id) DO UPDATE SET version = excluded.version, data = excluded.data, updated_at = now()
+             WHERE d.version <= excluded.version
+            """);
+        DeleteDocuments = R("DELETE FROM {s}.documents WHERE tenant_id = @tenant AND (collection, id) IN (SELECT * FROM unnest(@collections::text[], @ids::text[]))");
         DeleteDocument = R("DELETE FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = @id");
 
         ReadLog = R($$"""
@@ -236,9 +254,15 @@ internal sealed class SqlText
 
     public string ListDocuments { get; }
 
+    public string GetDocuments { get; }
+
     public string UpsertDocument { get; }
 
     public string DeleteDocument { get; }
+
+    public string UpsertDocuments { get; }
+
+    public string DeleteDocuments { get; }
 
     public string ReadLog { get; }
 

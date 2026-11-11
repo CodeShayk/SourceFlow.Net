@@ -835,6 +835,21 @@ public sealed class InMemoryStore :
             return ValueTask.FromResult(_store.DocumentLookup(TenantId, collection, id));
         }
 
+        public async ValueTask<IReadOnlyList<StoredDocument>> GetManyAsync(string collection, IReadOnlyCollection<string> ids, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(ids);
+            var found = new List<StoredDocument>(ids.Count);
+            foreach (string id in ids)
+            {
+                if (await GetAsync(collection, id, cancellationToken).ConfigureAwait(false) is { } document)
+                {
+                    found.Add(document);
+                }
+            }
+
+            return found;
+        }
+
         public void Upsert(string collection, string id, long version, ReadOnlyMemory<byte> data)
         {
             ThrowIfCompleted();

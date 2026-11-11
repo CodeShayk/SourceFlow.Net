@@ -41,6 +41,27 @@ jobs:
       - run: dotnet build SourceFlow.slnx -c Release
       - run: dotnet test --project tests/Storage/SourceFlow.Storage.Tests/SourceFlow.Storage.Tests.csproj ${{ env.TEST_ARGS }} --filter-trait "Provider=${{ matrix.provider }}"
 
+  benchmarks:
+    # WP-2.10: component benchmarks and measurements (PERF-01..06, 08, 10). Results are uploaded for the trend store;
+    # the regression gate against benchmarks/baselines (plan 08 §4) is a follow-up.
+    name: component benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet run -c Release --project benchmarks/SourceFlow.Benchmarks -- baseline
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmarks
+          path: |
+            benchmarks/baselines/*.json
+            BenchmarkDotNet.Artifacts/results/**
+
   real-cloud:
     name: real cloud (${{ matrix.cloud }})
     if: vars.SOURCEFLOW_REAL_CLOUD == 'true'

@@ -55,9 +55,12 @@ public sealed class SourceFlowOptions
     /// <summary>Delayed retry schedule after immediate retries (doc 04 §9.2); exhausting it parks the message.</summary>
     public IList<TimeSpan> DelayedRetries { get; } = [TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(10), TimeSpan.FromHours(1)];
 
-    /// <summary>Events read per subscription batch.</summary>
+    /// <summary>
+    /// The largest subscription batch. Batches are adaptive (doc 06 §2): each partition starts at 100 events (or this value
+    /// when smaller), doubles while batches come back full (catching up, rebuilds), and drops back when caught up.
+    /// </summary>
     [Range(1, 10_000)]
-    public int SubscriptionBatchSize { get; set; } = 256;
+    public int SubscriptionBatchSize { get; set; } = 1000;
 
     /// <summary>Partitions of an async subscription (a power of two, doc 06 §3).</summary>
     [Range(1, 1024)]

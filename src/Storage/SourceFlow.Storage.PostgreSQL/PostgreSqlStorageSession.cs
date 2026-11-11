@@ -105,6 +105,38 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         return _store.GetDocumentAsync(_connection, _transaction, TakeTenant(), TenantId, collection, id, cancellationToken);
     }
 
+    public async ValueTask<IReadOnlyList<StoredDocument>> GetManyAsync(string collection, IReadOnlyCollection<string> ids, CancellationToken cancellationToken)
+    {
+        ThrowIfCompleted();
+        ArgumentNullException.ThrowIfNull(ids);
+        var found = new Dictionary<string, StoredDocument?>(StringComparer.Ordinal);
+        if (ids.Count > 0)
+        {
+            await using PostgreSqlStore.TenantReader scope = await _store.ReadTenantAsync(_connection, _transaction, TenantId, TakeTenant(), _store.Sql.GetDocuments,
+            [
+                new NpgsqlParameter<string>("tenant", TenantId),
+                new NpgsqlParameter<string>("collection", collection),
+                new NpgsqlParameter<string[]>("ids", [.. ids]),
+            ], cancellationToken).ConfigureAwait(false);
+            while (await scope.Reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                string id = scope.Reader.GetString(0);
+                found[id] = new StoredDocument(collection, id, scope.Reader.GetInt64(1), scope.Reader.GetFieldValue<byte[]>(2));
+            }
+        }
+
+        // This session's queued writes win (read own writes).
+        foreach (DocumentWrite write in _documents)
+        {
+            if (write.Collection == collection && ids.Contains(write.Id))
+            {
+                found[write.Id] = write.Data is null ? null : new StoredDocument(collection, write.Id, write.Version, write.Data.Value);
+            }
+        }
+
+        return [.. found.Values.OfType<StoredDocument>()];
+    }
+
     // ------------------------------------------------------------------ queued writes
 
     public void Append(StreamId stream, string streamType, ExpectedVersion expected, IReadOnlyList<EventToAppend> events)
@@ -189,17 +221,21 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
     {
         ThrowIfCompleted();
         cancellationToken.ThrowIfCancellationRequested();
-        await SendAsync(includeNotify: false, cancellationToken).ConfigureAwait(false);
+        await SendAsync(includeNotify: false, commit: false, cancellationToken).ConfigureAwait(false);
     }
 
+    // One round trip (doc 05 §3.2): the queued writes and COMMIT go in one batch; a failed in-SQL check aborts it first.
     public async ValueTask<CommitResult> CommitAsync(CancellationToken cancellationToken)
     {
         ThrowIfCompleted();
         cancellationToken.ThrowIfCancellationRequested();
         _completed = true;
-        await SendAsync(includeNotify: _notify, cancellationToken).ConfigureAwait(false);
-        _transactionEnded = true;
-        await _transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        if (!await SendAsync(includeNotify: _notify, commit: true, cancellationToken).ConfigureAwait(false))
+        {
+            _transactionEnded = true;
+            await _transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         if (_notify)
         {
             _store.RaiseCommitted();
@@ -208,43 +244,44 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         return _appendResult;
     }
 
-    // Sends every write queued since the last send as one batch, the append first, and checks the conditional ones in
-    // batch order. Any failure rolls the transaction back and ends the session.
-    private async ValueTask SendAsync(bool includeNotify, CancellationToken cancellationToken)
+    // Sends every write queued since the last send as one batch, the append first. Conditional writes assert their outcome
+    // in SQL (sf_assert, V003), so the first failed check aborts the batch, including a trailing COMMIT. Any failure rolls
+    // the transaction back and ends the session. Returns true when the batch committed.
+    private async ValueTask<bool> SendAsync(bool includeNotify, bool commit, CancellationToken cancellationToken)
     {
         var steps = new List<Step>();
+        var checks = new Dictionary<string, Func<Exception>>(StringComparer.Ordinal);
         AppendWrite? append = _append is not null && !_appendSent ? _append : null;
         if (append is not null)
         {
-            steps.Add(new Step(AppendCommand(append), MapAppendError, null, IsQuery: true));
+            steps.Add(new Step(AppendCommand(append), MapAppendError, IsQuery: true));
         }
 
         if (_outbox.Count > 0)
         {
-            steps.Add(new Step(OutboxCommand(), null, null));
+            steps.Add(new Step(OutboxCommand(), null));
         }
 
         foreach ((string consumer, MessageId id, InboxResult result) in _inbox)
         {
             steps.Add(new Step(InboxCommand(consumer, id, result),
-                e => e.SqlState == PostgresErrorCodes.UniqueViolation ? new DuplicateMessageException(consumer, id) : null, null));
+                e => e.SqlState == PostgresErrorCodes.UniqueViolation ? new DuplicateMessageException(consumer, id) : null));
         }
 
-        foreach (DocumentWrite write in _documents)
-        {
-            steps.Add(new Step(DocumentCommand(write), null, null));
-        }
+        steps.AddRange(DocumentSteps());
 
         foreach (ProcessWrite write in _processes)
         {
-            steps.Add(new Step(ProcessCommand(write), null,
-                affected => affected == 1 ? null : new ConcurrencyException($"Process '{write.Type}/{write.Id}' is not at version {write.ExpectedVersion}.")));
+            string check = "process:" + checks.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            checks[check] = () => new ConcurrencyException($"Process '{write.Type}/{write.Id}' is not at version {write.ExpectedVersion}.");
+            steps.Add(new Step(ProcessCommand(write, check), null, IsQuery: true));
         }
 
         foreach ((string subscription, int partition, GlobalPosition position, LeaseToken lease) in _checkpoints)
         {
-            steps.Add(new Step(CheckpointCommand(subscription, partition, position, lease), null,
-                affected => affected == 1 ? null : new LeaseLostException(lease.Name)));
+            string check = "checkpoint:" + checks.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            checks[check] = () => new LeaseLostException(lease.Name);
+            steps.Add(new Step(CheckpointCommand(subscription, partition, position, lease, check), null, IsQuery: true));
         }
 
         if (includeNotify)
@@ -252,12 +289,12 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             var command = new NpgsqlBatchCommand(_store.Sql.Notify);
             command.Parameters.Add(new NpgsqlParameter<string>("channel", _store.Options.Channel));
             command.Parameters.Add(new NpgsqlParameter<string>("origin", _store.Origin));
-            steps.Add(new Step(command, null, null, IsQuery: true));
+            steps.Add(new Step(command, null, IsQuery: true));
         }
 
         if (steps.Count == 0)
         {
-            return;
+            return false;
         }
 
         await using var batch = new NpgsqlBatch(_connection, _transaction);
@@ -272,6 +309,11 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         foreach (Step step in steps)
         {
             batch.BatchCommands.Add(step.Command);
+        }
+
+        if (commit)
+        {
+            batch.BatchCommands.Add(new NpgsqlBatchCommand("COMMIT"));
         }
 
         long appended = -1;
@@ -310,6 +352,18 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             throw await DiagnoseAppendAsync(append, cancellationToken).ConfigureAwait(false);
         }
 
+        if (failure is { SqlState: AssertionFailed } && failure.MessageText == "append" && append is not null)
+        {
+            await FailAsync().ConfigureAwait(false);
+            throw await DiagnoseAppendAsync(append, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (failure is { SqlState: AssertionFailed } && checks.TryGetValue(failure.MessageText, out Func<Exception>? violation))
+        {
+            await FailAsync().ConfigureAwait(false);
+            throw violation();
+        }
+
         if (failure is not null)
         {
             await FailAsync().ConfigureAwait(false);
@@ -328,13 +382,9 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             throw failure;
         }
 
-        foreach (Step step in steps)
+        if (commit)
         {
-            if (step.CheckAffected?.Invoke(step.Command.RecordsAffected) is { } violation)
-            {
-                await FailAsync().ConfigureAwait(false);
-                throw violation;
-            }
+            _transactionEnded = true;
         }
 
         if (append is not null)
@@ -348,7 +398,11 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         _documents.Clear();
         _processes.Clear();
         _checkpoints.Clear();
+        return commit;
     }
+
+    // SQLSTATE raised by sf_assert (V003).
+    private const string AssertionFailed = "SF001";
 
     private async ValueTask FailAsync()
     {
@@ -462,6 +516,49 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         return command;
     }
 
+    // One multi-row upsert and one multi-row delete when every document is written once (the projection scope's case);
+    // otherwise one statement per write, so repeated writes to a document keep their exact order and version rules.
+    private IEnumerable<Step> DocumentSteps()
+    {
+        if (_documents.Count == 0)
+        {
+            yield break;
+        }
+
+        bool distinct = _documents.Select(d => (d.Collection, d.Id)).Distinct().Count() == _documents.Count;
+        if (!distinct || _documents.Count == 1)
+        {
+            foreach (DocumentWrite write in _documents)
+            {
+                yield return new Step(DocumentCommand(write), null);
+            }
+
+            yield break;
+        }
+
+        DocumentWrite[] upserts = [.. _documents.Where(d => d.Data is not null)];
+        DocumentWrite[] deletes = [.. _documents.Where(d => d.Data is null)];
+        if (upserts.Length > 0)
+        {
+            var command = new NpgsqlBatchCommand(_store.Sql.UpsertDocuments);
+            command.Parameters.Add(new NpgsqlParameter<string>("tenant", TenantId));
+            command.Parameters.Add(new NpgsqlParameter<string[]>("collections", [.. upserts.Select(d => d.Collection)]));
+            command.Parameters.Add(new NpgsqlParameter<string[]>("ids", [.. upserts.Select(d => d.Id)]));
+            command.Parameters.Add(new NpgsqlParameter<long[]>("versions", [.. upserts.Select(d => d.Version)]));
+            command.Parameters.Add(new NpgsqlParameter<string[]>("datas", [.. upserts.Select(d => Encoding.UTF8.GetString(d.Data!.Value.Span))]));
+            yield return new Step(command, null);
+        }
+
+        if (deletes.Length > 0)
+        {
+            var command = new NpgsqlBatchCommand(_store.Sql.DeleteDocuments);
+            command.Parameters.Add(new NpgsqlParameter<string>("tenant", TenantId));
+            command.Parameters.Add(new NpgsqlParameter<string[]>("collections", [.. deletes.Select(d => d.Collection)]));
+            command.Parameters.Add(new NpgsqlParameter<string[]>("ids", [.. deletes.Select(d => d.Id)]));
+            yield return new Step(command, null);
+        }
+    }
+
     private NpgsqlBatchCommand DocumentCommand(DocumentWrite write)
     {
         var command = new NpgsqlBatchCommand(write.Data is null ? _store.Sql.DeleteDocument : _store.Sql.UpsertDocument);
@@ -477,7 +574,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         return command;
     }
 
-    private NpgsqlBatchCommand ProcessCommand(ProcessWrite write)
+    private NpgsqlBatchCommand ProcessCommand(ProcessWrite write, string check)
     {
         var command = new NpgsqlBatchCommand(write.ExpectedVersion == 0 ? _store.Sql.InsertProcess : _store.Sql.UpdateProcess);
         command.Parameters.Add(new NpgsqlParameter<string>("tenant", TenantId));
@@ -490,10 +587,12 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             command.Parameters.Add(new NpgsqlParameter<long>("expected", write.ExpectedVersion));
         }
 
+        command.Parameters.Add(new NpgsqlParameter<string>("check", check));
+
         return command;
     }
 
-    private NpgsqlBatchCommand CheckpointCommand(string subscription, int partition, GlobalPosition position, LeaseToken lease)
+    private NpgsqlBatchCommand CheckpointCommand(string subscription, int partition, GlobalPosition position, LeaseToken lease, string check)
     {
         var command = new NpgsqlBatchCommand(_store.Sql.SaveCheckpoint);
         command.Parameters.Add(new NpgsqlParameter<string>("sub", subscription));
@@ -501,6 +600,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         command.Parameters.Add(PostgreSqlStore.Xid("tx", position.Commit));
         command.Parameters.Add(new NpgsqlParameter<long>("seq", checked((long)position.Sequence)));
         command.Parameters.AddRange(PostgreSqlStore.LeaseParameters(lease));
+        command.Parameters.Add(new NpgsqlParameter<string>("check", check));
         return command;
     }
 
@@ -581,7 +681,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         return steps.FirstOrDefault(s => !s.IsQuery && s.Command.RecordsAffected < 0);
     }
 
-    private sealed record Step(NpgsqlBatchCommand Command, Func<PostgresException, Exception?>? MapError, Func<int, Exception?>? CheckAffected, bool IsQuery = false);
+    private sealed record Step(NpgsqlBatchCommand Command, Func<PostgresException, Exception?>? MapError, bool IsQuery = false);
 
     private sealed record AppendWrite(StreamId Stream, string StreamType, ExpectedVersion Expected, IReadOnlyList<EventToAppend> Events);
 

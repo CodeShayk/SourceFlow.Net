@@ -926,6 +926,13 @@ public static class StorageConformance
         Check.Equal(5L, stored.Version, "older write ignored");
         Check.Equal("{\"v\":5}", Encoding.UTF8.GetString(stored.Data.Span), "data");
 
+        await using (IStorageSession many = await f.Sessions.BeginAsync(Tenant, ct).ConfigureAwait(false))
+        {
+            many.Documents.Upsert("docs", "2", 1, Encoding.UTF8.GetBytes("{\"v\":1}"));
+            IReadOnlyList<StoredDocument> found = await many.Documents.GetManyAsync("docs", ["1", "2", "missing"], ct).ConfigureAwait(false);
+            Check.SequenceEqual(["1:5", "2:1"], found.Select(d => $"{d.Id}:{d.Version}").Order(StringComparer.Ordinal), "batch read: stored and own writes, absent omitted");
+        }
+
         await using IStorageSession delete = await f.Sessions.BeginAsync(Tenant, ct).ConfigureAwait(false);
         delete.Documents.Delete("docs", "1");
         await delete.CommitAsync(ct).ConfigureAwait(false);

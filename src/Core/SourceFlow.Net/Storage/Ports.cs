@@ -96,6 +96,9 @@ public interface IDocumentSession
     /// <summary>Gets a document, seeing this session's own queued writes.</summary>
     ValueTask<StoredDocument?> GetAsync(string collection, string id, CancellationToken cancellationToken);
 
+    /// <summary>Gets several documents in one read, seeing this session's own queued writes; absent ids are omitted.</summary>
+    ValueTask<IReadOnlyList<StoredDocument>> GetManyAsync(string collection, IReadOnlyCollection<string> ids, CancellationToken cancellationToken);
+
     /// <summary>Queues an upsert. A write older than the stored version is ignored (at-least-once guard, doc 06 §5).</summary>
     void Upsert(string collection, string id, long version, ReadOnlyMemory<byte> data);
 
