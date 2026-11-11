@@ -149,6 +149,7 @@ namespace SourceFlow.Generators
                 type.Keyword(),
                 name,
                 attribute.Named("SnapshotEvery", 0),
+                attribute.Named("SnapshotVersion", 1),
                 contract.TypeArguments[1].FullName(),
                 decided.Distinct().OrderBy(x => x, System.StringComparer.Ordinal).ToEquatableArray(),
                 evolved.Distinct().OrderBy(x => x, System.StringComparer.Ordinal).ToEquatableArray());

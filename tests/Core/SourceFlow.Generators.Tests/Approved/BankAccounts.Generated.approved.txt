@@ -134,6 +134,7 @@ namespace Bank.Accounts
         private static readonly global::System.Type[] __sourceFlowTargeting = [typeof(global::Bank.Accounts.CloseAccount), typeof(global::Bank.Accounts.Deposit), typeof(global::Bank.Accounts.OpenAccount), typeof(global::Bank.Accounts.Withdraw)];
         static string global::SourceFlow.IAggregateRuntime<BankAccount, global::Bank.Accounts.AccountId>.AggregateName => AggregateName;
         static int global::SourceFlow.IAggregateRuntime<BankAccount, global::Bank.Accounts.AccountId>.SnapshotEvery => 0;
+        static int global::SourceFlow.IAggregateRuntime<BankAccount, global::Bank.Accounts.AccountId>.SnapshotVersion => 1;
         static global::System.Collections.Generic.IReadOnlyList<global::System.Type> global::SourceFlow.IAggregateRuntime<BankAccount, global::Bank.Accounts.AccountId>.DecidedCommands => __sourceFlowDecided;
         static global::System.Collections.Generic.IReadOnlyList<global::System.Type> global::SourceFlow.IAggregateRuntime<BankAccount, global::Bank.Accounts.AccountId>.TargetingCommands => __sourceFlowTargeting;
 

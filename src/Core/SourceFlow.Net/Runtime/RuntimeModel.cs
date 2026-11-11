@@ -159,7 +159,7 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
                 owners[command] = aggregate;
             }
 
-            ResolveDocument(options, aggregate.StateType, required: false);
+            ResolveDocument(options, aggregate.StateType, required: aggregate.SnapshotEvery > 0);
         }
 
         foreach (CommandHandlerDescriptor handler in _commandHandlers.Values)

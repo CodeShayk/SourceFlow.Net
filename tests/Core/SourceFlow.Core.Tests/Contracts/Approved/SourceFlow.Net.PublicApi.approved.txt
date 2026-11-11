@@ -152,6 +152,7 @@ namespace SourceFlow
         string AggregateName { get; }
         System.Collections.Generic.IReadOnlyList<System.Type> DecidedCommands { get; }
         int SnapshotEvery { get; }
+        int SnapshotVersion { get; }
         System.Collections.Generic.IReadOnlyList<System.Type> TargetingCommands { get; }
         TSelf Evolve(SourceFlow.IEvent @event);
         SourceFlow.Decision Decide(TSelf state, SourceFlow.ICommand command, in SourceFlow.DecisionContext context);
@@ -780,6 +781,7 @@ namespace SourceFlow.Runtime
         public abstract object Initial { get; }
         public abstract string Name { get; }
         public abstract int SnapshotEvery { get; }
+        public abstract int SnapshotVersion { get; }
         public abstract System.Type StateType { get; }
         public abstract System.Collections.Generic.IReadOnlyList<System.Type> TargetingCommands { get; }
         public abstract SourceFlow.Decision Decide(object state, SourceFlow.ICommand command, in SourceFlow.DecisionContext context);

@@ -111,6 +111,7 @@ namespace SourceFlow.Generators
             w.Line($"private static readonly global::System.Type[] __sourceFlowTargeting = [{string.Join(", ", targeting.Select(c => $"typeof({c.Command})"))}];");
             w.Line($"static string {contract}.AggregateName => AggregateName;");
             w.Line($"static int {contract}.SnapshotEvery => {model.SnapshotEvery.ToString(CultureInfo.InvariantCulture)};");
+            w.Line($"static int {contract}.SnapshotVersion => {model.SnapshotVersion.ToString(CultureInfo.InvariantCulture)};");
             w.Line($"static global::System.Collections.Generic.IReadOnlyList<global::System.Type> {contract}.DecidedCommands => __sourceFlowDecided;");
             w.Line($"static global::System.Collections.Generic.IReadOnlyList<global::System.Type> {contract}.TargetingCommands => __sourceFlowTargeting;");
             w.Line();

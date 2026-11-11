@@ -24,6 +24,9 @@ public interface IAggregateRuntime<TSelf, TId> : IAggregate<TSelf, TId>
     /// <summary>Snapshot interval; 0 disables snapshots.</summary>
     static abstract int SnapshotEvery { get; }
 
+    /// <summary>The snapshot schema version; bump it to invalidate snapshots when <c>When</c> logic changes.</summary>
+    static abstract int SnapshotVersion { get; }
+
     /// <summary>Commands with a <c>Decide</c> method on the aggregate.</summary>
     static abstract IReadOnlyList<Type> DecidedCommands { get; }
 

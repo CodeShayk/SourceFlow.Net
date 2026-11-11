@@ -19,6 +19,8 @@ namespace SourceFlow.Generators
             Diagnostics.DuplicateMessageType,
             Diagnostics.CommandTarget,
             Diagnostics.ImpureWhen,
+            Diagnostics.NoOwner,
+            Diagnostics.MissingJsonType,
             Diagnostics.AsyncDecide,
             Diagnostics.StateShape,
             Diagnostics.NonDeterministic);
@@ -39,6 +41,10 @@ namespace SourceFlow.Generators
                 start.RegisterSymbolAction(symbolContext => AnalyzeType(symbolContext, seen), SymbolKind.NamedType);
                 start.RegisterOperationAction(AnalyzeNonDeterminism, OperationKind.Invocation, OperationKind.PropertyReference, OperationKind.ObjectCreation);
                 start.RegisterOperationAction(AnalyzeWhenAssignment, OperationKind.SimpleAssignment, OperationKind.CompoundAssignment, OperationKind.Increment, OperationKind.Decrement);
+
+                var inventory = new CompilationInventory();
+                start.RegisterSymbolAction(symbolContext => inventory.Collect((INamedTypeSymbol)symbolContext.Symbol), SymbolKind.NamedType);
+                start.RegisterCompilationEndAction(inventory.Report);
             });
         }
 

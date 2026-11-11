@@ -120,7 +120,7 @@ public sealed class CommandProcessor
         }
 
         (object state, StreamVersion version) = await _aggregates.LoadAsync(
-            aggregate, stream, (from, max, ct) => session.ReadStreamAsync(stream, from, max, ct), cancellationToken).ConfigureAwait(false);
+            aggregate, stream, envelope.TenantId, (from, max, ct) => session.ReadStreamAsync(stream, from, max, ct), cancellationToken).ConfigureAwait(false);
 
         if (expectedVersion is { } expected && expected != version)
         {
@@ -171,6 +171,7 @@ public sealed class CommandProcessor
         CommitResult commit = await session.CommitAsync(cancellationToken).ConfigureAwait(false);
         _runtime.Metrics.AppendDuration.Record(Stopwatch.GetElapsedTime(appendStarted).TotalSeconds);
         _runtime.Metrics.AppendEvents.Record(events.Length, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name));
+        await _aggregates.SnapshotIfDueAsync(aggregate, stream, envelope.TenantId, state, version, events, cancellationToken).ConfigureAwait(false);
         return new CommandResult(CommandStatus.Accepted, commit.StreamVersion ?? newVersion, null, Token(commit.LastPosition, envelope.TenantId));
     }
 

@@ -10,11 +10,11 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 | WP-0.4 | Quality harness | 1 | done | |
 | WP-0.5 | Design baseline | 0.5 | done | |
 | WP-1.1 | Core contracts and SPIs (`SourceFlow.Net`) | 1.5 | done | Contracts in namespace SourceFlow; UT-ABS-01..18 |
-| WP-1.2 | `SourceFlow.Generators` (generators + analyzers) | 4 | in progress | Generator (ids, aggregates, PMs, projections, module) + SF0001-0004, 0007-0009 done; SF0005/0006/0010/0014 pending |
+| WP-1.2 | `SourceFlow.Generators` (generators + analyzers) | 4 | in progress | Generator (ids, aggregates, PMs, projections, module) + SF0001-0004, SF0006-0010 done; SF0005 (event without When) and SF0014 (constant-route analysis) pending |
 | WP-1.3 | Messaging core | 2 | done | Envelope, CloudEvents, UUIDv5/v7, registry, serializer, upcasters; UT-MSG-01..28 |
 | WP-1.4 | Storage SPI + in-memory store | 2.5 | done | Storage SPI, InMemoryStore, SCK (49 cases) green |
 | WP-1.5 | Runtime model and routing | 1.5 | done | RoutingBuilder/RoutingTable (RT-R1, RT-R5), options + validators; UT-RT |
-| WP-1.6 | Command processing + temporal reads | 3 | in progress | CommandProcessor, CommandSender, AggregateReader (AsOf) done; snapshots and aggregate cache not wired yet |
+| WP-1.6 | Command processing + temporal reads | 3 | in progress | CommandProcessor, CommandSender, AggregateReader (AsOf), snapshots (interval, schema hash) done; optional in-process aggregate cache pending |
 | WP-1.7 | Middleware and diagnostics | 1.5 | done | MessagePipeline, built-in middleware, ErrorClassifier, SourceFlowMetrics with InstrumentAdvice; UT-MW |
 | WP-1.8 | Outbox, scheduler, transport SPI, in-memory broker, receive pipeline | 3.5 | done | Transport SPI, InMemoryBroker, OutboxRelay, ReceiveEndpoint, dead letters; TCK-01..12 green on the in-memory broker |
 | WP-1.9 | Subscriptions, projections, process managers, event handlers | 4 | in progress | SubscriptionEngine (fenced, partitioned), projections, process managers, event handlers done; CommandRejected replies (E2E-15) and node fair-share pending |

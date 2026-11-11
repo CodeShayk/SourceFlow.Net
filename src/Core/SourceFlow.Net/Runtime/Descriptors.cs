@@ -22,6 +22,9 @@ public abstract class AggregateDescriptor
     /// <summary>The snapshot interval; 0 disables snapshots.</summary>
     public abstract int SnapshotEvery { get; }
 
+    /// <summary>The snapshot schema version.</summary>
+    public abstract int SnapshotVersion { get; }
+
     /// <summary>Commands with a generated <c>Decide</c>.</summary>
     public abstract IReadOnlyList<Type> DecidedCommands { get; }
 
@@ -53,6 +56,8 @@ internal sealed class AggregateDescriptor<TAggregate, TId> : AggregateDescriptor
     public override Type IdType => typeof(TId);
 
     public override int SnapshotEvery => TAggregate.SnapshotEvery;
+
+    public override int SnapshotVersion => TAggregate.SnapshotVersion;
 
     public override IReadOnlyList<Type> DecidedCommands => TAggregate.DecidedCommands;
 

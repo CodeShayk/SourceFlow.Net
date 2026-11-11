@@ -27,6 +27,16 @@ namespace SourceFlow.Generators
             "'When' in '{0}' must be pure: {1}",
             "SourceFlow.Purity", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpBase);
 
+        public static readonly DiagnosticDescriptor NoOwner = new(
+            "SF0006", "Command has no Decide or handler",
+            "Command '{0}' targets '{1}' but has no Decide method and no ICommandHandler in this compilation; add one or route it (startup fails otherwise)",
+            "SourceFlow.Commands", DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpBase, customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+        public static readonly DiagnosticDescriptor MissingJsonType = new(
+            "SF0010", "Type missing from the module's JSON context",
+            "'{0}' is missing from JSON context '{1}'; add [JsonSerializable(typeof({0}))] (DC-1)",
+            "SourceFlow.Serialization", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpBase, customTags: WellKnownDiagnosticTags.CompilationEnd);
+
         public static readonly DiagnosticDescriptor AsyncDecide = new(
             "SF0007", "Decide must be synchronous",
             "'Decide' in '{0}' must return Decision synchronously; use an ICommandHandler for I/O",

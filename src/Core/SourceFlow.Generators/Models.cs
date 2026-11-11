@@ -29,6 +29,7 @@ namespace SourceFlow.Generators
         string Keyword,
         string AggregateName,
         int SnapshotEvery,
+        int SnapshotVersion,
         string IdType,
         EquatableArray<string> DecidedCommands,
         EquatableArray<string> EvolvedEvents);

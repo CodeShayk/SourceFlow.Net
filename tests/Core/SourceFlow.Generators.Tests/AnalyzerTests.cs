@@ -170,6 +170,47 @@ public sealed class AnalyzerTests
     }
 
     [Fact]
+    [Trait("Id", "GEN-29")]
+    [Trait("Covers", "ADR-007")]
+    public void SF0006_CommandWithoutDecideOrHandler()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + """
+            [MessageType("t.decided", 1)] public sealed record Decided(Aid A) : ICommand<Agg>;
+            [MessageType("t.handled", 1)] public sealed record Handled(Aid A) : ICommand<Agg>;
+            [MessageType("t.orphan", 1)] public sealed record Orphan(Aid A) : ICommand<Agg>;
+            [Aggregate("agg")] public sealed partial record Agg : IAggregate<Agg, Aid>
+            {
+                public static Agg Initial { get; } = new();
+                public Decision Decide(Decided c, DecisionContext ctx) => Decision.NoOp;
+            }
+            public sealed class HandledHandler : ICommandHandler<Handled, Agg>
+            {
+                public System.Threading.Tasks.ValueTask<Decision> HandleAsync(Handled c, Agg s, DecisionContext ctx, System.Threading.CancellationToken ct) => default;
+            }
+            """);
+
+        diagnostics.Where(d => d.Id == "SF0006").ShouldHaveSingleItem().GetMessage().ShouldContain("Orphan");
+    }
+
+    [Fact]
+    [Trait("Id", "GEN-34")]
+    [Trait("Covers", "DC-1")]
+    public void SF0010_TypeMissingFromTheJsonContext()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + """
+            [MessageType("t.listed", 1)] public sealed record Listed(Aid A) : IEvent;
+            [MessageType("t.forgotten", 1)] public sealed record Forgotten(Aid A) : IEvent;
+            [System.Text.Json.Serialization.JsonSerializable(typeof(Listed))]
+            public sealed partial class Ctx : System.Text.Json.Serialization.JsonSerializerContext;
+            [SourceFlowModule(typeof(Ctx))] public sealed partial class Mod;
+            """);
+
+        Diagnostic missing = diagnostics.Where(d => d.Id == "SF0010").ShouldHaveSingleItem();
+        missing.GetMessage().ShouldContain("Forgotten");
+        missing.Severity.ShouldBe(DiagnosticSeverity.Error);
+    }
+
+    [Fact]
     public void BankSample_HasNoDiagnostics()
     {
         Analyze(Id).ShouldBeEmpty();
