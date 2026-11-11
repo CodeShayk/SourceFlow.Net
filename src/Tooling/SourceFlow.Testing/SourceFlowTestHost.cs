@@ -181,12 +181,13 @@ public sealed class SourceFlowTestHost : IAsyncDisposable
         return Store.DueOutboxCount() == 0
             && Broker.ActiveCount == 0
             && _host.ReceiveInFlight == 0
+            && Runtime.Snapshots.Pending == 0
             && await _host.SubscriptionsCaughtUpAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
     private async Task<string> DescribeAsync()
     {
         bool caughtUp = await _host.SubscriptionsCaughtUpAsync(CancellationToken.None).ConfigureAwait(false);
-        return $"{Runtime.ServiceName}: outbox due={Store.DueOutboxCount()}, broker active={Broker.ActiveCount}, receiving={_host.ReceiveInFlight}, subscriptions caught up={caughtUp}";
+        return $"{Runtime.ServiceName}: outbox due={Store.DueOutboxCount()}, broker active={Broker.ActiveCount}, receiving={_host.ReceiveInFlight}, snapshots pending={Runtime.Snapshots.Pending}, subscriptions caught up={caughtUp}";
     }
 }

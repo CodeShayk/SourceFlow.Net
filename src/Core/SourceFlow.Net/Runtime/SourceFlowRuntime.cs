@@ -92,7 +92,15 @@ public sealed class SourceFlowRuntime
         Tenants = tenants;
         InlineProjections = [];
         AsyncProjections = [];
+        AggregateCache = new AggregateCache(Options);
+        Snapshots = new SnapshotWriter(this);
     }
+
+    /// <summary>The aggregate state cache (doc 05 §8.2).</summary>
+    internal AggregateCache AggregateCache { get; }
+
+    /// <summary>The background snapshot writer (doc 05 §8.1).</summary>
+    internal SnapshotWriter Snapshots { get; }
 
     /// <summary>The runtime model.</summary>
     public RuntimeModel Model { get; }

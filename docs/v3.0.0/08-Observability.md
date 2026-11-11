@@ -75,6 +75,8 @@ Units follow UCUM. Histogram buckets are set through `InstrumentAdvice`: duratio
 | `sourceflow.eventstore.concurrency_conflicts` | Counter | {conflict} | `sourceflow.aggregate.type` | Hot-stream detection ([ADR-008](ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md)) |
 | `sourceflow.aggregate.load.events` | Histogram | {event} | `sourceflow.aggregate.type`, `sourceflow.load.source` | Snapshot tuning (doc 05 §8) |
 | `sourceflow.aggregate.cache.hits` | Counter | {hit} | `sourceflow.aggregate.type`, `result` | Cache effectiveness |
+| `sourceflow.snapshot.written` | Counter | {snapshot} | `sourceflow.aggregate.type` | Background snapshot writes (doc 05 §8.1) |
+| `sourceflow.snapshot.dropped` | Counter | {snapshot} | `sourceflow.aggregate.type` (failed writes) | Queue overflow or failed writes; harmless, but sustained drops mean the queue or store is too slow |
 | `sourceflow.outbox.pending` | Observable gauge | {message} | `partition` | Backlog |
 | `sourceflow.outbox.age` | Observable gauge | s | `partition` | **Durability SLO**: oldest undelivered message |
 | `sourceflow.outbox.dispatch.duration` | Histogram | s | `messaging.system` | Relay health |

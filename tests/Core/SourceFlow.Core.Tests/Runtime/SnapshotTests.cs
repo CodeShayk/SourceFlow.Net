@@ -12,6 +12,9 @@ public readonly partial record struct CounterId(Guid Value);
 [MessageType("test.counter.increment", 1)]
 public sealed record Increment(CounterId CounterId) : ICommand<Counter>;
 
+[MessageType("test.counter.decrement", 1)]
+public sealed record Decrement(CounterId CounterId) : ICommand<Counter>;
+
 [MessageType("test.counter.incremented", 1)]
 public sealed record Incremented(CounterId CounterId, int Count) : IEvent;
 
@@ -27,6 +30,13 @@ public sealed partial record Counter : IAggregate<Counter, CounterId>
         return Decision.Accept(new Incremented(c.CounterId, Count + 1));
     }
 
+    public Decision Decide(Decrement c, DecisionContext ctx)
+    {
+        return Count == 0
+            ? Decision.Reject(new Error("counter.empty", "The counter is zero."))
+            : Decision.Accept(new Incremented(c.CounterId, Count - 1));
+    }
+
     private Counter When(Incremented e)
     {
         return this with { Count = e.Count };
@@ -37,6 +47,7 @@ public sealed partial record Counter : IAggregate<Counter, CounterId>
 public sealed partial class CoreTestModule;
 
 [JsonSerializable(typeof(Increment))]
+[JsonSerializable(typeof(Decrement))]
 [JsonSerializable(typeof(Incremented))]
 [JsonSerializable(typeof(Counter))]
 [JsonSerializable(typeof(RenamedV1))]
@@ -67,6 +78,8 @@ public sealed class SnapshotTests
         {
             await host.SendAsync(new Increment(id));
         }
+
+        await host.WaitForIdleAsync();   // snapshots are written in the background
 
         Snapshot snapshot = (await snapshots.GetAsync("-", stream, TestContext.Current.CancellationToken)).ShouldNotBeNull();
         snapshot.Version.ShouldBe(new StreamVersion(6));

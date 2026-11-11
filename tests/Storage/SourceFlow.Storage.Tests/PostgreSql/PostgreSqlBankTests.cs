@@ -80,6 +80,33 @@ public sealed class PostgreSqlBankTests(PostgreSqlServer server) : PostgreSqlTes
         (await SummaryAsync(host, id))!.Balance.ShouldBe(20.01m);
     }
 
+    [Theory]
+    [Trait("Id", "UT-SNAP-06")]
+    [Trait("Covers", "doc 05 8.2")]
+    [InlineData(AggregateCacheMode.ReadTail)]
+    [InlineData(AggregateCacheMode.Optimistic)]
+    public async Task ParallelDeposits_WithTheAggregateCache_StayExact(AggregateCacheMode mode)
+    {
+        using IHost host = await StartAsync(inlineSummary: true, configure: sf => sf.Configure(o =>
+        {
+            o.MaxConcurrencyRetries = 50;
+            o.AggregateCache = mode;
+        }));
+        ICommandSender commands = host.Services.GetRequiredService<ICommandSender>();
+        AccountId id = AccountId.New();
+        await commands.SendAsync(new OpenAccount(id, "Ada", 1m), null, Ct);
+
+        CommandResult[] results = await Task.WhenAll(Enumerable.Range(0, 20)
+            .Select(_ => Task.Run(async () => await commands.SendAsync(new Deposit(id, 1m), null, Ct))));
+        CommandResult tooMuch = await commands.SendAsync(new Withdraw(id, 22m), null, Ct);
+        CommandResult exact = await commands.SendAsync(new Withdraw(id, 21m), null, Ct);
+
+        results.ShouldAllBe(r => r.Status == CommandStatus.Accepted);
+        tooMuch.Status.ShouldBe(CommandStatus.Rejected);
+        exact.Status.ShouldBe(CommandStatus.Accepted);
+        (await SummaryAsync(host, id))!.Balance.ShouldBe(0m);
+    }
+
     [Fact]
     [Trait("Id", "E2E-06")]
     [Trait("Covers", "ADR-010;ADR-016")]

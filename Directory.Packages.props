@@ -8,6 +8,7 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.15" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.15" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.15" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="10.0.15" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.15" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.15" />
     <PackageVersion Include="System.IO.Hashing" Version="10.0.0" />

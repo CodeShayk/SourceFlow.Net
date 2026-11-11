@@ -385,6 +385,9 @@ CREATE TABLE sourceflow.data_keys (                                         -- c
 
 - Each aggregate opts in with `[Aggregate("…", SnapshotEvery = 100, SnapshotVersion = 1)]`.
 - After a successful commit that crosses a multiple of `SnapshotEvery`, the state is handed to a bounded background channel and written **outside** the command transaction. A lost snapshot is harmless; it is just a cache.
+  - The channel holds `SnapshotQueueCapacity` entries (default 1,024). When it is full, the oldest entry is dropped, so commands never wait on snapshot I/O.
+  - A failed write is dropped too. Both cases count in `sourceflow.snapshot.dropped`.
+  - The host drains the queue on shutdown, within `ShutdownTimeout`. Without a running host, snapshots are written inline.
 - `schema_hash = hash(SnapshotVersion, generated state-shape fingerprint)`. A shape change or an explicit `SnapshotVersion` bump invalidates old snapshots automatically. Bump `SnapshotVersion` when `When` logic changes without the shape changing; the analyzer can't detect that case.
 - Guidance: turn snapshots on only when `sourceflow.aggregate.load.events` p95 exceeds about 200 for that aggregate type.
 
@@ -393,6 +396,9 @@ CREATE TABLE sourceflow.data_keys (                                         -- c
 - An in-process `MemoryCache` (size-limited) holds `(state, version)` per stream and is set after each commit.
 - `CacheMode.ReadTail` (the default when enabled): start from the cached state and read the tail. Usually that is zero rows, from a single index probe.
 - `CacheMode.Optimistic`: skip the tail read and rely on the append's version check. A stale entry causes a conflict, an automatic reload, and then success. This is best when partition-keyed routing gives stream affinity to one instance.
+  - **A rejection or no-op decided on a cached state is confirmed against the tail before it is returned.** It appends nothing, so no version check would otherwise catch a stale state. If newer events exist, the runtime re-decides on fresh state.
+  - A command with an expected version (`If-Match`) never takes the optimistic shortcut.
+  - Enable the cache with `SourceFlowOptions.AggregateCache` and size it with `AggregateCacheSize`. Lookups count in `sourceflow.aggregate.cache.hits` with `result` set to hit, miss or stale.
 - It is correct by construction, because optimistic concurrency never lets a stale decision commit.
 
 ## 9. Retention, archiving and growth

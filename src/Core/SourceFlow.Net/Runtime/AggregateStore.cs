@@ -1,7 +1,4 @@
-using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.IO.Hashing;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using SourceFlow.Diagnostics;
@@ -17,19 +14,45 @@ namespace SourceFlow.Runtime;
 internal sealed class AggregateStore(SourceFlowRuntime runtime)
 {
     private const int PageSize = 512;
-    private readonly ConcurrentDictionary<Type, string> _schemaHashes = new();
 
-    public async ValueTask<(object State, StreamVersion Version)> LoadAsync(
+    /// <summary>
+    /// Loads an aggregate: from the cache (when enabled and <paramref name="useCache"/>), else the latest matching
+    /// snapshot, then the stream tail. With <see cref="AggregateCacheMode.Optimistic"/> and <paramref name="optimistic"/>, a
+    /// cache hit skips the tail read; <see cref="LoadResult.Optimistic"/> tells the caller to confirm non-appending decisions.
+    /// </summary>
+    public async ValueTask<LoadResult> LoadAsync(
         AggregateDescriptor aggregate, StreamId stream, string tenant,
-        Func<StreamVersion, int, CancellationToken, ValueTask<StreamSlice>> read, CancellationToken cancellationToken)
+        Func<StreamVersion, int, CancellationToken, ValueTask<StreamSlice>> read, CancellationToken cancellationToken,
+        bool useCache = false, bool optimistic = false)
     {
         using Activity? activity = SourceFlowTelemetry.ActivitySource.StartActivity("sourceflow.eventstore.load", ActivityKind.Client);
         object state = aggregate.Initial;
         StreamVersion version = StreamVersion.None;
         string source = "events";
-        if (aggregate.SnapshotEvery > 0
+        AggregateCache cache = runtime.AggregateCache;
+        if (useCache && cache.Mode != AggregateCacheMode.Off)
+        {
+            if (cache.TryGet(tenant, stream, aggregate.StateType, out object cached, out StreamVersion cachedVersion))
+            {
+                CacheResult(aggregate, "hit");
+                if (optimistic && cache.Mode == AggregateCacheMode.Optimistic)
+                {
+                    Record(activity, aggregate, "cache", 0);
+                    return new LoadResult(cached, cachedVersion, Optimistic: true);
+                }
+
+                (state, version, source) = (cached, cachedVersion, "cache");
+            }
+            else
+            {
+                CacheResult(aggregate, "miss");
+            }
+        }
+
+        if (source == "events"
+            && aggregate.SnapshotEvery > 0
             && await runtime.Storage.Snapshots.GetAsync(tenant, stream, cancellationToken).ConfigureAwait(false) is { } snapshot
-            && snapshot.SchemaHash == SchemaHash(aggregate))
+            && snapshot.SchemaHash == runtime.Snapshots.SchemaHash(aggregate))
         {
             state = JsonSerializer.Deserialize(snapshot.Data.Span, runtime.Model.JsonTypeInfoFor(aggregate.StateType))!;
             version = snapshot.Version;
@@ -53,41 +76,63 @@ internal sealed class AggregateStore(SourceFlowRuntime runtime)
             }
         }
 
-        runtime.Metrics.LoadEvents.Record(folded, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name),
-            new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.LoadSource, source));
-        activity?.SetTag(SourceFlowTelemetry.Tags.LoadSource, source);
-        activity?.SetTag("sourceflow.load.events", folded);
-        return (state, version);
+        if (source == "cache" && folded > 0)
+        {
+            // Another instance appended since this one cached the stream.
+            CacheResult(aggregate, "stale");
+        }
+
+        Record(activity, aggregate, source, folded);
+        return new LoadResult(state, version, Optimistic: false);
     }
 
-    /// <summary>Writes a snapshot when an append crossed a multiple of <see cref="AggregateDescriptor.SnapshotEvery"/>. Best effort.</summary>
-    public async ValueTask SnapshotIfDueAsync(
+    /// <summary>
+    /// After a successful commit: caches the new state and queues a snapshot when the append crossed a multiple of
+    /// <see cref="AggregateDescriptor.SnapshotEvery"/> (written in the background, outside the command transaction).
+    /// </summary>
+    public async ValueTask CommittedAsync(
         AggregateDescriptor aggregate, StreamId stream, string tenant, object stateBefore, StreamVersion before, IReadOnlyList<IEvent> events, CancellationToken cancellationToken)
     {
         int every = aggregate.SnapshotEvery;
         StreamVersion after = before + events.Count;
-        if (every <= 0 || after.Value / every == before.Value / every)
+        bool snapshotDue = every > 0 && after.Value / every != before.Value / every;
+        bool cached = runtime.AggregateCache.Mode != AggregateCacheMode.Off;
+        if (!snapshotDue && !cached)
         {
             return;
         }
 
-        try
+        object state = stateBefore;
+        foreach (IEvent e in events)
         {
-            object state = stateBefore;
-            foreach (IEvent e in events)
-            {
-                state = aggregate.Evolve(state, e);
-            }
+            state = aggregate.Evolve(state, e);
+        }
 
-            JsonTypeInfo typeInfo = runtime.Model.JsonTypeInfoFor(aggregate.StateType);
-            await runtime.Storage.Snapshots.SaveAsync(tenant,
-                new Snapshot(stream, after, aggregate.StateType.FullName ?? aggregate.StateType.Name, SchemaHash(aggregate), JsonSerializer.SerializeToUtf8Bytes(state, typeInfo)),
-                cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        runtime.AggregateCache.Set(tenant, stream, state, after);
+        if (snapshotDue)
         {
-            // A lost snapshot is harmless: it is only a cache (doc 05 §8.1).
+            await runtime.Snapshots.EnqueueAsync(new SnapshotWork(aggregate, stream, tenant, state, after), cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>Drops a cached state (after a conflict).</summary>
+    public void Invalidate(string tenant, StreamId stream)
+    {
+        runtime.AggregateCache.Remove(tenant, stream);
+    }
+
+    private void CacheResult(AggregateDescriptor aggregate, string result)
+    {
+        runtime.Metrics.AggregateCacheHits.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name),
+            new KeyValuePair<string, object?>("result", result));
+    }
+
+    private void Record(Activity? activity, AggregateDescriptor aggregate, string source, long folded)
+    {
+        runtime.Metrics.LoadEvents.Record(folded, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name),
+            new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.LoadSource, source));
+        activity?.SetTag(SourceFlowTelemetry.Tags.LoadSource, source);
+        activity?.SetTag("sourceflow.load.events", folded);
     }
 
     /// <summary>Deserializes a stored event through the allow-list; storage reads are upcast to the latest version.</summary>
@@ -100,23 +145,7 @@ internal sealed class AggregateStore(SourceFlowRuntime runtime)
         object message = runtime.Serializer.Deserialize(stored.Data, type);
         return upcast ? runtime.Model.Registry.UpcastToLatest(message, type, out _) : message;
     }
-
-    /// <summary>
-    /// The snapshot schema hash: the snapshot version plus the state's JSON shape (property names and types), so a shape
-    /// change or an explicit version bump invalidates old snapshots automatically.
-    /// </summary>
-    public string SchemaHash(AggregateDescriptor aggregate)
-    {
-        return _schemaHashes.GetOrAdd(aggregate.StateType, _ =>
-        {
-            JsonTypeInfo info = runtime.Model.JsonTypeInfoFor(aggregate.StateType);
-            var shape = new StringBuilder().Append(aggregate.SnapshotVersion).Append('|').Append(aggregate.StateType.FullName);
-            foreach (JsonPropertyInfo property in info.Properties.OrderBy(p => p.Name, StringComparer.Ordinal))
-            {
-                shape.Append('|').Append(property.Name).Append(':').Append(property.PropertyType.FullName);
-            }
-
-            return Convert.ToHexStringLower(XxHash64.Hash(Encoding.UTF8.GetBytes(shape.ToString())));
-        });
-    }
 }
+
+/// <summary>An aggregate load: the state, its version, and whether it came unverified from the optimistic cache.</summary>
+internal readonly record struct LoadResult(object State, StreamVersion Version, bool Optimistic);

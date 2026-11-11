@@ -84,6 +84,9 @@ public sealed class SourceFlowMetrics : IDisposable
         LoadEvents = Meter.CreateHistogram("sourceflow.aggregate.load.events", "{event}", "Events folded per aggregate load.", tags: null, advice: count);
         OutboxDispatchDuration = Meter.CreateHistogram("sourceflow.outbox.dispatch.duration", "s", "Outbox batch dispatch duration.", tags: null, advice: duration);
         InboxDuplicates = Meter.CreateCounter<long>("sourceflow.inbox.duplicates", "{message}", "Duplicates absorbed by the inbox.");
+        AggregateCacheHits = Meter.CreateCounter<long>("sourceflow.aggregate.cache.hits", "{hit}", "Aggregate cache lookups by result (hit, miss, stale).");
+        SnapshotsWritten = Meter.CreateCounter<long>("sourceflow.snapshot.written", "{snapshot}", "Snapshots written in the background.");
+        SnapshotsDropped = Meter.CreateCounter<long>("sourceflow.snapshot.dropped", "{snapshot}", "Snapshots dropped because the queue was full or the write failed.");
         RetryAttempts = Meter.CreateCounter<long>("sourceflow.retry.attempts", "{attempt}", "Retry attempts.");
         DeadLettersParked = Meter.CreateCounter<long>("sourceflow.deadletter.parked", "{message}", "Messages parked to dead letters.");
         SubscriptionBatchDuration = Meter.CreateHistogram("sourceflow.subscription.batch.duration", "s", "Subscription batch duration.", tags: null, advice: duration);
@@ -109,6 +112,15 @@ public sealed class SourceFlowMetrics : IDisposable
     public Histogram<double> OutboxDispatchDuration { get; }
 
     public Counter<long> InboxDuplicates { get; }
+
+    /// <summary><c>sourceflow.aggregate.cache.hits</c>, tagged with <c>result</c>: hit, miss or stale.</summary>
+    public Counter<long> AggregateCacheHits { get; }
+
+    /// <summary><c>sourceflow.snapshot.written</c>.</summary>
+    public Counter<long> SnapshotsWritten { get; }
+
+    /// <summary><c>sourceflow.snapshot.dropped</c>.</summary>
+    public Counter<long> SnapshotsDropped { get; }
 
     public Counter<long> RetryAttempts { get; }
 

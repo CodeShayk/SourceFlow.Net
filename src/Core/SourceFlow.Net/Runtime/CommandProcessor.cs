@@ -73,12 +73,14 @@ public sealed class CommandProcessor
                 }
                 catch (ConcurrencyException) when (attempt < _runtime.Options.MaxConcurrencyRetries)
                 {
+                    _aggregates.Invalidate(envelope.TenantId, stream);
                     _runtime.Metrics.ConcurrencyConflicts.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name));
                     Log.ConcurrencyRetry(_logger, stream.Value, attempt + 1);
                     await Backoff(attempt, cancellationToken).ConfigureAwait(false);
                 }
                 catch (ConcurrencyException)
                 {
+                    _aggregates.Invalidate(envelope.TenantId, stream);
                     _runtime.Metrics.ConcurrencyConflicts.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name));
                     Log.ConcurrencyExhausted(_logger, stream.Value, attempt + 1);
                     result = new CommandResult(CommandStatus.Conflict, StreamVersion.None, Error.ConcurrencyConflict, ConsistencyToken.None);
@@ -117,8 +119,11 @@ public sealed class CommandProcessor
             return Duplicate(seen.Result, envelope.TenantId);
         }
 
-        (object state, StreamVersion version) = await _aggregates.LoadAsync(
-            aggregate, stream, envelope.TenantId, (from, max, ct) => session.ReadStreamAsync(stream, from, max, ct), cancellationToken).ConfigureAwait(false);
+        // The optimistic cache shortcut needs no caller-side version check: If-Match must see the stored version.
+        LoadResult loaded = await _aggregates.LoadAsync(
+            aggregate, stream, envelope.TenantId, (from, max, ct) => session.ReadStreamAsync(stream, from, max, ct), cancellationToken,
+            useCache: true, optimistic: expectedVersion is null).ConfigureAwait(false);
+        (object state, StreamVersion version) = (loaded.State, loaded.Version);
 
         if (expectedVersion is { } expected && expected != version)
         {
@@ -129,6 +134,13 @@ public sealed class CommandProcessor
         Decision decision = handler is null
             ? aggregate.Decide(state, command, context)
             : await handler.HandleAsync(services, command, state, context, cancellationToken).ConfigureAwait(false);
+
+        if (decision.Kind != DecisionKind.Accepted && loaded.Optimistic
+            && await session.ReadStreamAsync(stream, version + 1, 1, cancellationToken).ConfigureAwait(false) is { Events.Count: > 0 } newer)
+        {
+            // A rejection appends nothing, so no version check would catch a stale cached state: re-decide on fresh state.
+            throw new ConcurrencyException(stream, ExpectedVersion.Exact(version), newer.CurrentVersion);
+        }
 
         if (decision.Kind != DecisionKind.Accepted)
         {
@@ -175,7 +187,7 @@ public sealed class CommandProcessor
 
         _runtime.Metrics.AppendDuration.Record(Stopwatch.GetElapsedTime(appendStarted).TotalSeconds);
         _runtime.Metrics.AppendEvents.Record(events.Length, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name));
-        await _aggregates.SnapshotIfDueAsync(aggregate, stream, envelope.TenantId, state, version, events, cancellationToken).ConfigureAwait(false);
+        await _aggregates.CommittedAsync(aggregate, stream, envelope.TenantId, state, version, events, cancellationToken).ConfigureAwait(false);
         return new CommandResult(CommandStatus.Accepted, commit.StreamVersion ?? newVersion, null, Token(commit.LastPosition, envelope.TenantId));
     }
 

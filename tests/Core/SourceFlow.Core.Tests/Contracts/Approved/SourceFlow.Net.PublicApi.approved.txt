@@ -441,6 +441,7 @@ namespace SourceFlow.Diagnostics
     public sealed class SourceFlowMetrics : System.IDisposable
     {
         public SourceFlowMetrics() { }
+        public System.Diagnostics.Metrics.Counter<long> AggregateCacheHits { get; }
         public System.Diagnostics.Metrics.Histogram<double> AppendDuration { get; }
         public System.Diagnostics.Metrics.Histogram<long> AppendEvents { get; }
         public System.Diagnostics.Metrics.Histogram<double> CommandDuration { get; }
@@ -454,6 +455,8 @@ namespace SourceFlow.Diagnostics
         public System.Diagnostics.Metrics.Histogram<double> ProcessDuration { get; }
         public System.Diagnostics.Metrics.Counter<long> RetryAttempts { get; }
         public System.Diagnostics.Metrics.Counter<long> SentMessages { get; }
+        public System.Diagnostics.Metrics.Counter<long> SnapshotsDropped { get; }
+        public System.Diagnostics.Metrics.Counter<long> SnapshotsWritten { get; }
         public System.Diagnostics.Metrics.Histogram<double> SubscriptionBatchDuration { get; }
         public void Dispose() { }
     }
@@ -787,6 +790,12 @@ namespace SourceFlow.Query
 }
 namespace SourceFlow.Runtime
 {
+    public enum AggregateCacheMode
+    {
+        Off = 0,
+        ReadTail = 1,
+        Optimistic = 2,
+    }
     public abstract class AggregateDescriptor
     {
         protected AggregateDescriptor() { }
@@ -992,6 +1001,9 @@ namespace SourceFlow.Runtime
     public sealed class SourceFlowOptions
     {
         public SourceFlowOptions() { }
+        public SourceFlow.Runtime.AggregateCacheMode AggregateCache { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(1, 10000000)]
+        public int AggregateCacheSize { get; set; }
         [System.ComponentModel.DataAnnotations.Required]
         public string DefaultTenant { get; set; }
         public System.Collections.Generic.IList<System.TimeSpan> DelayedRetries { get; }
@@ -1017,6 +1029,8 @@ namespace SourceFlow.Runtime
         [System.ComponentModel.DataAnnotations.Required]
         public string ServiceName { get; set; }
         public System.TimeSpan ShutdownTimeout { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(1, 1000000)]
+        public int SnapshotQueueCapacity { get; set; }
         [System.ComponentModel.DataAnnotations.Range(1, 10000)]
         public int SubscriptionBatchSize { get; set; }
         [System.ComponentModel.DataAnnotations.Range(1, 1024)]

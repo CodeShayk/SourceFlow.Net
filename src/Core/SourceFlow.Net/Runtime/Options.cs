@@ -63,6 +63,20 @@ public sealed class SourceFlowOptions
     [Range(1, 1024)]
     public int SubscriptionPartitions { get; set; } = 1;
 
+    /// <summary>The in-process aggregate state cache (doc 05 §8.2); off by default.</summary>
+    public AggregateCacheMode AggregateCache { get; set; } = AggregateCacheMode.Off;
+
+    /// <summary>The most aggregate states the cache holds; the least recently used are evicted first.</summary>
+    [Range(1, 10_000_000)]
+    public int AggregateCacheSize { get; set; } = 10_000;
+
+    /// <summary>
+    /// Snapshots waiting to be written in the background (doc 05 §8.1). When the queue is full the oldest is dropped:
+    /// a lost snapshot only means a longer load.
+    /// </summary>
+    [Range(1, 1_000_000)]
+    public int SnapshotQueueCapacity { get; set; } = 1024;
+
     /// <summary>How long shutdown waits for in-flight work (RX-R6).</summary>
     public TimeSpan ShutdownTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
@@ -112,4 +126,21 @@ public sealed class SourceFlowOptionsTimingValidator : IValidateOptions<SourceFl
             failures.Add($"{name} must be between {min} and {max}; got {value}.");
         }
     }
+}
+
+/// <summary>How the in-process aggregate state cache is used (doc 05 §8.2).</summary>
+public enum AggregateCacheMode
+{
+    /// <summary>No cache: every command loads from the snapshot and the stream.</summary>
+    Off = 0,
+
+    /// <summary>Start from the cached state and read the stream tail after it (usually no rows, one index probe).</summary>
+    ReadTail = 1,
+
+    /// <summary>
+    /// Skip the tail read and rely on the append's version check: a stale entry causes a conflict, a reload and a
+    /// re-decide. A rejection or no-op decided on cached state is confirmed against the tail before it is returned.
+    /// Best with stream affinity (partition-keyed routing to one instance).
+    /// </summary>
+    Optimistic = 2,
 }

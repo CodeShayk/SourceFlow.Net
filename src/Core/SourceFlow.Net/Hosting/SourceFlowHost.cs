@@ -62,6 +62,7 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
 
         _stopping = new CancellationTokenSource();
         CancellationToken stopping = _stopping.Token;
+        _runtime.Snapshots.Start();
         _notifications = _runtime.Storage.Notifications.Subscribe(_commits.Set);
 
         if (_settings.Roles.HasFlag(SourceFlowRoles.Receiver))
@@ -105,6 +106,7 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
         }
 
         await _receiver.DrainAsync(_runtime.Options.ShutdownTimeout).ConfigureAwait(false);
+        await _runtime.Snapshots.StopAsync(_runtime.Options.ShutdownTimeout).ConfigureAwait(false);
         _notifications?.Dispose();
     }
 

@@ -105,6 +105,9 @@ public static class StorageConformance
         new("SCK-49", "Dead letters: park with the full envelope and query", DeadLetterPark),
         new("SCK-50", "Dead letters: mark replayed and discard", DeadLetterStatus),
         new("SCK-51", "Snapshots: save and get the latest", SnapshotSaveGet),
+        new("SCK-52", "Snapshots: an older snapshot never replaces a newer one", SnapshotNewerWins),
+        new("SCK-53", "Snapshots: state type, schema hash and data round trip", SnapshotFields),
+        new("SCK-55", "Snapshots: a 1 MB state round trips", SnapshotLarge),
         new("SCK-56", "Tenancy: the same stream id in two tenants is isolated", TenantStreams),
         new("SCK-57", "Tenancy: documents are tenant scoped", TenantDocuments),
         new("SCK-58", "Documents: read own writes, versions, older writes ignored", DocumentVersions),
@@ -796,6 +799,38 @@ public static class StorageConformance
         Snapshot latest = Check.NotNull(await f.Snapshots.GetAsync(Tenant, StreamA, ct).ConfigureAwait(false), "snapshot");
         Check.Equal(new StreamVersion(200), latest.Version, "latest");
         Check.Null(await f.Snapshots.GetAsync("other", StreamA, ct).ConfigureAwait(false), "tenant scoped");
+    }
+
+    private static async Task SnapshotNewerWins(IStorageFixture f, CancellationToken ct)
+    {
+        await f.Snapshots.SaveAsync(Tenant, new Snapshot(StreamA, new StreamVersion(200), "Account", "h1", Encoding.UTF8.GetBytes("{\"b\":2}")), ct).ConfigureAwait(false);
+        await f.Snapshots.SaveAsync(Tenant, new Snapshot(StreamA, new StreamVersion(100), "Account", "h1", Encoding.UTF8.GetBytes("{\"b\":1}")), ct).ConfigureAwait(false);
+
+        Snapshot latest = Check.NotNull(await f.Snapshots.GetAsync(Tenant, StreamA, ct).ConfigureAwait(false), "snapshot");
+        Check.Equal(new StreamVersion(200), latest.Version, "newer kept");
+        Check.Equal("{\"b\":2}", Encoding.UTF8.GetString(latest.Data.Span), "newer data kept");
+    }
+
+    private static async Task SnapshotFields(IStorageFixture f, CancellationToken ct)
+    {
+        const string data = "{ \"balance\" : 10.50, \"holder\": \"Zoë\" }";
+        await f.Snapshots.SaveAsync(Tenant, new Snapshot(StreamA, new StreamVersion(7), "Bank.Accounts.BankAccount", "9f86d081884c7d65", Encoding.UTF8.GetBytes(data)), ct).ConfigureAwait(false);
+        await f.Snapshots.SaveAsync(Tenant, new Snapshot(StreamA, new StreamVersion(8), "Bank.Accounts.BankAccount", "aaaaaaaaaaaaaaaa", Encoding.UTF8.GetBytes(data)), ct).ConfigureAwait(false);
+
+        Snapshot stored = Check.NotNull(await f.Snapshots.GetAsync(Tenant, StreamA, ct).ConfigureAwait(false), "snapshot");
+        Check.Equal("Bank.Accounts.BankAccount", stored.StateType, "state type");
+        Check.Equal("aaaaaaaaaaaaaaaa", stored.SchemaHash, "schema hash replaced with the newer snapshot");
+        Check.Equal(data, Encoding.UTF8.GetString(stored.Data.Span), "data bytes");
+        Check.Equal(StreamA, stored.StreamId, "stream");
+    }
+
+    private static async Task SnapshotLarge(IStorageFixture f, CancellationToken ct)
+    {
+        string big = "{\"blob\":\"" + new string('s', 1024 * 1024) + "\"}";
+        await f.Snapshots.SaveAsync(Tenant, new Snapshot(StreamA, new StreamVersion(1), "Big", "h", Encoding.UTF8.GetBytes(big)), ct).ConfigureAwait(false);
+
+        Snapshot stored = Check.NotNull(await f.Snapshots.GetAsync(Tenant, StreamA, ct).ConfigureAwait(false), "snapshot");
+        Check.Equal(big, Encoding.UTF8.GetString(stored.Data.Span), "payload");
     }
 
     private static async Task TenantStreams(IStorageFixture f, CancellationToken ct)
