@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Scaffold (WP-0.2). Implemented in WP-2.7; packable once implemented. -->
   <PropertyGroup>
-    <Description>SourceFlow.Net v3: EF Core read-model projections bound to the SourceFlow storage session.</Description>
-    <IsPackable>false</IsPackable>
+    <Description>SourceFlow.Net v3: EF Core read-model projections bound to the SourceFlow storage session (same connection and transaction as the events or the subscription checkpoint).</Description>
+    <PackageTags>sourceflow;event-sourcing;cqrs;efcore;read-models</PackageTags>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
   </ItemGroup>
 </Project>

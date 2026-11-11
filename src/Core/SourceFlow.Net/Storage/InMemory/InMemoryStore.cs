@@ -812,6 +812,13 @@ public sealed class InMemoryStore :
             _wroteOther = true;
         }
 
+        public ValueTask FlushAsync(CancellationToken cancellationToken)
+        {
+            // The in-memory store applies a session atomically at commit and has no connection to write through.
+            ThrowIfCompleted();
+            return ValueTask.CompletedTask;
+        }
+
         public ValueTask<CommitResult> CommitAsync(CancellationToken cancellationToken)
         {
             ThrowIfCompleted();

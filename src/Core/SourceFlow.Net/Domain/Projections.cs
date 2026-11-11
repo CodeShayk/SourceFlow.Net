@@ -66,3 +66,32 @@ public interface IEventHandler<in TEvent>
     /// <summary>Handles one event.</summary>
     ValueTask HandleAsync(TEvent @event, EventContext context, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// A projection that writes read models through a unit of work bound to the storage session, such as an EF Core
+/// <c>DbContext</c> (doc 03 §6.3, doc 05 §10). It runs in the same transaction as the events it projects (inline) or as
+/// the subscription checkpoint (async). Mark the class <c>[Projection("name")]</c> and declare
+/// <c>When(TEvent e, TUnitOfWork unitOfWork, EventContext context, CancellationToken cancellationToken)</c> methods returning
+/// <see cref="ValueTask"/> or <see cref="Task"/>; the generator emits the rest.
+/// </summary>
+/// <typeparam name="TUnitOfWork">The unit of work type, for example a <c>DbContext</c>.</typeparam>
+public interface ISessionProjection<TUnitOfWork>
+    where TUnitOfWork : class;
+
+/// <summary>Generated half of <see cref="ISessionProjection{TUnitOfWork}"/>.</summary>
+public interface ISessionProjectionRuntime<TSelf, TUnitOfWork> : ISessionProjection<TUnitOfWork>
+    where TSelf : class, ISessionProjectionRuntime<TSelf, TUnitOfWork>
+    where TUnitOfWork : class
+{
+    /// <summary>The projection name.</summary>
+    static abstract string ProjectionName { get; }
+
+    /// <summary>The projection version; a bump starts a new generation.</summary>
+    static abstract int ProjectionVersion { get; }
+
+    /// <summary>The event types the projection handles.</summary>
+    static abstract IReadOnlyList<Type> HandledEvents { get; }
+
+    /// <summary>Dispatches an event to its <c>When</c> method.</summary>
+    ValueTask ApplyAsync(IEvent @event, TUnitOfWork unitOfWork, EventContext context, CancellationToken cancellationToken);
+}

@@ -14,7 +14,7 @@ namespace SourceFlow.Runtime;
 internal sealed record SubscriptionDefinition(string Name, Func<Type, bool> Handles, Func<SubscriptionContext, ValueTask> Apply);
 
 /// <summary>Inputs to one subscription apply.</summary>
-internal sealed record SubscriptionContext(IStorageSession Session, IEvent Event, StoredEvent Stored, IServiceProvider Services, CancellationToken CancellationToken);
+internal sealed record SubscriptionContext(IStorageSession Session, IEvent Event, StoredEvent Stored, IServiceProvider Services, ProjectionScope Projections, CancellationToken CancellationToken);
 
 /// <summary>
 /// Runs subscriptions (doc 06). Each <c>(subscription, partition)</c> holds a fenced lease, reads its bucket range
@@ -137,6 +137,7 @@ internal sealed class SubscriptionEngine
     {
         await using AsyncServiceScope scope = _scopes.CreateAsyncScope();
         await using IStorageSession session = await _runtime.Storage.Sessions.BeginAsync(tenant, cancellationToken).ConfigureAwait(false);
+        await using var projections = new ProjectionScope(_runtime, session, scope.ServiceProvider);
         foreach (StoredEvent stored in events)
         {
             if (!_runtime.Model.Registry.TryGet(stored.Type, stored.TypeVersion, out MessageTypeInfo? type) || !Relevant(definition, type))
@@ -145,9 +146,11 @@ internal sealed class SubscriptionEngine
             }
 
             var @event = (IEvent)_decoder.Deserialize(stored, upcast: true);
-            await definition.Apply(new SubscriptionContext(session, @event, stored, scope.ServiceProvider, cancellationToken)).ConfigureAwait(false);
+            await definition.Apply(new SubscriptionContext(session, @event, stored, scope.ServiceProvider, projections, cancellationToken)).ConfigureAwait(false);
         }
 
+        // Session projections (EF Core) save before the fenced checkpoint, in the same transaction (doc 05 §10).
+        await projections.CompleteAsync(cancellationToken).ConfigureAwait(false);
         session.SaveCheckpoint(definition.Name, partition, events[^1].Position, lease);
         await session.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -237,13 +240,12 @@ internal sealed class SubscriptionEngine
     private IReadOnlyList<SubscriptionDefinition> BuildDefinitions()
     {
         var definitions = new List<SubscriptionDefinition>();
-        var projections = new ProjectionApplier(_runtime);
         foreach (ProjectionDescriptor projection in _runtime.AsyncProjections)
         {
             definitions.Add(new SubscriptionDefinition(
                 "projection:" + projection.Collection,
-                type => projection.HandledEvents.Contains(type),
-                ctx => projections.ApplyAsync(ctx.Session, projection, ctx.Event, ctx.Stored.ToContext(), ctx.CancellationToken)));
+                projection.Handles,
+                ctx => ctx.Projections.ApplyAsync(projection, ctx.Event, ctx.Stored.ToContext(), ctx.CancellationToken)));
         }
 
         var processes = new ProcessManagerRunner(_runtime);

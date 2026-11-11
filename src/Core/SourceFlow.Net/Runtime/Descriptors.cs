@@ -190,9 +190,16 @@ internal sealed class ProcessManagerDescriptor<TProcess, TId> : ProcessManagerDe
     }
 }
 
-/// <summary>A registered document projection (ADR-016).</summary>
+/// <summary>
+/// A registered projection (ADR-016). It runs inline in the command transaction or async in a subscription transaction,
+/// and is either a <see cref="DocumentProjectionDescriptor"/> or a session projection writing through a unit of work.
+/// </summary>
 public abstract class ProjectionDescriptor
 {
+    private protected ProjectionDescriptor()
+    {
+    }
+
     /// <summary>The projection name.</summary>
     public abstract string Name { get; }
 
@@ -202,23 +209,58 @@ public abstract class ProjectionDescriptor
     /// <summary>The projection version.</summary>
     public abstract int Version { get; }
 
-    /// <summary>The document collection: <c>{name}@{version}</c> (doc 06 §6).</summary>
+    /// <summary>The generation id <c>{name}@{version}</c>: the document collection and the checkpoint name (doc 06 §6).</summary>
     public string Collection => $"{Name}@{Version}";
-
-    /// <summary>The document type.</summary>
-    public abstract Type DocumentType { get; }
 
     /// <summary>Every event type with a <c>When</c>.</summary>
     public abstract IReadOnlyList<Type> HandledEvents { get; }
+
+    /// <summary>True when the projection handles <paramref name="eventType"/>.</summary>
+    public bool Handles(Type eventType)
+    {
+        foreach (Type handled in HandledEvents)
+        {
+            if (handled == eventType)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal abstract ValueTask ApplyAsync(ProjectionScope scope, IEvent @event, EventContext context, CancellationToken cancellationToken);
+
+    // Describes a missing service the projection needs at run time, or null when it can run.
+    internal virtual string? MissingDependency(IServiceProvider services)
+    {
+        return null;
+    }
+}
+
+/// <summary>A registered document projection: JSON documents in the store's document collection (doc 05 §10).</summary>
+public abstract class DocumentProjectionDescriptor : ProjectionDescriptor
+{
+    private protected DocumentProjectionDescriptor()
+    {
+    }
+
+    /// <summary>The document type.</summary>
+    public abstract Type DocumentType { get; }
 
     /// <summary>Finds the stored document id of an event.</summary>
     public abstract bool TryGetDocumentId(IEvent @event, in EventContext context, [NotNullWhen(true)] out string? documentId);
 
     /// <summary>Applies an event; returns the new document or null to delete it.</summary>
     public abstract object? Apply(IEvent @event, object? current, in EventContext context);
+
+    internal override ValueTask ApplyAsync(ProjectionScope scope, IEvent @event, EventContext context, CancellationToken cancellationToken)
+    {
+        return ProjectionApplier.ApplyDocumentAsync(scope, this, @event, context, cancellationToken);
+    }
 }
 
-internal sealed class ProjectionDescriptor<TProjection, TDocument, TKey> : ProjectionDescriptor
+internal sealed class ProjectionDescriptor<TProjection, TDocument, TKey> : DocumentProjectionDescriptor
     where TProjection : class, IDocumentProjectionRuntime<TProjection, TDocument, TKey>, new()
     where TDocument : class
     where TKey : notnull
@@ -250,6 +292,43 @@ internal sealed class ProjectionDescriptor<TProjection, TDocument, TKey> : Proje
     public override object? Apply(IEvent @event, object? current, in EventContext context)
     {
         return _projection.Apply(@event, (TDocument?)current, context);
+    }
+}
+
+/// <summary>
+/// A session projection (<see cref="ISessionProjection{TUnitOfWork}"/>): writes through a unit of work bound to the
+/// storage session, created once per session by the registered <see cref="Storage.IProjectionUnitOfWork{TUnitOfWork}"/>.
+/// </summary>
+internal sealed class SessionProjectionDescriptor<TProjection, TUnitOfWork> : ProjectionDescriptor
+    where TProjection : class, ISessionProjectionRuntime<TProjection, TUnitOfWork>, new()
+    where TUnitOfWork : class
+{
+    private readonly TProjection _projection = new();
+
+    public override string Name => TProjection.ProjectionName;
+
+    public override Type ProjectionType => typeof(TProjection);
+
+    public override int Version => TProjection.ProjectionVersion;
+
+    public override IReadOnlyList<Type> HandledEvents => TProjection.HandledEvents;
+
+    internal override async ValueTask ApplyAsync(ProjectionScope scope, IEvent @event, EventContext context, CancellationToken cancellationToken)
+    {
+        if (!Handles(@event.GetType()))
+        {
+            return;
+        }
+
+        TUnitOfWork unitOfWork = await scope.UnitOfWorkAsync<TUnitOfWork>(ProjectionType, cancellationToken).ConfigureAwait(false);
+        await _projection.ApplyAsync(@event, unitOfWork, context, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal override string? MissingDependency(IServiceProvider services)
+    {
+        return services.GetService<Storage.IProjectionUnitOfWork<TUnitOfWork>>() is null
+            ? $"Projection {ProjectionType.Name} writes through {typeof(TUnitOfWork).Name}, but no IProjectionUnitOfWork<{typeof(TUnitOfWork).Name}> is registered (for EF Core: UseEntityFrameworkProjections<{typeof(TUnitOfWork).Name}>(…))."
+            : null;
     }
 }
 

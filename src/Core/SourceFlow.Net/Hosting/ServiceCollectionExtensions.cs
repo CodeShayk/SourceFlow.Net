@@ -73,6 +73,12 @@ public static class ServiceCollectionExtensions
             var runtime = ActivatorUtilities.CreateInstance<SourceFlowRuntime>(sp);
             runtime.InlineProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Inline)];
             runtime.AsyncProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Async)];
+            string[] missing = [.. model.Projections.Select(p => p.MissingDependency(sp)).OfType<string>()];
+            if (missing.Length > 0)
+            {
+                throw new InvalidOperationException(string.Join(Environment.NewLine, missing));
+            }
+
             return runtime;
         });
         services.AddSingleton<CommandProcessor>();

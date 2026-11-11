@@ -15,7 +15,6 @@ public sealed class CommandProcessor
 {
     private readonly SourceFlowRuntime _runtime;
     private readonly AggregateStore _aggregates;
-    private readonly ProjectionApplier _projections;
     private readonly ILogger _logger;
 
     /// <summary>Creates the processor.</summary>
@@ -23,7 +22,6 @@ public sealed class CommandProcessor
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _aggregates = new AggregateStore(runtime);
-        _projections = new ProjectionApplier(runtime);
         _logger = runtime.Logger<CommandProcessor>();
     }
 
@@ -167,8 +165,14 @@ public sealed class CommandProcessor
             session.RecordInbox(Consumer, envelope.MessageId, new InboxResult(CommandStatus.Accepted, newVersion, null));
         }
 
-        await ApplyInlineProjectionsAsync(session, events, envelopes, stream, cancellationToken).ConfigureAwait(false);
-        CommitResult commit = await session.CommitAsync(cancellationToken).ConfigureAwait(false);
+        CommitResult commit;
+        await using (var projections = new ProjectionScope(_runtime, session, services))
+        {
+            await ApplyInlineProjectionsAsync(projections, events, envelopes, stream, cancellationToken).ConfigureAwait(false);
+            await projections.CompleteAsync(cancellationToken).ConfigureAwait(false);
+            commit = await session.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         _runtime.Metrics.AppendDuration.Record(Stopwatch.GetElapsedTime(appendStarted).TotalSeconds);
         _runtime.Metrics.AppendEvents.Record(events.Length, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name));
         await _aggregates.SnapshotIfDueAsync(aggregate, stream, envelope.TenantId, state, version, events, cancellationToken).ConfigureAwait(false);
@@ -196,7 +200,7 @@ public sealed class CommandProcessor
         }
     }
 
-    private async ValueTask ApplyInlineProjectionsAsync(IStorageSession session, IEvent[] events, MessageEnvelope[] envelopes, StreamId stream, CancellationToken cancellationToken)
+    private async ValueTask ApplyInlineProjectionsAsync(ProjectionScope projections, IEvent[] events, MessageEnvelope[] envelopes, StreamId stream, CancellationToken cancellationToken)
     {
         if (_runtime.InlineProjections.Count == 0)
         {
@@ -209,7 +213,7 @@ public sealed class CommandProcessor
                 envelopes[i].Time, envelopes[i].CorrelationId, envelopes[i].CausationId, envelopes[i].TenantId == MessageEnvelope.DefaultTenant ? null : envelopes[i].TenantId);
             foreach (ProjectionDescriptor projection in _runtime.InlineProjections)
             {
-                await _projections.ApplyAsync(session, projection, events[i], context, cancellationToken).ConfigureAwait(false);
+                await projections.ApplyAsync(projection, events[i], context, cancellationToken).ConfigureAwait(false);
             }
         }
     }

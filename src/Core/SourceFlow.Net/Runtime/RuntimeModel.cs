@@ -118,6 +118,14 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
     }
 
     /// <inheritdoc />
+    public void AddSessionProjection<TProjection, TUnitOfWork>()
+        where TProjection : class, ISessionProjectionRuntime<TProjection, TUnitOfWork>, new()
+        where TUnitOfWork : class
+    {
+        _projections.TryAdd(typeof(TProjection), new SessionProjectionDescriptor<TProjection, TUnitOfWork>());
+    }
+
+    /// <inheritdoc />
     public void AddEventHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TEvent>()
         where THandler : class, IEventHandler<TEvent>
         where TEvent : class, IMessage
@@ -185,9 +193,15 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
             ResolveDocument(options, process.StateType, required: true);
         }
 
-        foreach (ProjectionDescriptor projection in _projections.Values)
+        foreach (DocumentProjectionDescriptor projection in _projections.Values.OfType<DocumentProjectionDescriptor>())
         {
             ResolveDocument(options, projection.DocumentType, required: true);
+        }
+
+        string? duplicate = _projections.Values.GroupBy(p => p.Collection, StringComparer.Ordinal).FirstOrDefault(g => g.Count() > 1)?.Key;
+        if (duplicate is not null)
+        {
+            throw new InvalidOperationException($"Two projections share the name and version '{duplicate}'.");
         }
 
         return new RuntimeModel(

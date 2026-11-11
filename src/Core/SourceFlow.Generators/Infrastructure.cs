@@ -108,6 +108,10 @@ namespace SourceFlow.Generators
         public const string Aggregate = "SourceFlow.IAggregate`2";
         public const string ProcessManager = "SourceFlow.IProcessManager`2";
         public const string DocumentProjection = "SourceFlow.IDocumentProjection`2";
+        public const string SessionProjection = "SourceFlow.ISessionProjection`1";
+        public const string CancellationToken = "System.Threading.CancellationToken";
+        public const string Task = "System.Threading.Tasks.Task";
+        public const string ValueTask = "System.Threading.Tasks.ValueTask";
         public const string CommandHandler = "SourceFlow.ICommandHandler`2";
         public const string EventHandler = "SourceFlow.IEventHandler`1";
         public const string Upcaster = "SourceFlow.IUpcaster`2";

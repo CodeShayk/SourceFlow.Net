@@ -201,6 +201,51 @@ namespace SourceFlow.Generators
                 correlated.Distinct().OrderBy(x => x, System.StringComparer.Ordinal).ToEquatableArray());
         }
 
+        public static SessionProjectionModel? SessionProjection(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
+        {
+            if (context.TargetSymbol is not INamedTypeSymbol type || type.IsNested() || type.IsValueType || type.IsAbstract || !type.IsPartial())
+            {
+                return null;
+            }
+
+            INamedTypeSymbol? contract = type.FindInterface(KnownNames.SessionProjection);
+            AttributeData attribute = context.Attributes[0];
+            if (contract is null || attribute.ConstructorArguments.Length == 0 || attribute.ConstructorArguments[0].Value is not string name)
+            {
+                return null;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            ITypeSymbol unitOfWork = contract.TypeArguments[0];
+            var events = new List<SessionProjectedEvent>();
+            foreach (IMethodSymbol method in type.GetMembers("When").OfType<IMethodSymbol>())
+            {
+                bool returnsTask = method.ReturnType.Is(KnownNames.Task);
+                if (method.IsStatic
+                    || method.Parameters.Length != 4
+                    || !method.Parameters[0].Type.Implements(KnownNames.Event)
+                    || !SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated), unitOfWork.WithNullableAnnotation(NullableAnnotation.NotAnnotated))
+                    || !method.Parameters[2].Type.Is(KnownNames.EventContext)
+                    || !method.Parameters[3].Type.Is(KnownNames.CancellationToken)
+                    || !(returnsTask || method.ReturnType.Is(KnownNames.ValueTask)))
+                {
+                    continue;
+                }
+
+                events.Add(new SessionProjectedEvent(method.Parameters[0].Type.FullName(), returnsTask));
+            }
+
+            return new SessionProjectionModel(
+                type.Namespace(),
+                type.Name,
+                type.FullName(),
+                type.Keyword(),
+                name,
+                attribute.Named("Version", 1),
+                unitOfWork.FullName(),
+                events.OrderBy(e => e.EventType, System.StringComparer.Ordinal).ToEquatableArray());
+        }
+
         public static ProjectionModel? Projection(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
         {
             if (context.TargetSymbol is not INamedTypeSymbol type || type.IsNested() || type.IsValueType || type.IsAbstract || !type.IsPartial())

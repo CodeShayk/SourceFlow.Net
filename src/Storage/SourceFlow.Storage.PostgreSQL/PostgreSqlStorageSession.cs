@@ -26,6 +26,9 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
     private bool _completed;
     private bool _transactionEnded;
     private bool _tenantSet;
+    private bool _appendSent;
+    private bool _notify;
+    private CommitResult _appendResult;
 
     public PostgreSqlStorageSession(PostgreSqlStore store, string tenantId, NpgsqlConnection connection, NpgsqlTransaction transaction, bool tenantSet)
     {
@@ -125,6 +128,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         }
 
         _append = new AppendWrite(stream, streamType, expected, [.. events]);
+        _notify = true;
     }
 
     public void EnqueueOutbox(OutboxMessage message)
@@ -133,6 +137,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         ArgumentNullException.ThrowIfNull(message);
         _outbox.Add(message);
         _wroteOther = true;
+        _notify = true;
     }
 
     public void RecordInbox(string consumer, MessageId messageId, InboxResult result)
@@ -180,17 +185,38 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
 
     // ------------------------------------------------------------------ commit
 
+    public async ValueTask FlushAsync(CancellationToken cancellationToken)
+    {
+        ThrowIfCompleted();
+        cancellationToken.ThrowIfCancellationRequested();
+        await SendAsync(includeNotify: false, cancellationToken).ConfigureAwait(false);
+    }
+
     public async ValueTask<CommitResult> CommitAsync(CancellationToken cancellationToken)
     {
         ThrowIfCompleted();
         cancellationToken.ThrowIfCancellationRequested();
         _completed = true;
-
-        var steps = new List<Step>();
-        await using var batch = new NpgsqlBatch(_connection, _transaction);
-        if (_append is not null)
+        await SendAsync(includeNotify: _notify, cancellationToken).ConfigureAwait(false);
+        _transactionEnded = true;
+        await _transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        if (_notify)
         {
-            steps.Add(new Step(AppendCommand(_append), MapAppendError, null, IsQuery: true));
+            _store.RaiseCommitted();
+        }
+
+        return _appendResult;
+    }
+
+    // Sends every write queued since the last send as one batch, the append first, and checks the conditional ones in
+    // batch order. Any failure rolls the transaction back and ends the session.
+    private async ValueTask SendAsync(bool includeNotify, CancellationToken cancellationToken)
+    {
+        var steps = new List<Step>();
+        AppendWrite? append = _append is not null && !_appendSent ? _append : null;
+        if (append is not null)
+        {
+            steps.Add(new Step(AppendCommand(append), MapAppendError, null, IsQuery: true));
         }
 
         if (_outbox.Count > 0)
@@ -221,8 +247,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
                 affected => affected == 1 ? null : new LeaseLostException(lease.Name)));
         }
 
-        bool notify = _append is not null || _outbox.Count > 0;
-        if (notify)
+        if (includeNotify)
         {
             var command = new NpgsqlBatchCommand(_store.Sql.Notify);
             command.Parameters.Add(new NpgsqlParameter<string>("channel", _store.Options.Channel));
@@ -232,10 +257,10 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
 
         if (steps.Count == 0)
         {
-            _transactionEnded = true;
-            await _transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            return default;
+            return;
         }
+
+        await using var batch = new NpgsqlBatch(_connection, _transaction);
 
         // Row-level security: the tenant setting precedes every write of the transaction (ADR-022).
         bool prefixed = _store.RowLevelSecurity && TakeTenant();
@@ -262,7 +287,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
                 await reader.NextResultAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            if (_append is not null && await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            if (append is not null && await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 appended = reader.GetInt64(0);
                 newVersion = reader.GetInt64(1);
@@ -279,20 +304,20 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             failure = exception;
         }
 
-        if (_append is not null && appended == 0)
+        if (append is not null && appended == 0)
         {
-            await RollbackAsync().ConfigureAwait(false);
-            throw await DiagnoseAppendAsync(_append, cancellationToken).ConfigureAwait(false);
+            await FailAsync().ConfigureAwait(false);
+            throw await DiagnoseAppendAsync(append, cancellationToken).ConfigureAwait(false);
         }
 
         if (failure is not null)
         {
-            await RollbackAsync().ConfigureAwait(false);
+            await FailAsync().ConfigureAwait(false);
             Step? failed = FailedStep(steps, failure);
             Exception? mapped = failed?.MapError?.Invoke(failure);
-            if (mapped is null && failed?.Command is { } command && _append is not null && ReferenceEquals(command, steps[0].Command))
+            if (mapped is null && failed?.Command is { } command && append is not null && ReferenceEquals(command, steps[0].Command))
             {
-                mapped = await DiagnoseAppendAsync(_append, cancellationToken).ConfigureAwait(false);
+                mapped = await DiagnoseAppendAsync(append, cancellationToken).ConfigureAwait(false);
             }
 
             if (mapped is not null)
@@ -307,21 +332,28 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         {
             if (step.CheckAffected?.Invoke(step.Command.RecordsAffected) is { } violation)
             {
-                await RollbackAsync().ConfigureAwait(false);
+                await FailAsync().ConfigureAwait(false);
                 throw violation;
             }
         }
 
-        _transactionEnded = true;
-        await _transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-        if (notify)
+        if (append is not null)
         {
-            _store.RaiseCommitted();
+            _appendSent = true;
+            _appendResult = new CommitResult(new StreamVersion(newVersion), new GlobalPosition(transactionId, (ulong)lastSequence));
         }
 
-        return _append is null
-            ? default
-            : new CommitResult(new StreamVersion(newVersion), new GlobalPosition(transactionId, (ulong)lastSequence));
+        _outbox.Clear();
+        _inbox.Clear();
+        _documents.Clear();
+        _processes.Clear();
+        _checkpoints.Clear();
+    }
+
+    private async ValueTask FailAsync()
+    {
+        _completed = true;
+        await RollbackAsync().ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()

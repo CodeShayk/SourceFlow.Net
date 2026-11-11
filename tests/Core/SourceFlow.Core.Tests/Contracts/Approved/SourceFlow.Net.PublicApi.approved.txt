@@ -216,6 +216,17 @@ namespace SourceFlow
     {
         TSelf Initial { get; }
     }
+    public interface ISessionProjectionRuntime<TSelf, TUnitOfWork> : SourceFlow.ISessionProjection<TUnitOfWork>
+        where TSelf :  class, SourceFlow.ISessionProjectionRuntime<TSelf, TUnitOfWork>
+        where TUnitOfWork :  class
+    {
+        System.Collections.Generic.IReadOnlyList<System.Type> HandledEvents { get; }
+        string ProjectionName { get; }
+        int ProjectionVersion { get; }
+        System.Threading.Tasks.ValueTask ApplyAsync(SourceFlow.IEvent @event, TUnitOfWork unitOfWork, SourceFlow.EventContext context, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface ISessionProjection<TUnitOfWork>
+        where TUnitOfWork :  class { }
     public interface ISourceFlowModule
     {
         string ModuleName { get; }
@@ -244,6 +255,9 @@ namespace SourceFlow
             where TProjection :  class, SourceFlow.IDocumentProjectionRuntime<TProjection, TDocument, TKey>, new ()
             where TDocument :  class
             where TKey :  notnull;
+        void AddSessionProjection<TProjection, TUnitOfWork>()
+            where TProjection :  class, SourceFlow.ISessionProjectionRuntime<TProjection, TUnitOfWork>, new ()
+            where TUnitOfWork :  class;
         void AddUpcaster<TFrom, TTo, TUpcaster>()
             where TFrom :  class, SourceFlow.IMessage
             where TTo :  class, SourceFlow.IMessage
@@ -814,6 +828,12 @@ namespace SourceFlow.Runtime
         public SourceFlow.Runtime.CommandRouteBuilder ReplyOnReject() { }
         public SourceFlow.Runtime.CommandRouteBuilder To(string endpoint) { }
     }
+    public abstract class DocumentProjectionDescriptor : SourceFlow.Runtime.ProjectionDescriptor
+    {
+        public abstract System.Type DocumentType { get; }
+        public abstract object? Apply(SourceFlow.IEvent @event, object? current, in SourceFlow.EventContext context);
+        public abstract bool TryGetDocumentId(SourceFlow.IEvent @event, in SourceFlow.EventContext context, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? documentId);
+    }
     public abstract class EventHandlerDescriptor
     {
         protected EventHandlerDescriptor() { }
@@ -864,15 +884,12 @@ namespace SourceFlow.Runtime
     }
     public abstract class ProjectionDescriptor
     {
-        protected ProjectionDescriptor() { }
         public string Collection { get; }
-        public abstract System.Type DocumentType { get; }
         public abstract System.Collections.Generic.IReadOnlyList<System.Type> HandledEvents { get; }
         public abstract string Name { get; }
         public abstract System.Type ProjectionType { get; }
         public abstract int Version { get; }
-        public abstract object? Apply(SourceFlow.IEvent @event, object? current, in SourceFlow.EventContext context);
-        public abstract bool TryGetDocumentId(SourceFlow.IEvent @event, in SourceFlow.EventContext context, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? documentId);
+        public bool Handles(System.Type eventType) { }
     }
     public sealed class PublicationBuilder<TEvent>
         where TEvent :  class, SourceFlow.IEvent
@@ -962,6 +979,9 @@ namespace SourceFlow.Runtime
             where TProjection :  class, SourceFlow.IDocumentProjectionRuntime<TProjection, TDocument, TKey>, new ()
             where TDocument :  class
             where TKey :  notnull { }
+        public void AddSessionProjection<TProjection, TUnitOfWork>()
+            where TProjection :  class, SourceFlow.ISessionProjectionRuntime<TProjection, TUnitOfWork>, new ()
+            where TUnitOfWork :  class { }
         public void AddUpcaster<TFrom, TTo, TUpcaster>()
             where TFrom :  class, SourceFlow.IMessage
             where TTo :  class, SourceFlow.IMessage
@@ -1208,6 +1228,12 @@ namespace SourceFlow.Storage
         System.Threading.Tasks.ValueTask<int> CountAsync(System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask RetryAsync(SourceFlow.Storage.LeaseToken lease, long sequence, System.DateTimeOffset deliverAt, string error, System.Threading.CancellationToken cancellationToken);
     }
+    public interface IProjectionUnitOfWork<TUnitOfWork>
+        where TUnitOfWork :  class
+    {
+        System.Threading.Tasks.ValueTask<TUnitOfWork> BeginAsync(SourceFlow.Storage.IStorageSession session, System.IServiceProvider services, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask CompleteAsync(TUnitOfWork unitOfWork, System.Threading.CancellationToken cancellationToken);
+    }
     public interface ISnapshotStore
     {
         System.Threading.Tasks.ValueTask<SourceFlow.Storage.Snapshot?> GetAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken);
@@ -1222,6 +1248,7 @@ namespace SourceFlow.Storage
         void Append(SourceFlow.StreamId stream, string streamType, SourceFlow.ExpectedVersion expected, System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.EventToAppend> events);
         System.Threading.Tasks.ValueTask<SourceFlow.Storage.CommitResult> CommitAsync(System.Threading.CancellationToken cancellationToken);
         void EnqueueOutbox(SourceFlow.Storage.OutboxMessage message);
+        System.Threading.Tasks.ValueTask FlushAsync(System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<SourceFlow.Storage.InboxEntry?> InboxSeenAsync(string consumer, SourceFlow.MessageId messageId, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<SourceFlow.Storage.ProcessState?> LoadProcessStateAsync(string processType, string processId, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamSlice> ReadStreamAsync(SourceFlow.StreamId stream, SourceFlow.StreamVersion fromInclusive, int maxCount, System.Threading.CancellationToken cancellationToken);

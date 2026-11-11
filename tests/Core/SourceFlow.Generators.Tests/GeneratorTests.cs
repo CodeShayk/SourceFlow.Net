@@ -305,6 +305,55 @@ public sealed class GeneratorTests
         run.Result.Results[0].Exception.ShouldBeNull();
     }
 
+    private const string Ledger = Sources.Usings + """
+
+        using System.Threading;
+        using System.Threading.Tasks;
+        namespace Ledgers;
+        [StronglyTypedId] public readonly partial record struct LedgerId(Guid Value);
+        [MessageType("ledger.opened", 1)] public sealed record Opened(LedgerId LedgerId) : IEvent;
+        [MessageType("ledger.posted", 1)] public sealed record Posted(LedgerId LedgerId, decimal Amount) : IEvent;
+        public sealed class LedgerDb { }
+
+        [Projection("ledger-lines", Version = 2)]
+        public sealed partial class LedgerProjection : ISessionProjection<LedgerDb>
+        {
+            public ValueTask When(Opened e, LedgerDb db, EventContext ctx, CancellationToken ct) => default;
+            public Task When(Posted e, LedgerDb db, EventContext ctx, CancellationToken ct) => Task.CompletedTask;
+            public ValueTask When(Posted e, LedgerDb db) => default;
+            public int When(Opened e, LedgerDb db, EventContext ctx, CancellationToken ct, int extra) => extra;
+        }
+
+        [SourceFlowModule] public sealed partial class LedgerModule;
+        """;
+
+    [Fact]
+    [Trait("Id", "GEN-41")]
+    [Trait("Covers", "doc 05 8.1")]
+    public void SessionProjection_EmitsAsyncDispatch_HandledEvents_AndModuleRegistration()
+    {
+        GeneratorRun run = GeneratorHarness.Run(Ledger);
+        string source = run.Source("Ledgers.LedgerProjection.SessionProjection.g.cs");
+
+        source.ShouldContain("ISessionProjectionRuntime<LedgerProjection, global::Ledgers.LedgerDb>");
+        source.ShouldContain("ProjectionVersion => 2;");
+        source.ShouldContain("__sourceFlowHandled = [typeof(global::Ledgers.Opened), typeof(global::Ledgers.Posted)];");
+        source.ShouldContain("global::Ledgers.Opened e => When(e, unitOfWork, context, cancellationToken),");
+        source.ShouldContain("global::Ledgers.Posted e => new global::System.Threading.Tasks.ValueTask(When(e, unitOfWork, context, cancellationToken)),");
+        run.Source("Ledgers.LedgerModule.Module.g.cs").ShouldContain("builder.AddSessionProjection<global::Ledgers.LedgerProjection, global::Ledgers.LedgerDb>();");
+        run.CompilationErrors().ShouldBeEmpty();
+    }
+
+    [Fact]
+    [Trait("Id", "GEN-42")]
+    public void SessionProjection_IsNotADocumentProjection()
+    {
+        GeneratorRun run = GeneratorHarness.Run(Ledger);
+
+        run.HasSource("Ledgers.LedgerProjection.Projection.g.cs").ShouldBeFalse();
+        run.Source("Ledgers.LedgerModule.Module.g.cs").ShouldNotContain("builder.AddProjection<");
+    }
+
     private static string RepositoryRoot()
     {
         DirectoryInfo? dir = new(AppContext.BaseDirectory);

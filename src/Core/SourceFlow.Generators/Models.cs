@@ -72,6 +72,19 @@ namespace SourceFlow.Generators
         KeyKind KeyKind,
         EquatableArray<ProjectedEvent> Events);
 
+    /// <summary>A session projection's <c>When</c> method: the event and whether it returns <c>Task</c> (else <c>ValueTask</c>).</summary>
+    internal sealed record SessionProjectedEvent(string EventType, bool ReturnsTask);
+
+    internal sealed record SessionProjectionModel(
+        string Namespace,
+        string Name,
+        string FullName,
+        string Keyword,
+        string ProjectionName,
+        int Version,
+        string UnitOfWorkType,
+        EquatableArray<SessionProjectedEvent> Events);
+
     internal enum HandlerKind
     {
         Command = 0,

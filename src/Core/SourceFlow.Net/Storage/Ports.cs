@@ -79,6 +79,13 @@ public interface IStorageSession : IAsyncDisposable
     /// <summary>The underlying transaction; null for in-memory.</summary>
     DbTransaction? Transaction { get; }
 
+    /// <summary>
+    /// Sends the writes queued so far to the store inside the transaction, without committing, the append first.
+    /// Conflicts surface here. Call it before writing through <see cref="Connection"/> (EF Core, custom SQL), so the append
+    /// stays the first write of the transaction (ES-R1); session projections do this automatically.
+    /// </summary>
+    ValueTask FlushAsync(CancellationToken cancellationToken);
+
     /// <summary>Flushes every queued write atomically.</summary>
     ValueTask<CommitResult> CommitAsync(CancellationToken cancellationToken);
 }

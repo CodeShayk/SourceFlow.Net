@@ -41,6 +41,11 @@ namespace SourceFlow.Generators
                 .Where(static m => m is not null)!
                 .WithTrackingName("Projections")!;
 
+            IncrementalValuesProvider<SessionProjectionModel> sessionProjections = context.SyntaxProvider
+                .ForAttributeWithMetadataName(KnownNames.ProjectionAttribute, static (node, _) => node is TypeDeclarationSyntax, ModelBuilder.SessionProjection)
+                .Where(static m => m is not null)!
+                .WithTrackingName("SessionProjections")!;
+
             IncrementalValuesProvider<ModuleModel> modules = context.SyntaxProvider
                 .ForAttributeWithMetadataName(KnownNames.ModuleAttribute, static (node, _) => node is ClassDeclarationSyntax, ModelBuilder.Module)
                 .Where(static m => m is not null)!
@@ -71,18 +76,22 @@ namespace SourceFlow.Generators
             context.RegisterSourceOutput(projections, static (spc, model) =>
                 spc.AddSource(Literal.HintName(model.FullName, "Projection"), Emitters.Projection(model)));
 
+            context.RegisterSourceOutput(sessionProjections, static (spc, model) =>
+                spc.AddSource(Literal.HintName(model.FullName, "SessionProjection"), Emitters.SessionProjection(model)));
+
             var everything = modules.Collect()
                 .Combine(ids.Collect())
                 .Combine(allMessages)
                 .Combine(aggregates.Collect())
                 .Combine(processes.Collect())
-                .Combine(projections.Collect())
+                .Combine(projections.Collect().Combine(sessionProjections.Collect()))
                 .Combine(handlers.Collect());
 
             context.RegisterSourceOutput(everything, static (spc, data) =>
             {
                 ImmutableArray<HandlerModel> handlerModels = data.Right;
-                ImmutableArray<ProjectionModel> projectionModels = data.Left.Right;
+                ImmutableArray<ProjectionModel> projectionModels = data.Left.Right.Left;
+                ImmutableArray<SessionProjectionModel> sessionProjectionModels = data.Left.Right.Right;
                 ImmutableArray<ProcessManagerModel> processModels = data.Left.Left.Right;
                 ImmutableArray<AggregateModel> aggregateModels = data.Left.Left.Left.Right;
                 ImmutableArray<MessageModel> messageModels = data.Left.Left.Left.Left.Right;
@@ -93,7 +102,7 @@ namespace SourceFlow.Generators
                 {
                     spc.AddSource(
                         Literal.HintName(module.FullName, "Module"),
-                        Emitters.Module(module, idModels, messageModels, aggregateModels, processModels, projectionModels, handlerModels.Distinct().ToImmutableArray()));
+                        Emitters.Module(module, idModels, messageModels, aggregateModels, processModels, projectionModels, sessionProjectionModels, handlerModels.Distinct().ToImmutableArray()));
                 }
             });
         }

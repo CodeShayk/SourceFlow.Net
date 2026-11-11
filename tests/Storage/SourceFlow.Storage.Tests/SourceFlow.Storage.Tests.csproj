@@ -2,6 +2,10 @@
   <!-- Storage conformance kit on PostgreSQL, SQL Server and EF Core; SFQL compilers. Trait Provider=PostgreSQL|SqlServer|EfCore (plan 04 §3).
        PostgreSQL runs in a Testcontainers container, or against SOURCEFLOW_TEST_POSTGRES (a connection string) when set;
        SOURCEFLOW_TEST_POSTGRES_IMAGE selects the server version for the nightly matrix (WP-2.9). -->
+  <PropertyGroup>
+    <!-- The EF Core read-model projection in EntityFrameworkCore/ is generated like any domain projection. -->
+    <UseSourceFlowGenerator>true</UseSourceFlowGenerator>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Storage\SourceFlow.Storage.PostgreSQL\SourceFlow.Storage.PostgreSQL.csproj" />
     <ProjectReference Include="..\..\..\src\Storage\SourceFlow.Storage.SqlServer\SourceFlow.Storage.SqlServer.csproj" />
@@ -11,6 +15,7 @@
     <ProjectReference Include="..\..\..\samples\Bank\Bank.Accounts\Bank.Accounts.csproj" />
     <ProjectReference Include="..\..\..\samples\Bank\Bank.Transfers\Bank.Transfers.csproj" />
     <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>

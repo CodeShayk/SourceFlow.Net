@@ -256,6 +256,37 @@ namespace SourceFlow.Generators
             return w.ToString();
         }
 
+        public static string SessionProjection(SessionProjectionModel model)
+        {
+            var w = new SourceWriter();
+            w.OpenNamespace(model.Namespace);
+            string self = model.Name;
+            string contract = $"{Sf}ISessionProjectionRuntime<{self}, {model.UnitOfWorkType}>";
+            w.Open($"partial {model.Keyword} {self} : {contract}");
+            w.Line($"/// <summary>The projection name.</summary>");
+            w.Line($"public const string ProjectionName = {Literal.Of(model.ProjectionName)};");
+            w.Line($"private static readonly global::System.Type[] __sourceFlowHandled = [{string.Join(", ", model.Events.Select(e => $"typeof({e.EventType})"))}];");
+            w.Line($"static string {contract}.ProjectionName => ProjectionName;");
+            w.Line($"static int {contract}.ProjectionVersion => {model.Version.ToString(CultureInfo.InvariantCulture)};");
+            w.Line($"static global::System.Collections.Generic.IReadOnlyList<global::System.Type> {contract}.HandledEvents => __sourceFlowHandled;");
+            w.Line();
+            w.Open($"public global::System.Threading.Tasks.ValueTask ApplyAsync({Sf}IEvent @event, {model.UnitOfWorkType} unitOfWork, {Sf}EventContext context, global::System.Threading.CancellationToken cancellationToken)");
+            w.Open("return @event switch");
+            foreach (SessionProjectedEvent e in model.Events)
+            {
+                w.Line(e.ReturnsTask
+                    ? $"{e.EventType} e => new global::System.Threading.Tasks.ValueTask(When(e, unitOfWork, context, cancellationToken)),"
+                    : $"{e.EventType} e => When(e, unitOfWork, context, cancellationToken),");
+            }
+
+            w.Line("_ => default,");
+            w.Close(";");
+            w.Close();
+            w.Close();
+            w.CloseNamespace(model.Namespace);
+            return w.ToString();
+        }
+
         public static string Module(
             ModuleModel module,
             ImmutableArray<IdModel> ids,
@@ -263,6 +294,7 @@ namespace SourceFlow.Generators
             ImmutableArray<AggregateModel> aggregates,
             ImmutableArray<ProcessManagerModel> processes,
             ImmutableArray<ProjectionModel> projections,
+            ImmutableArray<SessionProjectionModel> sessionProjections,
             ImmutableArray<HandlerModel> handlers)
         {
             var w = new SourceWriter();
@@ -312,6 +344,11 @@ namespace SourceFlow.Generators
             foreach (ProjectionModel p in projections.OrderBy(p => p.FullName, System.StringComparer.Ordinal))
             {
                 w.Line($"builder.AddProjection<{p.FullName}, {p.DocumentType}, {p.KeyType}>();");
+            }
+
+            foreach (SessionProjectionModel p in sessionProjections.OrderBy(p => p.FullName, System.StringComparer.Ordinal))
+            {
+                w.Line($"builder.AddSessionProjection<{p.FullName}, {p.UnitOfWorkType}>();");
             }
 
             foreach (HandlerModel h in handlers.Where(h => h.Kind == HandlerKind.Event).OrderBy(h => h.FullName, System.StringComparer.Ordinal).ThenBy(h => h.First, System.StringComparer.Ordinal))

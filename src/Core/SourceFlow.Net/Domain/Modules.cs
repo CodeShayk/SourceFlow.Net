@@ -58,6 +58,11 @@ public interface ISourceFlowModuleBuilder
         where TDocument : class
         where TKey : notnull;
 
+    /// <summary>Registers a session projection (writes through a unit of work bound to the storage session).</summary>
+    void AddSessionProjection<TProjection, TUnitOfWork>()
+        where TProjection : class, ISessionProjectionRuntime<TProjection, TUnitOfWork>, new()
+        where TUnitOfWork : class;
+
     /// <summary>Registers an event handler (resolved from a per-message DI scope).</summary>
     void AddEventHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TEvent>()
         where THandler : class, IEventHandler<TEvent>

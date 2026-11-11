@@ -33,6 +33,7 @@ public interface IStorageSession : IAsyncDisposable  // one DB transaction = one
     IDocumentSession Documents { get; }               // projection writes in this transaction
     DbConnection Connection { get; }                  // for EF Core / custom projections (same tx)
     DbTransaction Transaction { get; }
+    ValueTask FlushAsync(CancellationToken ct);                  // sends queued writes now (append first), no commit
     ValueTask<CommitResult> CommitAsync(CancellationToken ct);   // flushes all queued writes in ONE round trip
 }
 
@@ -408,6 +409,10 @@ CREATE TABLE sourceflow.data_keys (                                         -- c
 
 - **Document store** (`IDocumentSession` / `IDocumentReader<T>`): `jsonb` documents keyed by `(collection, id)`, with `Get`, `GetMany`, and a raw-SQL query escape hatch. Rebuilt collections are versioned (`account-summary@2`) for blue/green switches (doc 06 §6).
 - **EF Core** (`SourceFlow.Storage.EntityFrameworkCore`): `IEfProjection<TDbContext>` handlers receive a `DbContext` bound to the session's connection and transaction. `SaveChanges` happens before the checkpoint in the same commit. EF Core is **not** used for the event store ([ADR-009](ADRs/ADR-009-event-store-on-adonet-postgresql-first.md)).
+  - EF projections are one kind of **session projection** (`ISessionProjection<TUnitOfWork>` in the core). The generator emits their `When` dispatch, and their module registers them. A storage package supplies an `IProjectionUnitOfWork<T>` that creates the unit of work on the session and completes it before the commit. For EF Core that registration is `UseEntityFrameworkProjections<TDbContext>((o, c) => o.UseNpgsql(c), o => new ReportingDbContext(o))`. A session projection without its unit of work fails at startup.
+  - **ES-R1 still holds.** Before creating the first unit of work, the runtime calls `IStorageSession.FlushAsync`, which sends the queued append first. EF writes therefore always follow the append, and a conflict surfaces before any EF write. Code that writes through `session.Connection` directly must call `FlushAsync` first.
+  - `IdempotentUpsert.UpsertAsync` applies a change only when the source version is newer than the row's `IVersionedReadModel.Version`, so replays and rebuilds are harmless.
+  - Tracked changes are saved once, at the end. Set-based statements (`ExecuteUpdateAsync`) run immediately, so a projection should not mix the two on the same rows.
 - **Custom**: `IProjection` with `IStorageSession.Connection` for any SQL.
 - **No process-global state.** The model and type configuration live in DI-registered options (fixes GAP-17).
 
