@@ -131,6 +131,28 @@ public static class StorageConformance
         return await session.CommitAsync(ct).ConfigureAwait(false);
     }
 
+    // Events at or below the safe horizon are final. A database may hold the horizon back briefly while any writing
+    // transaction is in progress (doc 05 §5.4), so log assertions read until the horizon has passed their last commit.
+    private static async Task<LogBatch> ReadFinalAsync(IStorageFixture f, GlobalPosition after, BucketRange buckets, int maxCount, GlobalPosition through, CancellationToken ct)
+    {
+        DateTimeOffset deadline = TimeProvider.System.GetUtcNow() + TimeSpan.FromSeconds(30);
+        while (true)
+        {
+            LogBatch batch = await f.Log.ReadAsync(after, buckets, maxCount, ct).ConfigureAwait(false);
+            if (batch.Horizon >= through || TimeProvider.System.GetUtcNow() > deadline)
+            {
+                return batch;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(10), TimeProvider.System, ct).ConfigureAwait(false);
+        }
+    }
+
+    private static GlobalPosition Max(GlobalPosition a, GlobalPosition? b)
+    {
+        return b is { } value && value > a ? value : a;
+    }
+
     private static OutboxMessage OutboxRow(string key, int partition = 0, DateTimeOffset? deliverAt = null)
     {
         var envelope = new MessageEnvelope
@@ -373,9 +395,9 @@ public static class StorageConformance
     {
         await AppendAsync(f, StreamA, ExpectedVersion.NoStream, Events(2), ct).ConfigureAwait(false);
         await AppendAsync(f, StreamB, ExpectedVersion.NoStream, Events(1), ct).ConfigureAwait(false);
-        await AppendAsync(f, StreamA, ExpectedVersion.Exact(new StreamVersion(2)), Events(1), ct).ConfigureAwait(false);
+        CommitResult last = await AppendAsync(f, StreamA, ExpectedVersion.Exact(new StreamVersion(2)), Events(1), ct).ConfigureAwait(false);
 
-        LogBatch all = await f.Log.ReadAsync(GlobalPosition.Start, BucketRange.All, 100, ct).ConfigureAwait(false);
+        LogBatch all = await ReadFinalAsync(f, GlobalPosition.Start, BucketRange.All, 100, last.LastPosition!.Value, ct).ConfigureAwait(false);
         Check.SequenceEqual(["sck-a-1:1", "sck-a-1:2", "sck-b-2:1", "sck-a-1:3"], all.Events.Select(e => $"{e.StreamId}:{e.StreamVersion}"), "commit order");
         Check.True(all.Events.Zip(all.Events.Skip(1)).All(p => p.First.Position < p.Second.Position), "strictly increasing positions");
 
@@ -387,16 +409,17 @@ public static class StorageConformance
     private static async Task BucketFilter(IStorageFixture f, CancellationToken ct)
     {
         var streams = Enumerable.Range(0, 40).Select(i => new StreamId($"sck-bucket-{i}")).ToArray();
+        GlobalPosition last = GlobalPosition.Start;
         foreach (StreamId stream in streams)
         {
-            await AppendAsync(f, stream, ExpectedVersion.NoStream, Events(1), ct).ConfigureAwait(false);
+            last = Max(last, (await AppendAsync(f, stream, ExpectedVersion.NoStream, Events(1), ct).ConfigureAwait(false)).LastPosition);
         }
 
         int seen = 0;
         for (int p = 0; p < 4; p++)
         {
             BucketRange range = Buckets.Range(p, 4);
-            LogBatch batch = await f.Log.ReadAsync(GlobalPosition.Start, range, 100, ct).ConfigureAwait(false);
+            LogBatch batch = await ReadFinalAsync(f, GlobalPosition.Start, range, 100, last, ct).ConfigureAwait(false);
             Check.True(batch.Events.All(e => range.Contains(e.Bucket) && e.Bucket == Buckets.Of(Tenant, e.StreamId)), "bucket filter");
             seen += batch.Events.Count;
         }
@@ -410,6 +433,8 @@ public static class StorageConformance
         const int perWriter = 5;
         var seen = new HashSet<MessageId>();
         GlobalPosition checkpoint = GlobalPosition.Start;
+        GlobalPosition last = GlobalPosition.Start;
+        var lastGate = new Lock();
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
         Task reader = Task.Run(async () =>
@@ -439,13 +464,17 @@ public static class StorageConformance
                     await Task.Yield();
                 }
 
-                await AppendAsync(f, stream, ExpectedVersion.Exact(new StreamVersion(i)), Events(1), ct).ConfigureAwait(false);
+                CommitResult committed = await AppendAsync(f, stream, ExpectedVersion.Exact(new StreamVersion(i)), Events(1), ct).ConfigureAwait(false);
+                lock (lastGate)
+                {
+                    last = Max(last, committed.LastPosition);
+                }
             }
         }, ct))).ConfigureAwait(false);
 
         await stop.CancelAsync().ConfigureAwait(false);
         await reader.ConfigureAwait(false);
-        LogBatch rest = await f.Log.ReadAsync(checkpoint, BucketRange.All, 10_000, ct).ConfigureAwait(false);
+        LogBatch rest = await ReadFinalAsync(f, checkpoint, BucketRange.All, 10_000, last, ct).ConfigureAwait(false);
         foreach (StoredEvent e in rest.Events)
         {
             Check.True(seen.Add(e.EventId), "each event seen once");
@@ -456,6 +485,8 @@ public static class StorageConformance
 
     private static async Task PerStreamOrder(IStorageFixture f, CancellationToken ct)
     {
+        GlobalPosition last = GlobalPosition.Start;
+        var lastGate = new Lock();
         await Task.WhenAll(Enumerable.Range(0, 8).Select(w => Task.Run(async () =>
         {
             for (int i = 0; i < 10; i++)
@@ -465,7 +496,12 @@ public static class StorageConformance
                     StreamInfo? info = await f.Events.GetStreamInfoAsync(Tenant, StreamA, ct).ConfigureAwait(false);
                     try
                     {
-                        await AppendAsync(f, StreamA, ExpectedVersion.Exact(info?.Version ?? StreamVersion.None), Events(1), ct).ConfigureAwait(false);
+                        CommitResult committed = await AppendAsync(f, StreamA, ExpectedVersion.Exact(info?.Version ?? StreamVersion.None), Events(1), ct).ConfigureAwait(false);
+                        lock (lastGate)
+                        {
+                            last = Max(last, committed.LastPosition);
+                        }
+
                         break;
                     }
                     catch (ConcurrencyException)
@@ -476,7 +512,7 @@ public static class StorageConformance
             }
         }, ct))).ConfigureAwait(false);
 
-        LogBatch log = await f.Log.ReadAsync(GlobalPosition.Start, BucketRange.All, 1000, ct).ConfigureAwait(false);
+        LogBatch log = await ReadFinalAsync(f, GlobalPosition.Start, BucketRange.All, 1000, last, ct).ConfigureAwait(false);
         Check.SequenceEqual(Enumerable.Range(1, 80).Select(i => (long)i), log.Events.Select(e => e.StreamVersion.Value), "log order = version order");
     }
 

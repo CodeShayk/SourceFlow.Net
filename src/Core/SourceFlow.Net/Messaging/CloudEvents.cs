@@ -166,7 +166,7 @@ public static class CloudEvents
             Time = DateTimeOffset.Parse(Required(Time), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
             ContentType = all.TryGetValue(DataContentType, out string? ct) ? ct : MessageEnvelope.JsonContentType,
             Subject = Optional(all, Subject),
-            CorrelationId = new CorrelationId(Optional(all, Correlation) ?? string.Empty),
+            CorrelationId = Optional(all, Correlation) is { } correlation ? new CorrelationId(correlation) : CorrelationId.None,
             CausationId = Optional(all, Causation) is { } causation ? MessageId.Parse(causation) : null,
             PartitionKey = Optional(all, PartitionKey),
             StreamVersion = Optional(all, StreamVersion) is { } sv ? long.Parse(sv, NumberStyles.None, CultureInfo.InvariantCulture) : null,

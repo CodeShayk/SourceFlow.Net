@@ -83,7 +83,7 @@ CREATE TABLE sourceflow.events (
     event_type     text        NOT NULL,
     type_version   int         NOT NULL,
     tags           text[]      NOT NULL DEFAULT '{}',        -- DCB-ready (ADR-021)
-    data           jsonb       NOT NULL,
+    data           json        NOT NULL,      -- exact payload text (ADR-028)
     metadata       jsonb       NOT NULL,      -- envelope attributes: correlation, causation, trace, source, actor
     created_at     timestamptz NOT NULL,      -- decision time (ctx.Now), written explicitly; SFQL 'time'
     CONSTRAINT uq_events_stream_version UNIQUE (tenant_id, stream_id, stream_version),
@@ -100,7 +100,7 @@ CREATE INDEX ix_events_tags        ON sourceflow.events USING gin (tags);   -- c
 
 With `TenantIsolation.RowLevelSecurity`, every table also gets `ALTER TABLE … ENABLE ROW LEVEL SECURITY` and a policy `USING (tenant_id = current_setting('sourceflow.tenant'))` ([ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)).
 
-`metadata` is `jsonb` so operators can query by correlation or causation (`metadata->>'correlationId'`) using an optional expression index. `data` is `jsonb` for debuggability and ad-hoc analysis. Fields protected by crypto-shredding are ciphertext strings inside it ([doc 10 §4](10-Security-and-Compliance.md#4-personal-data-in-an-immutable-log-crypto-shredding)).
+`metadata` is `jsonb` so operators can query by correlation or causation (`metadata->>'correlationId'`) using an optional expression index. `data` is `json`, not `jsonb` ([ADR-028](ADRs/ADR-028-postgresql-payload-columns-and-adapter-refinements.md)): it keeps the serializer's exact bytes and accepts every valid JSON text (including `\u0000`), while still supporting `->>` and expression indexes for debugging, ad-hoc analysis and SFQL. Fields protected by crypto-shredding are ciphertext strings inside it ([doc 10 §4](10-Security-and-Compliance.md#4-personal-data-in-an-immutable-log-crypto-shredding)).
 
 ## 3. Append
 
@@ -126,7 +126,10 @@ SELECT @tenant, @bucket, @stream_id, s.base + e.ord, e.id, e.type, e.ver,
 |----------|-----------------------------|
 | `Exact(v)` | `UPDATE … WHERE version = v` (above) |
 | `NoStream` | `INSERT INTO streams … ON CONFLICT (stream_id) DO NOTHING RETURNING 0 AS base` |
-| `StreamExists`, `Any` | **Never sent to the server as such.** The session reads the current version (in the same transaction) and issues an `Exact` or `NoStream` compare-and-set, retrying internally on conflict. Every append that reaches the database is therefore a compare-and-set on a known version, which §5.3 relies on. |
+| `StreamExists` | `UPDATE … WHERE NOT is_deleted AND NOT is_archived` (no version predicate) |
+| `Any` | `INSERT INTO streams … ON CONFLICT DO UPDATE SET version = streams.version + @count WHERE NOT is_deleted AND NOT is_archived` |
+
+Both take the stream row lock and apply to the committed version they then observe, so every append that reaches the database is still a compare-and-set on an observed version, which §5.3 relies on ([ADR-028](ADRs/ADR-028-postgresql-payload-columns-and-adapter-refinements.md)).
 
 **ES-R2: one stream append per session.** A command changes one aggregate (the DDD consistency boundary). The session rejects a second `Append` to a different stream. Bulk operations such as the v2 import use one session per stream.
 
@@ -184,7 +187,7 @@ SELECT seq, tx_id, bucket, stream_id, stream_version, event_id, event_type, type
  LIMIT @max;
 ```
 
-The set of rows below the horizon is **final**. Ordering by `(tx_id, seq)` is total and stable, so a checkpoint `(tx_id, seq)` can never skip a row. The `bucket` filter is answered from the `INCLUDE` column of `ix_events_commit_order`, so partitioned readers scan only the index range and fetch heap rows only for their own buckets.
+The set of rows below the horizon is **final**. The adapter reports the horizon inclusively as `(xmin − 1, max)`: every position at or below `LogBatch.Horizon` is final ([ADR-028](ADRs/ADR-028-postgresql-payload-columns-and-adapter-refinements.md)). Ordering by `(tx_id, seq)` is total and stable, so a checkpoint `(tx_id, seq)` can never skip a row. The `bucket` filter is answered from the `INCLUDE` column of `ix_events_commit_order`, so partitioned readers scan only the index range and fetch heap rows only for their own buckets.
 
 ### 5.3 Per-stream order equals global order
 
@@ -256,9 +259,10 @@ CREATE TABLE sourceflow.outbox (
 CREATE INDEX ix_outbox_ready ON sourceflow.outbox (partition, deliver_at, seq);
 CREATE INDEX ix_outbox_key   ON sourceflow.outbox (partition, partition_key, seq) WHERE partition_key IS NOT NULL;
 
--- Relay claim: only the HEAD row per key is eligible (strict per-key order, even across failures)
+-- Relay claim: only the HEAD row per key is eligible (strict per-key order, even across failures).
+-- @now is the host's TimeProvider (business time, like timers); leases use the database clock (ADR-028).
 SELECT o.* FROM sourceflow.outbox o
- WHERE o.partition = @p AND o.deliver_at <= now()
+ WHERE o.partition = @p AND o.deliver_at <= @now
    AND (o.partition_key IS NULL OR NOT EXISTS (
         SELECT 1 FROM sourceflow.outbox h
          WHERE h.partition = o.partition AND h.partition_key = o.partition_key AND h.seq < o.seq))
@@ -333,18 +337,20 @@ CREATE TABLE sourceflow.dead_letters (
     status_changed_at timestamptz, status_note text);
 CREATE INDEX ix_dead_letters_status ON sourceflow.dead_letters (status, parked_at);
 
-CREATE TABLE sourceflow.process_instances (
-    process_type text, process_id text, version bigint NOT NULL, state jsonb NOT NULL,
+CREATE TABLE sourceflow.process_instances (                               -- payloads are json (ADR-028)
+    tenant_id text NOT NULL DEFAULT '-', process_type text, process_id text, version bigint NOT NULL, state json NOT NULL,
     completed boolean NOT NULL DEFAULT false, updated_at timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (process_type, process_id));
+    PRIMARY KEY (tenant_id, process_type, process_id));
 
 CREATE TABLE sourceflow.snapshots (
-    stream_id text PRIMARY KEY, version bigint NOT NULL, state_type text NOT NULL,
-    schema_hash text NOT NULL, data jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+    tenant_id text NOT NULL DEFAULT '-', stream_id text, version bigint NOT NULL, state_type text NOT NULL,
+    schema_hash text NOT NULL, data json NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, stream_id));
 
 CREATE TABLE sourceflow.documents (
-    collection text, id text, version bigint NOT NULL, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (collection, id));
+    tenant_id text NOT NULL DEFAULT '-', collection text, id text, version bigint NOT NULL, data json NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, collection, id));
 
 CREATE TABLE sourceflow.nodes (                                             -- liveness for lease fair-share (doc 06 §4)
     node_id text PRIMARY KEY, roles int NOT NULL, heartbeat_at timestamptz NOT NULL);

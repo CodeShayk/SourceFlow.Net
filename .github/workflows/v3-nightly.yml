@@ -20,10 +20,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        db: [ "postgres:15", "postgres:16", "postgres:17", "postgres:17-partitioned", "mssql:2022", "mssql:2025" ]
+        include:
+          - { db: "postgres:15", provider: PostgreSQL, image: "postgres:15-alpine" }
+          - { db: "postgres:16", provider: PostgreSQL, image: "postgres:16-alpine" }
+          - { db: "postgres:17", provider: PostgreSQL, image: "postgres:17-alpine" }
+          - { db: "postgres:17-partitioned", provider: PostgreSQL, image: "postgres:17-alpine" }
+          - { db: "mssql:2022", provider: SqlServer, image: "" }
+          - { db: "mssql:2025", provider: SqlServer, image: "" }
     runs-on: ubuntu-latest
     env:
       SOURCEFLOW_TEST_DATABASE: ${{ matrix.db }}
+      SOURCEFLOW_TEST_POSTGRES_IMAGE: ${{ matrix.image }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,7 +39,7 @@ jobs:
         with:
           global-json-file: global.json
       - run: dotnet build SourceFlow.slnx -c Release
-      - run: dotnet test --project tests/Storage/SourceFlow.Storage.Tests/SourceFlow.Storage.Tests.csproj ${{ env.TEST_ARGS }}
+      - run: dotnet test --project tests/Storage/SourceFlow.Storage.Tests/SourceFlow.Storage.Tests.csproj ${{ env.TEST_ARGS }} --filter-trait "Provider=${{ matrix.provider }}"
 
   real-cloud:
     name: real cloud (${{ matrix.cloud }})

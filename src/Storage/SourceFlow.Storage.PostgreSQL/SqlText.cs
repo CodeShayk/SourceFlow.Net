@@ -1,0 +1,268 @@
+namespace SourceFlow.Storage.PostgreSQL;
+
+/// <summary>The adapter's SQL, rendered once for the configured schema (doc 05 §3–§7). Every value is a parameter.</summary>
+internal sealed class SqlText
+{
+    private const string EventColumns = "e.seq, e.tx_id, e.tenant_id, e.bucket, e.stream_id, e.stream_version, e.event_id, e.event_type, e.type_version, e.tags, e.data, e.metadata, e.created_at";
+
+    private const string DeadLetterColumns = "id, consumer, source, destination, destination_is_topic, reason, attributes, body, error_type, error_message, error_detail, attempts, first_failed_at, parked_at, status, status_changed_at, status_note";
+
+    private const string LeaseFence = "SELECT 1 FROM {s}.leases WHERE name = @lease AND owner = @lease_owner AND token = @lease_token AND expires_at > now()";
+
+    // The event insert shared by every append variant; 's' yields the base version, zero rows when the CAS failed.
+    private const string AppendTail = """
+        ins AS (
+            INSERT INTO {s}.events (tenant_id, bucket, stream_id, stream_version, event_id, event_type, type_version, tags, data, metadata, created_at)
+            SELECT @tenant, @bucket, @stream, s.base + e.ord, e.id, e.type, e.ver,
+                   ARRAY(SELECT jsonb_array_elements_text(e.tags::jsonb)), e.data::json, e.meta::jsonb, e.at
+              FROM s, unnest(@ids::uuid[], @types::text[], @vers::int[], @tags::text[], @datas::text[], @metas::text[], @ats::timestamptz[])
+                   WITH ORDINALITY AS e(id, type, ver, tags, data, meta, at, ord)
+             ORDER BY e.ord
+            RETURNING stream_version, seq)
+        SELECT count(*), coalesce(max(stream_version), 0), coalesce(max(seq), 0), pg_current_xact_id_if_assigned() FROM ins
+        """;
+
+    public SqlText(string schema)
+    {
+        string s = "\"" + schema + "\"";
+        string R(string sql) => sql.Replace("{s}", s, StringComparison.Ordinal);
+
+        ReadStream = R($$"""
+            SELECT s.version, {{EventColumns}}
+              FROM {s}.streams s
+              LEFT JOIN LATERAL (
+                   SELECT * FROM {s}.events e
+                    WHERE e.tenant_id = s.tenant_id AND e.stream_id = s.stream_id AND e.stream_version >= @from
+                    ORDER BY e.stream_version
+                    LIMIT @max) e ON true
+             WHERE s.tenant_id = @tenant AND s.stream_id = @stream
+             ORDER BY e.stream_version
+            """);
+        StreamInfo = R("SELECT stream_type, version, is_deleted, is_archived FROM {s}.streams WHERE tenant_id = @tenant AND stream_id = @stream");
+        ArchiveStream = R("UPDATE {s}.streams SET is_archived = true, updated_at = now() WHERE tenant_id = @tenant AND stream_id = @stream");
+        DeleteStream = R("UPDATE {s}.streams SET is_deleted = true, updated_at = now() WHERE tenant_id = @tenant AND stream_id = @stream");
+
+        AppendExact = R("""
+            WITH s AS (
+                UPDATE {s}.streams SET version = version + @count, updated_at = now()
+                 WHERE tenant_id = @tenant AND stream_id = @stream AND version = @expected AND NOT is_deleted AND NOT is_archived
+                RETURNING version - @count AS base),
+            """ + AppendTail);
+        AppendNoStream = R("""
+            WITH s AS (
+                INSERT INTO {s}.streams (tenant_id, stream_id, stream_type, version) VALUES (@tenant, @stream, @type, @count)
+                ON CONFLICT (tenant_id, stream_id) DO NOTHING
+                RETURNING 0::bigint AS base),
+            """ + AppendTail);
+
+        // StreamExists and Any: the UPDATE takes the row lock and applies to the committed version it then sees, so it
+        // is a compare-and-set on that version (doc 05 §3.1, §5.3) without an extra round trip.
+        AppendStreamExists = R("""
+            WITH s AS (
+                UPDATE {s}.streams SET version = version + @count, updated_at = now()
+                 WHERE tenant_id = @tenant AND stream_id = @stream AND NOT is_deleted AND NOT is_archived
+                RETURNING version - @count AS base),
+            """ + AppendTail);
+        AppendAny = R("""
+            WITH s AS (
+                INSERT INTO {s}.streams AS t (tenant_id, stream_id, stream_type, version) VALUES (@tenant, @stream, @type, @count)
+                ON CONFLICT (tenant_id, stream_id) DO UPDATE SET version = t.version + @count, updated_at = now()
+                 WHERE NOT t.is_deleted AND NOT t.is_archived
+                RETURNING version - @count AS base),
+            """ + AppendTail);
+
+        InsertOutbox = R("""
+            INSERT INTO {s}.outbox (message_id, partition, partition_key, destination, kind, attributes, body, deliver_at)
+            SELECT o.id, o.p, o.k, o.d, o.kind, o.a::jsonb, o.b, o.at
+              FROM unnest(@ids::uuid[], @parts::smallint[], @keys::text[], @dests::text[], @kinds::smallint[], @attrs::text[], @bodies::bytea[], @ats::timestamptz[])
+                   WITH ORDINALITY AS o(id, p, k, d, kind, a, b, at, ord)
+             ORDER BY o.ord
+            """);
+        InsertInbox = R("""
+            INSERT INTO {s}.inbox (consumer, message_id, result_status, result_version, result_error, result_commit, result_seq)
+            VALUES (@consumer, @id, @status, @version, @error, @commit, @seq)
+            """);
+        InboxSeen = R("SELECT processed_at, result_status, result_version, result_error, result_commit, result_seq FROM {s}.inbox WHERE consumer = @consumer AND message_id = @id");
+
+        SaveCheckpoint = R("""
+            INSERT INTO {s}.checkpoints AS c (subscription, partition, commit_pos, seq_pos, updated_at)
+            SELECT @sub, @p, @tx, @seq, now() FROM {s}.leases l
+             WHERE l.name = @lease AND l.owner = @lease_owner AND l.token = @lease_token AND l.expires_at > now()
+            ON CONFLICT (subscription, partition) DO UPDATE
+               SET commit_pos = excluded.commit_pos, seq_pos = excluded.seq_pos, updated_at = excluded.updated_at
+            """);
+        GetCheckpoint = R("SELECT commit_pos, seq_pos FROM {s}.checkpoints WHERE subscription = @sub AND partition = @p");
+
+        LoadProcess = R("SELECT version, state, completed, updated_at FROM {s}.process_instances WHERE tenant_id = @tenant AND process_type = @type AND process_id = @id");
+        InsertProcess = R("""
+            INSERT INTO {s}.process_instances (tenant_id, process_type, process_id, version, state, completed)
+            VALUES (@tenant, @type, @id, 1, @state, @completed)
+            ON CONFLICT (tenant_id, process_type, process_id) DO NOTHING
+            """);
+        UpdateProcess = R("""
+            UPDATE {s}.process_instances SET version = version + 1, state = @state, completed = @completed, updated_at = now()
+             WHERE tenant_id = @tenant AND process_type = @type AND process_id = @id AND version = @expected
+            """);
+
+        GetDocument = R("SELECT version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = @id");
+        ListDocuments = R("SELECT id, version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection ORDER BY id COLLATE \"C\" LIMIT @max");
+        UpsertDocument = R("""
+            INSERT INTO {s}.documents AS d (tenant_id, collection, id, version, data) VALUES (@tenant, @collection, @id, @version, @data)
+            ON CONFLICT (tenant_id, collection, id) DO UPDATE SET version = excluded.version, data = excluded.data, updated_at = now()
+             WHERE d.version <= excluded.version
+            """);
+        DeleteDocument = R("DELETE FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = @id");
+
+        ReadLog = R($$"""
+            WITH h AS (SELECT pg_snapshot_xmin(pg_current_snapshot()) AS xmin)
+            SELECT h.xmin, {{EventColumns}}
+              FROM h
+              LEFT JOIN LATERAL (
+                   SELECT * FROM {s}.events e
+                    WHERE (e.tx_id, e.seq) > (@tx, @seq) AND e.tx_id < h.xmin AND e.bucket BETWEEN @lo AND @hi
+                    ORDER BY e.tx_id, e.seq
+                    LIMIT @max) e ON true
+             ORDER BY e.tx_id, e.seq
+            """);
+
+        AcquireLease = R("""
+            INSERT INTO {s}.leases AS l (name, owner, token, expires_at) VALUES (@name, @owner, 1, now() + @ttl)
+            ON CONFLICT (name) DO UPDATE
+               SET owner = excluded.owner, expires_at = excluded.expires_at,
+                   token = CASE WHEN l.owner = excluded.owner AND l.expires_at > now() THEN l.token ELSE l.token + 1 END
+             WHERE l.owner IS NULL OR l.owner = excluded.owner OR l.expires_at IS NULL OR l.expires_at <= now()
+            RETURNING token
+            """);
+        ReleaseLease = R("UPDATE {s}.leases SET owner = NULL, expires_at = NULL WHERE name = @lease AND owner = @lease_owner AND token = @lease_token");
+
+        ClaimOutbox = R($$"""
+            WITH f AS (SELECT EXISTS ({{LeaseFence}}) AS ok)
+            SELECT f.ok, o.seq, o.attributes, o.body, o.destination, o.kind, o.deliver_at, o.partition, o.attempts, o.last_error, o.created_at
+              FROM f
+              LEFT JOIN LATERAL (
+                   SELECT * FROM {s}.outbox o
+                    WHERE f.ok AND o.partition = @p AND o.deliver_at <= @now
+                      AND (o.partition_key IS NULL OR NOT EXISTS (
+                           SELECT 1 FROM {s}.outbox h
+                            WHERE h.partition = o.partition AND h.partition_key = o.partition_key AND h.seq < o.seq))
+                    ORDER BY o.seq
+                    LIMIT @max) o ON true
+             ORDER BY o.seq
+            """);
+        CompleteOutbox = R($$"""
+            WITH f AS (SELECT EXISTS ({{LeaseFence}}) AS ok),
+                 d AS (DELETE FROM {s}.outbox WHERE seq = ANY(@seqs) AND (SELECT ok FROM f))
+            SELECT ok FROM f
+            """);
+        RetryOutbox = R($$"""
+            WITH f AS (SELECT EXISTS ({{LeaseFence}}) AS ok),
+                 u AS (UPDATE {s}.outbox SET attempts = attempts + 1, last_error = @error, deliver_at = @at WHERE seq = @seq AND (SELECT ok FROM f))
+            SELECT ok FROM f
+            """);
+        CountOutbox = R("SELECT count(*) FROM {s}.outbox");
+        CountDueOutbox = R("SELECT count(*) FROM {s}.outbox WHERE deliver_at <= @now");
+
+        ParkDeadLetter = R($$"""
+            INSERT INTO {s}.dead_letters ({{DeadLetterColumns}}, message_id, message_type)
+            VALUES (@id, @consumer, @source, @destination, @is_topic, @reason, @attributes, @body, @error_type, @error_message, @error_detail,
+                    @attempts, @first_failed_at, @parked_at, @status, NULL, @status_note, @message_id, @message_type)
+            ON CONFLICT (id) DO UPDATE SET
+                consumer = excluded.consumer, source = excluded.source, destination = excluded.destination,
+                destination_is_topic = excluded.destination_is_topic, reason = excluded.reason, attributes = excluded.attributes,
+                body = excluded.body, error_type = excluded.error_type, error_message = excluded.error_message,
+                error_detail = excluded.error_detail, attempts = excluded.attempts, first_failed_at = excluded.first_failed_at,
+                parked_at = excluded.parked_at, status = excluded.status, status_note = excluded.status_note,
+                message_id = excluded.message_id, message_type = excluded.message_type
+            """);
+        QueryDeadLetters = R($$"""
+            SELECT {{DeadLetterColumns}} FROM {s}.dead_letters
+             WHERE (@consumer IS NULL OR consumer = @consumer)
+               AND (@reason IS NULL OR reason = @reason)
+               AND (@status IS NULL OR status = @status)
+             ORDER BY parked_at DESC, id
+             LIMIT @max
+            """);
+        GetDeadLetter = R($"SELECT {DeadLetterColumns} FROM {{s}}.dead_letters WHERE id = @id");
+        SetDeadLetterStatus = R("UPDATE {s}.dead_letters SET status = @status, status_note = @note, status_changed_at = @now WHERE id = @id");
+
+        GetSnapshot = R("SELECT version, state_type, schema_hash, data FROM {s}.snapshots WHERE tenant_id = @tenant AND stream_id = @stream");
+        SaveSnapshot = R("""
+            INSERT INTO {s}.snapshots AS t (tenant_id, stream_id, version, state_type, schema_hash, data) VALUES (@tenant, @stream, @version, @state_type, @schema_hash, @data)
+            ON CONFLICT (tenant_id, stream_id) DO UPDATE
+               SET version = excluded.version, state_type = excluded.state_type, schema_hash = excluded.schema_hash, data = excluded.data, created_at = now()
+             WHERE t.version <= excluded.version
+            """);
+
+        Notify = "SELECT pg_notify(@channel, @origin)";
+    }
+
+    public string ReadStream { get; }
+
+    public string StreamInfo { get; }
+
+    public string ArchiveStream { get; }
+
+    public string DeleteStream { get; }
+
+    public string AppendExact { get; }
+
+    public string AppendNoStream { get; }
+
+    public string AppendStreamExists { get; }
+
+    public string AppendAny { get; }
+
+    public string InsertOutbox { get; }
+
+    public string InsertInbox { get; }
+
+    public string InboxSeen { get; }
+
+    public string SaveCheckpoint { get; }
+
+    public string GetCheckpoint { get; }
+
+    public string LoadProcess { get; }
+
+    public string InsertProcess { get; }
+
+    public string UpdateProcess { get; }
+
+    public string GetDocument { get; }
+
+    public string ListDocuments { get; }
+
+    public string UpsertDocument { get; }
+
+    public string DeleteDocument { get; }
+
+    public string ReadLog { get; }
+
+    public string AcquireLease { get; }
+
+    public string ReleaseLease { get; }
+
+    public string ClaimOutbox { get; }
+
+    public string CompleteOutbox { get; }
+
+    public string RetryOutbox { get; }
+
+    public string CountOutbox { get; }
+
+    public string CountDueOutbox { get; }
+
+    public string ParkDeadLetter { get; }
+
+    public string QueryDeadLetters { get; }
+
+    public string GetDeadLetter { get; }
+
+    public string SetDeadLetterStatus { get; }
+
+    public string GetSnapshot { get; }
+
+    public string SaveSnapshot { get; }
+
+    public string Notify { get; }
+}

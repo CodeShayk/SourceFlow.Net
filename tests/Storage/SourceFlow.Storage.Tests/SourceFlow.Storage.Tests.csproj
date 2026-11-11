@@ -1,9 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Storage conformance kit on PostgreSQL, SQL Server and EF Core; SFQL compilers. Trait Provider=PostgreSQL|SqlServer|EfCore (plan 04 §3). -->
+  <!-- Storage conformance kit on PostgreSQL, SQL Server and EF Core; SFQL compilers. Trait Provider=PostgreSQL|SqlServer|EfCore (plan 04 §3).
+       PostgreSQL runs in a Testcontainers container, or against SOURCEFLOW_TEST_POSTGRES (a connection string) when set;
+       SOURCEFLOW_TEST_POSTGRES_IMAGE selects the server version for the nightly matrix (WP-2.9). -->
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Storage\SourceFlow.Storage.PostgreSQL\SourceFlow.Storage.PostgreSQL.csproj" />
     <ProjectReference Include="..\..\..\src\Storage\SourceFlow.Storage.SqlServer\SourceFlow.Storage.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Storage\SourceFlow.Storage.EntityFrameworkCore\SourceFlow.Storage.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
+    <ProjectReference Include="..\..\..\samples\Bank\Bank.Contracts\Bank.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\samples\Bank\Bank.Accounts\Bank.Accounts.csproj" />
+    <ProjectReference Include="..\..\..\samples\Bank\Bank.Transfers\Bank.Transfers.csproj" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
 </Project>

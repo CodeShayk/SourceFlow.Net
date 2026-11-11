@@ -42,3 +42,6 @@ GAP-20,product 06,Default ids rejected
 ARCH-04,ADR-027,Domain code uses only contract namespaces
 ADR-014,ADRs,Transport SPI and conformance kit
 doc 05 8.1,doc 05,Snapshots with schema hash
+ADR-009,ADRs,Event store on ADO.NET with PostgreSQL first
+ADR-028,ADRs,PostgreSQL payload columns keep exact JSON bytes
+GAP-04,product 06,Versioned schema migrations without swallowed errors

@@ -24,15 +24,15 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 | WP-1.13 | SFQL front end (pipeline + SQL syntax) + in-memory interpreter + domain queries | 5.5 | todo | |
 | WP-1.14 | Bank sample (ported v2 E2E domain) | 1.5 | in progress | Bank.Contracts/Accounts/Transfers/Notifications + E2E-01..07, 11, 13, 14, 17..20 green; Bank.Api waits for WP-4.2 |
 | WP-1.R | Retire v2 core | 0.5 | todo | |
-| WP-2.1 | PostgreSQL schema and migrator | 1.5 | todo | |
-| WP-2.2 | PostgreSQL append and stream read | 2 | todo | |
-| WP-2.3 | Global log reader and notifications | 1.5 | todo | |
-| WP-2.4 | Outbox, inbox, checkpoints, leases, dead letters, process state, documents | 2.5 | todo | |
-| WP-2.5 | Snapshots and aggregate cache | 1.5 | todo | |
+| WP-2.1 | PostgreSQL schema and migrator | 1.5 | done | V001 schema (ADR-028: json payload columns, tenant columns), PostgreSqlSchemaMigrator (advisory lock, checksummed schema_history, db script), UsePostgreSql with AutoMigrate (Development only by default); SCK-M01..M06. V002 (RLS) and V003 (partitioned events) come with WP-2.6 and WP-4.5 |
+| WP-2.2 | PostgreSQL append and stream read | 2 | done | Write-behind session (one NpgsqlBatch, append first; ES-R1/ES-R2), CTE append for all ExpectedVersion kinds, conflict and closed-stream diagnosis, single-statement stream read; SCK-01..19 green. Commit is batch + COMMIT (two round trips; folding COMMIT in is WP-2.10) |
+| WP-2.3 | Global log reader and notifications | 1.5 | done | (tx_id, seq) read below pg_snapshot_xmin with bucket filter, inclusive horizon, GetHorizonAgeAsync; LISTEN/NOTIFY with origin filtering, reconnect, ListenConnectionString; SCK-21..28 incl. SCK-24 (32 writers) and the held-horizon test. Wiring horizon_age into metrics/health is WP-4.3 |
+| WP-2.4 | Outbox, inbox, checkpoints, leases, dead letters, process state, documents | 2.5 | done | Head-of-key claim, fenced complete/retry, database-clock leases, fenced checkpoint upsert, inbox with stored result, process state CAS, versioned documents, dead letters with the full envelope; SCK-29..58 green. Batched inbox/outbox retention cleanup pending (with WP-4.3 operations) |
+| WP-2.5 | Snapshots and aggregate cache | 1.5 | in progress | PostgreSQL ISnapshotStore (newer-wins upsert, tenant-scoped); SCK-51. Background snapshotter channel and the aggregate state cache pending |
 | WP-2.6 | Tenancy with row-level security | 1 | todo | |
 | WP-2.7 | `SourceFlow.Storage.EntityFrameworkCore` read models | 2 | todo | |
 | WP-2.8 | SFQL on PostgreSQL (incl. joins and grouping) + index sync + domain queries | 3.5 | todo | |
-| WP-2.9 | Storage conformance kit complete | 2 | todo | |
+| WP-2.9 | Storage conformance kit complete | 2 | in progress | SCK wired for in-memory and PostgreSQL; green on PostgreSQL 15, 16 and 17 (nightly matrix via SOURCEFLOW_TEST_POSTGRES_IMAGE); Bank E2E-01/03/04/06/13 on PostgreSQL. Remaining SCK ids (36-37, 52-55, 59-72) and CsCheck linearisability tests pending |
 | WP-2.10 | Performance baseline | 1 | todo | |
 | WP-2.R | Retire v2 EF stores | 0.5 | todo | |
 | WP-3.1 | Transport SPI final + Transport Conformance Kit | 3 | todo | |

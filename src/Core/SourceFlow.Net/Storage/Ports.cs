@@ -24,7 +24,7 @@ public interface IEventLogReader
     /// <summary>Reads events after <paramref name="after"/> (exclusive) in commit order, filtered to <paramref name="buckets"/>.</summary>
     ValueTask<LogBatch> ReadAsync(GlobalPosition after, BucketRange buckets, int maxCount, CancellationToken cancellationToken);
 
-    /// <summary>The position below which the log is final.</summary>
+    /// <summary>The safe horizon: every position at or below it is final; no event can later appear there (ADR-010).</summary>
     ValueTask<GlobalPosition> GetSafeHorizonAsync(CancellationToken cancellationToken);
 }
 

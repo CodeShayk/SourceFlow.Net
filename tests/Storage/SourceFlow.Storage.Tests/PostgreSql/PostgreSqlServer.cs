@@ -1,0 +1,120 @@
+using Npgsql;
+using SourceFlow.Storage.PostgreSQL;
+using SourceFlow.Storage.Tests.PostgreSql;
+using Testcontainers.PostgreSql;
+
+[assembly: AssemblyFixture(typeof(PostgreSqlServer))]
+
+namespace SourceFlow.Storage.Tests.PostgreSql;
+
+/// <summary>
+/// One PostgreSQL server per test run: a Testcontainers container, or the server in <c>SOURCEFLOW_TEST_POSTGRES</c>.
+/// Tests isolate themselves with a fresh schema each (<see cref="CreateStoreAsync"/>), so they never share state.
+/// </summary>
+public sealed class PostgreSqlServer : IAsyncLifetime
+{
+    /// <summary>The default image; the nightly matrix overrides it with <c>SOURCEFLOW_TEST_POSTGRES_IMAGE</c> (15, 16, 17).</summary>
+    public const string DefaultImage = "postgres:17-alpine";
+
+    private PostgreSqlContainer? _container;
+
+    public string ConnectionString { get; private set; } = string.Empty;
+
+    /// <summary>A pooled data source for the superuser, shared by every test store.</summary>
+    public NpgsqlDataSource DataSource { get; private set; } = null!;
+
+    private readonly Lazy<Task> _started;
+
+    public PostgreSqlServer()
+    {
+        _started = new Lazy<Task>(StartAsync);
+    }
+
+    // The server starts on first use, so test runs that select no PostgreSQL test never need Docker.
+    public ValueTask InitializeAsync()
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    public Task EnsureStartedAsync()
+    {
+        return _started.Value;
+    }
+
+    private async Task StartAsync()
+    {
+        string? external = Environment.GetEnvironmentVariable("SOURCEFLOW_TEST_POSTGRES");
+        if (!string.IsNullOrWhiteSpace(external))
+        {
+            ConnectionString = external;
+        }
+        else
+        {
+            string image = Environment.GetEnvironmentVariable("SOURCEFLOW_TEST_POSTGRES_IMAGE") is { Length: > 0 } custom ? custom : DefaultImage;
+            _container = new PostgreSqlBuilder(image).Build();
+            await _container.StartAsync();
+            ConnectionString = _container.GetConnectionString();
+        }
+
+        DataSource = NpgsqlDataSource.Create(ConnectionString);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (DataSource is not null)
+        {
+            await DataSource.DisposeAsync();
+        }
+
+        if (_container is not null)
+        {
+            await _container.DisposeAsync();
+        }
+    }
+
+    /// <summary>A unique, valid schema name.</summary>
+    public static string NewSchema(string prefix = "t")
+    {
+        return prefix + "_" + Guid.CreateVersion7().ToString("N");
+    }
+
+    /// <summary>A store on a fresh, migrated schema.</summary>
+    public async Task<PostgreSqlStore> CreateStoreAsync(TimeProvider? time = null, Action<PostgreSqlStorageOptions>? configure = null)
+    {
+        var options = new PostgreSqlStorageOptions { DataSource = DataSource, Schema = NewSchema() };
+        configure?.Invoke(options);
+        var store = new PostgreSqlStore(options, time);
+        await store.CreateMigrator().MigrateAsync(TestContext.Current.CancellationToken);
+        return store;
+    }
+
+    /// <summary>Runs one SQL statement as the superuser.</summary>
+    public async Task ExecuteAsync(string sql)
+    {
+        await using NpgsqlCommand command = DataSource.CreateCommand(sql);
+        await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+    }
+}
+
+/// <summary>Base of PostgreSQL tests: starts the shared server before each test.</summary>
+public abstract class PostgreSqlTest(PostgreSqlServer server) : IAsyncLifetime
+{
+    protected PostgreSqlServer Server { get; } = server;
+
+    public virtual async ValueTask InitializeAsync()
+    {
+        await Server.EnsureStartedAsync();
+    }
+
+    public virtual ValueTask DisposeAsync()
+    {
+        return ValueTask.CompletedTask;
+    }
+}
+
+/// <summary>PostgreSQL tests that assert on the global log run one at a time: the safe horizon is cluster-wide (doc 05 §5.4).</summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class PostgreSqlCollection
+{
+    public const string Name = "PostgreSQL";
+}

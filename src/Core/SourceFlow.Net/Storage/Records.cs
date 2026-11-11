@@ -119,7 +119,7 @@ public sealed record StreamInfo(StreamId StreamId, string StreamType, StreamVers
 
 /// <summary>A batch read from the global log.</summary>
 /// <param name="Events">Events in commit order, after the requested position and below the safe horizon.</param>
-/// <param name="Horizon">The safe horizon at the time of the read.</param>
+/// <param name="Horizon">The safe horizon at the time of the read: positions at or below it are final.</param>
 public sealed record LogBatch(IReadOnlyList<StoredEvent> Events, GlobalPosition Horizon);
 
 /// <summary>The result of a commit.</summary>
