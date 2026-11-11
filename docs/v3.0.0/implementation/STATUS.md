@@ -21,7 +21,7 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 | WP-1.10 | Hosting, roles, tenancy context | 1.5 | done | AddSourceFlow, SourceFlowBuilder Use* slots, roles, SourceFlowHost lifecycle, health check |
 | WP-1.11 | `SourceFlow.Testing` | 2.5 | done | SourceFlowTestHost, AggregateSpec, ProcessManagerSpec, ProjectionSpec, approvals; UT-TST |
 | WP-1.12 | Schema catalog | 2 | todo | |
-| WP-1.13 | SFQL front end (pipeline + SQL syntax) + in-memory interpreter + domain queries | 5.5 | todo | |
+| WP-1.13 | SFQL front end (pipeline + SQL syntax) + in-memory interpreter + domain queries | 5.5 | in progress | Increment 1 done: request guard (SFQ0103/0104), lexer, pipeline and SQL parsers into one normalised AST (summarize/having substitution, lookup desugaring, count normalisation), allow-list grammar and functions (SFQ0102), catalog-only sources (I-4), limits, canonical printer; UT-QL-01..13, 61..65, 69..77. Next: catalog and binder, policy, in-memory interpreter, IQueryService |
 | WP-1.14 | Bank sample (ported v2 E2E domain) | 1.5 | in progress | Bank.Contracts/Accounts/Transfers/Notifications + E2E-01..07, 11, 13, 14, 17..20 green; Bank.Api waits for WP-4.2 |
 | WP-1.R | Retire v2 core | 0.5 | todo | |
 | WP-2.1 | PostgreSQL schema and migrator | 1.5 | done | V001 schema (ADR-028: json payload columns, tenant columns), PostgreSqlSchemaMigrator (advisory lock, checksummed schema_history, db script), UsePostgreSql with AutoMigrate (Development only by default); SCK-M01..M06. V002 (RLS) and V003 (partitioned events) come with WP-2.6 and WP-4.5 |
