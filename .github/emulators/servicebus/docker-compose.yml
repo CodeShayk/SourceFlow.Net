@@ -1,8 +1,8 @@
 # Azure Service Bus emulator + SQL backing store for the SourceFlow.Cloud.Azure tests (pinned; see ../README.md).
-# Entities must be pre-declared in Config.json; the emulator cannot create them at runtime.
+# Entities are created at runtime through the management endpoint (port 5300); Config.json declares the namespace only.
 services:
   sb-emulator:
-    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:1.1.2
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:2.0.1
     volumes:
       - "./Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json"
     ports:

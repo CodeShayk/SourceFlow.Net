@@ -3,31 +3,10 @@
     "Namespaces": [
       {
         "Name": "sbemulatorns",
-        "Queues": [
-          { "Name": "sftest.accounts", "Properties": { "LockDuration": "PT1M", "MaxDeliveryCount": 20, "RequiresSession": true } },
-          { "Name": "sftest.notifications", "Properties": { "LockDuration": "PT1M", "MaxDeliveryCount": 20, "RequiresSession": true } },
-          { "Name": "sftest.tck", "Properties": { "LockDuration": "PT1M", "MaxDeliveryCount": 20, "RequiresSession": true } }
-        ],
-        "Topics": [
-          {
-            "Name": "sftest.accounts.events",
-            "Properties": {},
-            "Subscriptions": [
-              { "Name": "notifications", "Properties": { "LockDuration": "PT1M", "MaxDeliveryCount": 20, "RequiresSession": true } },
-              { "Name": "reporting", "Properties": { "LockDuration": "PT1M", "MaxDeliveryCount": 20, "RequiresSession": true } }
-            ]
-          },
-          {
-            "Name": "sftest.tck.events",
-            "Properties": {},
-            "Subscriptions": [
-              { "Name": "tck-a", "Properties": { "LockDuration": "PT1M", "MaxDeliveryCount": 20, "RequiresSession": true } },
-              { "Name": "tck-b", "Properties": { "LockDuration": "PT1M", "MaxDeliveryCount": 20, "RequiresSession": true } }
-            ]
-          }
-        ]
+        "Queues": [],
+        "Topics": []
       }
     ],
-    "Logging": { "Type": "File" }
+    "Logging": { "Type": "Console" }
   }
 }

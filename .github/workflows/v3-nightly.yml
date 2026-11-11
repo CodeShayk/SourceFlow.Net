@@ -100,6 +100,7 @@ jobs:
       - name: Transport TCK, KMS and E2E on the real cloud
         env:
           SOURCEFLOW_REAL_CLOUD: ${{ matrix.cloud }}
+          AZURE_SERVICEBUS_NAMESPACE: ${{ vars.AZURE_SERVICEBUS_NAMESPACE }}
         run: |
           dotnet test --project tests/Cloud/SourceFlow.Cloud.Tests/SourceFlow.Cloud.Tests.csproj ${{ env.TEST_ARGS }} --filter-trait "Cloud=${{ matrix.trait }}"
           dotnet test --project tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj ${{ env.TEST_ARGS }} --filter-trait "Cloud=${{ matrix.trait }}"

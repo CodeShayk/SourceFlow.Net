@@ -108,6 +108,7 @@ jobs:
       AWS_REGION: eu-west-1
       PUBSUB_EMULATOR_HOST: localhost:8085
       SERVICEBUS_EMULATOR_CONNECTION: "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+      SERVICEBUS_EMULATOR_ADMIN_CONNECTION: "Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
