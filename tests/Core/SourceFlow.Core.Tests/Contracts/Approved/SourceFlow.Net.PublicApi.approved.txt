@@ -827,6 +827,78 @@ namespace SourceFlow.Query
         Divide = 12,
         Modulo = 13,
     }
+    public sealed class BindResult : System.IEquatable<SourceFlow.Query.BindResult>
+    {
+        public BindResult(SourceFlow.Query.BoundQuery? Query, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryDiagnostic> Diagnostics) { }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryDiagnostic> Diagnostics { get; init; }
+        public SourceFlow.Query.BoundQuery? Query { get; init; }
+        public bool Success { get; }
+    }
+    public sealed class BoundColumn : System.IEquatable<SourceFlow.Query.BoundColumn>
+    {
+        public BoundColumn(SourceFlow.Query.ColumnKind Kind, int Source, string? Attribute, System.Collections.Generic.IReadOnlyList<object> Path, SourceFlow.Query.QueryType Type, bool PersonalData, bool Queryable, [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Type",
+                "Version"})] System.Collections.Generic.IReadOnlyDictionary<System.ValueTuple<string, int>, System.Collections.Generic.IReadOnlyList<object>?>? VersionPaths, int Output = -1, int OuterDepth = 0) { }
+        public string? Attribute { get; init; }
+        public SourceFlow.Query.ColumnKind Kind { get; init; }
+        public int OuterDepth { get; init; }
+        public int Output { get; init; }
+        public System.Collections.Generic.IReadOnlyList<object> Path { get; init; }
+        public bool PersonalData { get; init; }
+        public bool Queryable { get; init; }
+        public int Source { get; init; }
+        public SourceFlow.Query.QueryType Type { get; init; }
+        [System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Type",
+                "Version"})]
+        public System.Collections.Generic.IReadOnlyDictionary<System.ValueTuple<string, int>, System.Collections.Generic.IReadOnlyList<object>?>? VersionPaths { get; init; }
+    }
+    public sealed class BoundOptions : System.IEquatable<SourceFlow.Query.BoundOptions>
+    {
+        public BoundOptions() { }
+        public bool AllTenants { get; init; }
+        public bool AllowScan { get; init; }
+        public SourceFlow.Query.QueryConsistency Consistency { get; init; }
+        public bool StaleOnTimeout { get; init; }
+        public SourceFlow.Query.Expr? Timeout { get; init; }
+        public SourceFlow.Query.Expr? Token { get; init; }
+    }
+    public sealed class BoundOutput : System.IEquatable<SourceFlow.Query.BoundOutput>
+    {
+        public BoundOutput(string Name, SourceFlow.Query.QueryType Type, SourceFlow.Query.Expr Expression, bool PersonalData) { }
+        public SourceFlow.Query.Expr Expression { get; init; }
+        public string Name { get; init; }
+        public bool PersonalData { get; init; }
+        public SourceFlow.Query.QueryType Type { get; init; }
+    }
+    public sealed class BoundQuery
+    {
+        public SourceFlow.Query.QueryAst Ast { get; }
+        public SourceFlow.Query.QueryCatalog Catalog { get; }
+        public bool Grouped { get; }
+        public SourceFlow.Query.BoundOptions Options { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.SortItem> OrderBy { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.BoundOutput> Outputs { get; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, SourceFlow.Query.QueryType> Parameters { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.BoundSource> Sources { get; }
+        public SourceFlow.Query.BoundColumn Column(SourceFlow.Query.Expr column) { }
+        public SourceFlow.Query.BoundQuery Subquery(SourceFlow.Query.QueryAst subquery) { }
+        public bool TryGetColumn(SourceFlow.Query.Expr column, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out SourceFlow.Query.BoundColumn? bound) { }
+        public SourceFlow.Query.QueryType TypeOf(SourceFlow.Query.Expr expression) { }
+    }
+    public sealed class BoundSource : System.IEquatable<SourceFlow.Query.BoundSource>
+    {
+        public BoundSource(int Index, string Name, SourceFlow.Query.SourceKind Kind, SourceFlow.Query.SourceRef Syntax, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryEventType> EventTypes, int? Version, SourceFlow.Query.QueryReadModel? ReadModel, SourceFlow.Query.QueryAggregate? Aggregate) { }
+        public SourceFlow.Query.QueryAggregate? Aggregate { get; init; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryEventType> EventTypes { get; init; }
+        public int Index { get; init; }
+        public bool IsEventLike { get; }
+        public SourceFlow.Query.SourceKind Kind { get; init; }
+        public string Name { get; init; }
+        public SourceFlow.Query.QueryReadModel? ReadModel { get; init; }
+        public SourceFlow.Query.SourceRef Syntax { get; init; }
+        public int? Version { get; init; }
+    }
     public sealed class CallExpr : SourceFlow.Query.Expr, System.IEquatable<SourceFlow.Query.CallExpr>
     {
         public CallExpr(string Name, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.Expr> Arguments, bool Distinct, SourceFlow.Query.TextSpan Span) { }
@@ -859,6 +931,13 @@ namespace SourceFlow.Query
         public System.Collections.Generic.IReadOnlyList<object> Path { get; init; }
         public string PathText { get; }
         public string? Qualifier { get; init; }
+    }
+    public enum ColumnKind
+    {
+        Attribute = 0,
+        Data = 1,
+        Field = 2,
+        Output = 3,
     }
     public sealed class EventsSource : SourceFlow.Query.SourceRef, System.IEquatable<SourceFlow.Query.EventsSource>
     {
@@ -969,6 +1048,13 @@ namespace SourceFlow.Query
         public SourceFlow.Query.QueryAst? Query { get; init; }
         public bool Success { get; }
     }
+    public sealed class QueryAggregate : System.IEquatable<SourceFlow.Query.QueryAggregate>
+    {
+        public QueryAggregate(string Name, System.Type StateType, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryField> Fields) { }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryField> Fields { get; init; }
+        public string Name { get; init; }
+        public System.Type StateType { get; init; }
+    }
     public sealed class QueryAst : System.IEquatable<SourceFlow.Query.QueryAst>
     {
         public QueryAst(SourceFlow.Query.SourceRef Source, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.JoinClause> Joins, SourceFlow.Query.Expr? Where, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.SelectItem>? Select, bool Distinct, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.Expr> GroupBy, SourceFlow.Query.Expr? Having, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.SortItem> OrderBy, SourceFlow.Query.Expr? Limit, SourceFlow.Query.Expr? Offset, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryOption> Options, SourceFlow.Query.QueryLanguage Language, SourceFlow.Query.TextSpan Span) { }
@@ -986,6 +1072,18 @@ namespace SourceFlow.Query
         public SourceFlow.Query.TextSpan Span { get; init; }
         public SourceFlow.Query.Expr? Where { get; init; }
         public override string ToString() { }
+    }
+    public sealed class QueryCatalog
+    {
+        public QueryCatalog(System.Collections.Generic.IEnumerable<SourceFlow.Query.QueryEventType> events, System.Collections.Generic.IEnumerable<SourceFlow.Query.QueryReadModel> readModels, System.Collections.Generic.IEnumerable<SourceFlow.Query.QueryAggregate> aggregates) { }
+        public System.Collections.Generic.IEnumerable<SourceFlow.Query.QueryAggregate> Aggregates { get; }
+        public System.Collections.Generic.IEnumerable<SourceFlow.Query.QueryEventType> EventTypes { get; }
+        public string Fingerprint { get; }
+        public System.Collections.Generic.IEnumerable<SourceFlow.Query.QueryReadModel> ReadModels { get; }
+        public bool TryGetAggregate(string name, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out SourceFlow.Query.QueryAggregate? aggregate) { }
+        public bool TryGetEventType(string name, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out SourceFlow.Query.QueryEventType? type) { }
+        public bool TryGetReadModel(string name, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out SourceFlow.Query.QueryReadModel? readModel) { }
+        public static SourceFlow.Query.QueryCatalog Build(SourceFlow.Runtime.RuntimeModel model) { }
     }
     public static class QueryCodes
     {
@@ -1013,6 +1111,14 @@ namespace SourceFlow.Query
         public const string Unsupported = "SFQ0102";
         public const string UpcastLimit = "SFQ0403";
     }
+    public enum QueryConsistency
+    {
+        Default = 0,
+        Horizon = 1,
+        Latest = 2,
+        Eventual = 3,
+        AtLeast = 4,
+    }
     public sealed class QueryDiagnostic : System.IEquatable<SourceFlow.Query.QueryDiagnostic>
     {
         public QueryDiagnostic(string Code, string Message, int Line, int Column, int Length) { }
@@ -1022,6 +1128,31 @@ namespace SourceFlow.Query
         public int Line { get; init; }
         public string Message { get; init; }
         public override string ToString() { }
+    }
+    public sealed class QueryEventType : System.IEquatable<SourceFlow.Query.QueryEventType>
+    {
+        public QueryEventType(string Name, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryEventVersion> Versions) { }
+        public SourceFlow.Query.QueryEventVersion Latest { get; }
+        public string Name { get; init; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryEventVersion> Versions { get; init; }
+    }
+    public sealed class QueryEventVersion : System.IEquatable<SourceFlow.Query.QueryEventVersion>
+    {
+        public QueryEventVersion(int Version, System.Type ClrType, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryField> Fields) { }
+        public System.Type ClrType { get; init; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryField> Fields { get; init; }
+        public int Version { get; init; }
+    }
+    public sealed class QueryField : System.IEquatable<SourceFlow.Query.QueryField>
+    {
+        public QueryField(string Name, SourceFlow.Query.QueryType Type, bool Queryable, bool PersonalData, System.Collections.Generic.IReadOnlyDictionary<int, string> RenamedFrom, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryField> Fields, SourceFlow.Query.QueryField? Element) { }
+        public SourceFlow.Query.QueryField? Element { get; init; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryField> Fields { get; init; }
+        public string Name { get; init; }
+        public bool PersonalData { get; init; }
+        public bool Queryable { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<int, string> RenamedFrom { get; init; }
+        public SourceFlow.Query.QueryType Type { get; init; }
     }
     public enum QueryLanguage
     {
@@ -1053,6 +1184,54 @@ namespace SourceFlow.Query
         public SourceFlow.Query.TextSpan Span { get; init; }
         public SourceFlow.Query.Expr Value { get; init; }
     }
+    public static class QueryPermission
+    {
+        public const string Adhoc = "sourceflow.query.adhoc";
+        public const string Aggregates = "sourceflow.query.aggregates";
+        public const string CrossTenant = "sourceflow.query.cross-tenant";
+        public const string Events = "sourceflow.query.events";
+        public const string Explain = "sourceflow.query.explain";
+        public const string PersonalData = "sourceflow.query.pii";
+        public const string ReadModels = "sourceflow.query.readmodels";
+        public const string Scan = "sourceflow.query.scan";
+        public const string Schema = "sourceflow.query.schema";
+        public const string Validate = "sourceflow.query.validate";
+    }
+    public sealed class QueryPermissions
+    {
+        public static SourceFlow.Query.QueryPermissions Service { get; }
+        public bool Has(string permission) { }
+        public static SourceFlow.Query.QueryPermissions Of(params string[] granted) { }
+    }
+    public sealed class QueryPolicySettings : System.IEquatable<SourceFlow.Query.QueryPolicySettings>
+    {
+        public QueryPolicySettings() { }
+        public SourceFlow.Query.QueryLimits Limits { get; init; }
+        public System.TimeSpan MaxTimeRange { get; init; }
+        public static SourceFlow.Query.QueryPolicySettings Default { get; }
+    }
+    public sealed class QueryReadModel : System.IEquatable<SourceFlow.Query.QueryReadModel>
+    {
+        public QueryReadModel(string Name, string Collection, System.Type DocumentType, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryField> Fields) { }
+        public string Collection { get; init; }
+        public System.Type DocumentType { get; init; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryField> Fields { get; init; }
+        public string Name { get; init; }
+    }
+    public enum QueryType
+    {
+        Any = 0,
+        String = 1,
+        Integer = 2,
+        Decimal = 3,
+        Boolean = 4,
+        Timestamp = 5,
+        Uuid = 6,
+        Duration = 7,
+        Position = 8,
+        Object = 9,
+        Array = 10,
+    }
     public sealed class ReadModelSource : SourceFlow.Query.SourceRef, System.IEquatable<SourceFlow.Query.ReadModelSource>
     {
         public ReadModelSource(SourceFlow.Query.LiteralExpr Collection, string? Alias, SourceFlow.Query.TextSpan Span) { }
@@ -1072,9 +1251,17 @@ namespace SourceFlow.Query
         public SourceFlow.Query.TextSpan Span { get; init; }
         public string? StarQualifier { get; init; }
     }
+    public static class SfqlBinder
+    {
+        public static SourceFlow.Query.BindResult Bind(SourceFlow.Query.QueryAst query, string text, SourceFlow.Query.QueryCatalog catalog) { }
+    }
     public static class SfqlParser
     {
         public static SourceFlow.Query.ParseResult Parse(string text, SourceFlow.Query.QueryLanguage language = 0, SourceFlow.Query.QueryLimits? limits = null) { }
+    }
+    public static class SfqlPolicy
+    {
+        public static System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryDiagnostic> Check(SourceFlow.Query.BoundQuery query, string text, SourceFlow.Query.QueryPermissions permissions, System.Collections.Generic.IReadOnlyDictionary<string, object?>? parameters = null, SourceFlow.Query.QueryPolicySettings? settings = null) { }
     }
     public sealed class SortItem : System.IEquatable<SourceFlow.Query.SortItem>
     {
@@ -1083,6 +1270,14 @@ namespace SourceFlow.Query
         public SourceFlow.Query.Expr Expression { get; init; }
         public SourceFlow.Query.NullsOrder Nulls { get; init; }
         public SourceFlow.Query.TextSpan Span { get; init; }
+    }
+    public enum SourceKind
+    {
+        Events = 0,
+        Stream = 1,
+        ReadModel = 2,
+        Aggregate = 3,
+        Schema = 4,
     }
     public abstract class SourceRef : System.IEquatable<SourceFlow.Query.SourceRef>
     {
