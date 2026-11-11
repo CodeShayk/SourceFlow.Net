@@ -98,7 +98,16 @@ CREATE INDEX ix_events_tags        ON sourceflow.events USING gin (tags);   -- c
 -- + generated partial expression indexes for [Queryable] fields (`dotnet sourceflow db index sync`)
 ```
 
-With `TenantIsolation.RowLevelSecurity`, every table also gets `ALTER TABLE … ENABLE ROW LEVEL SECURITY` and a policy `USING (tenant_id = current_setting('sourceflow.tenant'))` ([ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)).
+With `TenantIsolation.RowLevelSecurity` ([ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)):
+
+- Migration V002 creates a `tenant_isolation` policy on `streams`, `events`, `snapshots`, `documents`, `process_instances` and `subject_streams`. Each policy is `USING` and `WITH CHECK (tenant_id = current_setting('sourceflow.tenant', true))`.
+- The migrator **enables and forces** row-level security on those tables. Forcing makes the policies apply to the table owner too, so only superusers and `BYPASSRLS` roles skip them.
+- Startup verification fails when the database's state differs from the configured isolation.
+- Every session runs `set_config('sourceflow.tenant', tenant, true)` at `BeginAsync`, so custom SQL on `session.Connection` is scoped too. `set_config` writes nothing, so ES-R1 still holds.
+- Tenant-scoped reads outside a session send the setting in the same batch, which is one implicit transaction.
+- With no setting, the application role sees no rows.
+- The global log (subscriptions) is read through `SystemConnectionString`, a role with `BYPASSRLS`, because it spans tenants.
+- `inbox`, `outbox`, `checkpoints`, `leases` and `dead_letters` hold no tenant payload and are not policy-protected.
 
 `metadata` is `jsonb` so operators can query by correlation or causation (`metadata->>'correlationId'`) using an optional expression index. `data` is `json`, not `jsonb` ([ADR-028](ADRs/ADR-028-postgresql-payload-columns-and-adapter-refinements.md)): it keeps the serializer's exact bytes and accepts every valid JSON text (including `\u0000`), while still supporting `->>` and expression indexes for debugging, ad-hoc analysis and SFQL. Fields protected by crypto-shredding are ciphertext strings inside it ([doc 10 §4](10-Security-and-Compliance.md#4-personal-data-in-an-immutable-log-crypto-shredding)).
 

@@ -45,3 +45,4 @@ doc 05 8.1,doc 05,Snapshots with schema hash
 ADR-009,ADRs,Event store on ADO.NET with PostgreSQL first
 ADR-028,ADRs,PostgreSQL payload columns keep exact JSON bytes
 GAP-04,product 06,Versioned schema migrations without swallowed errors
+ADR-022,ADRs,Conjoined multi-tenancy with row-level security

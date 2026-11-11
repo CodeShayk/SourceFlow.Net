@@ -121,9 +121,33 @@ public sealed class PostgreSqlBankTests(PostgreSqlServer server) : PostgreSqlTes
         (await store.CountAsync(Ct)).ShouldBe(1);
     }
 
-    private async Task<IHost> StartAsync(bool inlineSummary, Action<SourceFlowBuilder>? configure = null)
+    [Fact]
+    [Trait("Id", "E2E-13")]
+    [Trait("Covers", "ADR-022")]
+    public async Task MoneyTransfer_UnderRowLevelSecurity_WithAnAsyncProjection()
+    {
+        using IHost host = await StartAsync(inlineSummary: false, rowLevelSecurity: true);
+        ICommandSender commands = host.Services.GetRequiredService<ICommandSender>();
+        AccountId from = AccountId.New();
+        AccountId to = AccountId.New();
+        await commands.SendAsync(new OpenAccount(from, "Ada", 100m), null, Ct);
+        (await commands.SendAsync(new OpenAccount(to, "Grace", 1m), null, Ct)).Status.ShouldBe(CommandStatus.Accepted);
+
+        (await commands.SendAsync(new RequestTransfer(TransferId.New(), from, to, 25m), null, Ct)).Status.ShouldBe(CommandStatus.Accepted);
+
+        await EventuallyAsync(async () => (await SummaryAsync(host, from))?.Balance == 75m && (await SummaryAsync(host, to))?.Balance == 26m, "transfer applied under RLS");
+    }
+
+    private async Task<IHost> StartAsync(bool inlineSummary, Action<SourceFlowBuilder>? configure = null, bool rowLevelSecurity = false)
     {
         string schema = PostgreSqlServer.NewSchema();
+        if (rowLevelSecurity)
+        {
+            // The owner migrates; the host runs as the DML-only application role and only verifies the schema.
+            await new PostgreSqlSchemaMigrator(Server.DataSource, schema, TenantIsolation.RowLevelSecurity).MigrateAsync(Ct);
+            await Server.GrantAsync(schema);
+        }
+
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { EnvironmentName = Environments.Development, DisableDefaults = true });
         builder.Services.AddSourceFlow(sf =>
         {
@@ -145,8 +169,19 @@ public sealed class PostgreSqlBankTests(PostgreSqlServer server) : PostgreSqlTes
             });
             sf.UsePostgreSql(o =>
             {
-                o.DataSource = Server.DataSource;
                 o.Schema = schema;
+                if (rowLevelSecurity)
+                {
+                    PostgreSqlStorageOptions rls = Server.RowLevelSecurityOptions(schema);
+                    o.ConnectionString = rls.ConnectionString;
+                    o.SystemConnectionString = rls.SystemConnectionString;
+                    o.TenantIsolation = TenantIsolation.RowLevelSecurity;
+                    o.AutoMigrate = false;
+                }
+                else
+                {
+                    o.DataSource = Server.DataSource;
+                }
             });
             sf.UseInMemoryTransport();
             configure?.Invoke(sf);

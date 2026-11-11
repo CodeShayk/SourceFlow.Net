@@ -25,9 +25,11 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
     private bool _wroteOther;
     private bool _completed;
     private bool _transactionEnded;
+    private bool _tenantSet;
 
-    public PostgreSqlStorageSession(PostgreSqlStore store, string tenantId, NpgsqlConnection connection, NpgsqlTransaction transaction)
+    public PostgreSqlStorageSession(PostgreSqlStore store, string tenantId, NpgsqlConnection connection, NpgsqlTransaction transaction, bool tenantSet)
     {
+        _tenantSet = tenantSet;
         _store = store;
         TenantId = tenantId;
         _connection = connection;
@@ -47,7 +49,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
     public ValueTask<StreamSlice> ReadStreamAsync(StreamId stream, StreamVersion fromInclusive, int maxCount, CancellationToken cancellationToken)
     {
         ThrowIfCompleted();
-        return _store.ReadStreamAsync(_connection, _transaction, TenantId, stream, fromInclusive, maxCount, cancellationToken);
+        return _store.ReadStreamAsync(_connection, _transaction, TakeTenant(), TenantId, stream, fromInclusive, maxCount, cancellationToken);
     }
 
     public async ValueTask<InboxEntry?> InboxSeenAsync(string consumer, MessageId messageId, CancellationToken cancellationToken)
@@ -73,11 +75,13 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
     public async ValueTask<ProcessState?> LoadProcessStateAsync(string processType, string processId, CancellationToken cancellationToken)
     {
         ThrowIfCompleted();
-        await using var command = new NpgsqlCommand(_store.Sql.LoadProcess, _connection, _transaction);
-        command.Parameters.Add(new NpgsqlParameter<string>("tenant", TenantId));
-        command.Parameters.Add(new NpgsqlParameter<string>("type", processType));
-        command.Parameters.Add(new NpgsqlParameter<string>("id", processId));
-        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using PostgreSqlStore.TenantReader scope = await _store.ReadTenantAsync(_connection, _transaction, TenantId, TakeTenant(), _store.Sql.LoadProcess,
+        [
+            new NpgsqlParameter<string>("tenant", TenantId),
+            new NpgsqlParameter<string>("type", processType),
+            new NpgsqlParameter<string>("id", processId),
+        ], cancellationToken).ConfigureAwait(false);
+        NpgsqlDataReader reader = scope.Reader;
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
             ? new ProcessState(processType, processId, reader.GetInt64(0), reader.GetFieldValue<byte[]>(1), reader.GetBoolean(2), reader.GetFieldValue<DateTimeOffset>(3))
             : null;
@@ -95,7 +99,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             }
         }
 
-        return _store.GetDocumentAsync(_connection, _transaction, TenantId, collection, id, cancellationToken);
+        return _store.GetDocumentAsync(_connection, _transaction, TakeTenant(), TenantId, collection, id, cancellationToken);
     }
 
     // ------------------------------------------------------------------ queued writes
@@ -233,6 +237,13 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             return default;
         }
 
+        // Row-level security: the tenant setting precedes every write of the transaction (ADR-022).
+        bool prefixed = _store.RowLevelSecurity && TakeTenant();
+        if (prefixed)
+        {
+            batch.BatchCommands.Add(PostgreSqlStore.SetTenantCommand(TenantId));
+        }
+
         foreach (Step step in steps)
         {
             batch.BatchCommands.Add(step.Command);
@@ -246,6 +257,11 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         try
         {
             await using NpgsqlDataReader reader = await batch.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            if (prefixed)
+            {
+                await reader.NextResultAsync(cancellationToken).ConfigureAwait(false);
+            }
+
             if (_append is not null && await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 appended = reader.GetInt64(0);
@@ -493,6 +509,18 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             _transactionEnded = true;
             await _transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
         }
+    }
+
+    // True when the next statement must set the tenant: once per transaction.
+    private bool TakeTenant()
+    {
+        if (_tenantSet)
+        {
+            return false;
+        }
+
+        _tenantSet = true;
+        return true;
     }
 
     private void ThrowIfCompleted()

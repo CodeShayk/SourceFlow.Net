@@ -28,10 +28,23 @@ public sealed class PostgreSqlOptionsTests
     }
 
     [Fact]
+    [Trait("Id", "UT-PG-04")]
+    [Trait("Covers", "ADR-022")]
+    public void RowLevelSecurity_RequiresASystemConnection_ForTheCrossTenantLog()
+    {
+        var options = new PostgreSqlStorageOptions { ConnectionString = "Host=x", TenantIsolation = TenantIsolation.RowLevelSecurity };
+
+        Should.Throw<InvalidOperationException>(() => new PostgreSqlStore(options)).Message.ShouldContain("BYPASSRLS");
+        options.SystemConnectionString = "Host=x;Username=system";
+        Should.NotThrow(() => new PostgreSqlStore(options).DisposeAsync().AsTask().GetAwaiter().GetResult());
+    }
+
+    [Fact]
     [Trait("Id", "UT-PG-03")]
     public void EmbeddedScripts_AreVersionedAndChecksummed_IndependentOfLineEndings()
     {
-        MigrationScript initial = PostgreSqlSchemaMigrator.EmbeddedScripts.ShouldHaveSingleItem();
+        PostgreSqlSchemaMigrator.EmbeddedScripts.Select(s => $"V{s.Version:D3}__{s.Name}").ShouldBe(["V001__initial", "V002__tenant_policies"]);
+        MigrationScript initial = PostgreSqlSchemaMigrator.EmbeddedScripts[0];
         initial.Version.ShouldBe(1);
         initial.Name.ShouldBe("initial");
         initial.Checksum.Length.ShouldBe(64);

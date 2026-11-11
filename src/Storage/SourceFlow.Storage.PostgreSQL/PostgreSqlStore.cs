@@ -23,6 +23,7 @@ public sealed partial class PostgreSqlStore :
     IAsyncDisposable
 {
     private readonly bool _ownsDataSource;
+    private readonly bool _ownsSystemDataSource;
 
     /// <summary>Creates the store over a data source. The schema must already be migrated (<see cref="PostgreSqlSchemaMigrator"/>).</summary>
     public PostgreSqlStore(PostgreSqlStorageOptions options, TimeProvider? time = null)
@@ -33,6 +34,9 @@ public sealed partial class PostgreSqlStore :
         Time = time ?? TimeProvider.System;
         _ownsDataSource = options.DataSource is null;
         DataSource = options.DataSource ?? NpgsqlDataSource.Create(options.ConnectionString!);
+        _ownsSystemDataSource = options.SystemDataSource is null && options.SystemConnectionString is not null;
+        SystemDataSource = options.SystemDataSource
+            ?? (options.SystemConnectionString is { } system ? NpgsqlDataSource.Create(system) : DataSource);
         Sql = new SqlText(options.Schema);
         _notifications = new Notifier(this);
     }
@@ -50,7 +54,7 @@ public sealed partial class PostgreSqlStore :
     /// <summary>A migrator for this store's schema.</summary>
     public PostgreSqlSchemaMigrator CreateMigrator()
     {
-        return new PostgreSqlSchemaMigrator(DataSource, Options.Schema);
+        return new PostgreSqlSchemaMigrator(DataSource, Options.Schema, Options.TenantIsolation);
     }
 
     /// <summary>Every port of this store.</summary>
@@ -70,7 +74,15 @@ public sealed partial class PostgreSqlStore :
         {
             // BEGIN is sent lazily with the first command, so starting a session costs no round trip.
             NpgsqlTransaction transaction = await connection.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, cancellationToken).ConfigureAwait(false);
-            return new PostgreSqlStorageSession(this, tenantId, connection, transaction);
+            if (RowLevelSecurity)
+            {
+                // Set the tenant up front, so custom SQL on session.Connection (EF Core, custom projections) is scoped
+                // too. set_config writes nothing, so it assigns no transaction id and ES-R1 still holds.
+                await using var batch = new NpgsqlBatch(connection, transaction) { BatchCommands = { SetTenantCommand(tenantId) } };
+                await batch.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return new PostgreSqlStorageSession(this, tenantId, connection, transaction, tenantSet: RowLevelSecurity);
         }
         catch
         {
@@ -85,18 +97,20 @@ public sealed partial class PostgreSqlStore :
     public async ValueTask<StreamSlice> ReadStreamAsync(string tenantId, StreamId stream, StreamVersion fromInclusive, int maxCount, CancellationToken cancellationToken)
     {
         await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        return await ReadStreamAsync(connection, null, tenantId, stream, fromInclusive, maxCount, cancellationToken).ConfigureAwait(false);
+        return await ReadStreamAsync(connection, null, setTenant: true, tenantId, stream, fromInclusive, maxCount, cancellationToken).ConfigureAwait(false);
     }
 
-    internal async ValueTask<StreamSlice> ReadStreamAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, string tenantId, StreamId stream, StreamVersion fromInclusive, int maxCount, CancellationToken cancellationToken)
+    internal async ValueTask<StreamSlice> ReadStreamAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, bool setTenant, string tenantId, StreamId stream, StreamVersion fromInclusive, int maxCount, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCount);
-        await using var command = new NpgsqlCommand(Sql.ReadStream, connection, transaction);
-        command.Parameters.Add(new NpgsqlParameter<string>("tenant", tenantId));
-        command.Parameters.Add(new NpgsqlParameter<string>("stream", stream.Value));
-        command.Parameters.Add(new NpgsqlParameter<long>("from", Math.Max(1, fromInclusive.Value)));
-        command.Parameters.Add(new NpgsqlParameter<int>("max", maxCount));
-        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using TenantReader scope = await ReadTenantAsync(connection, transaction, tenantId, setTenant, Sql.ReadStream,
+        [
+            new NpgsqlParameter<string>("tenant", tenantId),
+            new NpgsqlParameter<string>("stream", stream.Value),
+            new NpgsqlParameter<long>("from", Math.Max(1, fromInclusive.Value)),
+            new NpgsqlParameter<int>("max", maxCount),
+        ], cancellationToken).ConfigureAwait(false);
+        NpgsqlDataReader reader = scope.Reader;
 
         StreamVersion current = StreamVersion.None;
         var events = new List<StoredEvent>();
@@ -122,10 +136,9 @@ public sealed partial class PostgreSqlStore :
 
     internal async ValueTask<StreamInfo?> GetStreamInfoAsync(NpgsqlConnection connection, string tenantId, StreamId stream, CancellationToken cancellationToken)
     {
-        await using var command = new NpgsqlCommand(Sql.StreamInfo, connection);
-        command.Parameters.Add(new NpgsqlParameter<string>("tenant", tenantId));
-        command.Parameters.Add(new NpgsqlParameter<string>("stream", stream.Value));
-        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using TenantReader scope = await ReadTenantAsync(connection, null, tenantId, setTenant: true, Sql.StreamInfo,
+            [new NpgsqlParameter<string>("tenant", tenantId), new NpgsqlParameter<string>("stream", stream.Value)], cancellationToken).ConfigureAwait(false);
+        NpgsqlDataReader reader = scope.Reader;
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
             ? new StreamInfo(stream, reader.GetString(0), new StreamVersion(reader.GetInt64(1)), reader.GetBoolean(2), reader.GetBoolean(3))
             : null;
@@ -134,15 +147,15 @@ public sealed partial class PostgreSqlStore :
     /// <inheritdoc />
     public ValueTask ArchiveStreamAsync(string tenantId, StreamId stream, CancellationToken cancellationToken)
     {
-        return ExecuteAsync(Sql.ArchiveStream, cancellationToken,
-            new NpgsqlParameter<string>("tenant", tenantId), new NpgsqlParameter<string>("stream", stream.Value));
+        return IgnoreCount(ExecuteTenantAsync(tenantId, Sql.ArchiveStream, cancellationToken,
+            new NpgsqlParameter<string>("tenant", tenantId), new NpgsqlParameter<string>("stream", stream.Value)));
     }
 
     /// <inheritdoc />
     public ValueTask DeleteStreamAsync(string tenantId, StreamId stream, CancellationToken cancellationToken)
     {
-        return ExecuteAsync(Sql.DeleteStream, cancellationToken,
-            new NpgsqlParameter<string>("tenant", tenantId), new NpgsqlParameter<string>("stream", stream.Value));
+        return IgnoreCount(ExecuteTenantAsync(tenantId, Sql.DeleteStream, cancellationToken,
+            new NpgsqlParameter<string>("tenant", tenantId), new NpgsqlParameter<string>("stream", stream.Value)));
     }
 
     // ------------------------------------------------------------------ IEventLogReader
@@ -151,7 +164,9 @@ public sealed partial class PostgreSqlStore :
     public async ValueTask<LogBatch> ReadAsync(GlobalPosition after, BucketRange buckets, int maxCount, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCount);
-        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        // The global log spans every tenant: the system role (BYPASSRLS under row-level security).
+        await using NpgsqlConnection connection = await SystemDataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new NpgsqlCommand(Sql.ReadLog, connection);
         command.Parameters.Add(Xid("tx", after.Commit));
         command.Parameters.Add(new NpgsqlParameter<long>("seq", checked((long)after.Sequence)));
@@ -177,7 +192,7 @@ public sealed partial class PostgreSqlStore :
     /// <inheritdoc />
     public async ValueTask<GlobalPosition> GetSafeHorizonAsync(CancellationToken cancellationToken)
     {
-        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using NpgsqlConnection connection = await SystemDataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new NpgsqlCommand("SELECT pg_snapshot_xmin(pg_current_snapshot())", connection);
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
@@ -434,10 +449,9 @@ public sealed partial class PostgreSqlStore :
     async ValueTask<Snapshot?> ISnapshotStore.GetAsync(string tenantId, StreamId stream, CancellationToken cancellationToken)
     {
         await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new NpgsqlCommand(Sql.GetSnapshot, connection);
-        command.Parameters.Add(new NpgsqlParameter<string>("tenant", tenantId));
-        command.Parameters.Add(new NpgsqlParameter<string>("stream", stream.Value));
-        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using TenantReader scope = await ReadTenantAsync(connection, null, tenantId, setTenant: true, Sql.GetSnapshot,
+            [new NpgsqlParameter<string>("tenant", tenantId), new NpgsqlParameter<string>("stream", stream.Value)], cancellationToken).ConfigureAwait(false);
+        NpgsqlDataReader reader = scope.Reader;
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
             ? new Snapshot(stream, new StreamVersion(reader.GetInt64(0)), reader.GetString(1), reader.GetString(2), reader.GetFieldValue<byte[]>(3))
             : null;
@@ -447,13 +461,13 @@ public sealed partial class PostgreSqlStore :
     public ValueTask SaveAsync(string tenantId, Snapshot snapshot, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return ExecuteAsync(Sql.SaveSnapshot, cancellationToken,
+        return IgnoreCount(ExecuteTenantAsync(tenantId, Sql.SaveSnapshot, cancellationToken,
             new NpgsqlParameter<string>("tenant", tenantId),
             new NpgsqlParameter<string>("stream", snapshot.StreamId.Value),
             new NpgsqlParameter<long>("version", snapshot.Version.Value),
             new NpgsqlParameter<string>("state_type", snapshot.StateType),
             new NpgsqlParameter<string>("schema_hash", snapshot.SchemaHash),
-            Json("data", snapshot.Data));
+            Json("data", snapshot.Data)));
     }
 
     // ------------------------------------------------------------------ IDocumentReader
@@ -462,16 +476,18 @@ public sealed partial class PostgreSqlStore :
     async ValueTask<StoredDocument?> IDocumentReader.GetAsync(string tenantId, string collection, string id, CancellationToken cancellationToken)
     {
         await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        return await GetDocumentAsync(connection, null, tenantId, collection, id, cancellationToken).ConfigureAwait(false);
+        return await GetDocumentAsync(connection, null, setTenant: true, tenantId, collection, id, cancellationToken).ConfigureAwait(false);
     }
 
-    internal async ValueTask<StoredDocument?> GetDocumentAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, string tenantId, string collection, string id, CancellationToken cancellationToken)
+    internal async ValueTask<StoredDocument?> GetDocumentAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, bool setTenant, string tenantId, string collection, string id, CancellationToken cancellationToken)
     {
-        await using var command = new NpgsqlCommand(Sql.GetDocument, connection, transaction);
-        command.Parameters.Add(new NpgsqlParameter<string>("tenant", tenantId));
-        command.Parameters.Add(new NpgsqlParameter<string>("collection", collection));
-        command.Parameters.Add(new NpgsqlParameter<string>("id", id));
-        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using TenantReader scope = await ReadTenantAsync(connection, transaction, tenantId, setTenant, Sql.GetDocument,
+        [
+            new NpgsqlParameter<string>("tenant", tenantId),
+            new NpgsqlParameter<string>("collection", collection),
+            new NpgsqlParameter<string>("id", id),
+        ], cancellationToken).ConfigureAwait(false);
+        NpgsqlDataReader reader = scope.Reader;
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
             ? new StoredDocument(collection, id, reader.GetInt64(0), reader.GetFieldValue<byte[]>(1))
             : null;
@@ -481,11 +497,13 @@ public sealed partial class PostgreSqlStore :
     public async ValueTask<IReadOnlyList<StoredDocument>> ListAsync(string tenantId, string collection, int maxCount, CancellationToken cancellationToken)
     {
         await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new NpgsqlCommand(Sql.ListDocuments, connection);
-        command.Parameters.Add(new NpgsqlParameter<string>("tenant", tenantId));
-        command.Parameters.Add(new NpgsqlParameter<string>("collection", collection));
-        command.Parameters.Add(new NpgsqlParameter<int>("max", Math.Max(0, maxCount)));
-        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await using TenantReader scope = await ReadTenantAsync(connection, null, tenantId, setTenant: true, Sql.ListDocuments,
+        [
+            new NpgsqlParameter<string>("tenant", tenantId),
+            new NpgsqlParameter<string>("collection", collection),
+            new NpgsqlParameter<int>("max", Math.Max(0, maxCount)),
+        ], cancellationToken).ConfigureAwait(false);
+        NpgsqlDataReader reader = scope.Reader;
         var documents = new List<StoredDocument>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -501,6 +519,11 @@ public sealed partial class PostgreSqlStore :
     public async ValueTask DisposeAsync()
     {
         await _notifications.DisposeAsync().ConfigureAwait(false);
+        if (_ownsSystemDataSource)
+        {
+            await SystemDataSource.DisposeAsync().ConfigureAwait(false);
+        }
+
         if (_ownsDataSource)
         {
             await DataSource.DisposeAsync().ConfigureAwait(false);
@@ -545,6 +568,11 @@ public sealed partial class PostgreSqlStore :
     internal static NpgsqlParameter Json(string name, ReadOnlyMemory<byte> value)
     {
         return new NpgsqlParameter<ReadOnlyMemory<byte>>(name, NpgsqlDbType.Json) { TypedValue = value };
+    }
+
+    private static async ValueTask IgnoreCount(ValueTask<int> operation)
+    {
+        await operation.ConfigureAwait(false);
     }
 
     private async ValueTask ExecuteAsync(string sql, CancellationToken cancellationToken, params NpgsqlParameter[] parameters)

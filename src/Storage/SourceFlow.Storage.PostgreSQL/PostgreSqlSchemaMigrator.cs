@@ -37,20 +37,30 @@ public sealed class PostgreSqlSchemaMigrator
     private const string ResourcePrefix = "SourceFlow.Storage.PostgreSQL.Schema.";
     private readonly NpgsqlDataSource _dataSource;
     private readonly string _schema;
+    private readonly TenantIsolation? _isolation;
 
     /// <summary>Creates a migrator for the embedded scripts.</summary>
-    public PostgreSqlSchemaMigrator(NpgsqlDataSource dataSource, string schema = "sourceflow")
-        : this(dataSource, schema, EmbeddedScripts)
+    /// <param name="dataSource">A connection with DDL rights (the schema owner).</param>
+    /// <param name="schema">The schema name.</param>
+    /// <param name="isolation">
+    /// The row-level security state to apply to the tenant tables and to verify (ADR-022); null leaves it unchanged.
+    /// </param>
+    public PostgreSqlSchemaMigrator(NpgsqlDataSource dataSource, string schema = "sourceflow", TenantIsolation? isolation = null)
+        : this(dataSource, schema, EmbeddedScripts, isolation)
     {
     }
 
-    internal PostgreSqlSchemaMigrator(NpgsqlDataSource dataSource, string schema, IReadOnlyList<MigrationScript> scripts)
+    internal PostgreSqlSchemaMigrator(NpgsqlDataSource dataSource, string schema, IReadOnlyList<MigrationScript> scripts, TenantIsolation? isolation = null)
     {
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         new PostgreSqlStorageOptions { ConnectionString = "-", Schema = schema }.Validate();
         _schema = schema;
+        _isolation = isolation;
         Scripts = [.. scripts.OrderBy(s => s.Version)];
     }
+
+    /// <summary>The tables protected by the <c>tenant_isolation</c> policy (V002).</summary>
+    public static IReadOnlyList<string> TenantTables { get; } = ["streams", "events", "snapshots", "documents", "process_instances", "subject_streams"];
 
     /// <summary>The scripts embedded in this package, ordered by version.</summary>
     public static IReadOnlyList<MigrationScript> EmbeddedScripts { get; } = LoadEmbedded();
@@ -92,6 +102,11 @@ public sealed class PostgreSqlSchemaMigrator
             done.Add(script.Version);
         }
 
+        if (IsolationSql() is { } isolation)
+        {
+            await ExecuteAsync(connection, transaction, isolation, cancellationToken).ConfigureAwait(false);
+        }
+
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return done;
     }
@@ -119,6 +134,37 @@ public sealed class PostgreSqlSchemaMigrator
         if (missing.Length > 0)
         {
             throw new SchemaMigrationException($"The SourceFlow schema '{_schema}' is missing migrations {string.Join(", ", missing.Select(v => "V" + v.ToString("D3", CultureInfo.InvariantCulture)))}. Run 'dotnet sourceflow db migrate'.");
+        }
+
+        if (_isolation is { } isolation)
+        {
+            await VerifyIsolationAsync(connection, isolation == TenantIsolation.RowLevelSecurity, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    // A mismatch silently breaks tenancy: RLS on without the tenant setting shows nothing; RLS off loses the guard.
+    private async Task VerifyIsolationAsync(NpgsqlConnection connection, bool expected, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+            + "WHERE n.nspname = @schema AND c.relname = ANY(@tables) AND (c.relrowsecurity AND c.relforcerowsecurity) <> @expected",
+            connection);
+        command.Parameters.Add(new NpgsqlParameter<string>("schema", _schema));
+        command.Parameters.Add(new NpgsqlParameter<string[]>("tables", [.. TenantTables]));
+        command.Parameters.Add(new NpgsqlParameter<bool>("expected", expected));
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var mismatched = new List<string>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            mismatched.Add(reader.GetString(0));
+        }
+
+        if (mismatched.Count > 0)
+        {
+            string state = expected ? "enabled and forced" : "disabled";
+            string mode = expected ? "RowLevelSecurity" : "Runtime";
+            throw new SchemaMigrationException(
+                $"Row-level security must be {state} for TenantIsolation.{mode}, but is not on {string.Join(", ", mismatched.Order(StringComparer.Ordinal))} in schema '{_schema}'. Run 'dotnet sourceflow db migrate' with the same TenantIsolation.");
         }
     }
 
@@ -151,7 +197,26 @@ public sealed class PostgreSqlSchemaMigrator
             sql.Append(CultureInfo.InvariantCulture, $"INSERT INTO {Quoted}.schema_history (version, name, checksum) VALUES ({script.Version}, '{script.Name}', '{script.Checksum}');\n");
         }
 
+        if (IsolationSql() is { } isolation)
+        {
+            sql.Append("\n-- tenant isolation (ADR-022)\n").Append(isolation);
+        }
+
         return sql.Append("COMMIT;\n").ToString();
+    }
+
+    // FORCE makes the policies apply to the table owner too; only superusers and BYPASSRLS roles skip them.
+    private string? IsolationSql()
+    {
+        if (_isolation is not { } isolation)
+        {
+            return null;
+        }
+
+        string action = isolation == TenantIsolation.RowLevelSecurity
+            ? "ENABLE ROW LEVEL SECURITY, FORCE ROW LEVEL SECURITY"
+            : "DISABLE ROW LEVEL SECURITY, NO FORCE ROW LEVEL SECURITY";
+        return string.Concat(TenantTables.Select(t => $"ALTER TABLE {Quoted}.{t} {action};\n"));
     }
 
     private string Quoted => "\"" + _schema + "\"";

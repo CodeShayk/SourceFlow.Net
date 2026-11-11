@@ -33,8 +33,8 @@ public sealed class PostgreSqlMigrationTests(PostgreSqlServer server) : PostgreS
 
         IReadOnlyList<int> applied = await migrator.MigrateAsync(Ct);
 
-        applied.ShouldBe([1]);
-        (await migrator.GetAppliedVersionsAsync(Ct)).ShouldBe([1]);
+        applied.ShouldBe([1, 2]);
+        (await migrator.GetAppliedVersionsAsync(Ct)).ShouldBe([1, 2]);
         (await TablesAsync(schema)).ShouldBe(Tables);
         await migrator.VerifyAsync(Ct);
     }
@@ -81,7 +81,8 @@ public sealed class PostgreSqlMigrationTests(PostgreSqlServer server) : PostgreS
         IReadOnlyList<int>[] results = await Task.WhenAll(Enumerable.Range(0, 8)
             .Select(_ => Task.Run(() => new PostgreSqlSchemaMigrator(Server.DataSource, schema).MigrateAsync(Ct))));
 
-        results.Sum(r => r.Count).ShouldBe(1);
+        results.Sum(r => r.Count).ShouldBe(PostgreSqlSchemaMigrator.EmbeddedScripts.Count);
+        results.Count(r => r.Count > 0).ShouldBe(1);
         (await TablesAsync(schema)).ShouldBe(Tables);
     }
 
@@ -144,7 +145,7 @@ public sealed class PostgreSqlMigrationTests(PostgreSqlServer server) : PostgreS
         await Server.ExecuteAsync(scripter.Script());
 
         (await ColumnsAsync(scripted)).ShouldBe(await ColumnsAsync(migrated));
-        (await scripter.GetAppliedVersionsAsync(Ct)).ShouldBe([1]);
+        (await scripter.GetAppliedVersionsAsync(Ct)).ShouldBe([1, 2]);
         await scripter.VerifyAsync(Ct);
         (await scripter.MigrateAsync(Ct)).ShouldBeEmpty();
     }

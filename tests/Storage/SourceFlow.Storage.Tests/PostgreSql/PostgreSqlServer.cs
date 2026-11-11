@@ -88,6 +88,70 @@ public sealed class PostgreSqlServer : IAsyncLifetime
         return store;
     }
 
+    private readonly string _roleSuffix = Guid.CreateVersion7().ToString("N")[..12];
+    private readonly SemaphoreSlim _rolesGate = new(1, 1);
+    private bool _rolesCreated;
+
+    /// <summary>The application role: DML only, subject to row-level security (superusers always bypass it).</summary>
+    public string AppRole => "sf_app_" + _roleSuffix;
+
+    /// <summary>The cross-tenant reader role: DML and BYPASSRLS (ADR-022).</summary>
+    public string SystemRole => "sf_system_" + _roleSuffix;
+
+    /// <summary>The connection string of a role created by <see cref="CreateRowLevelSecurityStoreAsync"/>.</summary>
+    public string ConnectionStringFor(string role)
+    {
+        return new NpgsqlConnectionStringBuilder(ConnectionString) { Username = role, Password = role }.ConnectionString;
+    }
+
+    /// <summary>
+    /// A store with <see cref="TenantIsolation.RowLevelSecurity"/> on a fresh schema: migrated by the superuser (the owner),
+    /// used through <see cref="AppRole"/>, with <see cref="SystemRole"/> for the global log.
+    /// </summary>
+    public async Task<PostgreSqlStore> CreateRowLevelSecurityStoreAsync(TimeProvider? time = null, string? schema = null)
+    {
+        schema ??= NewSchema("rls");
+        await new PostgreSqlSchemaMigrator(DataSource, schema, TenantIsolation.RowLevelSecurity).MigrateAsync(TestContext.Current.CancellationToken);
+        await GrantAsync(schema);
+        return new PostgreSqlStore(RowLevelSecurityOptions(schema), time);
+    }
+
+    /// <summary>Options for <see cref="AppRole"/> and <see cref="SystemRole"/> on a schema (call <see cref="GrantAsync"/> first).</summary>
+    public PostgreSqlStorageOptions RowLevelSecurityOptions(string schema)
+    {
+        return new PostgreSqlStorageOptions
+        {
+            ConnectionString = ConnectionStringFor(AppRole),
+            SystemConnectionString = ConnectionStringFor(SystemRole),
+            Schema = schema,
+            TenantIsolation = TenantIsolation.RowLevelSecurity,
+        };
+    }
+
+    /// <summary>Grants both test roles DML on a migrated schema.</summary>
+    public async Task GrantAsync(string schema)
+    {
+        await _rolesGate.WaitAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            if (!_rolesCreated)
+            {
+                await ExecuteAsync($"CREATE ROLE \"{AppRole}\" LOGIN PASSWORD '{AppRole}'");
+                await ExecuteAsync($"CREATE ROLE \"{SystemRole}\" LOGIN BYPASSRLS PASSWORD '{SystemRole}'");
+                _rolesCreated = true;
+            }
+        }
+        finally
+        {
+            _rolesGate.Release();
+        }
+
+        await ExecuteAsync($"""
+            GRANT USAGE ON SCHEMA "{schema}" TO "{AppRole}", "{SystemRole}";
+            GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "{schema}" TO "{AppRole}", "{SystemRole}";
+            """);
+    }
+
     /// <summary>Runs one SQL statement as the superuser.</summary>
     public async Task ExecuteAsync(string sql)
     {
