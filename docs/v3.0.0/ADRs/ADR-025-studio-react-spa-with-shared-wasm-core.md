@@ -13,7 +13,7 @@ The product requires the visual designer to be built in **React** (product doc 0
 ## Decision
 
 1. **A React 19 + TypeScript single-page application** (`studio/`, npm `@sourceflow/studio`). It uses React Flow + elkjs for graphs, Monaco + monaco-yaml for text, and Radix primitives for accessibility.
-2. **The semantic core is the C# `SourceFlow.Workflows` library compiled to WebAssembly** (`SourceFlow.Workflows.Wasm`, `[JSExport]`), running in a Web Worker. TypeScript never re-implements parsing, validation or simulation.
+2. **The semantic core is the C# `SourceFlow.Studio` library compiled to WebAssembly** (`SourceFlow.Studio.Wasm`, `[JSExport]`), running in a Web Worker. TypeScript never re-implements parsing, validation or simulation.
 3. **Hosting**:
    - **local**: `dotnet sourceflow studio` serves the embedded SPA and a loopback-only file API over the workspace;
    - **static**: a read-only site built from a workspace;

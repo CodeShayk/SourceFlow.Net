@@ -40,7 +40,7 @@ v3 rebuilds the library on a small number of well-proven patterns:
 | # | Document | Read if you are… |
 |---|----------|------------------|
 | 01 | [Architecture Overview](01-Architecture-Overview.md) — quality goals, principles, package layout, runtime flows | everyone (start here) |
-| ADRs | [Architecture Decision Records](ADRs/README.md) — 26 ADRs, one file each, with alternatives and consequences | reviewers and approvers |
+| ADRs | [Architecture Decision Records](ADRs/README.md) — 27 ADRs, one file each, with alternatives and consequences | reviewers and approvers |
 | 03 | [Domain Programming Model](03-Domain-Programming-Model.md) — messages, ids, aggregates, handlers, process managers, projections, generators | domain developers |
 | 04 | [Messaging Pipeline and Delivery Semantics](04-Messaging-Pipeline.md) — envelope, type registry, routing, middleware, inbox and outbox, retries, dead letters | framework and platform engineers |
 | 05 | [Event Store and Persistence](05-Event-Store-and-Persistence.md) — contracts, schemas, concurrency, global ordering, snapshots | storage implementers and DBAs |

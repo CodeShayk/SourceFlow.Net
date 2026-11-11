@@ -43,7 +43,7 @@ Each quality is a measurable scenario. Targets are validated in M2 to M4 ([doc 0
 | **O**pen/closed | New transports, stores, serialisers, middleware and KMS providers plug in through SPIs. The core is closed to modification. |
 | **L**iskov substitution | Every adapter must pass a **conformance kit** (storage and transport), so substitutability is tested, not hoped for. |
 | **I**nterface segregation | Small role interfaces: `IEventStore` (streams), `IEventLogReader` (global reads), `IOutbox`, `IInbox`, `ICheckpointStore`, `ILeaseManager`. An adapter implements only the capabilities it supports. |
-| **D**ependency inversion | The core depends on ports it defines. Adapters depend on the core, never the other way round. Domain code depends on nothing but the `SourceFlow.Abstractions` attributes and interfaces. |
+| **D**ependency inversion | The core depends on ports it defines. Adapters depend on the core, never the other way round. Domain code uses nothing but the attributes and interfaces in the `SourceFlow` namespace of `SourceFlow.Net` (ARCH-04). |
 | **DRY** | One middleware abstraction for every stage (v2 had four). One envelope, used by every transport. One retry and dead-letter policy engine. Platform libraries replace custom code: Polly v8 replaces v2's circuit breaker, `Microsoft.Extensions.Compliance.Redaction` replaces v2's masker, and `TimeProvider` is used for time. |
 | **KISS** | Aggregates are records with methods; no base class needed. One input queue per service endpoint by default. Sensible defaults let a working service configure only a connection string and a service name. |
 | **YAGNI** | See §4. Features are added only where a product requirement or gap calls for them. |
@@ -107,38 +107,44 @@ flowchart TB
     classDef a fill:#eef,stroke:#88a
 ```
 
-**Dependency rules** (enforced by an architecture test in CI using `NetArchTest` or similar):
+**Dependency rules** ([ADR-027](ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md); enforced by `SourceFlow.Architecture.Tests` with NetArchTest):
 
-1. `SourceFlow.Abstractions` depends on nothing outside the BCL.
-2. `SourceFlow.Net` (core) depends only on `Abstractions` and `Microsoft.Extensions.*`, `System.Diagnostics.*`, `System.Text.Json` and Polly.
-3. Adapters depend on the core. The core never references an adapter, even through reflection (v2's `UseEFIdempotency` reflection hack is removed).
-4. Domain code needs only `SourceFlow.Abstractions`, which keeps domain assemblies free of infrastructure.
+1. **ARCH-01.** `SourceFlow.Net` depends only on the BCL, `Microsoft.Extensions.*`, Polly and `Microsoft.Extensions.Resilience`. It has no cloud SDK, database driver or OpenTelemetry SDK.
+2. **ARCH-02.** The core never references an adapter, even through reflection (v2's `UseEFIdempotency` reflection hack is removed).
+3. **ARCH-03.** Adapters depend on `SourceFlow.Net` and their own SDK only. They never depend on each other.
+4. **ARCH-04.** Domain code references only `SourceFlow.Net`, and uses only the `SourceFlow` (contracts) and `SourceFlow.Workflows` (workflow runtime types) namespaces. This keeps domain assemblies free of infrastructure without a separate abstractions package.
 
 ## 6. Package map
 
-All packages target `net10.0` only and are versioned together (`3.0.x`).
+All packages target `net10.0` only and are versioned together (`3.0.x`). The single exception to `net10.0` is the source generator. It is a compiler plugin, so it must target `netstandard2.0`, and it ships inside `SourceFlow.Net` rather than on its own. Packages are grouped by category, and source projects live under `src/<Category>/<Package>/`.
 
-| Package | Contents | Key dependencies |
-|---------|----------|------------------|
-| `SourceFlow.Abstractions` | Marker interfaces (`ICommand<TAggregate>`, `IEvent`), attributes (`[Aggregate]`, `[MessageType]`, `[StronglyTypedId]`, `[SourceFlowModule]`, `[PersonalData]`, `[Queryable]`, `[Tag]`, `[RenamedFrom]`, `[Emits]`, `[Rejects]`), `Decision`, `Reaction`, `Error`, `ConsistencyToken`, id primitives | BCL only |
-| `SourceFlow.Net` | Runtime: command processor, aggregate store, receive pipeline, middleware, outbox relay, scheduler, subscription engine, process manager runtime, type registry, schema catalog, SFQL parser, binder and in-memory interpreter, STJ serializer, telemetry, health checks, the SPIs, in-memory adapters. (The SFQL SQL compilers live in the storage packages.) | M.E.DI/Hosting/Options/Logging, Polly/M.E.Resilience, M.E.Compliance.Redaction, System.Diagnostics |
-| `SourceFlow.Generators` *(analyzer, bundled in `SourceFlow.Abstractions`)* | Incremental source generators (module registration, decide/evolve dispatch, JSON contexts, strongly typed ids) and analyzers (SF0001…) | Roslyn |
-| `SourceFlow.Testing` | Given/When/Then specs for aggregates, process managers and projections. Fake transport and store with fault injection. `FakeTimeProvider` integration. Base classes for the conformance kits. | xUnit-agnostic core |
-| `SourceFlow.PostgreSql` | Event store, snapshots, outbox, inbox, checkpoints, leases, dead letters, document read-model store, LISTEN/NOTIFY wake-up | Npgsql |
-| `SourceFlow.SqlServer` | Same capabilities on SQL Server | Microsoft.Data.SqlClient |
-| `SourceFlow.EntityFrameworkCore` | Projections that write EF Core read models in the projection transaction | EF Core 10 |
-| `SourceFlow.AmazonSqs` | AWS SNS/SQS transport and provisioner | AWSSDK.SQS/SNS |
-| `SourceFlow.AzureServiceBus` | Azure Service Bus transport and provisioner | Azure.Messaging.ServiceBus |
-| `SourceFlow.GooglePubSub` | Google Pub/Sub transport and provisioner | Google.Cloud.PubSub.V1 |
-| `SourceFlow.Security.AwsKms`, `.AzureKeyVault`, `.GoogleKms` | `IKeyProvider` implementations for envelope encryption and crypto-shredding | the respective SDKs |
-| `SourceFlow.AspNetCore` | `MapCommand<T>()` (Idempotency-Key, If-Match → expected version, ProblemDetails, ETag, consistency-token header) and the opt-in `MapSourceFlowQuery()` endpoint | ASP.NET Core |
-| `SourceFlow.OpenTelemetry` | `AddSourceFlowInstrumentation()` for the tracer and meter providers, plus histogram views. Keeps the OpenTelemetry SDK a dependency of the user's app, not of the core. | OpenTelemetry SDK |
-| `SourceFlow.Workflows.Abstractions` | Runtime types used by generated workflows (status, compensation entries, operator commands). Referenced only by services that use the DSL | BCL + Abstractions |
-| `SourceFlow.Workflows` | Workflow DSL core: YAML model, validator, simulator, path enumerator, spec generator, exporters, manifest model. netstandard2.0 build bundled in the generator | YamlDotNet |
-| `SourceFlow.Workflows.Wasm` + `@sourceflow/studio` (npm) | SourceFlow Studio: the WebAssembly build of the core, and the React designer (separate utility, own release train) | .NET browser-wasm; React 19 |
-| `SourceFlow.Tool` (`dotnet sourceflow`) | CLI: topology export and validate, projection rebuild, dead-letter list/replay/discard, v2 migration | System.CommandLine |
+| Category | Package | Contents | Key dependencies |
+|----------|---------|----------|------------------|
+| Core | `SourceFlow.Net` | **The single core.** Domain contracts (namespace `SourceFlow`): `ICommand<TAggregate>`, `IEvent`, attributes (`[Aggregate]`, `[MessageType]`, `[StronglyTypedId]`, `[SourceFlowModule]`, `[PersonalData]`, `[Queryable]`, `[Tag]`, `[RenamedFrom]`, `[Emits]`, `[Rejects]`), `Decision`, `Reaction`, `Error`, `ConsistencyToken` and id primitives. Runtime: command processor, aggregate store, receive pipeline, middleware, outbox relay, scheduler, subscription engine, process manager runtime, type registry, schema catalog, STJ serializer, telemetry and health checks. Workflow runtime types. In-memory adapters. **Extensibility SPIs** (table below). Bundles the source generator and analyzers (`analyzers/dotnet/cs`). | M.E.DI/Hosting/Options/Logging, Polly/M.E.Resilience, M.E.Compliance.Redaction, System.Diagnostics |
+| Storage | `SourceFlow.Storage.PostgreSQL` | Event store, snapshots, outbox, inbox, checkpoints, leases, dead letters, document read-model store, LISTEN/NOTIFY wake-up, SFQL PostgreSQL compiler | Npgsql |
+| Storage | `SourceFlow.Storage.SqlServer` | Same capabilities on SQL Server, SFQL SQL Server compiler | Microsoft.Data.SqlClient |
+| Storage | `SourceFlow.Storage.EntityFrameworkCore` | Projections that write EF Core read models in the projection transaction | EF Core 10 |
+| Cloud | `SourceFlow.Cloud.Aws` | SNS/SQS transport and provisioner, AWS KMS `IKeyProvider`, health checks | AWSSDK.SQS/SNS/KMS |
+| Cloud | `SourceFlow.Cloud.Azure` | Service Bus transport and provisioner, Key Vault `IKeyProvider`, health checks | Azure.Messaging.ServiceBus, Azure.Security.KeyVault.Keys |
+| Cloud | `SourceFlow.Cloud.Gcp` | Pub/Sub transport and provisioner, Cloud KMS `IKeyProvider`, health checks | Google.Cloud.PubSub.V1, Google.Cloud.Kms.V1 |
+| Hosting | `SourceFlow.AspNetCore` | `MapCommand<T>()` (Idempotency-Key, If-Match → expected version, ProblemDetails, ETag, consistency-token header) and the opt-in `MapSourceFlowQuery()` endpoint | ASP.NET Core |
+| Tooling | `SourceFlow.Testing` | Given/When/Then specs for aggregates, process managers and projections. Fake transport and store with fault injection. `FakeTimeProvider` integration. Base classes for the conformance kits. | xUnit-agnostic core |
+| Tooling | `SourceFlow.Tool` (`dotnet sourceflow`) | CLI: topology export and validate, projection rebuild, dead-letter list/replay/discard, v2 migration, workflow and studio commands | System.CommandLine |
+| Workflows | `SourceFlow.Studio` | Workflow DSL semantic core: YAML model, validator, simulator, path enumerator, spec generator, exporters, manifest model. The generator compiles the same sources ([ADR-027 §6](ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md#6-studio-and-the-generator-share-one-dsl-implementation)) | YamlDotNet |
+| Workflows | `SourceFlow.Studio.Wasm` + `@sourceflow/studio` (npm) | SourceFlow Studio: the WebAssembly build of the DSL core, and the React designer (separate utility, own release train). The WASM build ships inside the npm package and the tool, not on NuGet | .NET browser-wasm; React 19 |
 
-Splitting `Abstractions` from the runtime lets domain assemblies avoid every runtime dependency. Splitting KMS providers from transports keeps dependencies independent: a team can use AWS KMS with Azure Service Bus.
+**Extensibility SPIs in `SourceFlow.Net`.** Each provider implements one namespace and registers through one `SourceFlowBuilder.Use*` slot.
+
+| Concern | Namespace | Interfaces | Implemented by |
+|---------|-----------|------------|----------------|
+| Persistence | `SourceFlow.Storage` | `IEventStore`, `IEventLogReader`, `ISnapshotStore`, `IStorageSession`, `IOutboxStore`, `IInboxStore`, `ICheckpointStore`, `ILeaseManager`, `IDeadLetterStore`, `IDocumentStore` | In-memory (core), `SourceFlow.Storage.*` |
+| Cloud / broker | `SourceFlow.Transport` | `ITransport`, `ITransportReceiver`, `ITransportProvisioner`, `TransportCapabilities` | In-memory (core), `SourceFlow.Cloud.*` |
+| Security | `SourceFlow.Security` | `IKeyProvider`, `IPayloadProtector`, `IPersonalDataEraser` | Local key provider (core, dev only), `SourceFlow.Cloud.*` (KMS) |
+| Querying | `SourceFlow.Query` | `ISqlDialect`, SFQL compiler contract | In-memory interpreter (core), `SourceFlow.Storage.PostgreSQL` / `.SqlServer` |
+| Pipeline | `SourceFlow.Pipeline` | `IMessageMiddleware` | User code |
+| Telemetry | `SourceFlow.Diagnostics` | `ActivitySource` / `Meter` named `SourceFlow`, semconv constants | Any OpenTelemetry SDK (`AddSource` / `AddMeter`) |
+
+One core package means a single reference brings the contracts, the runtime and the generator. ARCH-04 keeps domain code infrastructure-free. Each cloud package carries both its transport and its KMS key provider, because a team adopting a cloud uses both. They register separately (`UseAwsTransport()`, `UseAwsKms()`), so mixing clouds still works by referencing two cloud packages.
 
 ## 7. Runtime components
 

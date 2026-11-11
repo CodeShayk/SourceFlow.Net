@@ -16,7 +16,7 @@
 | Assertions | NUnit/xUnit asserts | **Shouldly** | Readable, permissively licensed (FluentAssertions 8 moved to a commercial licence) |
 | Test doubles | Moq | **Hand-written fakes first**; **NSubstitute** only at SDK seams (`IAmazonSQS`, `ServiceBusSender`, `PublisherServiceApiClient`) | In-memory adapters are real implementations and better fakes. Avoids Moq's past SponsorLink controversy |
 | Property-based | FsCheck 2 | **CsCheck** | C#-first, good shrinking, and `SampleParallel` **linearisability checking** for concurrent append and outbox |
-| Snapshots | — | **Verify** (+ Verify.SourceGenerators) | Generated code, public API and golden SQL |
+| Snapshots | — | **Approved-file snapshots** (in-repo helper in `SourceFlow.Testing`; `*.received`/`*.approved` files, diff on failure) | Generated code, public API and golden SQL |
 | Analyzer tests | — | **Microsoft.CodeAnalysis.CSharp.Testing** | Diagnostics and code fixes |
 | Containers | Testcontainers.LocalStack | **Testcontainers** (PostgreSql, MsSql, LocalStack); Pub/Sub and Service Bus emulators through Testcontainers modules where available, otherwise the existing compose files (`.github/emulators`) | Reuses what already works in v2 CI |
 | Time | `DateTime.UtcNow` | **Microsoft.Extensions.TimeProvider.Testing** (`FakeTimeProvider`) | Deterministic timers and leases |
@@ -31,29 +31,24 @@
 
 ## 3. Test project layout (`tests/`)
 
-| Project | Kind | Tests | Needs | Runs |
-|---------|------|-------|-------|------|
-| `SourceFlow.Abstractions.Tests` | Unit | UT-ABS | — | PR |
-| `SourceFlow.Generators.Tests` | Unit (generator/analyzer) | GEN | — | PR |
-| `SourceFlow.Net.Tests` | Unit + in-memory conformance | UT-MSG/STO/RT/CMD/MW/DIAG/OUT/RX/DLQ/SUB/PRJ/PM/HOST/CAT/QL/SNAP/TOP/HC/RED, SCK (in-memory), TCK (in-memory) | — | PR |
-| `SourceFlow.Testing.Tests` | Unit | UT-TST | — | PR |
-| `SourceFlow.PostgreSql.Tests` | Integration | SCK (PostgreSQL), SCK-M, QRY (PostgreSQL), PERF smoke | Docker | PR (PostgreSQL 17), nightly (15/16/17 + partitioned variant) |
-| `SourceFlow.SqlServer.Tests` | Integration | SCK (SQL Server), QRY (SQL Server) | Docker | PR (2022), nightly (2022/2025) |
-| `SourceFlow.EntityFrameworkCore.Tests` | Integration | UT-EF, SCK-61..64 | Docker | PR |
-| `SourceFlow.AmazonSqs.Tests` | Unit + TCK | UT-AWS, TCK | LocalStack / AWS | PR (unit + LocalStack), nightly (real AWS) |
-| `SourceFlow.GooglePubSub.Tests` | Unit + TCK | UT-GCP, TCK | Pub/Sub emulator / GCP | PR + nightly |
-| `SourceFlow.AzureServiceBus.Tests` | Unit + TCK | UT-ASB, TCK | Service Bus emulator / Azure | PR + nightly |
-| `SourceFlow.Security.Tests` | Unit + integration | UT-SEC, UT-PII, KMS round trips | LocalStack KMS / real KMS | PR + nightly |
-| `SourceFlow.AspNetCore.Tests` | Unit (`WebApplicationFactory`) | UT-ASP | — | PR |
-| `SourceFlow.OpenTelemetry.Tests` | Unit | UT-OTEL | — | PR |
-| `SourceFlow.Tool.Tests` | Unit + integration | UT-CLI, MIG | Docker for MIG | PR |
-| `SourceFlow.E2E.Tests` | End to end | E2E (parameterised over transports and stores) | Docker + emulators | PR (in-memory + PostgreSQL + emulators), nightly (real cloud) |
-| `SourceFlow.Chaos.Tests` | Chaos | CH | Docker, Toxiproxy | Nightly, milestone exits |
-| `SourceFlow.Architecture.Tests` | Rules | ARCH | — | PR |
-| `SourceFlow.Workflows.Tests`, `SourceFlow.Workflows.E2E.Tests`, `studio/**` (Vitest, Playwright) | Track S (plan 10 §3) | UT-WF, UT-MAN, WF-GOLD, WF-DIFF, WF-E2E, STU-*, WASM-* | Docker (E2E), browsers | PR + nightly |
+One test project per source category ([ADR-027 §7](../ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md#7-repository-and-test-layout)). Traits select subsets, so CI fans out by trait instead of by project. `InternalsVisibleTo` is granted to `SourceFlow.<Category>.Tests`.
+
+| Project (`tests/<Category>/`) | Kind | Tests | Needs | Runs |
+|-------------------------------|------|-------|-------|------|
+| `Core/SourceFlow.Core.Tests` | Unit + in-memory conformance | UT-ABS, UT-MSG/STO/RT/CMD/MW/DIAG/OUT/RX/DLQ/SUB/PRJ/PM/HOST/CAT/QL/SNAP/TOP/HC/RED, UT-SEC, UT-PII, UT-OTEL, SCK (in-memory), TCK (in-memory) | — | PR |
+| `Core/SourceFlow.Generators.Tests` | Unit (generator/analyzer) | GEN (incl. the workflow generator GEN-56..64) | — | PR |
+| `Storage/SourceFlow.Storage.Tests` | Integration | SCK, SCK-M, QRY, PERF smoke, UT-EF, SCK-61..64. Trait `Provider=PostgreSQL\|SqlServer\|EfCore` | Docker | PR (PostgreSQL 17, SQL Server 2022), nightly (PostgreSQL 15/16/17 + partitioned variant, SQL Server 2022/2025) |
+| `Cloud/SourceFlow.Cloud.Tests` | Unit + TCK + KMS | UT-AWS, UT-GCP, UT-ASB, TCK, KMS round trips. Trait `Cloud=Aws\|Azure\|Gcp` | LocalStack, Pub/Sub emulator, Service Bus emulator / real clouds | PR (unit + emulators), nightly (real clouds) |
+| `Hosting/SourceFlow.Hosting.Tests` | Unit (`WebApplicationFactory`) | UT-ASP | — | PR |
+| `Tooling/SourceFlow.Tooling.Tests` | Unit + integration | UT-TST, UT-CLI, MIG | Docker for MIG | PR |
+| `Workflows/SourceFlow.Studio.Tests`, `studio/**` (Vitest, Playwright) | Track S (plan 10 §3) | UT-WF, UT-MAN, WF-GOLD, WF-DIFF, STU-*, WASM-* | Browsers | PR + nightly |
+| `EndToEnd/SourceFlow.EndToEnd.Tests` | End to end + chaos | E2E (parameterised over transports and stores), WF-E2E (`Category=Workflow`), CH (`Category=Chaos`) | Docker + emulators, Toxiproxy | PR (in-memory + PostgreSQL + emulators), nightly (real cloud, chaos), milestone exits (chaos) |
+| `Architecture/SourceFlow.Architecture.Tests` | Rules | ARCH | — | PR |
 | `benchmarks/SourceFlow.Benchmarks` | Performance | PERF | Docker (component) | PR (micro), nightly (component) |
 
-The conformance kits themselves (`StorageConformanceTests`, `TransportConformanceTests`) ship in **`src/SourceFlow.Testing`**, so third-party adapter authors can run them too.
+The v2 project `tests/SourceFlow.Core.Tests` has the same name as the v3 `tests/Core/SourceFlow.Core.Tests` but a different folder. It is outside `SourceFlow.slnx` and is deleted in WP-1.R.
+
+The conformance kits themselves (`StorageConformanceTests`, `TransportConformanceTests`) ship in **`src/Tooling/SourceFlow.Testing`**, so third-party adapter authors can run them too.
 
 ## 4. Conventions
 
@@ -69,15 +64,14 @@ Coverage is measured per package on the **merged** report of unit + integration 
 
 | Package | Line | Branch | Notes |
 |---------|------|--------|-------|
-| `SourceFlow.Abstractions` | 95 % | 90 % | Small, critical contracts |
+| `SourceFlow.Net`, namespace `SourceFlow` (contracts) | 95 % | 90 % | Small, critical contracts (filtered by namespace in the report) |
+| `SourceFlow.Net` (whole assembly) | **90 %** | **85 %** | Runtime core, SPIs, in-memory adapters, security middleware, diagnostics |
 | `SourceFlow.Generators` | 90 % | 85 % | Every emitter path and diagnostic |
-| `SourceFlow.Net` | **90 %** | **85 %** | Runtime core |
 | `SourceFlow.Testing` | 85 % | 75 % | |
-| `SourceFlow.PostgreSql`, `SourceFlow.SqlServer` | 90 % | 80 % | Mostly through the SCK |
-| `SourceFlow.EntityFrameworkCore` | 85 % | 75 % | |
-| `SourceFlow.AmazonSqs`, `.AzureServiceBus`, `.GooglePubSub` | 85 % | 75 % | Unit + emulator TCK. Real-cloud-only branches are listed in exclusions with a reason |
-| `SourceFlow.Security.*` | 90 % | 80 % | |
-| `SourceFlow.AspNetCore`, `SourceFlow.OpenTelemetry` | 90 % | 80 % | |
+| `SourceFlow.Storage.PostgreSQL`, `SourceFlow.Storage.SqlServer` | 90 % | 80 % | Mostly through the SCK |
+| `SourceFlow.Storage.EntityFrameworkCore` | 85 % | 75 % | |
+| `SourceFlow.Cloud.Aws`, `.Azure`, `.Gcp` | 85 % | 75 % | Unit + emulator TCK + KMS. Real-cloud-only branches are listed in exclusions with a reason |
+| `SourceFlow.AspNetCore` | 90 % | 80 % | |
 | `SourceFlow.Tool` | 80 % | 70 % | Command handlers covered; console formatting partially |
 | Track S packages and `studio/` | see [plan 10 §3.4](10-Studio-Workflow-Track-Plan.md#34-coverage-targets-adds-to-plan-04-5) | | Includes TypeScript coverage via Vitest |
 
@@ -90,11 +84,11 @@ Coverage is measured per package on the **merged** report of unit + integration 
 
 ## 6. Public API approval
 
-Each package's test project has `PublicApi_IsApproved` (Verify snapshot of `PublicApiGenerator` output). An API change needs the approved file updated in the same PR, plus a reviewer from the architecture group. The API freezes at **M1 exit** for `Abstractions` and the `SourceFlow.Net` surface (design doc 11 §1). After the freeze, changes need an ADR or a design-doc update.
+Each package has a `PublicApi_IsApproved` test in its category test project (approved-file snapshot of `PublicApiGenerator` output). An API change needs the approved file updated in the same PR, plus a reviewer from the architecture group. The API freezes at **M1 exit** for the `SourceFlow.Net` surface (contracts and SPIs) (design doc 11 §1). After the freeze, changes need an ADR or a design-doc update.
 
 ## 7. Requirement and rule traceability
 
-- `tests/traceability.csv` lists every ID that must be covered: design rules (ES-R1, ES-R2, RX-R1…R6, RT-R1…R6, Q-R1…R6, Q-B1…B6, DM-R1…R6, G-1…G-12, query-API injection rules I-1…I-8 and S-1…S-6), ADR-001…026, GAP-01…20, product Q1–Q7 decisions, and doc 01 §2 quality scenarios.
+- `tests/traceability.csv` lists every ID that must be covered: design rules (ES-R1, ES-R2, RX-R1…R6, RT-R1…R6, Q-R1…R6, Q-B1…B6, DM-R1…R6, G-1…G-12, query-API injection rules I-1…I-8 and S-1…S-6), ADR-001…027, GAP-01…20, product Q1–Q7 decisions, and doc 01 §2 quality scenarios.
 - **ARCH-08** reflects over every test assembly, collects the `Covers` traits, and **fails if any ID in the CSV has no test**. Uncovered IDs therefore block the build.
 
 ## 8. Flakiness and hygiene

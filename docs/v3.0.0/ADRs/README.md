@@ -39,3 +39,4 @@ Every ADR is **Proposed** until the v3 architecture review. "Traces" lists the [
 | [ADR-024](ADR-024-workflow-dsl-compiled-to-process-managers.md) | Workflow DSL (YAML) compiled to process managers | Proposed |
 | [ADR-025](ADR-025-studio-react-spa-with-shared-wasm-core.md) | SourceFlow Studio: React SPA with a shared WebAssembly core, hosted locally | Proposed |
 | [ADR-026](ADR-026-per-service-query-api-with-sql-syntax-and-injection-proof-compilation.md) | Per-service query API with a SQL syntax and injection-proof compilation | Proposed |
+| [ADR-027](ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md) | Single core package with extensibility SPIs, and categorised adapter packages | Accepted |

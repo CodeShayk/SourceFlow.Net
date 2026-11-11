@@ -26,4 +26,4 @@ Reflection with caching (v2 listeners). It still isn't AOT-safe and still fails 
 
 ## Consequences
 
-(+) AOT, faster startup, errors at compile time. (−) Generator maintenance cost; users need the generator in their build (it ships inside `SourceFlow.Abstractions`).
+(+) AOT, faster startup, errors at compile time. (−) Generator maintenance cost; users need the generator in their build (it ships inside `SourceFlow.Net` under `analyzers/dotnet/cs`; it targets `netstandard2.0` as a compiler plugin, the only non-`net10.0` project, see [ADR-027](ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md)).

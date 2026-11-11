@@ -20,7 +20,7 @@ Dependency review runs on every PR (`actions/dependency-review-action`). Renovat
 
 ```mermaid
 flowchart LR
-    B[build<br/>ubuntu + windows<br/>-warnaserror, AOT publish check] --> U[unit<br/>Abstractions, Generators, Net,<br/>Testing, AspNetCore, OTel, Architecture]
+    B[build<br/>ubuntu + windows<br/>-warnaserror, AOT publish check] --> U[unit<br/>Core, Generators, Hosting,<br/>Tooling, Studio, Architecture]
     B --> S[storage<br/>PostgreSQL 17 SCK + QRY<br/>SQL Server 2022 from M4]
     B --> T[transports matrix<br/>LocalStack · Pub/Sub emu · Service Bus emu<br/>UT + TCK]
     U & S & T --> E[e2e<br/>in-memory + PostgreSQL × emulators]
@@ -32,14 +32,14 @@ flowchart LR
 | Job | Details |
 |-----|---------|
 | build | `dotnet build SourceFlow.slnx -c Release -warnaserror` on `ubuntu-latest` and `windows-latest`. `dotnet publish samples/Bank/Bank.Api -p:PublishAot=true` (ARCH-06) on Linux |
-| unit | `dotnet test --filter "Category=Unit\|Category=Conformance&Requires!=Docker"` with coverage collection. Includes the in-memory SCK and TCK |
+| unit | `dotnet test --solution SourceFlow.slnx --filter-trait "Category=Unit" --filter-trait "Category=Conformance" --filter-not-trait "Requires=Docker"` (Microsoft.Testing.Platform runner, opted in by `global.json`; repeated `--filter-trait` options are OR-ed) with coverage collection. Includes the in-memory SCK and TCK |
 | storage | Testcontainers PostgreSQL 17 (SQL Server 2022 from M4). SCK, SCK-M, QRY-21..45 |
 | transports | Matrix over `aws` (LocalStack `3.x` pinned), `gcp` (Pub/Sub emulator), `azure` (Service Bus emulator + SQL Edge). Each runs its unit tests plus the emulator TCK subset |
 | e2e | E2E scenarios for in-memory + PostgreSQL, parameterised over the three emulators (E2E-17..24) |
 | coverage | ReportGenerator merges all Cobertura files. `tools/coverage-gate` applies plan 04 §5 thresholds per package and the "no drop > 0.5 pt" rule against the `v3.0.0` base. A summary is posted on the PR |
 | api + traceability | PublicApi approval tests and ARCH-08 fail on unapproved API or uncovered IDs |
-| micro-benchmarks | BenchmarkDotNet short run of PERF-01, PERF-02 and serializer benchmarks. Fail on > 10 % time or any allocation regression versus the stored baseline. Runs when `src/SourceFlow.Net/**` or `src/SourceFlow.Abstractions/**` changes |
-| pack | `dotnet pack` all packages (verifies the generator is packed into Abstractions, package metadata, README, icon) |
+| micro-benchmarks | BenchmarkDotNet short run of PERF-01, PERF-02 and serializer benchmarks. Fail on > 10 % time or any allocation regression versus the stored baseline. Runs when `src/Core/**` changes |
+| pack | `dotnet pack` all packages (verifies the generator is packed into `SourceFlow.Net` under `analyzers/dotnet/cs`, every `lib/` folder is `net10.0` only, package metadata, README, icon) |
 
 ## 3. `v3-nightly.yml` jobs
 
@@ -99,4 +99,4 @@ Publishing to NuGet.org was disabled in v2's `Release-CI`. It is enabled for v3 
 
 ## 8. Branch protection for `v3.0.0`
 
-Required status checks: `build (ubuntu)`, `build (windows)`, `unit`, `storage`, `transports (aws|gcp|azure)`, `e2e`, `coverage`, `api-traceability`, `codeql`. Also required: one code-owner review (two for `src/SourceFlow.Abstractions/**` and `Storage/**`), up-to-date branches, squash-merge only, signed commits recommended, and no force-push or deletion (until WP-6.3).
+Required status checks: `build (ubuntu)`, `build (windows)`, `unit`, `storage`, `transports (aws|gcp|azure)`, `e2e`, `coverage`, `api-traceability`, `codeql`. Also required: one code-owner review (two for `src/Core/**` and `src/Storage/**`), up-to-date branches, squash-merge only, signed commits recommended, and no force-push or deletion (until WP-6.3).

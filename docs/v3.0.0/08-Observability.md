@@ -10,17 +10,17 @@ Design driver: [ADR-019](ADRs/ADR-019-telemetry-always-on-with-standard-semantic
 |--------|------|---------|
 | `ActivitySource` | `SourceFlow` | package version |
 | `Meter` | `SourceFlow` | package version |
-| Logger categories | `SourceFlow.*` (for example `SourceFlow.Commands`, `SourceFlow.Subscriptions`, `SourceFlow.Transport.Aws`) | — |
+| Logger categories | `SourceFlow.*` (for example `SourceFlow.Commands`, `SourceFlow.Subscriptions`, `SourceFlow.Cloud.Aws`) | — |
 
 Both are **always created** ([ADR-019](ADRs/ADR-019-telemetry-always-on-with-standard-semantic-conventions.md)). Without a listener, a span start costs one null check and an instrument update is a no-op. The one-line opt-in for users is:
 
 ```csharp
 builder.Services.AddOpenTelemetry()
-    .WithTracing(t => t.AddSourceFlowInstrumentation())     // AddSource("SourceFlow") + sampler hints
-    .WithMetrics(m => m.AddSourceFlowInstrumentation());     // AddMeter("SourceFlow") + histogram views
+    .WithTracing(t => t.AddSource(SourceFlowTelemetry.ActivitySourceName))   // "SourceFlow"
+    .WithMetrics(m => m.AddMeter(SourceFlowTelemetry.MeterName));           // "SourceFlow"
 ```
 
-The library depends on `System.Diagnostics` only. The OpenTelemetry SDK is the *user's* dependency, through a tiny `SourceFlow.OpenTelemetry` extension package that holds those two methods.
+The library depends on `System.Diagnostics` only, and there is no separate OpenTelemetry package ([ADR-027 §5](ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md#5-opentelemetry-without-an-extra-package)). Histogram bucket boundaries are declared on the instruments with `InstrumentAdvice<T>` (.NET 9+), so no SDK views are needed. The OpenTelemetry SDK stays the *user's* dependency.
 
 ## 2. Tracing
 

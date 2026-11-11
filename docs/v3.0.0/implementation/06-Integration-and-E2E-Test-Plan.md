@@ -85,7 +85,7 @@ Isolation: every test uses a unique prefix (`t{testId}{random}`) for schemas, qu
 
 v2 suites **not** carried into the TCK: the LocalStack harness self-tests, the CI timeout exploration and IAM policy-syntax tests. Their reasons are in [plan 07](07-V2-Test-Disposition-Matrix.md).
 
-## 4. End-to-end scenarios (`SourceFlow.E2E.Tests`, Bank sample)
+## 4. End-to-end scenarios (`SourceFlow.EndToEnd.Tests`, Bank sample)
 
 | ID | Scenario | Store × transport | Covers | v2 lineage |
 |----|----------|-------------------|--------|------------|
@@ -110,7 +110,7 @@ v2 suites **not** carried into the TCK: the LocalStack harness self-tests, the C
 | E2E-25..28 | CLI against PostgreSQL: `dlq replay`, `projection rebuild`, `topology validate`, `query --explain` | PostgreSQL × mem | doc 04 §9.3, doc 14 | new |
 | E2E-29..31 | Erasure: erase a customer → events read `[erased]`; the summary is scrubbed; a SFQL filter on a PII field is rejected | PostgreSQL × mem | doc 10 §4 | new |
 
-## 5. Chaos (`SourceFlow.Chaos.Tests`, nightly)
+## 5. Chaos (`SourceFlow.EndToEnd.Tests`, `Category=Chaos`, nightly)
 
 | ID | Fault | Expected |
 |----|-------|----------|
@@ -120,7 +120,7 @@ v2 suites **not** carried into the TCK: the LocalStack harness self-tests, the C
 | CH-09 | SIGSTOP a node longer than the lease TTL | Leases move; the resumed node's commits fail on fencing |
 | CH-10 | A long write transaction held for 2 min | Subscriptions pause; the `horizon_age` alert fires; nothing is skipped after release |
 
-## 6. Migration (`SourceFlow.Tool.Tests`, MIG)
+## 6. Migration (`SourceFlow.Tooling.Tests`, MIG)
 
 A fixture creates a **v2 database** with the v2 `CommandRecord` DDL and entity tables, seeded by replaying the v2 E2E account scenario rows as SQL (no v2 code reference).
 
@@ -137,8 +137,8 @@ A fixture creates a **v2 database** with the v2 `CommandRecord` DDL and entity t
 
 | ID | Case | Where |
 |----|------|-------|
-| QRY-01..20 | Every doc 14 §10 example (A–F), plus domain queries, against the in-memory interpreter with expected rows | `SourceFlow.Net.Tests` |
-| QRY-21..35 | Golden SQL (Verify) for PostgreSQL and SQL Server per example; parameterisation (no literals in SQL text) | PostgreSQL and SQL Server test projects |
+| QRY-01..20 | Every doc 14 §10 example (A–F), plus domain queries, against the in-memory interpreter with expected rows | `SourceFlow.Core.Tests` |
+| QRY-21..35 | Golden SQL (approved files) for PostgreSQL and SQL Server per example; parameterisation (no literals in SQL text) | `SourceFlow.Storage.Tests` (`Provider=PostgreSQL\|SqlServer`) |
 | QRY-36..40 | **Cross-provider equivalence**: the same query over the same seeded data → identical rows (in-memory, PostgreSQL, SQL Server) | storage test projects |
 | QRY-41..43 | Tenancy: implicit tenant predicate; RLS backstop; `tenants = 'all'` needs a permission | PostgreSQL |
 | QRY-44..45 | Consistency: `horizon` pages are monotonic; `at_least(token)` waits on a replica checkpoint | PostgreSQL (primary + replica container) |
@@ -167,10 +167,10 @@ A fixture creates a **v2 database** with the v2 `CommandRecord` DDL and entity t
 
 | ID | Rule |
 |----|------|
-| ARCH-01 | `SourceFlow.Abstractions` references only the BCL |
-| ARCH-02 | `SourceFlow.Net` references only Abstractions, `Microsoft.Extensions.*`, `System.*` and Polly |
-| ARCH-03 | Core never references an adapter package (no reflection loading either; checked by scanning for `Type.GetType`/`Assembly.Load*` in core) |
-| ARCH-04 | Sample domain projects reference only `SourceFlow.Abstractions` |
+| ARCH-01 | `SourceFlow.Net` references only the BCL, `Microsoft.Extensions.*`, Polly and `Microsoft.Extensions.Resilience` (no cloud SDK, database driver or OpenTelemetry SDK) |
+| ARCH-02 | Core never references an adapter package (no reflection loading either; checked by scanning for `Type.GetType`/`Assembly.Load*` in core) |
+| ARCH-03 | Adapter packages (`SourceFlow.Storage.*`, `SourceFlow.Cloud.*`, `SourceFlow.AspNetCore`) reference `SourceFlow.Net` and their own SDK only, never each other |
+| ARCH-04 | Sample domain projects reference only `SourceFlow.Net` and use only the `SourceFlow` and `SourceFlow.Workflows` namespaces (no `Runtime`, `Storage`, `Transport`, `Security`, `Hosting` or `Diagnostics` types) |
 | ARCH-05 | No `Activator.CreateInstance`, `MakeGenericMethod` or `Type.GetType(string)` in runtime packages (HP-1) |
 | ARCH-06 | Trim and AOT analysis warnings = 0 for AOT-marked packages (`dotnet publish -p:PublishAot=true` of a sample) |
 | ARCH-07 | Public types in adapters are `sealed` unless designed for extension |

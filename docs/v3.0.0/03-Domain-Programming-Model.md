@@ -152,7 +152,7 @@ public static class AccountErrors
 }
 ```
 
-### 4.1 Core types (in `SourceFlow.Abstractions`)
+### 4.1 Core types (namespace `SourceFlow` in `SourceFlow.Net`)
 
 ```csharp
 public interface IAggregate<TSelf, TId> where TSelf : IAggregate<TSelf, TId> where TId : struct, IStronglyTypedId<TId>
@@ -497,8 +497,8 @@ builder.Services.AddSourceFlow(sf =>
 });
 
 builder.Services.AddOpenTelemetry()
-    .WithTracing(t => t.AddSourceFlowInstrumentation().AddOtlpExporter())
-    .WithMetrics(m => m.AddSourceFlowInstrumentation().AddOtlpExporter());
+    .WithTracing(t => t.AddSource(SourceFlowTelemetry.ActivitySourceName).AddOtlpExporter())
+    .WithMetrics(m => m.AddMeter(SourceFlowTelemetry.MeterName).AddOtlpExporter());
 
 builder.Services.AddHealthChecks().AddSourceFlow();              // readiness, store, transport, lag, outbox age
 ```

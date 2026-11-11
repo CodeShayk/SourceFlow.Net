@@ -22,7 +22,7 @@ v3 is a **new major version**. It is neither source- nor binary-compatible with 
 | Saga publishing follow-up commands | Process manager `Reaction.Send` | Through the outbox, durable |
 | `View<TVM>` + `IProjectOn<E>` | `IDocumentProjection<TDoc, TKey>` / `IEfProjection<TDb>` | Inline or async, rebuildable |
 | `ICommandStore` / `IEntityStore` / `IViewModelStore` | `IEventStore` (+ snapshots) / document store / EF Core read models | |
-| `AddSourceFlowEfStores(...)` | `sf.UsePostgreSql(...)` / `sf.UseSqlServer(...)` (+ `SourceFlow.EntityFrameworkCore` for read models) | |
+| `AddSourceFlowEfStores(...)` | `sf.UsePostgreSql(...)` / `sf.UseSqlServer(...)` (+ `SourceFlow.Storage.EntityFrameworkCore` for read models) | |
 | `ReplayCommands(id)` | Not needed for state (loading *is* replaying events). `dotnet sourceflow projection rebuild` for read models. | Side-effect free |
 | `ICommandDispatchMiddleware`, `ICommandSubscribeMiddleware`, `IEventDispatchMiddleware`, `IEventSubscribeMiddleware` | `IMessageMiddleware` with `PipelineStage` | |
 | `UseSourceFlowAws(o, bus, idem)` / `UseSourceFlowGcp(...)` | `sf.UseAmazonSqs(...)` / `sf.UseGooglePubSub(...)` / `sf.UseAzureServiceBus(...)` | Options are honoured |
@@ -35,7 +35,7 @@ v3 is a **new major version**. It is neither source- nor binary-compatible with 
 | `ICircuitBreaker` / `CircuitBreakerOptions` | Polly `ResiliencePipeline` (`sf.Resilience(...)`) | |
 | `IMessageEncryption` / `AwsKmsMessageEncryption` | `sf.Security(s => s.UseAwsKms(...))` | |
 | `[SensitiveData]` / `SensitiveDataMasker` | `[PersonalData]` + M.E.Compliance.Redaction + crypto-shredding | |
-| `AddSourceFlowTelemetry(...)` / `DomainObservabilityOptions` | Always on. `AddSourceFlowInstrumentation()` on the OTel builders | |
+| `AddSourceFlowTelemetry(...)` / `DomainObservabilityOptions` | Always on. `AddSource(SourceFlowTelemetry.ActivitySourceName)` / `AddMeter(SourceFlowTelemetry.MeterName)` on the OTel builders | |
 
 ## 3. Data migration (`dotnet sourceflow migrate v2`)
 
@@ -78,7 +78,7 @@ The milestones run in sequence. Each has exit criteria, and none is complete unt
 | Milestone | Scope | Exit criteria |
 |-----------|-------|---------------|
 | **M0 Foundations** | New repo layout and `Directory.Build.props` (net10.0, C# 14, AOT/trim analysis, warnings as errors); CI pipelines; benchmark harness; architecture tests; ADR review | ADRs accepted; empty packages build, sign and publish to the feed |
-| **M1 Core and programming model** | `Abstractions`, generators and analyzers SF0001–SF0017, type registry, **schema catalog generation** (JSON Schema), STJ serialiser, middleware, command processor (with consistency tokens), tenant context, in-memory store and transport, **SFQL parser, binder and in-memory interpreter**, `SourceFlow.Testing` specs and test host | The bank-account sample runs end to end in memory, including SFQL queries; specs and CESQL TCK pass; public API frozen (approval files) |
+| **M1 Core and programming model** | `SourceFlow.Net` contracts and SPIs, generators and analyzers SF0001–SF0017, type registry, **schema catalog generation** (JSON Schema), STJ serialiser, middleware, command processor (with consistency tokens), tenant context, in-memory store and transport, **SFQL parser, binder and in-memory interpreter**, `SourceFlow.Testing` specs and test host | The bank-account sample runs end to end in memory, including SFQL queries; specs and CESQL TCK pass; public API frozen (approval files) |
 | **M2 PostgreSQL and projections** | PostgreSQL adapter (every port, tenant columns, tags, archive flag), migrations, outbox relay, inbox, scheduler, subscription engine (partitions, leases, fencing), document store, EF Core projections, snapshots, cache, **row-level security**, **SFQL PostgreSQL compiler**, `[Queryable]` index sync, temporal reads | Storage conformance kit green (including SFQL cross-provider and tenant-isolation cases); gap-freedom property test green; doc 09 component targets met |
 | **M3 Transports** | Transport SPI and TCK first; then AWS SNS/SQS, Google Pub/Sub and Azure Service Bus **in parallel** (three workstreams); provisioning modes; DLQ ingestor; topology export | TCK green on emulators for all three, and nightly against real cloud; cross-service sample (accounts ↔ payments) works on each |
 | **M4 Operations** | `dotnet sourceflow` CLI (dlq, projection, topology, db, **query, schema check and export, AsyncAPI**), `SourceFlow.AspNetCore` (`MapCommand`, opt-in `MapSourceFlowQuery`), health checks, dashboards and alerts, SQL Server adapter (+ SFQL compiler), `PartitionEvents`, stream archiving | SQL Server passes the storage CK; chaos suite green; tier-M load test meets the SLOs in doc 08 §6 |
@@ -93,8 +93,8 @@ The workflow DSL and Studio are a **separate utility on their own release train*
 
 | Studio milestone | Scope | Depends on | Exit criteria |
 |------------------|-------|------------|---------------|
-| **S1 Manifests + DSL core** | Service manifests (static + design-time export), `[Emits]`/`[Rejects]`, SF0019; `SourceFlow.Workflows` parser, validator (WF-V01…V16), simulator, path enumerator | v3 M1 (generator, schema catalog, CESQL evaluator) | DSL golden suite green; manifests regenerate with no drift on the Bank sample |
-| **S2 Code generation + runtime support** | `WorkflowGenerator`, `SourceFlow.Workflows.Abstractions`, operator commands, workflow metrics, CLI `workflow …` | S1, v3 M2 (PostgreSQL process state) | **Differential tests**: simulator ≡ generated process manager on every enumerated path; order-fulfilment E2E green in memory |
+| **S1 Manifests + DSL core** | Service manifests (static + design-time export), `[Emits]`/`[Rejects]`, SF0019; `SourceFlow.Studio` parser, validator (WF-V01…V16), simulator, path enumerator | v3 M1 (generator, schema catalog, CESQL evaluator) | DSL golden suite green; manifests regenerate with no drift on the Bank sample |
+| **S2 Code generation + runtime support** | `WorkflowGenerator`, workflow runtime types (namespace `SourceFlow.Workflows` in `SourceFlow.Net`), operator commands, workflow metrics, CLI `workflow …` | S1, v3 M2 (PostgreSQL process state) | **Differential tests**: simulator ≡ generated process manager on every enumerated path; order-fulfilment E2E green in memory |
 | **S3 Studio designer** | WASM core, React SPA (domain map, statechart, swimlane, editor, simulation, path explorer, spec generation), local host `dotnet sourceflow studio` | S1 (S2 for spec generation) | Playwright suite green; accessibility (axe) clean; performance budgets met |
 | **S4 Exports + PR diagrams + hardening** | SVG/PNG/Mermaid/BPMN export, static build, `workflow-diff` GitHub Action, docs and samples | S3, v3 M3 (cross-service E2E on cloud transports) | Order fulfilment E2E green on AWS, Azure and Google Cloud; Studio 1.0 RC |
 | *Studio 1.1* | Observe mode (live overlay through domain queries) | v3 GA | — |

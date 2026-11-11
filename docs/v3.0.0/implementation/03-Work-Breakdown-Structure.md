@@ -32,7 +32,7 @@ Every WP also meets the Definition of Done in [plan 09 §1](09-Definition-of-Don
 - **Acceptance**: GitVersion yields `3.0.0-alpha.1` on `v3.0.0` and `3.0.0-v3-wp-…` on a sample work branch (verified in CI logs). `master` versioning is unchanged.
 
 ### WP-0.2 Repository scaffold · 1 ew · depends: WP-0.1
-- **Deliverables**: `global.json`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`, `SourceFlow.slnx`. Empty projects for every v3 package in plan 02 §3, with correct references and the dependency rules from design doc 01 §5. Matching empty test projects (plan 04 §3). `samples/Bank/*` and `benchmarks/SourceFlow.Benchmarks` skeletons.
+- **Deliverables**: `global.json`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`, `SourceFlow.slnx`. Empty projects for every v3 package in plan 02 §3 (categorised `src/<Category>/`), with correct references and the dependency rules from design doc 01 §5. One test project per category (plan 04 §3). `samples/Bank/*` and `benchmarks/SourceFlow.Benchmarks` skeletons.
 - **Tasks**: delete `SourceFlow.Net.sln` and `tests/SourceFlow.Net.EntityFramework.Tests`; remove v2 projects from the build (folders kept, plan 02 §4); verify package majors against nuget.org and pin them; enable SourceLink and deterministic builds.
 - **Tests**: ARCH-01..05 (stubs that already pass on empty projects).
 - **Acceptance**: `dotnet build SourceFlow.slnx -c Release` and `dotnet test` succeed on Windows and Linux with zero warnings. The v2 folders are not part of the build.
@@ -42,7 +42,7 @@ Every WP also meets the Definition of Done in [plan 09 §1](09-Definition-of-Don
 - **Acceptance**: a PR into `v3.0.0` runs build + unit + architecture + API-approval jobs. Nightly runs on schedule. Emulators start healthy in a smoke job.
 
 ### WP-0.4 Quality harness · 1 ew · depends: WP-0.2
-- **Deliverables**: `tests/SourceFlow.Architecture.Tests` (NetArchTest rules ARCH-01..08); a public-API approval helper (PublicApiGenerator + Verify) in each package test project; coverage collection (coverlet) + ReportGenerator merge + `tools/coverage-gate` script (plan 04 §5); BenchmarkDotNet harness with a baseline-comparison script (plan 08 §4).
+- **Deliverables**: `tests/Architecture/SourceFlow.Architecture.Tests` (NetArchTest rules ARCH-01..08); a public-API approval helper (PublicApiGenerator + approved-file snapshots) used by each category test project; coverage collection (coverlet) + ReportGenerator merge + `tools/coverage-gate` script (plan 04 §5); BenchmarkDotNet harness with a baseline-comparison script (plan 08 §4).
 - **Acceptance**: the gate fails a PR that lowers coverage below the thresholds or changes public API without approval files.
 
 ### WP-0.5 Design baseline · 0.5 ew · depends: —
@@ -53,7 +53,7 @@ Every WP also meets the Definition of Done in [plan 09 §1](09-Definition-of-Don
 
 ## M1 — Core runtime and programming model (37 ew)
 
-### WP-1.1 `SourceFlow.Abstractions` · 1.5 ew · depends: WP-0.2
+### WP-1.1 Core contracts and SPIs (`SourceFlow.Net`) · 1.5 ew · depends: WP-0.2
 - **Design**: doc 03 §2–4, §6; ADR-003, 005, 015, 018, 020, 022, 023.
 - **v2 input**: `src/SourceFlow/Messaging/*` (Command, Event, Metadata), `Saga/*`, `Projections/*`, `Aggregate/*`. These show what v3 replaces: payload wrappers, mutable metadata, int ids, `IHandlesWithEvent`.
 - **Deliverables**:
@@ -65,7 +65,8 @@ Every WP also meets the Definition of Done in [plan 09 §1](09-Definition-of-Don
   - `Modules.cs`: `ISourceFlowModuleBuilder`, `ISourceFlowModule`.
   - `Queries.cs`: `IDomainQuery<TRow>`.
 - **Tests**: UT-ABS-01..18.
-- **Acceptance**: the package references the BCL only (ARCH-01). Public API approved.
+  - SPI namespaces (interfaces only in this WP; implementations follow): `SourceFlow.Storage`, `SourceFlow.Transport`, `SourceFlow.Security`, `SourceFlow.Query`, `SourceFlow.Pipeline`, `SourceFlow.Diagnostics`, and `SourceFlow.Hosting.SourceFlowBuilder` with one `Use*` slot per SPI ([ADR-027](../ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md)).
+- **Acceptance**: `SourceFlow.Net` references only the BCL and `Microsoft.Extensions.*` (ARCH-01). Domain types live in the `SourceFlow` namespace, which ARCH-04 checks for domain code. Public API approved.
 
 ### WP-1.2 `SourceFlow.Generators` (generators + analyzers) · 4 ew · depends: WP-1.1
 - **Design**: ADR-004, doc 03 §4.2, §9; DC-1.
@@ -76,7 +77,7 @@ Every WP also meets the Definition of Done in [plan 09 §1](09-Definition-of-Don
   - a strongly typed id generator (`New`, `Parse`, `TryFormat`, JSON converter, `ToStreamSegment`);
   - analyzers SF0001, 0002, 0003, 0004, 0005, 0006, 0007, 0008, 0009, 0010 (with code fix), 0014 in M1. SF0015/0016/0018 come in WP-1.13, and SF0011/0013/0017 in WP-5.2;
   - value-equatable models for incremental caching.
-- **Tasks**: pack into `SourceFlow.Abstractions` (`analyzers/dotnet/cs`); write generated files to `obj/generated` for review; add a doc page "reading generated code".
+- **Tasks**: pack into `SourceFlow.Net` (`analyzers/dotnet/cs`; the project stays `netstandard2.0`, the only non-`net10.0` project); write generated files to `obj/generated` for review; add a doc page "reading generated code".
 - **Tests**: GEN-01..40.
 - **Acceptance**: the sample compiles with zero reflection in dispatch. Generator pipelines are cached (a no-change edit produces no new outputs; GEN-38). Every diagnostic has positive and negative tests.
 
@@ -171,7 +172,7 @@ Every WP also meets the Definition of Done in [plan 09 §1](09-Definition-of-Don
 ### WP-2.1 PostgreSQL schema and migrator · 1.5 ew · depends: WP-1.4
 - **Design**: doc 05 §2, §7, §11; ADR-021 (tags), ADR-022 (tenant columns), doc 14 §2.2 (`schemas`).
 - **v2 input**: `src/SourceFlow.Stores.EntityFramework/Migrations/DbContextMigrationHelper.cs` (avoid its `CREATE TABLE IF NOT EXISTS` and error swallowing), `CommandRecord` indexes.
-- **Deliverables**: `SourceFlow.PostgreSql/Schema/V001__initial.sql` (every table in doc 05 + `schemas`, `nodes`, `collection_aliases`, `subject_streams`), `V002__rls.sql` (optional policies), `V003__partition_events.sql` (opt-in variant); `SchemaMigrator` (advisory lock, `schema_history`); `NpgsqlDataSource` registration (`UsePostgreSql`).
+- **Deliverables**: `SourceFlow.Storage.PostgreSQL/Schema/V001__initial.sql` (every table in doc 05 + `schemas`, `nodes`, `collection_aliases`, `subject_streams`), `V002__rls.sql` (optional policies), `V003__partition_events.sql` (opt-in variant); `SchemaMigrator` (advisory lock, `schema_history`); `NpgsqlDataSource` registration (`UsePostgreSql`).
 - **Tests**: SCK-M01..06 (fresh install, upgrade path, concurrent migrators, `AutoMigrate` off in Production).
 
 ### WP-2.2 PostgreSQL append and stream read · 2 ew · depends: WP-2.1
@@ -198,7 +199,7 @@ Every WP also meets the Definition of Done in [plan 09 §1](09-Definition-of-Don
 - **Deliverables**: `SET LOCAL sourceflow.tenant` per session, subscription role with `BYPASSRLS`, tenant-aware bucket hash, tenant tags on metrics (bounded top-N).
 - **Tests**: SCK-56..60 (cross-tenant read impossible with RLS on; isolation with RLS off is enforced by the runtime).
 
-### WP-2.7 `SourceFlow.EntityFrameworkCore` read models · 2 ew · depends: WP-2.4
+### WP-2.7 `SourceFlow.Storage.EntityFrameworkCore` read models · 2 ew · depends: WP-2.4
 - **Design**: doc 03 §6.3, doc 05 §10.
 - **v2 input**: `SourceFlow.Stores.EntityFramework` naming conventions and multi-provider setup (reuse ideas, not code).
 - **Deliverables**: `IEfProjection<TDbContext>`, a `DbContext` bound to the session connection and transaction, an `IdempotentUpsert` helper, and rebuild support with schema-per-generation.
@@ -232,20 +233,20 @@ Three transport workstreams run **in parallel** after WP-3.1 (product sign-off f
 - **Deliverables**: `TransportCapabilities` finalized; `TransportConformanceTests` with TCK-01..45 (envelope, send/publish/fan-out, ordering, settlement, DLQ backstop, filters with CESQL, provisioning, resilience, shutdown, E2E with core); a fixture contract for emulator and real-cloud runs.
 - **Acceptance**: the in-memory transport passes all 45.
 
-### WP-3.2 `SourceFlow.AmazonSqs` · 4 ew · depends: WP-3.1
+### WP-3.2 `SourceFlow.Cloud.Aws` · 4 ew · depends: WP-3.1
 - **Design**: doc 07 §4 (AWS column), §4.1, §5, §6.
 - **v2 input**: `src/SourceFlow.Cloud.AWS/**` (bootstrapper, dispatchers, listeners, health check); AWS tests (`Sqs*`, `Sns*`, `AwsBusBootstrapperTests`, `BusConfigurationTests`, `AwsRetryPolicyTests`, `AwsServiceThrottlingAndFailureTests`); `AwsOptions` (GAP-03).
 - **Deliverables**: `AwsTransportOptions` → `AWSOptions` and client config (honoured options); sender (`SendMessageBatch`, `PublishBatch`, FIFO group and dedup ids); receiver (long poll, visibility heartbeat, `ChangeMessageVisibility` delay); CloudEvents binary mapping with `sf_ext` overflow; provisioner (queues, FIFO validation, SNS topics, raw-delivery subscriptions with filter policy, queue policy, redrive DLQ; Create/Validate/None); health check; DLQ ingestor.
 - **Tests**: UT-AWS-01..30; TCK-01..45 on LocalStack (PR) and real AWS (nightly).
 - **Acceptance**: TCK green. GAP-02 and GAP-03 regression tests (UT-AWS-05, UT-AWS-12) pass.
 
-### WP-3.3 `SourceFlow.GooglePubSub` · 3.5 ew · depends: WP-3.1
+### WP-3.3 `SourceFlow.Cloud.Gcp` · 3.5 ew · depends: WP-3.1
 - **v2 input**: `src/SourceFlow.Cloud.GCP/**`, `tests/SourceFlow.Cloud.GCP.Tests/**`, `.github/gcp-emulator`.
 - **Deliverables**: options (ProjectId, ADC, emulator detection); sender with ordering keys and publisher ordering; receiver (streaming pull, ack-deadline extension, nack-based delay); provisioner (topics, `{svc}` and `{svc}.{topic}` subscriptions, `enable_message_ordering`, dead-letter policy, filters); health check.
 - **Tests**: UT-GCP-01..25; TCK on the Pub/Sub emulator (PR) and real GCP (nightly).
 - **Acceptance**: TCK green, including fan-out per service (the GAP-13 regression, TCK-12).
 
-### WP-3.4 `SourceFlow.AzureServiceBus` · 4 ew · depends: WP-3.1
+### WP-3.4 `SourceFlow.Cloud.Azure` · 4 ew · depends: WP-3.1
 - **v2 input**: `origin/azure-cloud` `src/SourceFlow.Cloud.Azure/**`, `tests/SourceFlow.Cloud.Azure.Tests/**` (session handling, subscription filtering, emulator CI gate; note the two emulator-divergent session tests excluded there), `.github/azure-emulator`.
 - **Deliverables**: options (`FullyQualifiedNamespace` + `TokenCredential`; connection string in Development only); sender with batching, sessions and duplicate detection; receiver (processor or session processor, lock auto-renew, scheduled re-send for delay); provisioner (queues, topics, `{svc}` subscriptions with `ForwardTo`, correlation filters, `MaxDeliveryCount`); health check.
 - **Tests**: UT-ASB-01..25; TCK on the Service Bus emulator (PR) and real Azure (nightly). Emulator-divergent cases are marked `RealCloudOnly` with a reason.
@@ -278,7 +279,7 @@ Three transport workstreams run **in parallel** after WP-3.1 (product sign-off f
 - **Deliverables**: every check in doc 08 §5; a dashboard and alert generator from the instrument catalogue → `deploy/observability/*.json|yaml`; an Aspire dashboard sample.
 - **Tests**: UT-HC-01..14; a CI drift check (generated files must match).
 
-### WP-4.4 `SourceFlow.SqlServer` + SFQL SQL Server compiler · 4 ew · depends: WP-2.9, WP-2.8
+### WP-4.4 `SourceFlow.Storage.SqlServer` + SFQL SQL Server compiler · 4 ew · depends: WP-2.9, WP-2.8
 - **Design**: doc 05 §5.5 (rowversion, `MIN_ACTIVE_ROWVERSION`, TVP append, `sp_getapplock` for the migrator), doc 14 §10 examples B and G (joins, grouping, parameterisation via `SqlParameter`, `ApplicationIntent=ReadOnly`).
 - **Tests**: the full SCK on SQL Server 2022/2025 (Testcontainers MsSql); QRY cross-provider equivalence.
 
@@ -286,9 +287,10 @@ Three transport workstreams run **in parallel** after WP-3.1 (product sign-off f
 - **Deliverables**: the partitioned-schema variant and a partition-maintenance job (PostgreSQL); `ArchiveStreamAsync`, with exclusion rules in loads, rebuilds and SFQL (`include_archived`).
 - **Tests**: SCK-65..72 (the full SCK also runs on the partitioned variant nightly).
 
-### WP-4.6 `SourceFlow.OpenTelemetry` · 1 ew · depends: WP-1.7
-- **Deliverables**: `AddSourceFlowInstrumentation()` for traces and metrics, histogram views, the pinned semconv version and `OTEL_SEMCONV_STABILITY_OPT_IN` handling.
-- **Tests**: UT-OTEL-01..08 (in-memory exporter).
+### WP-4.6 OpenTelemetry integration (no package) · 1 ew · depends: WP-1.7
+- **Design**: [ADR-027 §5](../ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md#5-opentelemetry-without-an-extra-package) (the former `SourceFlow.OpenTelemetry` package is folded into the core).
+- **Deliverables**: `SourceFlowTelemetry.ActivitySourceName` / `MeterName` constants; histogram bucket boundaries declared with `InstrumentAdvice<T>` (no SDK views); the pinned semconv version and `OTEL_SEMCONV_STABILITY_OPT_IN` handling in `SourceFlow.Diagnostics`; an OpenTelemetry wiring guide and the Bank sample wiring.
+- **Tests**: UT-OTEL-01..08 in `SourceFlow.Core.Tests` (OpenTelemetry SDK in-memory exporter as a test-only dependency).
 
 ### WP-4.7 Chaos suite + tier-M load test · 2.5 ew · depends: WP-3.6, WP-4.4
 - **Deliverables**: CH-01..10 (Toxiproxy, container kill, SIGSTOP, long transaction), and an NBomber load scenario against the Bank API at tier M.
@@ -298,9 +300,9 @@ Three transport workstreams run **in parallel** after WP-3.1 (product sign-off f
 
 ## M5 — Security and migration (11 ew)
 
-### WP-5.1 Payload protection + KMS packages · 3 ew · depends: WP-3.6
+### WP-5.1 Payload protection + KMS key providers · 3 ew · depends: WP-3.6
 - **v2 input**: `AwsKmsMessageEncryption.cs`, `GcpKmsMessageEncryption.cs`, Azure `AzureKeyVaultMessageEncryption.cs`, and their tests (KMS round-trip, caching, rotation property tests).
-- **Deliverables**: `IKeyProvider`, `PayloadProtectionMiddleware` (AES-256-GCM, associated data `id|type|source`, DEK reuse limits, zeroing), `SourceFlow.Security.AwsKms`, `.AzureKeyVault`, `.GoogleKms`.
+- **Deliverables**: `IKeyProvider` and `PayloadProtectionMiddleware` in `SourceFlow.Security` (AES-256-GCM, associated data `id|type|source`, DEK reuse limits, zeroing); the KMS key providers in the cloud packages: `SourceFlow.Cloud.Aws` (AWS KMS, `UseAwsKms()`), `SourceFlow.Cloud.Azure` (Key Vault, `UseAzureKeyVault()`), `SourceFlow.Cloud.Gcp` (Cloud KMS, `UseGoogleKms()`).
 - **Tests**: UT-SEC-01..20; TCK-41..45 with protection on; real-KMS nightly.
 
 ### WP-5.2 Crypto-shredding · 3 ew · depends: WP-5.1, WP-2.4

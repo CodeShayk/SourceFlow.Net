@@ -8,13 +8,13 @@ v2's most serious defects were behaviours that unit tests couldn't see: features
 |-------|---------|---------|------|
 | Domain specs | Aggregates, process managers and projections as pure functions | `SourceFlow.Testing` specs (no DI, no I/O) | Every build |
 | Unit | Runtime components in isolation | xUnit v3, Shouldly, `FakeTimeProvider` | Every build |
-| Generator and analyzer | Generated code and diagnostics | `Microsoft.CodeAnalysis.Testing`, Verify.SourceGenerators snapshots | Every build |
+| Generator and analyzer | Generated code and diagnostics | `Microsoft.CodeAnalysis.Testing`, approved-file snapshots | Every build |
 | Storage conformance | Every storage adapter satisfies the port contracts | Abstract suites plus Testcontainers (PostgreSQL 15/16/17, SQL Server 2022/2025) | Every PR (PostgreSQL 17), nightly (full matrix) |
 | Transport conformance (TCK) | Every transport satisfies the SPI contract (doc 07 §7) | Abstract suites plus emulators (LocalStack, Service Bus emulator, Pub/Sub emulator) | Every PR (emulators); nightly against real cloud accounts |
 | Property-based | Linearisability, gap-freedom, ordering under random interleavings | CsCheck | Every PR (bounded), nightly (long) |
 | Fault injection and chaos | Crash consistency, outages, failover | `IFaultInjector` hooks, Toxiproxy, container kill | Nightly and before each milestone |
 | Architecture | Dependency rules (doc 01 §5) | NetArchTest | Every build |
-| Public API | Detect breaking changes | PublicApiGenerator + Verify approval files | Every PR |
+| Public API | Detect breaking changes | PublicApiGenerator + approved files | Every PR |
 | Performance | Regression gates (doc 09 §7) | BenchmarkDotNet, NBomber | PR (micro), nightly (component), milestone (system) |
 | Mutation | Strength of the test suite | Stryker.NET on `SourceFlow.Net` core | Weekly; target mutation score ≥ 70 % |
 

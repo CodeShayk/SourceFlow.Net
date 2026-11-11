@@ -15,7 +15,7 @@ v2 used EF Core for every store. An event store needs exact control over locking
 - The event store, outbox, inbox, checkpoints, leases and dead letters are written with hand-tuned SQL over `NpgsqlDataSource` and `Microsoft.Data.SqlClient`.
 - Each command commits in **one round trip**, using `NpgsqlBatch` or a single SQL Server batch.
 - PostgreSQL is the reference implementation: `jsonb`, `xid8` and LISTEN/NOTIFY suit event sourcing well. SQL Server ships in the same milestone set (M4).
-- EF Core is supported for **read models** (`SourceFlow.EntityFrameworkCore`), which can share the transaction through a connection the storage session provides.
+- EF Core is supported for **read models** (`SourceFlow.Storage.EntityFrameworkCore`), which can share the transaction through a connection the storage session provides.
 
 ## Alternatives
 

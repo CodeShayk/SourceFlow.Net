@@ -16,7 +16,7 @@ v3 already has a durable process-manager runtime ([ADR-020](ADR-020-process-mana
 
 1. **The source of truth is a small, versioned YAML DSL** (`sourceflow.workflow/1`), validated by a JSON Schema plus semantic rules WF-V01…V16. It has explicit domain concepts: owner service, steps sending **commands to their owning service**, awaited events, rejection codes, timeouts, business retries, compensations, a pivot, and manual intervention.
 2. **Compile, don't interpret.** The Roslyn `WorkflowGenerator` turns each workflow into an ordinary `[ProcessManager]` in the owning service. There is no second execution model, and the runtime, storage, telemetry and tests are the same as for hand-written process managers.
-3. **One semantic core.** `SourceFlow.Workflows` (C#) implements parsing, validation, simulation and path enumeration. The generator, the CLI and the browser (through WebAssembly, ADR-025) all use it.
+3. **One semantic core.** `SourceFlow.Studio` (C#) implements parsing, validation, simulation and path enumeration. The generator, the CLI and the browser (through WebAssembly, ADR-025) all use it.
 4. **Expressions use CESQL** (shared with SFQL and subscription filters). Anything more complex uses `$hook` partial methods written in C#, which must be pure.
 5. **Versioning:** `name@version` side by side. In-flight instances finish on the version they started on.
 
@@ -36,7 +36,7 @@ v3 already has a durable process-manager runtime ([ADR-020](ADR-020-process-mana
 - (+) Workflows can be reviewed, diffed and tested, and their failure paths are validated at build time. Zero extra runtime machinery.
 - (+) Simulation in the designer matches production exactly, because the code is shared and differential tests check it.
 - (−) A DSL schema to maintain and evolve (versioned, with a migration command).
-- (−) The generator now bundles `SourceFlow.Workflows` and YamlDotNet in the analyzer package, which has to be packaged carefully (implementation risk IR-14).
+- (−) The generator now compiles the `SourceFlow.Studio` DSL sources and bundles YamlDotNet in the analyzer folder of `SourceFlow.Net`, which has to be packaged carefully (implementation risk IR-14; [ADR-027 §6](ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md#6-studio-and-the-generator-share-one-dsl-implementation)).
 
 ## Traces
 

@@ -392,7 +392,7 @@ CREATE TABLE sourceflow.data_keys (                                         -- c
 ## 10. Read-model stores
 
 - **Document store** (`IDocumentSession` / `IDocumentReader<T>`): `jsonb` documents keyed by `(collection, id)`, with `Get`, `GetMany`, and a raw-SQL query escape hatch. Rebuilt collections are versioned (`account-summary@2`) for blue/green switches (doc 06 §6).
-- **EF Core** (`SourceFlow.EntityFrameworkCore`): `IEfProjection<TDbContext>` handlers receive a `DbContext` bound to the session's connection and transaction. `SaveChanges` happens before the checkpoint in the same commit. EF Core is **not** used for the event store ([ADR-009](ADRs/ADR-009-event-store-on-adonet-postgresql-first.md)).
+- **EF Core** (`SourceFlow.Storage.EntityFrameworkCore`): `IEfProjection<TDbContext>` handlers receive a `DbContext` bound to the session's connection and transaction. `SaveChanges` happens before the checkpoint in the same commit. EF Core is **not** used for the event store ([ADR-009](ADRs/ADR-009-event-store-on-adonet-postgresql-first.md)).
 - **Custom**: `IProjection` with `IStorageSession.Connection` for any SQL.
 - **No process-global state.** The model and type configuration live in DI-registered options (fixes GAP-17).
 

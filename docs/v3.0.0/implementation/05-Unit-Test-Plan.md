@@ -7,7 +7,7 @@ Unit tests run in-process without Docker. In-memory adapters are real implementa
 
 Areas with fully enumerated cases are the correctness-critical ones. Other areas list case ranges with their scenarios; the WP owner expands them into individual tests within the given ID range.
 
-## 1. `SourceFlow.Abstractions.Tests` (UT-ABS, WP-1.1)
+## 1. Contracts — `SourceFlow.Core.Tests` (UT-ABS, WP-1.1)
 
 | ID | Test | Covers | v2 lineage |
 |----|------|--------|------------|
@@ -67,13 +67,13 @@ Areas with fully enumerated cases are the correctness-critical ones. Other areas
 | GEN-36 | **SF0014**: command owned and routed in the same compilation (constant routes) | ADR-007 |
 | GEN-37 | Generated sources compile with `TreatWarningsAsErrors` and nullable enabled | — |
 | GEN-38 | **Incrementality**: editing an unrelated file produces no new outputs (pipeline steps cached) | ADR-004 perf |
-| GEN-39 | Snapshot (Verify) of the Bank sample's generated output | review aid |
+| GEN-39 | Approved-file snapshot of the Bank sample's generated output | review aid |
 | GEN-40 | Generator doesn't crash on incomplete or erroneous code (fuzzed syntax) | robustness |
 | GEN-41..46 | Schema catalog: JSON Schema per type; `x-sourceflow-personal-data`, `-queryable`, `-tag`, `-renamed-from` extensions; decimal as string; fingerprint stability | doc 14 §2 |
 | GEN-47..48 | **SF0015** (query API in Decide/When/React/projection) / **SF0016** (in an `ICommandHandler`) | Q-R1 |
 | GEN-49..50 | **SF0018**: `[DomainQuery]` that doesn't bind / whose result columns mismatch | Q-B4 |
 
-## 3. `SourceFlow.Net.Tests`
+## 3. Runtime — `SourceFlow.Core.Tests`
 
 ### 3.1 Messaging (UT-MSG, WP-1.3)
 
@@ -279,7 +279,7 @@ These are additional to the SCK, which the in-memory store also runs.
 | UT-ASP-01..20 | AspNetCore | `MapCommand`: Idempotency-Key, If-Match → 412, rejection → 422 ProblemDetails, conflict → 409, ETag and consistency header; `MapDomainQueries` exposes named queries | new |
 | UT-ASP-21..40 | AspNetCore query API | Fail-closed mapping without policy (SFQ0504); `/query`, `/query/validate` (never executes), `/query/explain` (permission, placeholders only), `/query/schema` (caller-visible fields); status mapping (400/403/409/413/415/429/503/504); problem+json shape **without input echo** (S-3); security headers (S-2); NDJSON trailer; CSV formula neutralisation (S-4); rate and concurrency limits with `Retry-After`; JSON depth and body limits; tenant from principal | new (ADR-026) |
 | UT-HC-01..14 | Core + adapters | Every health check state in doc 08 §5 | → `AwsHealthCheckTests` |
-| UT-OTEL-01..08 | OpenTelemetry | Source and meter registration; histogram views; semconv opt-in switch | new |
+| UT-OTEL-01..08 | OpenTelemetry | Source and meter names; `InstrumentAdvice` histogram boundaries seen by the SDK; semconv opt-in switch | new |
 | UT-SEC-01..20 | Security.* | AES-GCM round trip; associated-data tamper → `DecryptionFailed` (permanent); DEK reuse limits (count and age); key zeroing; rotation transparent; provider error mapping | → `AwsKmsMessageEncryptionTests` (8), KMS property tests |
 | UT-PII-01..18 | Core + generator | `[PersonalData]` encrypted per subject; erase → `[erased]`; `$personal-data.erased` event; document scrubbing; snapshot deletion via `subject_streams`; SF0011/13/17 | → `SensitiveDataMaskerTests` (concept moves) |
 | UT-RED-01..06 | Core | Taxonomy mapping; redactor per environment; `LogPayloads` gating | → `SensitiveDataMaskerTests` |

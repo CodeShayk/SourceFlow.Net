@@ -19,18 +19,18 @@ flowchart LR
     end
     S1 & S2 & S3 & S4 -- "build + dotnet sourceflow manifest export" --> M[(service manifests<br/>sourceflow.manifest.json)]
     W[(workflows/*.sfflow.yaml<br/>in the owning service)] --> G[SourceFlow.Generators<br/>WorkflowGenerator]
-    M --> V[SourceFlow.Workflows core<br/>parse · validate · simulate · export]
+    M --> V[SourceFlow.Studio core<br/>parse · validate · simulate · export]
     W --> V
     G -->|uses| V
     G --> PM[generated process manager<br/>+ timers, operator commands]
-    V -->|compiled to WebAssembly| WASM[SourceFlow.Workflows.Wasm]
+    V -->|compiled to WebAssembly| WASM[SourceFlow.Studio.Wasm]
     WASM --> UI[SourceFlow Studio<br/>React SPA]
     M --> UI
     W <-->|edit / save| UI
     UI --> SPEC[generated ProcessManagerSpec tests]
 ```
 
-**One semantics (WFD-NFR-2).** Parsing, validation and simulation are implemented **once**, in C# (`SourceFlow.Workflows`). The Roslyn generator, the CLI and the browser (compiled to WebAssembly) all use that same implementation. TypeScript never reimplements workflow semantics; it renders, edits and calls the core.
+**One semantics (WFD-NFR-2).** Parsing, validation and simulation are implemented **once**, in C# (`SourceFlow.Studio`). The Roslyn generator, the CLI and the browser (compiled to WebAssembly) all use that same implementation. TypeScript never reimplements workflow semantics; it renders, edits and calls the core.
 
 ## 2. Concepts
 
@@ -306,7 +306,7 @@ Visual encodings never rely on colour alone. Each path type has a distinct line 
 | Editor | Monaco + `monaco-yaml` (JSON Schema) | |
 | State | Zustand (UI), TanStack Query (local host API) | |
 | UI kit | Radix primitives (accessible) | |
-| Shared core | **`SourceFlow.Workflows.Wasm`**: .NET 10 `browser-wasm` exporting `[JSExport]` functions `parse`, `validate`, `simulateStep`, `enumeratePaths`, `toMermaid`, `toBpmn`, `generateSpecs` | Loaded lazily in a Web Worker; typed TS facade generated from the C# signatures |
+| Shared core | **`SourceFlow.Studio.Wasm`**: .NET 10 `browser-wasm` exporting `[JSExport]` functions `parse`, `validate`, `simulateStep`, `enumeratePaths`, `toMermaid`, `toBpmn`, `generateSpecs` | Loaded lazily in a Web Worker; typed TS facade generated from the C# signatures |
 | Local host | `dotnet sourceflow studio [--workspace] [--port]` (in `SourceFlow.Tool`) | Serves the embedded SPA; REST over the workspace (read manifests, read/write `.sfflow.yaml` and layout files, run `manifest export`); binds `127.0.0.1` only; no auth needed locally; `--read-only` flag |
 | Static build | `npx @sourceflow/studio build --workspace sourceflow.domain.yaml --out site/` | Read-only site for docs portals |
 | PR diagrams | GitHub Action `sourceflow/workflow-diff` (Node + WASM core + elkjs → SVG) | Comments before/after diagrams on PRs that change `*.sfflow.yaml` |
@@ -321,7 +321,7 @@ Exports: SVG and PNG (client-side), Mermaid `stateDiagram-v2`, BPMN 2.0 XML (exp
 
 ## 7. Runtime support and observability
 
-The runtime adds no new execution model. The small runtime types used by generated code live in **`SourceFlow.Workflows.Abstractions`**: `WorkflowStatus`, `CompensationEntry`, `WorkflowFailure`, the operator command base types, and an `IWorkflowHooks` marker. Only services that use the DSL reference it.
+The runtime adds no new execution model. The small runtime types used by generated code live in the core package, namespace **`SourceFlow.Workflows`** in `SourceFlow.Net` ([ADR-027](ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md)): `WorkflowStatus`, `CompensationEntry`, `WorkflowFailure`, the operator command base types, and an `IWorkflowHooks` marker. No extra package is needed.
 
 | Signal | Detail |
 |--------|--------|
@@ -335,10 +335,10 @@ The runtime adds no new execution model. The small runtime types used by generat
 
 | Package / artifact | Targets | Contents |
 |--------------------|---------|----------|
-| `SourceFlow.Workflows.Abstractions` | net10.0 | Runtime types for generated workflows (§7) |
-| `SourceFlow.Workflows` | netstandard2.0 + net10.0 | DSL model, YAML reader (YamlDotNet) with source positions, JSON Schema, validator (WF-V*), simulator, path enumerator, spec generator, Mermaid/BPMN exporters, manifest model and merger. The netstandard2.0 build is **bundled inside the generator package** |
-| `SourceFlow.Workflows.Wasm` | net10.0 `browser-wasm` | `[JSExport]` facade over `SourceFlow.Workflows` |
-| `SourceFlow.Generators` (extended) | netstandard2.0 | `WorkflowGenerator`; manifest emission; SF0019, SF0020, SF0021 |
+| `SourceFlow.Net` (extended) | net10.0 | Runtime types for generated workflows (§7), namespace `SourceFlow.Workflows` |
+| `SourceFlow.Studio` (`src/Workflows/`) | net10.0 | DSL model, YAML reader (YamlDotNet) with source positions, JSON Schema, validator (WF-V*), simulator, path enumerator, spec generator, Mermaid/BPMN exporters, manifest model and merger. The `Dsl/**` sources are also **compiled into the generator** (one implementation, two compilations; [ADR-027 §6](ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md#6-studio-and-the-generator-share-one-dsl-implementation)) |
+| `SourceFlow.Studio.Wasm` (`src/Workflows/`) | net10.0 `browser-wasm` | `[JSExport]` facade over `SourceFlow.Studio`. Shipped inside the npm package and the tool, not on NuGet |
+| `SourceFlow.Generators` (extended; packed in `SourceFlow.Net`) | netstandard2.0 (compiler plugin) | `WorkflowGenerator`; manifest emission; SF0019, SF0020, SF0021; the linked `SourceFlow.Studio` DSL sources and YamlDotNet |
 | `SourceFlow.Tool` (extended) | net10.0 | `manifest export`, `workflow …`, `studio` |
 | `@sourceflow/studio` (npm) | browser | React SPA + static-build CLI |
 

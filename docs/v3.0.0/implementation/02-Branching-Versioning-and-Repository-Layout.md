@@ -72,26 +72,29 @@ The resulting versions are `3.0.0-alpha.N` on the branch, `3.0.0-wp-1-6-command-
 ├─ .editorconfig                        # analyzer severities, naming
 ├─ SourceFlow.slnx                      # replaces SourceFlow.Net.sln (deleted in WP-0.2)
 ├─ GitVersion.yml                       # §2
-├─ src/
-│  ├─ SourceFlow.Abstractions/          # WP-1.1  (domain-facing contracts; BCL only)
-│  ├─ SourceFlow.Generators/            # WP-1.2  (netstandard2.0 analyzer, packed into Abstractions)
-│  ├─ SourceFlow.Net/                   # WP-1.3…1.10, 1.12, 1.13 (runtime core + in-memory adapters)
-│  ├─ SourceFlow.Testing/               # WP-1.11 (specs, test host, conformance-kit bases)
-│  ├─ SourceFlow.PostgreSql/            # WP-2.1…2.6, 2.8
-│  ├─ SourceFlow.SqlServer/             # WP-4.4
-│  ├─ SourceFlow.EntityFrameworkCore/   # WP-2.7
-│  ├─ SourceFlow.AmazonSqs/             # WP-3.2
-│  ├─ SourceFlow.AzureServiceBus/       # WP-3.4
-│  ├─ SourceFlow.GooglePubSub/          # WP-3.3
-│  ├─ SourceFlow.Security.AwsKms/       # WP-5.1
-│  ├─ SourceFlow.Security.AzureKeyVault/# WP-5.1
-│  ├─ SourceFlow.Security.GoogleKms/    # WP-5.1
-│  ├─ SourceFlow.AspNetCore/            # WP-4.2
-│  ├─ SourceFlow.OpenTelemetry/         # WP-4.6
-│  ├─ SourceFlow.Tool/                  # WP-4.1, 5.4 (dotnet tool "sourceflow"); + manifest/workflow/studio commands (track S)
-│  ├─ SourceFlow.Workflows.Abstractions/# WP-S.5  (track S, plan 10)
-│  ├─ SourceFlow.Workflows/             # WP-S.3, S.4 (netstandard2.0 + net10.0)
-│  └─ SourceFlow.Workflows.Wasm/        # WP-S.7  (browser-wasm)
+├─ Directory.Build.targets              # UseSourceFlowGenerator=true wires the generator as an analyzer (in-repo consumers)
+├─ src/                                 # categorised (ADR-027); every project net10.0 except the generator
+│  ├─ Core/
+│  │  ├─ SourceFlow.Net/                # WP-1.1, 1.3…1.10, 1.12, 1.13: the single core. Contracts (namespace SourceFlow),
+│  │  │                                 #   runtime, in-memory adapters, workflow runtime types, and the extensibility SPIs:
+│  │  │                                 #   SourceFlow.Storage / .Transport / .Security / .Query / .Pipeline / .Diagnostics
+│  │  └─ SourceFlow.Generators/         # WP-1.2  (netstandard2.0 compiler plugin, packed into SourceFlow.Net; not published)
+│  ├─ Storage/
+│  │  ├─ SourceFlow.Storage.PostgreSQL/ # WP-2.1…2.6, 2.8
+│  │  ├─ SourceFlow.Storage.SqlServer/  # WP-4.4
+│  │  └─ SourceFlow.Storage.EntityFrameworkCore/ # WP-2.7
+│  ├─ Cloud/
+│  │  ├─ SourceFlow.Cloud.Aws/          # WP-3.2 transport, WP-5.1 KMS key provider
+│  │  ├─ SourceFlow.Cloud.Azure/        # WP-3.4 transport, WP-5.1 Key Vault key provider
+│  │  └─ SourceFlow.Cloud.Gcp/          # WP-3.3 transport, WP-5.1 Cloud KMS key provider
+│  ├─ Hosting/
+│  │  └─ SourceFlow.AspNetCore/         # WP-4.2
+│  ├─ Tooling/
+│  │  ├─ SourceFlow.Testing/            # WP-1.11 (specs, test host, conformance-kit bases)
+│  │  └─ SourceFlow.Tool/               # WP-4.1, 5.4 (dotnet tool "sourceflow"); + manifest/workflow/studio commands (track S)
+│  └─ Workflows/
+│     ├─ SourceFlow.Studio/             # WP-S.3, S.4 DSL semantic core (Dsl/** also compiled into the generator)
+│     └─ SourceFlow.Studio.Wasm/        # WP-S.7  (browser-wasm)
 ├─ studio/                              # WP-S.8…S.12 React SPA, TS facade, static builder, workflow-diff Action
 ├─ schemas/                             # workflow-1.json (DSL schema)
 ├─ tests/                               # layout and naming in plan 04 §3
@@ -115,13 +118,13 @@ The resulting versions are `3.0.0-alpha.N` on the branch, `3.0.0-wp-1-6-command-
 
 | v2 project | Replaced by | Created in | Retired (deleted) in |
 |------------|-------------|------------|----------------------|
-| `src/SourceFlow` | `SourceFlow.Abstractions`, `SourceFlow.Net`, `SourceFlow.Generators`, `SourceFlow.Testing` | M1 | **WP-1.R** |
-| `tests/SourceFlow.Core.Tests` | `tests/SourceFlow.Net.Tests`, `tests/SourceFlow.Generators.Tests`, `tests/SourceFlow.E2E.Tests` | M1 | **WP-1.R** |
-| `src/SourceFlow.Stores.EntityFramework` | `SourceFlow.PostgreSql`, `SourceFlow.SqlServer`, `SourceFlow.EntityFrameworkCore` | M2, M4 | **WP-2.R** (SQL Server parity arrives in WP-4.4; EF users are covered by PostgreSQL + EF read models) |
-| `tests/SourceFlow.Stores.EntityFramework.Tests` | `tests/SourceFlow.PostgreSql.Tests`, `tests/SourceFlow.EntityFrameworkCore.Tests` (storage conformance kit) | M2 | **WP-2.R** |
-| `src/SourceFlow.Cloud.AWS` + tests | `SourceFlow.AmazonSqs` (+ `Security.AwsKms` in M5), `tests/SourceFlow.AmazonSqs.Tests` | M3 | **WP-3.R** |
-| `src/SourceFlow.Cloud.GCP` + tests | `SourceFlow.GooglePubSub`, `tests/SourceFlow.GooglePubSub.Tests` | M3 | **WP-3.R** |
-| `origin/azure-cloud` `SourceFlow.Cloud.Azure` + tests | `SourceFlow.AzureServiceBus`, `tests/SourceFlow.AzureServiceBus.Tests` | M3 | Branch archived at **WP-3.R** (never merged into `v3.0.0`) |
+| `src/SourceFlow` | `src/Core/SourceFlow.Net` (+ `src/Core/SourceFlow.Generators`), `src/Tooling/SourceFlow.Testing` | M1 | **WP-1.R** |
+| `tests/SourceFlow.Core.Tests` (v2; same project name as the v3 one, different folder) | `tests/Core/SourceFlow.Core.Tests`, `tests/Core/SourceFlow.Generators.Tests`, `tests/EndToEnd/SourceFlow.EndToEnd.Tests` | M1 | **WP-1.R** |
+| `src/SourceFlow.Stores.EntityFramework` | `src/Storage/SourceFlow.Storage.PostgreSQL`, `.Storage.SqlServer`, `.Storage.EntityFrameworkCore` | M2, M4 | **WP-2.R** (SQL Server parity arrives in WP-4.4; EF users are covered by PostgreSQL + EF read models) |
+| `tests/SourceFlow.Stores.EntityFramework.Tests` | `tests/Storage/SourceFlow.Storage.Tests` (storage conformance kit) | M2 | **WP-2.R** |
+| `src/SourceFlow.Cloud.AWS` + tests | `src/Cloud/SourceFlow.Cloud.Aws` (KMS key provider added in M5), `tests/Cloud/SourceFlow.Cloud.Tests` | M3 | **WP-3.R** |
+| `src/SourceFlow.Cloud.GCP` + tests | `src/Cloud/SourceFlow.Cloud.Gcp`, `tests/Cloud/SourceFlow.Cloud.Tests` | M3 | **WP-3.R** |
+| `origin/azure-cloud` `SourceFlow.Cloud.Azure` + tests | `src/Cloud/SourceFlow.Cloud.Azure`, `tests/Cloud/SourceFlow.Cloud.Tests` | M3 | Branch archived at **WP-3.R** (never merged into `v3.0.0`) |
 | `tests/SourceFlow.Net.EntityFramework.Tests` (empty) | — | — | **WP-0.2** |
 | `SourceFlow.Net.sln` | `SourceFlow.slnx` | WP-0.2 | **WP-0.2** |
 | `.github/workflows/Master-Build.yml`, `GCP-Build.yml` | `v3-pr.yml`, `v3-nightly.yml` (plan 08) | WP-0.3 | Untouched on `master`. On `v3.0.0` they are disabled by branch filters (they don't trigger on `v3.0.0`) |
@@ -130,21 +133,23 @@ The resulting versions are `3.0.0-alpha.N` on the branch, `3.0.0-wp-1-6-command-
 
 | Package | NuGet ID | Note |
 |---------|----------|------|
-| Runtime core | `SourceFlow.Net` | Keeps the v2 core ID so existing users find the upgrade |
-| Everything else | `SourceFlow.<Name>` as listed in §3 | New IDs. `SourceFlow.Cloud.AWS`, `SourceFlow.Cloud.GCP` and `SourceFlow.Stores.EntityFramework` get a final 2.x release note pointing to their replacements (WP-6.3) |
+| Core | `SourceFlow.Net` | Keeps the v2 core ID so existing users find the upgrade. Contains the contracts, runtime, SPIs and the generator |
+| Cloud | `SourceFlow.Cloud.Aws`, `SourceFlow.Cloud.Gcp` | **Continue** the v2 IDs `SourceFlow.Cloud.AWS` / `SourceFlow.Cloud.GCP` (NuGet IDs are case-insensitive); 3.0.0 is the breaking major |
+| Cloud | `SourceFlow.Cloud.Azure` | First release (the 2.x Azure provider never shipped from `master`) |
+| Everything else | `SourceFlow.<Category>.<Name>` or `SourceFlow.<Name>` as listed in §3 | New IDs. `SourceFlow.Stores.EntityFramework` gets a final 2.x release note pointing to `SourceFlow.Storage.PostgreSQL` + `SourceFlow.Storage.EntityFrameworkCore` (WP-6.3) |
 
-All packages are versioned together by GitVersion. `SourceFlow.Generators` is packed under `analyzers/dotnet/cs` inside `SourceFlow.Abstractions`; it isn't published separately.
+All packages are versioned together by GitVersion. `SourceFlow.Generators` is packed under `analyzers/dotnet/cs` inside `SourceFlow.Net`; it isn't published separately. `SourceFlow.Studio.Wasm` ships inside `@sourceflow/studio` and the tool, not on NuGet. That makes **11 NuGet packages** ([ADR-027](../ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md)).
 
 ## 6. Build and coding standards (enforced from WP-0.2)
 
 | Setting | Value | Why |
 |---------|-------|-----|
-| `TargetFramework` | `net10.0` (generators: `netstandard2.0`) | ADR-001 |
+| `TargetFramework` | `net10.0` only. Single exception: `SourceFlow.Generators` targets `netstandard2.0` because Roslyn requires it for compiler plugins (RS1041); it never runs in the application | ADR-001, ADR-027 |
 | `LangVersion` / `Nullable` | `latest` / `enable` | |
 | `TreatWarningsAsErrors` | `true` for `src/`, `false` for tests (analyzers still on) | Fail fast |
-| `IsAotCompatible` / `IsTrimmable` | `true` for every runtime package except `SourceFlow.EntityFrameworkCore` and `SourceFlow.Tool` | Doc 01 portability goal |
+| `IsAotCompatible` / `IsTrimmable` | `true` for every runtime package except `SourceFlow.Storage.EntityFrameworkCore` and `SourceFlow.Tool` | Doc 01 portability goal |
 | `GenerateDocumentationFile` | `true`. Public API without XML docs is an error | API quality |
 | `ManagePackageVersionsCentrally` | `true` | One place for versions |
 | `ContinuousIntegrationBuild`, `EmbedUntrackedSources`, SourceLink | on in CI | Reproducible, debuggable packages |
-| Public API approval | `PublicApiGenerator` + Verify snapshot per package (plan 04 §6) | Detect breaking changes |
+| Public API approval | `PublicApiGenerator` + approved-file snapshot per package (plan 04 §6) | Detect breaking changes |
 | Package versions | Pinned in `Directory.Packages.props`. **WP-0.2 checks each major against nuget.org at the time**: Microsoft.Extensions.* 10.x, Npgsql 10.x, Microsoft.Data.SqlClient (current), EF Core 10, current AWS SDK for .NET major, Azure.Messaging.ServiceBus 7.x, Google.Cloud.PubSub.V1 3.x, Polly 8.x, OpenTelemetry 1.x, System.CommandLine (current) | Avoid stale majors |

@@ -12,11 +12,11 @@
 
 ```text
 src/
-├─ SourceFlow.Workflows.Abstractions/   # WP-S.5 runtime types for generated workflows
-├─ SourceFlow.Workflows/                # WP-S.3, S.4 DSL core (netstandard2.0 + net10.0)
-├─ SourceFlow.Workflows.Wasm/           # WP-S.7 browser-wasm [JSExport] facade
-├─ SourceFlow.Generators/               # + WorkflowGenerator, manifest emission (WP-S.1, S.5)
-└─ SourceFlow.Tool/                     # + manifest export, workflow …, studio (WP-S.2, S.6, S.8)
+├─ Core/SourceFlow.Net/                 # + namespace SourceFlow.Workflows: runtime types for generated workflows (WP-S.5)
+├─ Core/SourceFlow.Generators/          # + WorkflowGenerator, manifest emission (WP-S.1, S.5); compiles Studio's Dsl/** sources
+├─ Workflows/SourceFlow.Studio/         # WP-S.3, S.4 DSL semantic core (net10.0)
+├─ Workflows/SourceFlow.Studio.Wasm/    # WP-S.7 browser-wasm [JSExport] facade
+└─ Tooling/SourceFlow.Tool/             # + manifest export, workflow …, studio (WP-S.2, S.6, S.8)
 studio/                                 # WP-S.8…S.12 React 19 + TypeScript SPA (pnpm workspace)
 ├─ app/                                 #   the SPA
 ├─ core-client/                         #   typed TS facade over the WASM worker
@@ -26,8 +26,8 @@ schemas/
 └─ workflow-1.json                      # normative JSON Schema of the DSL (WP-S.3)
 samples/OrderFulfilment/                # WP-S.13 orders, payments, inventory, shipping + sourceflow.domain.yaml
 tests/
-├─ SourceFlow.Workflows.Tests/          # UT-WF, UT-MAN, WF-GOLD, WF-DIFF
-├─ SourceFlow.Workflows.E2E.Tests/      # WF-E2E (parameterised over transports)
+├─ Workflows/SourceFlow.Studio.Tests/   # UT-WF, UT-MAN, WF-GOLD, WF-DIFF
+├─ EndToEnd/SourceFlow.EndToEnd.Tests/  # + WF-E2E (Category=Workflow, parameterised over transports)
 └─ workflow-golden/                     # WF-GOLD fixtures shared by the .NET and WASM test runs
 ```
 
@@ -35,7 +35,7 @@ tests/
 
 ### WP-S.1 Static manifest emission · 2 ew · depends: WP-1.2, WP-1.12
 - **Design**: doc 15 §3.
-- **Deliverables**: generator emits `[assembly: SourceFlowManifest(json)]` (aggregates, commands, handled events, process managers, projections); static analysis of `Decide` for `emits`/`rejects`; `[Emits]`/`[Rejects]` attributes in `SourceFlow.Abstractions`; analyzer **SF0019**.
+- **Deliverables**: generator emits `[assembly: SourceFlowManifest(json)]` (aggregates, commands, handled events, process managers, projections); static analysis of `Decide` for `emits`/`rejects`; `[Emits]`/`[Rejects]` attributes in `SourceFlow.Net` (namespace `SourceFlow`); analyzer **SF0019**.
 - **Tests**: UT-MAN-01..08, GEN-51..55.
 - **Acceptance**: the Bank and OrderFulfilment samples produce exact `emits`/`rejects` with no SF0019 warnings left.
 
@@ -45,7 +45,7 @@ tests/
 - **Acceptance**: export makes no network or database calls (asserted under a fault-injecting store and transport). Repeated runs are byte-identical.
 
 ### WP-S.3 DSL core: model, reader, schema, validator · 3.5 ew · depends: WP-S.1, WP-1.13 (CESQL evaluator)
-- **Deliverables**: `SourceFlow.Workflows` model, a YamlDotNet reader with source positions, `schemas/workflow-1.json`, validator rules **WF-V01…V16** with stable diagnostic ids and positions, a CESQL guard binder (shared evaluator).
+- **Deliverables**: `SourceFlow.Studio` model, a YamlDotNet reader with source positions, `schemas/workflow-1.json`, validator rules **WF-V01…V16** with stable diagnostic ids and positions, a CESQL guard binder (shared evaluator).
 - **Tests**: UT-WF-01..40, WF-GOLD-01..30.
 - **Acceptance**: every WF-V rule has a positive and a negative golden case. The schema and the validator agree on all golden files.
 
@@ -55,8 +55,8 @@ tests/
 - **Acceptance**: order fulfilment enumerates exactly the expected path set (golden). Generated specs compile.
 
 ### WP-S.5 Workflow code generation + runtime abstractions · 4 ew · depends: WP-S.3, WP-1.9
-- **Deliverables**: `WorkflowGenerator` (AdditionalFiles `**/*.sfflow.yaml` via package build props); a generated `[ProcessManager("name@v")]` record, timeout message and operator commands (`ResumeWorkflow`, `AbortWorkflow`, `RetryWorkflowStep`); `$hook` partial declarations; diagnostics **SF0020** (WF-V rules at YAML positions) and **SF0021**; `SourceFlow.Workflows.Abstractions`; deterministic re-send ids `UUIDv5(instance, step, attempt)`; side-by-side versions.
-- **Packaging**: the netstandard2.0 `SourceFlow.Workflows` + YamlDotNet are bundled in `analyzers/dotnet/cs` of `SourceFlow.Abstractions` (with a dependency-path test).
+- **Deliverables**: `WorkflowGenerator` (AdditionalFiles `**/*.sfflow.yaml` via package build props); a generated `[ProcessManager("name@v")]` record, timeout message and operator commands (`ResumeWorkflow`, `AbortWorkflow`, `RetryWorkflowStep`); `$hook` partial declarations; diagnostics **SF0020** (WF-V rules at YAML positions) and **SF0021**; the workflow runtime types (namespace `SourceFlow.Workflows` in `SourceFlow.Net`); deterministic re-send ids `UUIDv5(instance, step, attempt)`; side-by-side versions.
+- **Packaging**: the generator compiles the `src/Workflows/SourceFlow.Studio/Dsl/**` sources (linked, so one implementation) into its `netstandard2.0` assembly. That assembly and YamlDotNet are bundled in `analyzers/dotnet/cs` of `SourceFlow.Net`, with a dependency-path test. `SourceFlow.Studio` itself stays `net10.0` only ([ADR-027 §6](../ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md#6-studio-and-the-generator-share-one-dsl-implementation)).
 - **Tests**: GEN-56..64, **WF-DIFF-01..05**.
 - **Acceptance**: the differential property test (simulator ≡ generated process manager) holds over 10,000 random outcome sequences per sample workflow.
 
@@ -65,7 +65,7 @@ tests/
 - **Tests**: UT-WF-61..70, WF-E2E-09..10.
 
 ### WP-S.7 WASM core + TypeScript facade · 1.5 ew · depends: WP-S.4
-- **Deliverables**: `SourceFlow.Workflows.Wasm` (`[JSExport]`: `parse`, `validate`, `simulateStep`, `enumeratePaths`, `toMermaid`, `toBpmn`, `generateSpecs`); a Web Worker host; `studio/core-client` typed API (generated `.d.ts` from the export signatures); lazy loading with caching; size budget **≤ 6 MB brotli**.
+- **Deliverables**: `SourceFlow.Studio.Wasm` (`[JSExport]`: `parse`, `validate`, `simulateStep`, `enumeratePaths`, `toMermaid`, `toBpmn`, `generateSpecs`); a Web Worker host; `studio/core-client` typed API (generated `.d.ts` from the export signatures); lazy loading with caching; size budget **≤ 6 MB brotli**.
 - **Tests**: WASM-01..08 (Vitest in Node against the built bundle; the same WF-GOLD fixtures as .NET → identical results).
 
 ### WP-S.8 Studio shell + local host · 2.5 ew · depends: WP-S.7, WP-S.2
@@ -116,12 +116,12 @@ tests/
 | UT-WF-57..60 | Exporters + spec generator | Mermaid snapshot; BPMN snapshot (valid against BPMN 2.0 XSD); generated `ProcessManagerSpec` compiles and passes |
 | UT-WF-61..70 | Runtime support | Metric single recording per transition kind; CLI resume/abort send operator commands; version-removal guard; the workflow-instances domain query binds (SF0018) |
 | GEN-51..55 | Generator: manifest + SF0019 | Attribute emitted; JSON shape snapshot; incremental caching unaffected |
-| GEN-56..64 | Generator: workflows | Snapshot of the generated process manager for order fulfilment; SF0020 at the YAML line and column for each WF-V rule class; SF0021 missing hook; AdditionalFiles discovery via build props; side-by-side `@1`/`@2`; bundling (generator loads `SourceFlow.Workflows` + YamlDotNet from the analyzer folder) |
+| GEN-56..64 | Generator: workflows | Snapshot of the generated process manager for order fulfilment; SF0020 at the YAML line and column for each WF-V rule class; SF0021 missing hook; AdditionalFiles discovery via build props; side-by-side `@1`/`@2`; bundling (the generator's linked DSL code + YamlDotNet load from the analyzer folder) |
 | **WF-DIFF-01..05** | Differential / property (CsCheck) | Random outcome sequences: the simulator trace ≡ the generated process manager run in `SourceFlowTestHost` (state sequence, outbox messages, timers, terminal status), for each sample workflow; shrinks to a minimal counterexample |
 | WF-GOLD-01..30 | Golden suite | `(workflow.yaml, manifests) → diagnostics.json, paths.json, mermaid.mmd`, run by both .NET and WASM test runners |
 | UT-STU-HOST-01..10 | Local host | Loopback bind; non-loopback Host header refused; writes limited to workflow and layout paths; read-only mode; manifest export trigger |
 
-### 3.2 End to end (`SourceFlow.Workflows.E2E.Tests`, OrderFulfilment sample)
+### 3.2 End to end (`SourceFlow.EndToEnd.Tests`, `Category=Workflow`, OrderFulfilment sample)
 
 | ID | Path | Transports |
 |----|------|------------|
@@ -155,9 +155,9 @@ Extends [plan 04 §5](04-Test-Strategy-and-Coverage.md#5-coverage-targets-and-en
 
 | Package | Line | Branch |
 |---------|------|--------|
-| `SourceFlow.Workflows` | 90 % | 85 % |
-| `SourceFlow.Workflows.Abstractions` | 95 % | 90 % |
-| `SourceFlow.Workflows.Wasm` (facade) | 90 % | 80 % |
+| `SourceFlow.Studio` | 90 % | 85 % |
+| `SourceFlow.Net`, namespace `SourceFlow.Workflows` | 95 % | 90 % |
+| `SourceFlow.Studio.Wasm` (facade) | 90 % | 80 % |
 | Workflow parts of `SourceFlow.Generators` / `SourceFlow.Tool` | 90 % / 80 % | 85 % / 70 % |
 | `studio/app` + `studio/core-client` (Vitest, v8 coverage) | 85 % statements | 80 % branches |
 
@@ -169,11 +169,11 @@ Extends [plan 08](08-CI-CD-and-Quality-Gates.md).
 
 | Workflow / job | Trigger | Steps |
 |----------------|---------|-------|
-| `studio-pr.yml` | PRs into `v3.0.0` touching `studio/**`, `src/SourceFlow.Workflows*/**`, `schemas/**`, `samples/OrderFulfilment/**` | pnpm install (frozen lockfile) → ESLint + Prettier check → `tsc --noEmit` → install the .NET `wasm-tools` workload → build the WASM core → Vitest (+ coverage) → WASM-01..08 → Playwright (3 browsers) + axe → STU-PERF budgets → static-build smoke → coverage gate |
-| `v3-pr.yml` (existing) | as before | + `SourceFlow.Workflows.Tests`, WF-GOLD, WF-DIFF (bounded), WF-E2E (in-memory + emulators), manifest drift check |
+| `studio-pr.yml` | PRs into `v3.0.0` touching `studio/**`, `src/Workflows/**`, `schemas/**`, `samples/OrderFulfilment/**` | pnpm install (frozen lockfile) → ESLint + Prettier check → `tsc --noEmit` → install the .NET `wasm-tools` workload → build the WASM core → Vitest (+ coverage) → WASM-01..08 → Playwright (3 browsers) + axe → STU-PERF budgets → static-build smoke → coverage gate |
+| `v3-pr.yml` (existing) | as before | + `SourceFlow.Studio.Tests`, WF-GOLD, WF-DIFF (bounded), WF-E2E (in-memory + emulators), manifest drift check |
 | `v3-nightly.yml` (existing) | schedule | + WF-DIFF long run; WF-E2E on real AWS, Azure and Google Cloud; WF-E2E-12 chaos |
 | `workflow-diff` Action | PRs touching `**/*.sfflow.yaml` | Render before/after SVGs, comment on the PR |
-| Release | Studio tags `studio-v1.*` | npm publish `@sourceflow/studio` (provenance); NuGet for `SourceFlow.Workflows*`; the Tool embeds the matching SPA build |
+| Release | Studio tags `studio-v1.*` | npm publish `@sourceflow/studio` (provenance); NuGet for `SourceFlow.Studio`; the Tool embeds the matching SPA build |
 
 Renovate covers npm dependencies (grouped weekly). `npm audit` / `pnpm audit` blocks on high-severity issues. Licences are checked (permissive only).
 
@@ -197,7 +197,7 @@ Extends [plan 09 §6](09-Definition-of-Done-Risks-and-Tracking.md#6-implementati
 | ID | Risk | Likelihood | Impact | Mitigation |
 |----|------|------------|--------|------------|
 | IR-13 | Static analysis of `Decide` misses emitted events or rejection codes, making the diagram wrong | Medium | Medium | SF0019 plus `[Emits]`/`[Rejects]`; WF-V03/V08 fail loudly on mismatch; the drift check |
-| IR-14 | Bundling `SourceFlow.Workflows` + YamlDotNet inside the analyzer package causes load or version conflicts | Medium | High | Bundle into the analyzer folder with private assets; a GEN-64 load test in a clean sample; if it fails, fallback to an MSBuild task that converts YAML to a generated C# input |
+| IR-14 | Bundling `SourceFlow.Studio` + YamlDotNet inside the analyzer package causes load or version conflicts | Medium | High | Bundle into the analyzer folder with private assets; a GEN-64 load test in a clean sample; if it fails, fallback to an MSBuild task that converts YAML to a generated C# input |
 | IR-15 | WASM bundle size or startup hurts UX | Medium | Low | Trimming, lazy load in a worker, caching, the 6 MB budget in CI; the TS UI stays usable for viewing while the core loads |
 | IR-16 | Simulator and generator semantics drift | Low | High | Shared core plus the WF-DIFF differential property tests on every PR |
 | IR-17 | React/TypeScript expertise is thin in a .NET team | Medium | Medium | A dedicated React engineer in lane F; a component library (Radix); code review by a frontend reviewer |
