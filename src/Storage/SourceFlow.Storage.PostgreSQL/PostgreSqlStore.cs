@@ -22,6 +22,7 @@ public sealed partial class PostgreSqlStore :
     IStoreNotifications,
     IStoreRetention,
     INodeRegistry,
+    ISchemaStore,
     IAsyncDisposable
 {
     private readonly bool _ownsDataSource;
@@ -62,7 +63,7 @@ public sealed partial class PostgreSqlStore :
     /// <summary>Every port of this store.</summary>
     public Runtime.StoragePorts ToPorts()
     {
-        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this) { Retention = this, Nodes = this };
+        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this) { Retention = this, Nodes = this, Schemas = this };
     }
 
     // ------------------------------------------------------------------ IStorageSessionFactory
@@ -264,6 +265,49 @@ public sealed partial class PostgreSqlStore :
         command.Parameters.Add(new NpgsqlParameter<TimeSpan>("window", liveWindow));
         object? live = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return live is long count ? (int)count : 1;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<Catalog.SchemaConflict>> RegisterAsync(string service, IReadOnlyList<Catalog.SchemaEntry> schemas, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(schemas);
+        if (schemas.Count == 0)
+        {
+            return [];
+        }
+
+        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(Sql.RegisterSchemas, connection);
+        command.Parameters.Add(new NpgsqlParameter<string[]>("types", [.. schemas.Select(s => s.Type)]));
+        command.Parameters.Add(new NpgsqlParameter<int[]>("versions", [.. schemas.Select(s => s.Version)]));
+        command.Parameters.Add(new NpgsqlParameter<string[]>("kinds", [.. schemas.Select(s => Catalog.SchemaEntry.KindName(s.Kind))]));
+        command.Parameters.Add(new NpgsqlParameter<string[]>("schemas", [.. schemas.Select(s => s.Canonical)]));
+        command.Parameters.Add(new NpgsqlParameter<string[]>("prints", [.. schemas.Select(s => s.Fingerprint)]));
+        command.Parameters.Add(new NpgsqlParameter<string>("service", service));
+        var conflicts = new List<Catalog.SchemaConflict>();
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            conflicts.Add(new Catalog.SchemaConflict(reader.GetString(0), reader.GetInt32(1), reader.GetString(2), reader.GetString(3)));
+        }
+
+        return conflicts;
+    }
+
+    /// <inheritdoc />
+    async ValueTask<IReadOnlyList<Catalog.SchemaEntry>> ISchemaStore.ListAsync(CancellationToken cancellationToken)
+    {
+        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(Sql.ListSchemas, connection);
+        var entries = new List<Catalog.SchemaEntry>();
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var schema = (System.Text.Json.Nodes.JsonObject)System.Text.Json.Nodes.JsonNode.Parse(reader.GetString(3))!;
+            entries.Add(new Catalog.SchemaEntry(reader.GetString(0), reader.GetInt32(1), Catalog.SchemaEntry.ParseKind(reader.GetString(2)), schema));
+        }
+
+        return entries;
     }
 
     /// <inheritdoc />

@@ -191,6 +191,22 @@ public interface IStoreRetention
 }
 
 /// <summary>
+/// The schema registry (doc 14 §2.2): services register their schemas at startup. A published <c>(type, version)</c> is
+/// immutable, so registering a different fingerprint for an existing one is reported as a conflict.
+/// </summary>
+public interface ISchemaStore
+{
+    /// <summary>
+    /// Registers schemas idempotently and returns the entries whose <c>(type, version)</c> is already registered with a
+    /// different fingerprint (those are not changed).
+    /// </summary>
+    ValueTask<IReadOnlyList<Catalog.SchemaConflict>> RegisterAsync(string service, IReadOnlyList<Catalog.SchemaEntry> schemas, CancellationToken cancellationToken);
+
+    /// <summary>Reads every registered schema (for export and the CLI).</summary>
+    ValueTask<IReadOnlyList<Catalog.SchemaEntry>> ListAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>
 /// Node liveness for lease fair-share (doc 06 §4): instances heartbeat into a shared table with the store's clock, and
 /// each acquires at most <c>ceil(leases / live nodes)</c> leases.
 /// </summary>

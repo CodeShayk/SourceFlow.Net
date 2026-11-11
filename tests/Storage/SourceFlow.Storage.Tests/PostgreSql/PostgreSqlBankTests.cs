@@ -5,6 +5,7 @@ using Bank.Transfers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SourceFlow.Hosting;
+using SourceFlow.Messaging;
 using SourceFlow.Runtime;
 using SourceFlow.Storage.PostgreSQL;
 
@@ -139,10 +140,14 @@ public sealed class PostgreSqlBankTests(PostgreSqlServer server) : PostgreSqlTes
         await commands.SendAsync(new OpenAccount(from, "Ada", 100m), null, Ct);
         await commands.SendAsync(new OpenAccount(to, "Grace", 0.5m), null, Ct);
 
-        (await commands.SendAsync(new RequestTransfer(TransferId.New(), from, to, 40m), null, Ct)).Status.ShouldBe(CommandStatus.Accepted);
+        var transfer = TransferId.New();
+        (await commands.SendAsync(new RequestTransfer(transfer, from, to, 40m), null, Ct)).Status.ShouldBe(CommandStatus.Accepted);
 
         await EventuallyAsync(async () => (await SummaryAsync(host, from))?.Balance == 60m && (await SummaryAsync(host, to))?.Balance == 40.5m, "transfer applied");
         PostgreSqlStore store = host.Services.GetRequiredService<PostgreSqlStore>();
+        // The process manager completes the transfer after the deposit; wait for that before looking at the outbox.
+        await EventuallyAsync(async () => (await store.ReadStreamAsync(MessageEnvelope.DefaultTenant, StreamId.For(Transfer.AggregateName, transfer), new StreamVersion(1), 10, Ct))
+            .Events.Any(e => e.Type == "bank.transfer.completed"), "transfer completed");
         // The process manager's timeout stays scheduled in the outbox until it is due; nothing else is left.
         await EventuallyAsync(async () => await store.DueOutboxCountAsync(Ct) == 0, "due outbox drained");
         (await store.CountAsync(Ct)).ShouldBe(1);

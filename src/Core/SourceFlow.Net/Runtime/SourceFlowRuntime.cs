@@ -61,6 +61,9 @@ public sealed record StoragePorts(
     /// <summary>Retention cleanup, when the adapter supports it (doc 05 §9).</summary>
     public IStoreRetention? Retention { get; init; }
 
+    /// <summary>The schema registry, when the adapter supports it (doc 14 §2.2); startup registers this service's schemas.</summary>
+    public ISchemaStore? Schemas { get; init; }
+
     /// <summary>Node liveness for lease fair-share, when the adapter supports it (doc 06 §4); without it a node takes every free lease.</summary>
     public INodeRegistry? Nodes { get; init; }
 }

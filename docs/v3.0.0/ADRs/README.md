@@ -41,3 +41,4 @@ Every ADR is **Proposed** until the v3 architecture review. "Traces" lists the [
 | [ADR-026](ADR-026-per-service-query-api-with-sql-syntax-and-injection-proof-compilation.md) | Per-service query API with a SQL syntax and injection-proof compilation | Proposed |
 | [ADR-027](ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md) | Single core package with extensibility SPIs, and categorised adapter packages | Accepted |
 | [ADR-028](ADR-028-postgresql-payload-columns-and-adapter-refinements.md) | PostgreSQL payload columns are `json`, plus adapter refinements | Accepted |
+| [ADR-029](ADR-029-schema-catalog-derived-from-serializer-metadata.md) | The schema catalog is derived at startup from the serializer's source-generated metadata | Accepted |

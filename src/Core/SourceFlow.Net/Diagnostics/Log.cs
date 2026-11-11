@@ -29,6 +29,9 @@ internal static partial class Log
     [LoggerMessage(1105, LogLevel.Information, "Retention cleanup deleted {Inbox} inbox rows and {DeadLetters} resolved dead letters")]
     public static partial void RetentionPurged(ILogger logger, int inbox, int deadLetters);
 
+    [LoggerMessage(1107, LogLevel.Warning, "Schema {Type} v{Version} changed without a new version (registered {Registered}, now {Current}); a published version is immutable")]
+    public static partial void SchemaConflict(ILogger logger, string type, int version, string registered, string current);
+
     [LoggerMessage(1106, LogLevel.Warning, "Node heartbeat failed; the lease fair share uses the last known node count")]
     public static partial void HeartbeatFailed(ILogger logger, Exception exception);
 

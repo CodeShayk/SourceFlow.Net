@@ -159,6 +159,20 @@ internal sealed class SqlText
             SELECT 1 + (SELECT count(*) FROM {s}.nodes WHERE node_id <> @node AND (roles & @roles) <> 0 AND heartbeat_at > now() - @window)
               FROM up
             """);
+        RegisterSchemas = R("""
+            WITH input AS (
+                SELECT * FROM unnest(@types::text[], @versions::int[], @kinds::text[], @schemas::text[], @prints::text[]) AS u(t, v, k, j, f)),
+            ins AS (
+                INSERT INTO {s}.schemas (message_type, type_version, kind, service, json_schema, fingerprint)
+                SELECT t, v, k, @service, j::jsonb, f FROM input
+                ON CONFLICT (tenant_id, message_type, type_version) DO NOTHING
+                RETURNING 1)
+            SELECT i.t, i.v, x.fingerprint, i.f
+              FROM input i
+              JOIN {s}.schemas x ON x.tenant_id = '-' AND x.message_type = i.t AND x.type_version = i.v
+             WHERE x.fingerprint <> i.f
+            """);
+        ListSchemas = R("SELECT message_type, type_version, kind, json_schema::text FROM {s}.schemas WHERE tenant_id = '-' ORDER BY message_type, type_version");
         NodeLeave = R("DELETE FROM {s}.nodes WHERE node_id = @node");
         ReleaseLease = R("UPDATE {s}.leases SET owner = NULL, expires_at = NULL WHERE name = @lease AND owner = @lease_owner AND token = @lease_token");
 
@@ -282,6 +296,10 @@ internal sealed class SqlText
     public string NodeHeartbeat { get; }
 
     public string NodeLeave { get; }
+
+    public string RegisterSchemas { get; }
+
+    public string ListSchemas { get; }
 
     public string ClaimOutbox { get; }
 

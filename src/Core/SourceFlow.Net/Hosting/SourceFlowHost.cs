@@ -61,6 +61,7 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
             [.. _runtime.Routing.Commands.Values.Select(c => c.Endpoint).Distinct(StringComparer.Ordinal)]);
         await _runtime.Transport.ProvisionAsync(topology, _settings.Provisioning, cancellationToken).ConfigureAwait(false);
 
+        await RegisterSchemasAsync(cancellationToken).ConfigureAwait(false);
         _stopping = new CancellationTokenSource();
         CancellationToken stopping = _stopping.Token;
         _runtime.Snapshots.Start();
@@ -157,6 +158,32 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
     }
 
     // Batched retention cleanup (doc 05 §9): cutoffs on the business clock, the interval on the system clock.
+    // doc 14 §2.2: register this service's schemas; a changed published (type, version) fails startup.
+    private async Task RegisterSchemasAsync(CancellationToken cancellationToken)
+    {
+        if (_runtime.Storage.Schemas is not { } store || _runtime.Options.SchemaRegistration == SchemaRegistrationMode.Off)
+        {
+            return;
+        }
+
+        Catalog.SchemaCatalog catalog = Catalog.SchemaCatalog.Build(_runtime.Model);
+        IReadOnlyList<Catalog.SchemaConflict> conflicts = await store.RegisterAsync(_runtime.ServiceName, catalog.Entries, cancellationToken).ConfigureAwait(false);
+        if (conflicts.Count == 0)
+        {
+            return;
+        }
+
+        if (_runtime.Options.SchemaRegistration == SchemaRegistrationMode.Enforce)
+        {
+            throw new Catalog.SchemaConflictException(conflicts);
+        }
+
+        foreach (Catalog.SchemaConflict conflict in conflicts)
+        {
+            Log.SchemaConflict(_logger, conflict.Type, conflict.Version, conflict.RegisteredFingerprint, conflict.CurrentFingerprint);
+        }
+    }
+
     // doc 06 §4: heartbeat into the node registry and keep the live count the fair share uses.
     private async Task HeartbeatAsync(INodeRegistry nodes, CancellationToken stopping)
     {

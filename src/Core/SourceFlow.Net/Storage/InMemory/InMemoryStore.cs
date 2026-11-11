@@ -20,7 +20,8 @@ public sealed class InMemoryStore :
     IDocumentReader,
     IStoreNotifications,
     IStoreRetention,
-    INodeRegistry
+    INodeRegistry,
+    ISchemaStore
 {
     private readonly Lock _gate = new();
     private readonly TimeProvider _time;
@@ -37,6 +38,7 @@ public sealed class InMemoryStore :
     private readonly Dictionary<(string Tenant, string Stream), Snapshot> _snapshots = [];
     private readonly List<Action> _subscribers = [];
     private readonly Dictionary<string, (int Roles, DateTimeOffset HeartbeatAt)> _nodes = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string Type, int Version), Catalog.SchemaEntry> _schemas = [];
     private ulong _commit;
     private long _outboxSequence;
 
@@ -159,6 +161,40 @@ public sealed class InMemoryStore :
         lock (_gate)
         {
             return ValueTask.FromResult(_checkpoints.GetValueOrDefault((subscription, partition)));
+        }
+    }
+
+    // ------------------------------------------------------------------ ISchemaStore
+
+    /// <inheritdoc />
+    public ValueTask<IReadOnlyList<Catalog.SchemaConflict>> RegisterAsync(string service, IReadOnlyList<Catalog.SchemaEntry> schemas, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(schemas);
+        var conflicts = new List<Catalog.SchemaConflict>();
+        lock (_gate)
+        {
+            foreach (Catalog.SchemaEntry schema in schemas)
+            {
+                if (!_schemas.TryGetValue((schema.Type, schema.Version), out Catalog.SchemaEntry? registered))
+                {
+                    _schemas[(schema.Type, schema.Version)] = schema;
+                }
+                else if (registered.Fingerprint != schema.Fingerprint)
+                {
+                    conflicts.Add(new Catalog.SchemaConflict(schema.Type, schema.Version, registered.Fingerprint, schema.Fingerprint));
+                }
+            }
+        }
+
+        return ValueTask.FromResult<IReadOnlyList<Catalog.SchemaConflict>>(conflicts);
+    }
+
+    /// <inheritdoc />
+    ValueTask<IReadOnlyList<Catalog.SchemaEntry>> ISchemaStore.ListAsync(CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            return ValueTask.FromResult<IReadOnlyList<Catalog.SchemaEntry>>([.. _schemas.Values.OrderBy(s => s.Type, StringComparer.Ordinal).ThenBy(s => s.Version)]);
         }
     }
 

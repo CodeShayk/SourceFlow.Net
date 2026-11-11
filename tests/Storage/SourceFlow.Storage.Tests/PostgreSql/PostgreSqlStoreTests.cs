@@ -58,6 +58,28 @@ public sealed class PostgreSqlStoreTests(PostgreSqlServer server) : PostgreSqlTe
     }
 
     [Fact]
+    [Trait("Id", "UT-CAT-04")]
+    [Trait("Covers", "doc 14 2.2")]
+    public async Task SchemaRegistry_IsIdempotent_AndReportsChangedFingerprints()
+    {
+        await using PostgreSqlStore store = await Server.CreateStoreAsync();
+        var v1 = new SourceFlow.Catalog.SchemaEntry("t.e", 1, SourceFlow.Catalog.SchemaKind.Event,
+            new System.Text.Json.Nodes.JsonObject { ["type"] = "object", ["title"] = "E" });
+        var changed = new SourceFlow.Catalog.SchemaEntry("t.e", 1, SourceFlow.Catalog.SchemaKind.Event,
+            new System.Text.Json.Nodes.JsonObject { ["type"] = "object", ["title"] = "E2" });
+        var v2 = new SourceFlow.Catalog.SchemaEntry("t.e", 2, SourceFlow.Catalog.SchemaKind.Event,
+            new System.Text.Json.Nodes.JsonObject { ["type"] = "object" });
+
+        (await store.RegisterAsync("svc", [v1], Ct)).ShouldBeEmpty();
+        (await store.RegisterAsync("svc", [v1, v2], Ct)).ShouldBeEmpty();
+        SourceFlow.Catalog.SchemaConflict conflict = (await store.RegisterAsync("other", [changed, v2], Ct)).ShouldHaveSingleItem();
+
+        conflict.ShouldBe(new SourceFlow.Catalog.SchemaConflict("t.e", 1, v1.Fingerprint, changed.Fingerprint));
+        IReadOnlyList<SourceFlow.Catalog.SchemaEntry> listed = await ((ISchemaStore)store).ListAsync(Ct);
+        listed.Select(e => (e.Type, e.Version, e.Fingerprint)).ShouldBe([("t.e", 1, v1.Fingerprint), ("t.e", 2, v2.Fingerprint)]);
+    }
+
+    [Fact]
     [Trait("Id", "SCK-44")]
     [Trait("Covers", "ADR-016")]
     public async Task Leases_ExpireOnTheDatabaseClock_AndAStolenLeaseFencesTheOldOwner()

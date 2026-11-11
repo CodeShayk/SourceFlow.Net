@@ -53,3 +53,5 @@ doc 14 6,doc 14,Query consistency levels and at_least tokens
 doc 14 7.4,doc 14,Keyset pagination with continuation tokens
 doc 14 9.5,doc 14,In-process IQueryService
 doc 14 12,doc 14,Cross-provider query equivalence and injection corpus
+doc 14 2.1,doc 14,Schema catalog generation
+doc 14 2.2,doc 14,Schema registration, compatibility and export

@@ -43,6 +43,12 @@ public sealed class SourceFlowOptions
     /// <summary>How often a node heartbeats for lease fair-share (doc 06 §4). A node is live for three intervals.</summary>
     public TimeSpan NodeHeartbeatInterval { get; set; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>
+    /// What startup does when a published schema changed without a new version (doc 14 §2.2): fail (default), log a
+    /// warning, or skip registration.
+    /// </summary>
+    public SchemaRegistrationMode SchemaRegistration { get; set; } = SchemaRegistrationMode.Enforce;
+
     /// <summary>Concurrent receive workers (RX-R1).</summary>
     [Range(1, 1024)]
     public int ReceiveConcurrency { get; set; } = Math.Max(2, Environment.ProcessorCount * 2);
@@ -165,4 +171,17 @@ public enum AggregateCacheMode
     /// Best with stream affinity (partition-keyed routing to one instance).
     /// </summary>
     Optimistic = 2,
+}
+
+/// <summary>What startup does with schema conflicts (doc 14 §2.2).</summary>
+public enum SchemaRegistrationMode
+{
+    /// <summary>Register schemas; a changed published <c>(type, version)</c> fails startup.</summary>
+    Enforce = 0,
+
+    /// <summary>Register schemas; log conflicts as warnings.</summary>
+    Warn = 1,
+
+    /// <summary>Don't register schemas.</summary>
+    Off = 2,
 }
