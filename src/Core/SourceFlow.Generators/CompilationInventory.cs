@@ -15,6 +15,7 @@ namespace SourceFlow.Generators
         private readonly ConcurrentBag<INamedTypeSymbol> _messages = new();
         private readonly ConcurrentBag<INamedTypeSymbol> _modules = new();
         private readonly ConcurrentBag<INamedTypeSymbol> _stateTypes = new();
+        private readonly ConcurrentBag<(INamedTypeSymbol Reply, INamedTypeSymbol Process)> _replies = new();
         private readonly ConcurrentBag<(ITypeSymbol Command, ITypeSymbol Aggregate)> _handled = new();
         private readonly ConcurrentBag<(INamedTypeSymbol Command, ITypeSymbol Aggregate)> _commands = new();
 
@@ -42,6 +43,13 @@ namespace SourceFlow.Generators
             if (type.FindAttribute(KnownNames.ProcessManagerAttribute) is not null)
             {
                 _stateTypes.Add(type);
+                foreach (IMethodSymbol react in type.GetMembers("React").OfType<IMethodSymbol>())
+                {
+                    if (react.Parameters.Length == 2 && react.Parameters[0].Type is INamedTypeSymbol { IsGenericType: true } reply && reply.Is(KnownNames.CommandRejected))
+                    {
+                        _replies.Add((reply, type));
+                    }
+                }
             }
 
             if (type.FindAttribute(KnownNames.AggregateAttribute) is { } aggregate)
@@ -115,6 +123,18 @@ namespace SourceFlow.Generators
                         && serializable.ConstructorArguments.Length > 0 && serializable.ConstructorArguments[0].Value is ITypeSymbol listedType)
                     {
                         listed.Add(listedType);
+                    }
+                }
+
+                foreach ((INamedTypeSymbol reply, INamedTypeSymbol process) in _replies)
+                {
+                    if (!listed.Contains(reply))
+                    {
+                        var properties = ImmutableDictionary<string, string?>.Empty
+                            .Add(JsonContextCodeFix.ContextKey, SymbolExtensions.MetadataName(jsonContext))
+                            .Add(JsonContextCodeFix.TypeKey, reply.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                        context.ReportDiagnostic(Diagnostic.Create(Diagnostics.MissingJsonType, process.Locations.FirstOrDefault(l => l.IsInSource) ?? Location.None, properties,
+                            reply.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat), jsonContext.Name));
                     }
                 }
 

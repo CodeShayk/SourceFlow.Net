@@ -40,6 +40,9 @@ public sealed class SourceFlowOptions
     /// <summary>Lease time-to-live for outbox and subscription partitions (doc 05 §7.4).</summary>
     public TimeSpan LeaseTtl { get; set; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>How often a node heartbeats for lease fair-share (doc 06 §4). A node is live for three intervals.</summary>
+    public TimeSpan NodeHeartbeatInterval { get; set; } = TimeSpan.FromSeconds(10);
+
     /// <summary>Concurrent receive workers (RX-R1).</summary>
     [Range(1, 1024)]
     public int ReceiveConcurrency { get; set; } = Math.Max(2, Environment.ProcessorCount * 2);

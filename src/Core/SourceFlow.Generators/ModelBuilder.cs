@@ -174,6 +174,7 @@ namespace SourceFlow.Generators
             var reacted = new List<string>();
             var correlated = new List<string>();
             var textCorrelated = new List<string>();
+            var rejections = new List<RejectionModel>();
             foreach (IMethodSymbol method in type.GetMembers().OfType<IMethodSymbol>())
             {
                 if (!method.IsStatic && method.Name == "React" && method.Parameters.Length == 2
@@ -183,6 +184,14 @@ namespace SourceFlow.Generators
                     && !method.Parameters[0].Type.Is(KnownNames.Message))
                 {
                     reacted.Add(method.Parameters[0].Type.FullName());
+                    if (method.Parameters[0].Type is INamedTypeSymbol { IsGenericType: true } reply
+                        && reply.Is(KnownNames.CommandRejected)
+                        && reply.TypeArguments[0].FindAttribute(KnownNames.MessageTypeAttribute) is { ConstructorArguments.Length: > 0 } commandType
+                        && commandType.ConstructorArguments[0].Value is string commandName)
+                    {
+                        int commandVersion = commandType.ConstructorArguments.Length > 1 && commandType.ConstructorArguments[1].Value is int v ? v : 1;
+                        rejections.Add(new RejectionModel(reply.FullName(), commandName + ".rejected", commandVersion));
+                    }
                 }
                 else if (method.IsStatic && method.Name == "CorrelateBy" && method.Parameters.Length == 1
                     && SymbolEqualityComparer.Default.Equals(method.ReturnType, idType))
@@ -205,7 +214,8 @@ namespace SourceFlow.Generators
                 idType.FullName(),
                 reacted.Distinct().OrderBy(x => x, System.StringComparer.Ordinal).ToEquatableArray(),
                 correlated.Distinct().OrderBy(x => x, System.StringComparer.Ordinal).ToEquatableArray(),
-                textCorrelated.Distinct().OrderBy(x => x, System.StringComparer.Ordinal).ToEquatableArray());
+                textCorrelated.Distinct().OrderBy(x => x, System.StringComparer.Ordinal).ToEquatableArray(),
+                rejections.Distinct().OrderBy(x => x.LogicalName, System.StringComparer.Ordinal).ToEquatableArray());
         }
 
         public static SessionProjectionModel? SessionProjection(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)

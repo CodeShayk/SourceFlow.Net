@@ -54,6 +54,10 @@ public sealed partial class CoreTestModule;
 [JsonSerializable(typeof(RenamedV1))]
 [JsonSerializable(typeof(RenamedV2))]
 [JsonSerializable(typeof(RenamedV3))]
+[JsonSerializable(typeof(Drip))]
+[JsonSerializable(typeof(Dripped))]
+[JsonSerializable(typeof(Dripper))]
+[JsonSerializable(typeof(Drips))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 public sealed partial class CoreTestJsonContext : JsonSerializerContext;
 

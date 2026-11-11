@@ -48,19 +48,74 @@ internal sealed class SubscriptionEngine
     private const int InitialBatchSize = 100;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<(string Subscription, int Partition), int> _batchSizes = new();
 
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<(string Subscription, int Partition), LeaseToken> _owned = new();
+
+    /// <summary>The (subscription, partition) leases this node holds.</summary>
+    internal int OwnedLeases => _owned.Count;
+
+    /// <summary>
+    /// The most leases this node takes: <c>ceil(total / live nodes)</c> (doc 06 §4). Without a node registry, or with one
+    /// live node, every lease.
+    /// </summary>
+    internal int FairShare
+    {
+        get
+        {
+            int total = Definitions.Count * _runtime.Options.SubscriptionPartitions;
+            int live = Math.Max(1, _runtime.LiveSubscriptionNodes);
+            return (total + live - 1) / live;
+        }
+    }
+
     public async ValueTask<int> RunOnceAsync(CancellationToken cancellationToken)
     {
         int processed = 0;
         int partitions = _runtime.Options.SubscriptionPartitions;
+        int share = FairShare;
         foreach (SubscriptionDefinition definition in Definitions)
         {
             for (int partition = 0; partition < partitions; partition++)
             {
+                // Up to the fair share: keep (renew) what this node holds, take free or expired leases only below it.
+                if (!_owned.ContainsKey((definition.Name, partition)) && _owned.Count >= share)
+                {
+                    continue;
+                }
+
                 processed += await RunPartitionAsync(definition, partition, partitions, cancellationToken).ConfigureAwait(false);
             }
         }
 
+        await ReleaseExcessAsync(share, cancellationToken).ConfigureAwait(false);
         return processed;
+    }
+
+    // Above the fair share (a node joined): release one lease per pass, so rebalancing is gradual (no thundering herd).
+    private async ValueTask ReleaseExcessAsync(int share, CancellationToken cancellationToken)
+    {
+        if (_owned.Count <= share)
+        {
+            return;
+        }
+
+        (string Subscription, int Partition) victim = _owned.Keys.OrderByDescending(k => k.Partition).ThenByDescending(k => k.Subscription, StringComparer.Ordinal).First();
+        if (_owned.TryRemove(victim, out LeaseToken? lease))
+        {
+            await _runtime.Storage.Leases.ReleaseAsync(lease, cancellationToken).ConfigureAwait(false);
+            _batchSizes.TryRemove(victim, out _);
+        }
+    }
+
+    /// <summary>Releases every lease this node holds (graceful shutdown: others take over without waiting for the TTL).</summary>
+    public async ValueTask ReleaseAllAsync(CancellationToken cancellationToken)
+    {
+        foreach ((string, int) key in _owned.Keys.ToArray())
+        {
+            if (_owned.TryRemove(key, out LeaseToken? lease))
+            {
+                await _runtime.Storage.Leases.ReleaseAsync(lease, cancellationToken).ConfigureAwait(false);
+            }
+        }
     }
 
     /// <summary>True when every partition's checkpoint has reached the log horizon.</summary>
@@ -88,8 +143,11 @@ internal sealed class SubscriptionEngine
         LeaseToken? lease = await _runtime.Storage.Leases.TryAcquireAsync($"sub:{definition.Name}:{partition}", _runtime.Options.NodeId, _runtime.Options.LeaseTtl, cancellationToken).ConfigureAwait(false);
         if (lease is null)
         {
+            _owned.TryRemove((definition.Name, partition), out _);
             return 0;
         }
+
+        _owned[(definition.Name, partition)] = lease;
 
         GlobalPosition checkpoint = await _runtime.Storage.Checkpoints.GetAsync(definition.Name, partition, cancellationToken).ConfigureAwait(false);
         int max = _runtime.Options.SubscriptionBatchSize;

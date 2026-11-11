@@ -195,7 +195,33 @@ public sealed class BankScenarios
     [Fact]
     [Trait("Id", "E2E-14")]
     [Trait("Covers", "ADR-020")]
-    public async Task MoneyTransfer_InsufficientFunds_TimesOut_AndFails()
+    public async Task MoneyTransfer_DepositRejected_TimesOut_AndCompensates()
+    {
+        // The deposit to a closed account is rejected and the process manager doesn't react to that rejection, so the
+        // timeout fires while depositing: the withdrawal is compensated and the transfer fails.
+        await using BankSystem bank = await BankSystem.StartAsync();
+        AccountId from = await bank.OpenAsync(100m);
+        AccountId to = await bank.OpenAsync(1m);
+        (await bank.Accounts.SendAsync(new CloseAccount(to, "moved"))).Status.ShouldBe(CommandStatus.Accepted);
+        var transfer = TransferId.New(bank.Time);
+
+        await bank.Accounts.SendAsync(new RequestTransfer(transfer, from, to, 40m));
+        await bank.IdleAsync();
+        (await bank.SummaryAsync(from))!.Balance.ShouldBe(60m);
+        (await bank.Accounts.EventsAsync(StreamId.For(Transfer.AggregateName, transfer))).Last().ShouldBeOfType<TransferRequested>();
+
+        bank.Time.Advance(MoneyTransfer.Timeout + TimeSpan.FromSeconds(1));
+        await bank.IdleAsync();
+
+        (await bank.Accounts.EventsAsync(StreamId.For(Transfer.AggregateName, transfer))).Last().ShouldBe(new TransferFailed(transfer, "timeout"));
+        (await bank.SummaryAsync(from))!.Balance.ShouldBe(100m);   // compensated
+        (await bank.SummaryAsync(to))!.Balance.ShouldBe(1m);
+    }
+
+    [Fact]
+    [Trait("Id", "E2E-15")]
+    [Trait("Covers", "ADR-018;ADR-020")]
+    public async Task MoneyTransfer_InsufficientFunds_RejectionReply_FailsTheTransfer()
     {
         await using BankSystem bank = await BankSystem.StartAsync();
         AccountId from = await bank.OpenAsync(10m);
@@ -203,15 +229,17 @@ public sealed class BankScenarios
         var transfer = TransferId.New(bank.Time);
 
         await bank.Accounts.SendAsync(new RequestTransfer(transfer, from, to, 40m));
-        await bank.IdleAsync();
-        (await bank.Accounts.EventsAsync(StreamId.For(Transfer.AggregateName, transfer))).Last().ShouldBeOfType<TransferRequested>();
+        await bank.IdleAsync();   // no time passes: the CommandRejected<Withdraw> reply fails the transfer
 
-        bank.Time.Advance(MoneyTransfer.Timeout + TimeSpan.FromSeconds(1));
-        await bank.IdleAsync();
-
-        (await bank.Accounts.EventsAsync(StreamId.For(Transfer.AggregateName, transfer))).Last().ShouldBe(new TransferFailed(transfer, "timeout"));
+        (await bank.Accounts.EventsAsync(StreamId.For(Transfer.AggregateName, transfer))).Last()
+            .ShouldBe(new TransferFailed(transfer, AccountErrors.InsufficientFunds.Code));
         (await bank.SummaryAsync(from))!.Balance.ShouldBe(10m);
         (await bank.SummaryAsync(to))!.Balance.ShouldBe(1m);
+
+        // The timeout fires later and is ignored: the instance is complete.
+        bank.Time.Advance(MoneyTransfer.Timeout + TimeSpan.FromSeconds(1));
+        await bank.IdleAsync();
+        (await bank.Accounts.EventsAsync(StreamId.For(Transfer.AggregateName, transfer))).OfType<TransferFailed>().ShouldHaveSingleItem();
     }
 
     [Fact]

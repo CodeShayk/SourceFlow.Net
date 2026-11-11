@@ -61,7 +61,7 @@ internal sealed class ProcessManagerRunner(SourceFlowRuntime runtime)
         session.SaveProcessState(process.Name, instanceId, stored?.Version ?? 0, JsonSerializer.SerializeToUtf8Bytes(next, typeInfo), reaction.Completes);
         foreach (ICommand command in reaction.Commands)
         {
-            runtime.EnqueueCommand(session, command, envelope, correlation);
+            runtime.EnqueueCommand(session, command, envelope, correlation, replyOnReject: true);
         }
 
         foreach (ScheduledMessage scheduled in reaction.Scheduled)

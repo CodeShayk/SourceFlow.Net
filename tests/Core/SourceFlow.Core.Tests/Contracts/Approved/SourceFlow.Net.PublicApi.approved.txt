@@ -18,6 +18,20 @@ namespace SourceFlow
         public CommandFailedException(SourceFlow.CommandResult result) { }
         public SourceFlow.CommandResult Result { get; }
     }
+    public sealed class CommandRejected<TCommand> : SourceFlow.ICommandRejected, SourceFlow.IMessage, System.IEquatable<SourceFlow.CommandRejected<TCommand>>
+        where TCommand :  class, SourceFlow.ICommand
+    {
+        public CommandRejected(TCommand Command, SourceFlow.Error Error) { }
+        [System.Text.Json.Serialization.JsonPropertyName("command")]
+        public TCommand Command { get; init; }
+        [System.Text.Json.Serialization.JsonPropertyName("error")]
+        public SourceFlow.Error Error { get; init; }
+    }
+    public static class CommandReplies
+    {
+        public const string ReplyToHeader = "sf-reply-to";
+        public static string RejectedTypeName(string commandTypeName) { }
+    }
     public readonly struct CommandResult : System.IEquatable<SourceFlow.CommandResult>
     {
         public CommandResult(SourceFlow.CommandStatus Status, SourceFlow.StreamVersion Version, SourceFlow.Error? Error, SourceFlow.ConsistencyToken Token) { }
@@ -95,8 +109,11 @@ namespace SourceFlow
         public static readonly SourceFlow.Error ConcurrencyConflict;
         public static readonly SourceFlow.Error VersionMismatch;
         public Error(string Code, string Message, System.Collections.Generic.IReadOnlyDictionary<string, object?>? Details = null) { }
+        [System.Text.Json.Serialization.JsonPropertyName("code")]
         public string Code { get; init; }
+        [System.Text.Json.Serialization.JsonPropertyName("details")]
         public System.Collections.Generic.IReadOnlyDictionary<string, object?>? Details { get; init; }
+        [System.Text.Json.Serialization.JsonPropertyName("message")]
         public string Message { get; init; }
         public static SourceFlow.Error InvalidCommand(string message) { }
     }
@@ -170,6 +187,10 @@ namespace SourceFlow
         where TAggregate :  class
     {
         System.Threading.Tasks.ValueTask<SourceFlow.Decision> HandleAsync(TCommand command, TAggregate state, SourceFlow.DecisionContext context, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface ICommandRejected : SourceFlow.IMessage
+    {
+        SourceFlow.Error Error { get; }
     }
     public interface ICommandSender
     {
@@ -304,6 +325,7 @@ namespace SourceFlow
         Event = 2,
         IntegrationEvent = 3,
         Timeout = 4,
+        Reply = 5,
     }
     [System.AttributeUsage(System.AttributeTargets.Class, Inherited=false)]
     public sealed class MessageTypeAttribute : System.Attribute
@@ -1620,6 +1642,7 @@ namespace SourceFlow.Runtime
         public System.TimeSpan LeaseTtl { get; set; }
         [System.ComponentModel.DataAnnotations.Range(0, 50)]
         public int MaxConcurrencyRetries { get; set; }
+        public System.TimeSpan NodeHeartbeatInterval { get; set; }
         [System.ComponentModel.DataAnnotations.Required]
         public string NodeId { get; set; }
         [System.ComponentModel.DataAnnotations.Range(1, 10000)]
@@ -1679,7 +1702,7 @@ namespace SourceFlow.Runtime
         public System.TimeProvider Time { get; }
         public SourceFlow.Transport.ITransport Transport { get; }
         public SourceFlow.Messaging.MessageEnvelope CreateEnvelope(object message, SourceFlow.Messaging.MessageEnvelope? cause = null, SourceFlow.MessageId? messageId = default, SourceFlow.CorrelationId? correlation = default, string? subject = null, string? partitionKey = null, string? tenant = null, System.Collections.Generic.IReadOnlyDictionary<string, string>? headers = null) { }
-        public void EnqueueCommand(SourceFlow.Storage.IStorageSession session, SourceFlow.ICommand command, SourceFlow.Messaging.MessageEnvelope? cause, SourceFlow.CorrelationId? correlation) { }
+        public void EnqueueCommand(SourceFlow.Storage.IStorageSession session, SourceFlow.ICommand command, SourceFlow.Messaging.MessageEnvelope? cause, SourceFlow.CorrelationId? correlation, bool replyOnReject = false) { }
         public void EnqueueScheduled(SourceFlow.Storage.IStorageSession session, SourceFlow.IMessage message, System.DateTimeOffset deliverAt, SourceFlow.Messaging.MessageEnvelope? cause, SourceFlow.CorrelationId? correlation) { }
         public Microsoft.Extensions.Logging.ILogger Logger<T>() { }
         public System.ReadOnlyMemory<byte> Serialize(object message, SourceFlow.Messaging.MessageTypeInfo type) { }
@@ -1695,6 +1718,7 @@ namespace SourceFlow.Runtime
         public SourceFlow.Storage.IEventStore Events { get; init; }
         public SourceFlow.Storage.ILeaseManager Leases { get; init; }
         public SourceFlow.Storage.IEventLogReader Log { get; init; }
+        public SourceFlow.Storage.INodeRegistry? Nodes { get; init; }
         public SourceFlow.Storage.IStoreNotifications Notifications { get; init; }
         public SourceFlow.Storage.IOutboxStore Outbox { get; init; }
         public SourceFlow.Storage.IStoreRetention? Retention { get; init; }
@@ -1847,6 +1871,11 @@ namespace SourceFlow.Storage
     {
         System.Threading.Tasks.ValueTask ReleaseAsync(SourceFlow.Storage.LeaseToken lease, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<SourceFlow.Storage.LeaseToken?> TryAcquireAsync(string name, string owner, System.TimeSpan ttl, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface INodeRegistry
+    {
+        System.Threading.Tasks.ValueTask<int> HeartbeatAsync(string nodeId, int roles, System.TimeSpan liveWindow, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask LeaveAsync(string nodeId, System.Threading.CancellationToken cancellationToken);
     }
     public interface IOutboxStore
     {
@@ -2033,7 +2062,7 @@ namespace SourceFlow.Storage.InMemory
         public InMemoryFaults() { }
         public void FailNextCommits(int count, System.Exception exception) { }
     }
-    public sealed class InMemoryStore : SourceFlow.Storage.ICheckpointStore, SourceFlow.Storage.IDeadLetterStore, SourceFlow.Storage.IDocumentReader, SourceFlow.Storage.IEventLogReader, SourceFlow.Storage.IEventStore, SourceFlow.Storage.ILeaseManager, SourceFlow.Storage.IOutboxStore, SourceFlow.Storage.ISnapshotStore, SourceFlow.Storage.IStorageSessionFactory, SourceFlow.Storage.IStoreNotifications, SourceFlow.Storage.IStoreRetention
+    public sealed class InMemoryStore : SourceFlow.Storage.ICheckpointStore, SourceFlow.Storage.IDeadLetterStore, SourceFlow.Storage.IDocumentReader, SourceFlow.Storage.IEventLogReader, SourceFlow.Storage.IEventStore, SourceFlow.Storage.ILeaseManager, SourceFlow.Storage.INodeRegistry, SourceFlow.Storage.IOutboxStore, SourceFlow.Storage.ISnapshotStore, SourceFlow.Storage.IStorageSessionFactory, SourceFlow.Storage.IStoreNotifications, SourceFlow.Storage.IStoreRetention
     {
         public InMemoryStore(System.TimeProvider? time = null) { }
         public long CommitCount { get; }
@@ -2049,6 +2078,8 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetAsync(string subscription, int partition, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetSafeHorizonAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamInfo?> GetStreamInfoAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<int> HeartbeatAsync(string nodeId, int roles, System.TimeSpan liveWindow, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask LeaveAsync(string nodeId, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.StoredDocument>> ListAsync(string tenantId, string collection, int maxCount, System.Threading.CancellationToken cancellationToken) { }
         public System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.OutboxRecord> OutboxSnapshot() { }
         public System.Threading.Tasks.ValueTask ParkAsync(SourceFlow.Storage.DeadLetter deadLetter, System.Threading.CancellationToken cancellationToken) { }

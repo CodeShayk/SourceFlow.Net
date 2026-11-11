@@ -19,7 +19,8 @@ public sealed class InMemoryStore :
     ISnapshotStore,
     IDocumentReader,
     IStoreNotifications,
-    IStoreRetention
+    IStoreRetention,
+    INodeRegistry
 {
     private readonly Lock _gate = new();
     private readonly TimeProvider _time;
@@ -35,6 +36,7 @@ public sealed class InMemoryStore :
     private readonly Dictionary<Guid, DeadLetter> _deadLetters = [];
     private readonly Dictionary<(string Tenant, string Stream), Snapshot> _snapshots = [];
     private readonly List<Action> _subscribers = [];
+    private readonly Dictionary<string, (int Roles, DateTimeOffset HeartbeatAt)> _nodes = new(StringComparer.Ordinal);
     private ulong _commit;
     private long _outboxSequence;
 
@@ -158,6 +160,32 @@ public sealed class InMemoryStore :
         {
             return ValueTask.FromResult(_checkpoints.GetValueOrDefault((subscription, partition)));
         }
+    }
+
+    // ------------------------------------------------------------------ INodeRegistry
+
+    /// <inheritdoc />
+    public ValueTask<int> HeartbeatAsync(string nodeId, int roles, TimeSpan liveWindow, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(nodeId);
+        lock (_gate)
+        {
+            DateTimeOffset now = _time.GetUtcNow();
+            _nodes[nodeId] = (roles, now);
+            int live = _nodes.Count(n => n.Key == nodeId || ((n.Value.Roles & roles) != 0 && n.Value.HeartbeatAt > now - liveWindow));
+            return ValueTask.FromResult(live);
+        }
+    }
+
+    /// <inheritdoc />
+    public ValueTask LeaveAsync(string nodeId, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            _nodes.Remove(nodeId);
+        }
+
+        return ValueTask.CompletedTask;
     }
 
     // ------------------------------------------------------------------ ILeaseManager

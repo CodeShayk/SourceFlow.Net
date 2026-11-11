@@ -268,9 +268,14 @@ public sealed class MessageTypeRegistryBuilder
             return MessageKind.IntegrationEvent;
         }
 
+        if (typeof(ICommandRejected).IsAssignableFrom(type))
+        {
+            return MessageKind.Reply;
+        }
+
         return typeof(ITimeout).IsAssignableFrom(type)
             ? MessageKind.Timeout
-            : throw new ArgumentException($"'{type.FullName}' does not implement ICommand, IEvent, IIntegrationEvent or ITimeout.", nameof(type));
+            : throw new ArgumentException($"'{type.FullName}' does not implement ICommand, IEvent, IIntegrationEvent, ITimeout or ICommandRejected.", nameof(type));
     }
 
     private static bool IsValidName(string name)

@@ -29,6 +29,9 @@ internal static partial class Log
     [LoggerMessage(1105, LogLevel.Information, "Retention cleanup deleted {Inbox} inbox rows and {DeadLetters} resolved dead letters")]
     public static partial void RetentionPurged(ILogger logger, int inbox, int deadLetters);
 
+    [LoggerMessage(1106, LogLevel.Warning, "Node heartbeat failed; the lease fair share uses the last known node count")]
+    public static partial void HeartbeatFailed(ILogger logger, Exception exception);
+
     [LoggerMessage(1201, LogLevel.Warning, "Message {MessageId} ({MessageType}) failed transiently on attempt {Attempt}; redelivering after {Delay}")]
     public static partial void ReceiveRetry(ILogger logger, Exception exception, string messageId, string messageType, int attempt, TimeSpan delay);
 

@@ -326,6 +326,11 @@ namespace SourceFlow.Generators
                 w.Line($"builder.AddMessage<{m.FullName}>({Literal.Of(m.LogicalName)}, {m.Version.ToString(CultureInfo.InvariantCulture)});");
             }
 
+            foreach (RejectionModel r in processes.SelectMany(p => p.Rejections).Distinct().OrderBy(r => r.LogicalName, System.StringComparer.Ordinal))
+            {
+                w.Line($"builder.AddMessage<{r.FullName}>({Literal.Of(r.LogicalName)}, {r.Version.ToString(CultureInfo.InvariantCulture)});");
+            }
+
             foreach (HandlerModel h in handlers.Where(h => h.Kind == HandlerKind.Upcaster).OrderBy(h => h.FullName, System.StringComparer.Ordinal))
             {
                 w.Line($"builder.AddUpcaster<{h.First}, {h.Second}, {h.FullName}>();");

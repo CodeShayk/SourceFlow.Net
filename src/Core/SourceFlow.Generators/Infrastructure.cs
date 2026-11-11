@@ -121,6 +121,7 @@ namespace SourceFlow.Generators
         public const string Reaction = "SourceFlow.Reaction";
         public const string ReactionContext = "SourceFlow.ReactionContext`1";
         public const string EventContext = "SourceFlow.EventContext";
+        public const string CommandRejected = "SourceFlow.CommandRejected`1";
     }
 
     internal static class SymbolExtensions

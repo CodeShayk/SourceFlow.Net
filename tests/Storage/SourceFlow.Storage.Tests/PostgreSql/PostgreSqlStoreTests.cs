@@ -40,6 +40,24 @@ public sealed class PostgreSqlStoreTests(PostgreSqlServer server) : PostgreSqlTe
     }
 
     [Fact]
+    [Trait("Id", "UT-SUB-10")]
+    [Trait("Covers", "doc 06 4")]
+    public async Task NodeRegistry_CountsLiveNodesWithTheRole_OnTheDatabaseClock()
+    {
+        await using PostgreSqlStore store = await Server.CreateStoreAsync();
+        TimeSpan window = TimeSpan.FromSeconds(30);
+
+        (await store.HeartbeatAsync("node-1", 4, window, Ct)).ShouldBe(1);
+        (await store.HeartbeatAsync("node-2", 4 | 1, window, Ct)).ShouldBe(2);
+        (await store.HeartbeatAsync("api-only", 0, window, Ct)).ShouldBe(1);   // no shared role: counts only itself
+        (await store.HeartbeatAsync("node-1", 4, window, Ct)).ShouldBe(2);
+        (await store.HeartbeatAsync("node-1", 4, TimeSpan.FromTicks(1), Ct)).ShouldBe(1);   // the others are outside a tiny window
+
+        await store.LeaveAsync("node-2", Ct);
+        (await store.HeartbeatAsync("node-1", 4, window, Ct)).ShouldBe(1);
+    }
+
+    [Fact]
     [Trait("Id", "SCK-44")]
     [Trait("Covers", "ADR-016")]
     public async Task Leases_ExpireOnTheDatabaseClock_AndAStolenLeaseFencesTheOldOwner()

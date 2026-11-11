@@ -147,6 +147,12 @@ public sealed class CommandProcessor
             CommandStatus status = decision.IsRejected ? CommandStatus.Rejected : CommandStatus.NoOp;
             if (keyed)
             {
+                if (decision.IsRejected && envelope.Headers.TryGetValue(CommandReplies.ReplyToHeader, out string? replyTo) && replyTo.Length > 0)
+                {
+                    // ADR-018: the rejection reply commits with the inbox record, so it is sent exactly when the rejection is.
+                    session.EnqueueOutbox(_runtime.ToOutbox(RejectionReply(envelope, decision.Error!), replyTo, OutboxKind.Send));
+                }
+
                 session.RecordInbox(Consumer, envelope.MessageId, new InboxResult(status, version, decision.Error?.Code));
                 await session.CommitAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -189,6 +195,40 @@ public sealed class CommandProcessor
         _runtime.Metrics.AppendEvents.Record(events.Length, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name));
         await _aggregates.CommittedAsync(aggregate, stream, envelope.TenantId, state, version, events, cancellationToken).ConfigureAwait(false);
         return new CommandResult(CommandStatus.Accepted, commit.StreamVersion ?? newVersion, null, Token(commit.LastPosition, envelope.TenantId));
+    }
+
+    // CommandRejected<T> on the wire: { "command": <the command's JSON, as received>, "error": { "code", "message" } }.
+    // Built from the received body, so the owner needs no JSON metadata for the reply type.
+    private MessageEnvelope RejectionReply(MessageEnvelope command, Error error)
+    {
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        using (var writer = new System.Text.Json.Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("command");
+            writer.WriteRawValue(command.Body.Span, skipInputValidation: true);
+            writer.WriteStartObject("error");
+            writer.WriteString("code", error.Code);
+            writer.WriteString("message", error.Message);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        }
+
+        return new MessageEnvelope
+        {
+            MessageId = MessageIds.New(_runtime.Time),
+            Type = CommandReplies.RejectedTypeName(command.Type),
+            TypeVersion = command.TypeVersion,
+            Source = _runtime.ServiceName,
+            Time = _runtime.Time.GetUtcNow(),
+            CorrelationId = command.CorrelationId,
+            CausationId = command.MessageId,
+            TenantId = command.TenantId,
+            Actor = command.Actor,
+            TraceParent = Activity.Current?.Id ?? command.TraceParent,
+            TraceState = Activity.Current?.TraceStateString ?? command.TraceState,
+            Body = buffer.WrittenMemory.ToArray(),
+        };
     }
 
     private void EnqueuePublications(IStorageSession session, IEvent[] events, MessageEnvelope[] envelopes, StreamId stream)

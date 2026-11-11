@@ -4,7 +4,10 @@ namespace SourceFlow;
 /// <param name="Code">A stable, dot-separated code, for example <c>account.insufficient_funds</c>.</param>
 /// <param name="Message">A human-readable description.</param>
 /// <param name="Details">Optional structured details.</param>
-public sealed record Error(string Code, string Message, IReadOnlyDictionary<string, object?>? Details = null)
+public sealed record Error(
+    [property: System.Text.Json.Serialization.JsonPropertyName("code")] string Code,
+    [property: System.Text.Json.Serialization.JsonPropertyName("message")] string Message,
+    [property: System.Text.Json.Serialization.JsonPropertyName("details")] IReadOnlyDictionary<string, object?>? Details = null)
 {
     /// <summary>The command is structurally invalid, for example its target id is the default value (GAP-20).</summary>
     public static Error InvalidCommand(string message)

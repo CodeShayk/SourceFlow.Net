@@ -83,6 +83,12 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
 
         if (_settings.Roles.HasFlag(SourceFlowRoles.Subscriptions) && _subscriptions.Definitions.Count > 0)
         {
+            if (_runtime.Storage.Nodes is { } nodes)
+            {
+                await HeartbeatAsync(nodes, stopping).ConfigureAwait(false);   // know the live nodes before taking leases
+                _loops.Add(Task.Run(() => HeartbeatLoopAsync(nodes, stopping), CancellationToken.None));
+            }
+
             _loops.Add(Task.Run(() => LoopAsync(ct => _subscriptions.RunOnceAsync(ct), stopping), CancellationToken.None));
         }
 
@@ -110,6 +116,22 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
             // Unfinished work is retried after restart (outbox rows stay, messages are redelivered).
         }
 
+        if (_settings.Roles.HasFlag(SourceFlowRoles.Subscriptions) && _subscriptions.Definitions.Count > 0)
+        {
+            try
+            {
+                await _subscriptions.ReleaseAllAsync(cancellationToken).ConfigureAwait(false);
+                if (_runtime.Storage.Nodes is { } nodes)
+                {
+                    await nodes.LeaveAsync(_runtime.Options.NodeId, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                Log.HeartbeatFailed(_logger, exception);   // the leases expire after their TTL instead
+            }
+        }
+
         await _receiver.DrainAsync(_runtime.Options.ShutdownTimeout).ConfigureAwait(false);
         await _runtime.Snapshots.StopAsync(_runtime.Options.ShutdownTimeout).ConfigureAwait(false);
         _notifications?.Dispose();
@@ -135,6 +157,33 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
     }
 
     // Batched retention cleanup (doc 05 §9): cutoffs on the business clock, the interval on the system clock.
+    // doc 06 §4: heartbeat into the node registry and keep the live count the fair share uses.
+    private async Task HeartbeatAsync(INodeRegistry nodes, CancellationToken stopping)
+    {
+        TimeSpan window = _runtime.Options.NodeHeartbeatInterval * 3;
+        _runtime.LiveSubscriptionNodes = await nodes.HeartbeatAsync(_runtime.Options.NodeId, (int)SourceFlowRoles.Subscriptions, window, stopping).ConfigureAwait(false);
+    }
+
+    private async Task HeartbeatLoopAsync(INodeRegistry nodes, CancellationToken stopping)
+    {
+        while (!stopping.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(_runtime.Options.NodeHeartbeatInterval, TimeProvider.System, stopping).ConfigureAwait(false);
+                await HeartbeatAsync(nodes, stopping).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                Log.HeartbeatFailed(_logger, exception);
+            }
+        }
+    }
+
     private async Task RetentionLoopAsync(IStoreRetention retention, CancellationToken stopping)
     {
         SourceFlowOptions options = _runtime.Options;

@@ -60,6 +60,9 @@ public sealed record StoragePorts(
 {
     /// <summary>Retention cleanup, when the adapter supports it (doc 05 §9).</summary>
     public IStoreRetention? Retention { get; init; }
+
+    /// <summary>Node liveness for lease fair-share, when the adapter supports it (doc 06 §4); without it a node takes every free lease.</summary>
+    public INodeRegistry? Nodes { get; init; }
 }
 
 /// <summary>Everything the engine components share; one per host.</summary>
@@ -154,6 +157,9 @@ public sealed class SourceFlowRuntime
     /// <summary>The service name.</summary>
     public string ServiceName => Options.ServiceName;
 
+    /// <summary>Live nodes running subscriptions, from the last heartbeat (1 without a node registry).</summary>
+    internal int LiveSubscriptionNodes { get; set; } = 1;
+
     /// <summary>The current tenant.</summary>
     public string CurrentTenant => Tenants.TenantId ?? Options.DefaultTenant;
 
@@ -195,7 +201,7 @@ public sealed class SourceFlowRuntime
             Actor = cause?.Actor ?? Actor.Actor,
             TraceParent = trace?.Id ?? cause?.TraceParent,
             TraceState = trace?.TraceStateString ?? cause?.TraceState,
-            Headers = headers ?? cause?.Headers ?? System.Collections.Frozen.FrozenDictionary<string, string>.Empty,
+            Headers = headers ?? Inherited(cause?.Headers),
             Body = Serialize(message, type),
         };
     }
@@ -211,17 +217,48 @@ public sealed class SourceFlowRuntime
 
     /// <summary>
     /// Queues a command for its owner through the outbox: the local endpoint when owned here, else the routed endpoint.
+    /// With <paramref name="replyOnReject"/>, the owner replies <see cref="CommandRejected{TCommand}"/> to this
+    /// service's endpoint when it rejects the command: always for local owners, and for routes with <c>ReplyOnReject()</c>.
     /// </summary>
-    public void EnqueueCommand(IStorageSession session, ICommand command, MessageEnvelope? cause, CorrelationId? correlation)
+    public void EnqueueCommand(IStorageSession session, ICommand command, MessageEnvelope? cause, CorrelationId? correlation, bool replyOnReject = false)
     {
-        string destination = Model.CommandOwners.ContainsKey(command.GetType())
+        bool local = Model.CommandOwners.ContainsKey(command.GetType());
+        CommandRoute? route = null;
+        string destination = local
             ? Routing.Endpoint
-            : Routing.Commands.TryGetValue(command.GetType(), out CommandRoute? route)
+            : Routing.Commands.TryGetValue(command.GetType(), out route)
                 ? route.Endpoint
                 : throw new NoRouteException(command.GetType());
         string? subject = TrySubjectOf(command);
-        MessageEnvelope envelope = CreateEnvelope(command, cause, correlation: correlation, subject: subject, tenant: session.TenantId);
+        IReadOnlyDictionary<string, string>? headers = null;
+        if (replyOnReject && (local || route is { ReplyOnReject: true }) && ExpectsRejection(command.GetType()))
+        {
+            headers = new Dictionary<string, string>(Inherited(cause?.Headers), StringComparer.Ordinal) { [CommandReplies.ReplyToHeader] = Routing.Endpoint };
+        }
+
+        MessageEnvelope envelope = CreateEnvelope(command, cause, correlation: correlation, subject: subject, tenant: session.TenantId, headers: headers);
         session.EnqueueOutbox(ToOutbox(envelope, destination, OutboxKind.Send));
+    }
+
+    // A reply is asked for only when this service registered CommandRejected<T> (a process manager reacts to it);
+    // otherwise the reply type would be unknown here and would be dead-lettered.
+    private bool ExpectsRejection(Type commandType)
+    {
+        MessageTypeInfo command = Model.Registry.Get(commandType);
+        return Model.Registry.TryGet(CommandReplies.RejectedTypeName(command.Name), command.Version, out _);
+    }
+
+    // Headers a caused message inherits: the cause's user headers, without reserved ones (sf-reply-to).
+    private static IReadOnlyDictionary<string, string> Inherited(IReadOnlyDictionary<string, string>? headers)
+    {
+        if (headers is null || headers.Count == 0)
+        {
+            return System.Collections.Frozen.FrozenDictionary<string, string>.Empty;
+        }
+
+        return headers.ContainsKey(CommandReplies.ReplyToHeader)
+            ? System.Collections.Frozen.FrozenDictionary.ToFrozenDictionary(headers.Where(h => h.Key != CommandReplies.ReplyToHeader), StringComparer.Ordinal)
+            : headers;
     }
 
     /// <summary>Queues a delayed message to this service's own endpoint (durable timer, doc 04 §8).</summary>

@@ -190,6 +190,22 @@ public interface IStoreRetention
     ValueTask<int> PurgeDeadLettersAsync(DateTimeOffset resolvedBefore, int batchSize, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Node liveness for lease fair-share (doc 06 §4): instances heartbeat into a shared table with the store's clock, and
+/// each acquires at most <c>ceil(leases / live nodes)</c> leases.
+/// </summary>
+public interface INodeRegistry
+{
+    /// <summary>
+    /// Records a heartbeat for <paramref name="nodeId"/> and returns how many nodes with any of <paramref name="roles"/>
+    /// heartbeated within <paramref name="liveWindow"/> (this node included).
+    /// </summary>
+    ValueTask<int> HeartbeatAsync(string nodeId, int roles, TimeSpan liveWindow, CancellationToken cancellationToken);
+
+    /// <summary>Removes the node on graceful shutdown, so the others rebalance at once.</summary>
+    ValueTask LeaveAsync(string nodeId, CancellationToken cancellationToken);
+}
+
 /// <summary>Commit notifications that wake subscriptions and the outbox relay (doc 06 §2).</summary>
 public interface IStoreNotifications
 {

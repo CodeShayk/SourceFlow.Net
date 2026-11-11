@@ -151,6 +151,15 @@ internal sealed class SqlText
              WHERE l.owner IS NULL OR l.owner = excluded.owner OR l.expires_at IS NULL OR l.expires_at <= now()
             RETURNING token
             """);
+        NodeHeartbeat = R("""
+            WITH up AS (
+                INSERT INTO {s}.nodes AS n (node_id, roles, heartbeat_at) VALUES (@node, @roles, now())
+                ON CONFLICT (node_id) DO UPDATE SET roles = excluded.roles, heartbeat_at = excluded.heartbeat_at
+                RETURNING 1)
+            SELECT 1 + (SELECT count(*) FROM {s}.nodes WHERE node_id <> @node AND (roles & @roles) <> 0 AND heartbeat_at > now() - @window)
+              FROM up
+            """);
+        NodeLeave = R("DELETE FROM {s}.nodes WHERE node_id = @node");
         ReleaseLease = R("UPDATE {s}.leases SET owner = NULL, expires_at = NULL WHERE name = @lease AND owner = @lease_owner AND token = @lease_token");
 
         ClaimOutbox = R($$"""
@@ -269,6 +278,10 @@ internal sealed class SqlText
     public string AcquireLease { get; }
 
     public string ReleaseLease { get; }
+
+    public string NodeHeartbeat { get; }
+
+    public string NodeLeave { get; }
 
     public string ClaimOutbox { get; }
 

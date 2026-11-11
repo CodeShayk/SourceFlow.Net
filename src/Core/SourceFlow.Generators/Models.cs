@@ -43,7 +43,11 @@ namespace SourceFlow.Generators
         string IdType,
         EquatableArray<string> ReactedMessages,
         EquatableArray<string> CorrelatedMessages,
-        EquatableArray<string> TextCorrelatedMessages);
+        EquatableArray<string> TextCorrelatedMessages,
+        EquatableArray<RejectionModel> Rejections);
+
+    /// <summary>A <c>CommandRejected&lt;T&gt;</c> a process manager reacts to: registered as <c>{T's name}.rejected</c>.</summary>
+    internal sealed record RejectionModel(string FullName, string LogicalName, int Version);
 
     internal enum KeySource
     {

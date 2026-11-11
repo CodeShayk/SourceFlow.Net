@@ -169,6 +169,15 @@ public sealed partial record MoneyTransfer : IProcessManager<MoneyTransfer, Tran
             : Reaction.Ignore;
     }
 
+    /// <summary>The source account rejected the withdrawal (for example insufficient funds): fail now (ADR-018).</summary>
+    public Reaction React(CommandRejected<Withdraw> r, ReactionContext<TransferId> ctx)
+    {
+        ArgumentNullException.ThrowIfNull(r);
+        return Stage == TransferStage.Withdrawing
+            ? Reaction.Send(new FailTransfer(ctx.Id, r.Error.Code)).AndComplete()
+            : Reaction.Ignore;
+    }
+
     /// <summary>The timeout fired: fail, compensating a withdrawal that already happened.</summary>
     public Reaction React(TransferTimedOut e, ReactionContext<TransferId> ctx)
     {
@@ -194,6 +203,7 @@ public sealed partial class TransfersModule;
 [JsonSerializable(typeof(TransferFailed))]
 [JsonSerializable(typeof(TransferTimedOut))]
 [JsonSerializable(typeof(MoneyTransfer))]
+[JsonSerializable(typeof(CommandRejected<Withdraw>))]
 [JsonSerializable(typeof(Transfer))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 public sealed partial class TransfersJsonContext : JsonSerializerContext;

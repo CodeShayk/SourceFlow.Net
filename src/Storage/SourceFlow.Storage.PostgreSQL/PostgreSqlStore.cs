@@ -21,6 +21,7 @@ public sealed partial class PostgreSqlStore :
     IDocumentReader,
     IStoreNotifications,
     IStoreRetention,
+    INodeRegistry,
     IAsyncDisposable
 {
     private readonly bool _ownsDataSource;
@@ -61,7 +62,7 @@ public sealed partial class PostgreSqlStore :
     /// <summary>Every port of this store.</summary>
     public Runtime.StoragePorts ToPorts()
     {
-        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this) { Retention = this };
+        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this) { Retention = this, Nodes = this };
     }
 
     // ------------------------------------------------------------------ IStorageSessionFactory
@@ -250,6 +251,25 @@ public sealed partial class PostgreSqlStore :
         command.Parameters.Add(new NpgsqlParameter<TimeSpan>("ttl", ttl));
         object? token = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return token is long value ? new LeaseToken(name, owner, value) : null;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<int> HeartbeatAsync(string nodeId, int roles, TimeSpan liveWindow, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(nodeId);
+        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(Sql.NodeHeartbeat, connection);
+        command.Parameters.Add(new NpgsqlParameter<string>("node", nodeId));
+        command.Parameters.Add(new NpgsqlParameter<int>("roles", roles));
+        command.Parameters.Add(new NpgsqlParameter<TimeSpan>("window", liveWindow));
+        object? live = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return live is long count ? (int)count : 1;
+    }
+
+    /// <inheritdoc />
+    public ValueTask LeaveAsync(string nodeId, CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(Sql.NodeLeave, cancellationToken, new NpgsqlParameter<string>("node", nodeId));
     }
 
     /// <inheritdoc />
