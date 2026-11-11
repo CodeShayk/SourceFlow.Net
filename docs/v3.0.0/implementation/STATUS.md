@@ -43,7 +43,7 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 | WP-3.6 | Cross-service E2E per transport | 1.5 | todo | |
 | WP-3.R | Retire v2 cloud providers | 0.5 | todo | |
 | WP-4.1 | `SourceFlow.Tool` (`dotnet sourceflow`) | 3 | todo | |
-| WP-4.2 | `SourceFlow.AspNetCore` (incl. the per-service query API) | 2.5 | todo | |
+| WP-4.2 | `SourceFlow.AspNetCore` (incl. the per-service query API) | 2.5 | in progress | MapCommand (Idempotency-Key, If-Match, ETag, consistency token, ProblemDetails) done, UT-ASP-01..06; query endpoints wait for WP-1.13 |
 | WP-4.3 | Health checks, dashboards and alerts | 2 | todo | |
 | WP-4.4 | `SourceFlow.Storage.SqlServer` + SFQL SQL Server compiler | 4 | todo | |
 | WP-4.5 | `PartitionEvents` + stream archiving | 1.5 | todo | |

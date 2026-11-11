@@ -1,7 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- ASP.NET Core endpoints: MapCommand and the query API (UT-ASP). -->
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\..\src\Hosting\SourceFlow.AspNetCore\SourceFlow.AspNetCore.csproj" />
     <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
+    <ProjectReference Include="..\..\..\samples\Bank\Bank.Accounts\Bank.Accounts.csproj" />
   </ItemGroup>
 </Project>

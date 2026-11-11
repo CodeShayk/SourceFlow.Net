@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Scaffold (WP-0.2). Implemented in WP-4.2; packable once implemented. -->
+  <!-- WP-4.2: command endpoints (MapCommand). Named domain queries and the query API follow with WP-1.13 / WP-4.2b. -->
   <PropertyGroup>
     <Description>SourceFlow.Net v3: ASP.NET Core integration: command endpoints, named domain queries and the per-service query API.</Description>
-    <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
