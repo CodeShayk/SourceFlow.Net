@@ -160,6 +160,16 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
             {
                 await HandleAsync(message, cancellationToken).ConfigureAwait(false);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Stopping cancelled the handler or its settlement (a broker call): the message stays unsettled and is
+                // redelivered after its lock; the inbox absorbs a handler that had committed (RX-R6).
+            }
+            catch (Exception exception)
+            {
+                // Never let one message stop the worker: the rest of its partition would wait forever.
+                Log.ReceiveLoopFailed(_logger, exception, _runtime.Routing.Endpoint);
+            }
             finally
             {
                 Interlocked.Decrement(ref _inFlight);

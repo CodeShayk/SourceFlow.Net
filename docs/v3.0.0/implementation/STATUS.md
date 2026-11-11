@@ -4,14 +4,14 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 
 ## Progress summary
 
-Updated 2026-11-11. **35 of 63 work packages are done (56%)**, 0 in progress and 28 not started. By estimated effort, 69 of 138.5 engineer-weeks are done (50%).
+Updated 2026-11-11. **36 of 63 work packages are done (57%)**, 0 in progress and 27 not started. By estimated effort, 73 of 138.5 engineer-weeks are done (53%).
 
 | Milestone | Done | In progress | Todo | Effort done (ew) |
 |-----------|------|-------------|------|------------------|
 | M0 Foundations | 5 | 0 | 0 | 4 of 4 |
 | M1 Core | 15 | 0 | 0 | 37 of 37 |
 | M2 PostgreSQL | 11 | 0 | 0 | 19 of 19 |
-| M3 Cloud transports | 1 | 0 | 6 | 3 of 19 |
+| M3 Cloud transports | 2 | 0 | 5 | 7 of 19 |
 | M4 Tooling and operations | 2 | 0 | 5 | 5.5 of 16.5 |
 | M5 Security and migration | 1 | 0 | 4 | 0.5 of 11 |
 | Track S: Workflow DSL and Studio | 0 | 0 | 13 | 0 of 32 |
@@ -30,10 +30,11 @@ Completed in this round:
 - WP-4.1: the `dotnet sourceflow` CLI (ADR-031).
 - WP-2.7: blue/green read-model generations behind forward-only aliases, including EF Core schema per generation (ADR-032, E2E-08).
 - WP-3.1: the final transport SPI and the 45-case transport conformance kit, passed by the in-memory reference broker (ADR-033).
+- WP-3.2: the AWS transport (SQS and SNS), passing all 45 conformance cases on LocalStack.
 
-Nothing is in progress. M2 (PostgreSQL) is complete; M3 has started (WP-3.1 done, the provider packages are next).
+Nothing is in progress. M2 (PostgreSQL) is complete; M3 is under way: WP-3.1 and the AWS transport (WP-3.2) are done; Google Cloud and Azure are next.
 
-Not started: the cloud transport packages and provisioning (WP-3.2..3.6), the v2 cloud retirement (3.R), health and dashboards, SQL Server, event partitioning, chaos and load testing, payload protection, crypto-shredding (redaction is done), the v2 migration tool, and the whole Studio track.
+Not started: the Google Cloud and Azure transports and provisioning (WP-3.3..3.6), the v2 cloud retirement (3.R), health and dashboards, SQL Server, event partitioning, chaos and load testing, payload protection, crypto-shredding (redaction is done), the v2 migration tool, and the whole Studio track.
 
 | WP | Title | Estimate (ew) | Status | Notes |
 |----|-------|---------------|--------|-------|
@@ -69,7 +70,7 @@ Not started: the cloud transport packages and provisioning (WP-3.2..3.6), the v2
 | WP-2.10 | Performance baseline | 1 | done | benchmarks/SourceFlow.Benchmarks (BenchmarkDotNet PERF-01..04, 06; measurement harness PERF-05, 08, 10); baselines in benchmarks/baselines and the report in implementation/perf-baseline.md. One-round-trip PostgreSQL commit (SCK-20), batch-aware document projections and adaptive subscription batches. Deviations logged with owners (PERF-01/02 allocations, PERF-10 borderline). PERF-07 waits for M3 and PERF-09 for WP-4.7 |
 | WP-2.R | Retire v2 EF stores | 0.5 | done | Every `SourceFlow.Stores.EntityFramework.Tests` row is satisfied (SCK on three adapters, UT-EF-01..10). `src/SourceFlow.Stores.EntityFramework` and its tests are deleted |
 | WP-3.1 | Transport SPI final + Transport Conformance Kit | 3 | done | Final pull-based SPI (ADR-033): `RenewAsync`, `DeadLetterAsync`, `CreateDeadLetterReceiverAsync`, capabilities (ordered delivery, native DLQ, native filters, batch size, deduplication, lock), typed errors (`TransportException.IsTransient`, per-message `TransportSendException`, `DestinationNotFoundException`, `TopologyValidationException.Problems`), topology with ordering, max deliveries and filters (`SourceFlowRuntime.Topology()`). CloudEvents SQL filters (`CloudEventFilter`; `Only<T>()` and `Where(…)` in routing; native translation or client-side evaluation). Core: lock renewal while handling, client-side filtering, broker dead-letter ingestor. In-memory broker as the reference: CloudEvents binary wire with a 10-attribute budget, ordered endpoints, locks, max deliveries and DLQ, filtered fan-out, batches, provisioning diff, faults. TCK-01..45 in `SourceFlow.Testing` with a generated end-to-end domain and the fixture contract (faults, defects); all 45 pass on in-memory. UT-CE-01..08, UT-RT-21..22, UT-RX-22..24 |
-| WP-3.2 | `SourceFlow.Cloud.Aws` | 4 | todo | |
+| WP-3.2 | `SourceFlow.Cloud.Aws` | 4 | done | SQS/SNS transport (doc 07 §4): `AwsTransportOptions` → SDK client config and `AWSOptions` (region, profile, endpoint, retries, timeout; validated at registration, GAP-03), credentials from the SDK chain; CloudEvents binary wire (`ce_*` attributes, 10-attribute budget, `ce_sfext` overflow, bodies as SQS text or base64, never transcoded); `SendMessageBatch`/`PublishBatch` in batches of 10 and 256 KiB with per-message failures, FIFO group (partition key) and deduplication ids; long-poll receiver with visibility lock, renewal and native delay (`ChangeMessageVisibility`, 12 h), explicit dead-lettering to the redrive queue; filters as SNS filter policies on `ce_type` where expressible, otherwise evaluated per topic by the receiver (`sf_topic`); provisioner (FIFO queues and topics, redrive DLQ with max deliveries, raw-delivery subscriptions, queue policy; Create/Validate/None with the full diff, GAP-02); `UseAwsTransport`, `AddSourceFlowAws` health check. TCK-01..45 green on LocalStack 3.8 (fault injection in the SDK HTTP pipeline, counted credential refreshes); the real-account run is wired for the nightly (`SOURCEFLOW_REAL_CLOUD=aws`). Core fix found by the TCK: stopping with an in-flight settlement no longer fails the host (UT-RX-25). UT-AWS-01..30 |
 | WP-3.3 | `SourceFlow.Cloud.Gcp` | 3.5 | todo | |
 | WP-3.4 | `SourceFlow.Cloud.Azure` | 4 | todo | |
 | WP-3.5 | Provisioning, topology export, DLQ ingestor, IaC modules | 2.5 | todo | |

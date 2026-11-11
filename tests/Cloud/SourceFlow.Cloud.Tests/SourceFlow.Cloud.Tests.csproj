@@ -5,5 +5,8 @@
     <ProjectReference Include="..\..\..\src\Cloud\SourceFlow.Cloud.Azure\SourceFlow.Cloud.Azure.csproj" />
     <ProjectReference Include="..\..\..\src\Cloud\SourceFlow.Cloud.Gcp\SourceFlow.Cloud.Gcp.csproj" />
     <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
+    <PackageReference Include="Testcontainers" />
+    <PackageReference Include="NSubstitute" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
   </ItemGroup>
 </Project>

@@ -87,6 +87,28 @@ Ordered endpoints and topics are opt-in per endpoint or topic (`.Ordered()`). Th
 | Batch send | `SendMessageBatch` / `PublishBatch` (10) | `ServiceBusMessageBatch` | Publisher batching | — |
 | Emulator for CI | LocalStack (pinned image) | Service Bus emulator | Pub/Sub emulator | — |
 
+> **As built (WP-3.2, AWS).** `SourceFlow.Cloud.Aws` follows the AWS column, with these details fixed by the implementation:
+>
+> - **Attributes.** CloudEvents attributes travel as String message attributes named `ce_{attribute}` (`ce_type`, `ce_sftenant`, …), and the overflow is `ce_sfext`.
+> - **Transport attributes.** Three attributes count against the 10-attribute budget only when used:
+>   - `sf_body`: `base64` or `empty`, for bodies SQS cannot carry as text;
+>   - `sf_topic`: the logical topic, on every published event;
+>   - `sf_reason`: on an explicit dead letter.
+> - **Bodies.** A body travels as UTF-8 text when SQS can carry it unchanged (valid UTF-8 and XML characters only); otherwise it travels as base64. Bodies are therefore never transcoded (TCK-42).
+> - **Size limits.** `MaxBodyBytes` is 180 KiB, so a base64 body plus its attributes fits the 256 KiB message and batch limit. Larger encoded messages are refused before sending.
+> - **Filters.**
+>   - `ExactTypes` and `TypePrefixes` filters become an SNS filter policy on `ce_type`.
+>   - Other CESQL filters leave the subscription unfiltered. The receiver evaluates them per topic, using `sf_topic`, and acknowledges non-matching events unseen.
+>   - So `SubscriptionFilters` is declared true, and results match the reference evaluator (TCK-26..28).
+> - **Endpoint resolution.** An endpoint resolves to `{base}` or `{base}.fifo`, whichever exists, so senders do not need to know the owner's ordering.
+> - **Topic lookup.** Topics are found with `ListTopics`, because SNS has no lookup by name. This needs describe permission only.
+> - **Dead letters.**
+>   - An explicit `DeadLetterAsync` sends a copy carrying `sf_reason` to the redrive target, then deletes the original.
+>   - A message redriven by the broker reports `MaxReceiveCountExceeded`.
+> - **Broker deduplication.** It is not declared, because standard queues do not deduplicate. FIFO queues still drop a re-sent message id for 5 minutes.
+> - **Late settlement.** A settlement after the visibility timeout expired, made with a stale receipt handle, is ignored.
+> - **Shutdown.** Disposing a receiver makes its unsettled messages visible again at once.
+
 ### 4.1 How each v2 provider defect is fixed
 
 | v2 defect | v3 resolution |

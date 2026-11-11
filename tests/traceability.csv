@@ -57,3 +57,6 @@ doc 14 2.1,doc 14,Schema catalog generation
 doc 14 2.2,doc 14,Schema registration, compatibility and export
 Q-R1,doc 14,Writes never read through the query side (SF0015/SF0016)
 Q-B4,doc 14,Named domain queries
+GAP-02,product 06,One AWS endpoint and receiver per service with raw delivery
+ADR-017,ADRs,Provisioning modes and topology as data
+doc 07 6,doc 07,Transport options are honoured

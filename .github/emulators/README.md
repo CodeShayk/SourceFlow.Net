@@ -6,7 +6,9 @@
 | Google Pub/Sub emulator | `pubsub/` | `gcr.io/google.com/cloudsdktool/google-cloud-cli:502.0.0-emulators` | topic create succeeds |
 | Azure Service Bus emulator | `servicebus/` | `mcr.microsoft.com/azure-messaging/servicebus-emulator:1.1.2` + `mcr.microsoft.com/azure-sql-edge:2.0.0` | emulator health endpoint + queue round trip |
 
-Tests prefer Testcontainers modules and fall back to these compose files (plan 08 §5).
+Tests prefer Testcontainers modules and fall back to these compose files (plan 08 §5). The AWS
+tests (`tests/Cloud/SourceFlow.Cloud.Tests/Aws`) use the LocalStack in `AWS_ENDPOINT_URL` when it
+is set, as the PR transports job does, and otherwise start the pinned image with Testcontainers.
 Renovate PRs that bump an image need a manual licence review (LocalStack moved to a licensed
 `latest` image, which broke v2 CI).
 

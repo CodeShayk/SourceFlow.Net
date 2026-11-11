@@ -246,6 +246,123 @@ public sealed class TransportCoreTests
         slow.Calls.ShouldBe(1);   // without renewal the 1 s lock would expire during the 1.6 s handler
     }
 
+    [Fact]
+    [Trait("Id", "UT-RX-25")]
+    [Trait("Covers", "doc 07 7")]
+    public async Task Stopping_WhileAMessageIsInFlight_OnABrokerThatHonoursCancellation_StopsCleanly_AndRedelivers()
+    {
+        var broker = new InMemoryBroker();
+        var transport = new CancellableTransport(broker.CreateTransport());
+        var blocking = new BlockingMiddleware();
+        SourceFlowTestHost owner = await SourceFlowTestHost.StartAsync(sf =>
+        {
+            sf.ServiceName = "owner";
+            sf.AddModule<TckModule>();
+            sf.UseTransport(_ => transport);
+            sf.UseMiddleware(_ => blocking, PipelineStage.Receive);
+        }, broker: broker, services: s => s.AddSingleton(new TckObservations()));
+        broker.Send("owner", owner.Runtime.CreateEnvelope(new TckAdd(TckTallyId.New(), 1)));
+        await blocking.Started.WaitAsync(TimeSpan.FromSeconds(10), TimeProvider.System, Ct);
+
+        // The cancelled handler and broker call do not fail the stop (a cancelled task is not "thrown" to Shouldly, so record it).
+        Exception? stopped = await Record.ExceptionAsync(() => owner.DisposeAsync().AsTask());
+        stopped.ShouldBeNull();
+
+        broker.PendingCount.ShouldBe(1);   // never acknowledged: redelivered to the next instance
+    }
+
+    // Blocks the handler until the host stops.
+    private sealed class BlockingMiddleware : IMessageMiddleware
+    {
+        private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Started => _started.Task;
+
+        public async ValueTask InvokeAsync(MessageContext context, MessageDelegate next)
+        {
+            _started.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, TimeProvider.System, context.CancellationToken);
+            await next(context);
+        }
+    }
+
+    // A broker whose calls honour cancellation, as SQS, Pub/Sub and Service Bus clients do (the in-memory one ignores it).
+    private sealed class CancellableTransport(ITransport inner) : ITransport
+    {
+        public string SystemName => inner.SystemName;
+
+        public TransportCapabilities Capabilities => inner.Capabilities;
+
+        public ValueTask SendAsync(string endpoint, IReadOnlyList<MessageEnvelope> messages, CancellationToken cancellationToken)
+        {
+            return inner.SendAsync(endpoint, messages, cancellationToken);
+        }
+
+        public ValueTask PublishAsync(string topic, IReadOnlyList<MessageEnvelope> messages, CancellationToken cancellationToken)
+        {
+            return inner.PublishAsync(topic, messages, cancellationToken);
+        }
+
+        public async ValueTask<ITransportReceiver> CreateReceiverAsync(ReceiverOptions options, CancellationToken cancellationToken)
+        {
+            return new Receiver(await inner.CreateReceiverAsync(options, cancellationToken));
+        }
+
+        public ValueTask<ITransportReceiver> CreateDeadLetterReceiverAsync(string endpoint, CancellationToken cancellationToken)
+        {
+            return inner.CreateDeadLetterReceiverAsync(endpoint, cancellationToken);
+        }
+
+        public ValueTask ProvisionAsync(TransportTopology topology, ProvisioningMode mode, CancellationToken cancellationToken)
+        {
+            return inner.ProvisionAsync(topology, mode, cancellationToken);
+        }
+
+        private sealed class Receiver(ITransportReceiver inner) : ITransportReceiver
+        {
+            public async ValueTask<IReadOnlyList<ReceivedMessage>> ReceiveAsync(int maxMessages, TimeSpan wait, CancellationToken cancellationToken)
+            {
+                return [.. (await inner.ReceiveAsync(maxMessages, wait, cancellationToken)).Select(m => new Message(m))];
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                return inner.DisposeAsync();
+            }
+        }
+
+        private sealed class Message(ReceivedMessage inner) : ReceivedMessage
+        {
+            public override MessageEnvelope Envelope => inner.Envelope;
+
+            public override int DeliveryCount => inner.DeliveryCount;
+
+            public override ValueTask CompleteAsync(CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return inner.CompleteAsync(cancellationToken);
+            }
+
+            public override ValueTask AbandonAsync(TimeSpan delay, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return inner.AbandonAsync(delay, cancellationToken);
+            }
+
+            public override ValueTask RenewAsync(CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return inner.RenewAsync(cancellationToken);
+            }
+
+            public override ValueTask DeadLetterAsync(string reason, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return inner.DeadLetterAsync(reason, cancellationToken);
+            }
+        }
+    }
+
     private sealed class SlowMiddleware(TimeSpan delay) : IMessageMiddleware
     {
         private int _calls;

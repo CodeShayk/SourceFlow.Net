@@ -226,6 +226,7 @@ These are additional to the SCK, which the in-memory store also runs.
 | UT-RX-20..22 | Tenant restored from the envelope; actor restored; CESQL subscription filter applied client-side when not native | ADR-022, doc 07 | → `SnsMessageFilteringIntegrationTests` (concept) |
 | UT-RX-23 | Transport errors classified by `IsTransient` (outage and throttling transient; missing destination and oversized body permanent) | ADR-033 | → `AwsServiceThrottlingAndFailureTests` (concept) |
 | UT-RX-24 | A handler longer than the lock renews it, so the message is not redelivered | doc 07 §4, ADR-033 | new |
+| UT-RX-25 | Stopping while a message is in flight, on a broker whose calls honour cancellation, stops cleanly and leaves the message for redelivery | doc 07 §7 (shutdown), RX-R6 | new (found by the AWS TCK on LocalStack) |
 | UT-RT-21..22 | Subscription filter from routing: `Only<T>()` becomes `type IN (…)` and is ANDed with `Where(…)`; a malformed filter fails at configuration | doc 07 §7 | new |
 | UT-CE-01..08 | CloudEvents SQL filter: operators and precedence, `LIKE` with escapes, `IN`/`EXISTS`, errors never match, functions, parse errors with positions, native translation (`ExactTypes`, `TypePrefixes`), envelope attributes | doc 07 §7, ADR-033 | new |
 | UT-DLQ-01..10 | Dead-letter manager: list and filter (consumer, reason, type, date), show, replay keeps the message id (the inbox still protects), discard with an audited reason, purge older than a cutoff, metrics | GAP-11 | → `InMemoryDeadLetterStoreTests` (11), `AwsDeadLetterQueuePropertyTests` (replay concepts) |
@@ -289,3 +290,5 @@ These are additional to the SCK, which the in-memory store also runs.
 | UT-SEC-01..20 | Security.* | AES-GCM round trip; associated-data tamper → `DecryptionFailed` (permanent); DEK reuse limits (count and age); key zeroing; rotation transparent; provider error mapping | → `AwsKmsMessageEncryptionTests` (8), KMS property tests |
 | UT-PII-01..18 | Core + generator | `[PersonalData]` encrypted per subject; erase → `[erased]`; `$personal-data.erased` event; document scrubbing; snapshot deletion via `subject_streams`; SF0011/13/17 | → `SensitiveDataMaskerTests` (concept moves) |
 | UT-RED-01..06 | Core | Taxonomy mapping; redactor per environment; `LogPayloads` gating | → `SensitiveDataMaskerTests` |
+
+> **As built (WP-3.2).** UT-AWS-04 (FIFO/standard compatibility, FIFO resources) and UT-AWS-05 (GAP-02) run on LocalStack (`Requires=LocalStack`); the rest use substitute SQS/SNS clients. The overflow attribute is `ce_sfext` (CloudEvents attributes are `ce_*`), and UT-AWS-29 covers the receiver's per-topic evaluation of filters SNS cannot express.
