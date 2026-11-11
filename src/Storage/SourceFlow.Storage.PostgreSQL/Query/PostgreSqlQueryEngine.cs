@@ -11,8 +11,16 @@ namespace SourceFlow.Storage.PostgreSQL.Query;
 /// executes it in a read-only transaction with a statement timeout (I-7), setting the tenant for row-level security
 /// (ADR-022). Aggregate folds and schema rows stay in the in-memory interpreter.
 /// </summary>
-internal sealed class PostgreSqlQueryEngine(PostgreSqlStore store) : IQueryEngine
+internal sealed class PostgreSqlQueryEngine(PostgreSqlStore store) : IQueryEngine, IQueryExplainer
 {
+    public string EngineName => "postgresql";
+
+    public (string Statement, int ParameterCount) Explain(QueryExecution execution)
+    {
+        CompiledQuery compiled = PostgreSqlQueryCompiler.Compile(execution, store.Options.Schema);
+        return (compiled.Sql, compiled.Parameters.Count);
+    }
+
     public bool CanExecute(BoundQuery query)
     {
         return PostgreSqlQueryCompiler.CanCompile(query);

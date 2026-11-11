@@ -1,5 +1,4 @@
 using Bank.Accounts;
-using Bank.Api;
 using Bank.Contracts;
 using Bank.Notifications;
 using Bank.Transfers;
@@ -23,6 +22,19 @@ builder.Services.AddSourceFlow(sf =>
     sf.UseInMemoryTransport();
 });
 
+bool demoQueries = Flag(builder.Configuration, "Demo:QueryApi", false);
+if (demoQueries)
+{
+    // Local demo only: every caller gets the read, validate, explain and schema permissions (no PII unless asked).
+    bool personalData = Flag(builder.Configuration, "Demo:PersonalData", false);
+    builder.Services.AddSourceFlowQueryApi(o => o.Permissions = _ => SourceFlow.Query.QueryPermissions.Of(
+    [
+        SourceFlow.Query.QueryPermission.Adhoc, SourceFlow.Query.QueryPermission.Events, SourceFlow.Query.QueryPermission.ReadModels,
+        SourceFlow.Query.QueryPermission.Aggregates, SourceFlow.Query.QueryPermission.Schema, SourceFlow.Query.QueryPermission.Validate,
+        SourceFlow.Query.QueryPermission.Explain, .. personalData ? [SourceFlow.Query.QueryPermission.PersonalData] : Array.Empty<string>(),
+    ]));
+}
+
 WebApplication app = builder.Build();
 
 app.MapGet("/health", (RequestDelegate)(http => http.Response.WriteAsync("ok", http.RequestAborted)));
@@ -34,11 +46,12 @@ app.MapCommand<Withdraw>("/accounts/{accountId}/withdrawals");
 app.MapCommand<CloseAccount>("/accounts/{accountId}/close");
 app.MapCommand<RequestTransfer>("/transfers/{transferId}");
 
-// Demo query endpoints, off unless Demo:QueryApi is true. The production query API (authorization, rate limits, OpenAPI)
-// is SourceFlow.AspNetCore's MapSourceFlowQueryApi (WP-4.2); this sample endpoint must not be exposed publicly.
-if (Flag(app.Configuration, "Demo:QueryApi", false))
+// The query API and named domain queries (doc 14 §9), off unless Demo:QueryApi is true. A real service maps them with
+// .RequireAuthorization("policy") (startup fails closed otherwise, SFQ0504); the demo opts out explicitly.
+if (demoQueries)
 {
-    app.MapDemoQueryApi("/query", Flag(app.Configuration, "Demo:PersonalData", false));
+    app.MapSourceFlowQueryApi().AllowAnonymous();
+    app.MapDomainQueries().AllowAnonymous();
 }
 
 app.Run();

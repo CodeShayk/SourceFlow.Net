@@ -1154,12 +1154,21 @@ namespace SourceFlow.Query
         bool CanExecute(SourceFlow.Query.BoundQuery query);
         System.Collections.Generic.IAsyncEnumerable<SourceFlow.Query.QueryResultRow> ExecuteAsync(SourceFlow.Query.QueryExecution execution, System.Threading.CancellationToken cancellationToken);
     }
+    public interface IQueryExplainer
+    {
+        string EngineName { get; }
+        [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
+                "Statement",
+                "ParameterCount"})]
+        System.ValueTuple<string, int> Explain(SourceFlow.Query.QueryExecution execution);
+    }
     public interface IQueryService
     {
         SourceFlow.Query.EventQuery<TEvent> Events<TEvent>()
             where TEvent :  class, SourceFlow.IEvent;
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<TResult>> ExecuteAsync<TResult>(SourceFlow.IDomainQuery<TResult> query, SourceFlow.Query.QueryOptions? options = null, System.Threading.CancellationToken cancellationToken = default)
             where TResult :  class;
+        System.Threading.Tasks.ValueTask<SourceFlow.Query.QueryPlan> ExplainAsync(string query, System.Collections.Generic.IReadOnlyDictionary<string, object?>? parameters = null, SourceFlow.Query.QueryOptions? options = null, System.Threading.CancellationToken cancellationToken = default);
         System.Collections.Generic.IAsyncEnumerable<SourceFlow.Query.QueryRow> QueryAsync(string query, System.Collections.Generic.IReadOnlyDictionary<string, object?>? parameters = null, SourceFlow.Query.QueryOptions? options = null, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<SourceFlow.Query.QueryPage> QueryPageAsync(string query, System.Collections.Generic.IReadOnlyDictionary<string, object?>? parameters = null, string? continuation = null, SourceFlow.Query.QueryOptions? options = null, System.Threading.CancellationToken cancellationToken = default);
         SourceFlow.Query.ReadModelQuery<TDocument> ReadModel<TDocument>()
@@ -1286,6 +1295,8 @@ namespace SourceFlow.Query
     public static class QueryCodes
     {
         public const string Ambiguous = "SFQ0205";
+        public const string AuthorizationRequired = "SFQ0504";
+        public const string ConcurrencyLimited = "SFQ0503";
         public const string ConsistencyTimeout = "SFQ0602";
         public const string Continuation = "SFQ0601";
         public const string CostCeiling = "SFQ0407";
@@ -1299,6 +1310,7 @@ namespace SourceFlow.Query
         public const string OpaqueData = "SFQ0201";
         public const string PermissionDenied = "SFQ0501";
         public const string PersonalData = "SFQ0301";
+        public const string RateLimited = "SFQ0502";
         public const string Syntax = "SFQ0101";
         public const string TooManyGroups = "SFQ0408";
         public const string TooManyJoins = "SFQ0404";
@@ -1442,6 +1454,16 @@ namespace SourceFlow.Query
         public static SourceFlow.Query.QueryPermissions Service { get; }
         public bool Has(string permission) { }
         public static SourceFlow.Query.QueryPermissions Of(params string[] granted) { }
+    }
+    public sealed class QueryPlan : System.IEquatable<SourceFlow.Query.QueryPlan>
+    {
+        public QueryPlan(System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryColumn> Columns, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QuerySourceConsistency> Sources, string Engine, string? Statement, int ParameterCount, string QueryHash) { }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryColumn> Columns { get; init; }
+        public string Engine { get; init; }
+        public int ParameterCount { get; init; }
+        public string QueryHash { get; init; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QuerySourceConsistency> Sources { get; init; }
+        public string? Statement { get; init; }
     }
     public sealed class QueryPolicySettings : System.IEquatable<SourceFlow.Query.QueryPolicySettings>
     {

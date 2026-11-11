@@ -84,6 +84,15 @@ public static class QueryCodes
     /// <summary>Permission denied.</summary>
     public const string PermissionDenied = "SFQ0501";
 
+    /// <summary>The caller exceeded its request rate (HTTP 429).</summary>
+    public const string RateLimited = "SFQ0502";
+
+    /// <summary>Too many concurrent queries for the caller or the service (HTTP 429/503).</summary>
+    public const string ConcurrencyLimited = "SFQ0503";
+
+    /// <summary>The query API was mapped without an authorization policy (startup fails closed).</summary>
+    public const string AuthorizationRequired = "SFQ0504";
+
     /// <summary>Continuation token invalid for this query or schema.</summary>
     public const string Continuation = "SFQ0601";
 

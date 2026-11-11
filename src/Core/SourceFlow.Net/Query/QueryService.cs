@@ -164,6 +164,9 @@ public interface IQueryService
     ValueTask<IReadOnlyList<TResult>> ExecuteAsync<TResult>(IDomainQuery<TResult> query, QueryOptions? options = null, CancellationToken cancellationToken = default)
         where TResult : class;
 
+    /// <summary>Explains a query: binds, checks policy and shows the engine statement without running it (doc 14 §7.3).</summary>
+    ValueTask<QueryPlan> ExplainAsync(string query, IReadOnlyDictionary<string, object?>? parameters = null, QueryOptions? options = null, CancellationToken cancellationToken = default);
+
     /// <summary>Starts a typed query over an event type's payloads (doc 14 §9.5).</summary>
     EventQuery<TEvent> Events<TEvent>()
         where TEvent : class, IEvent;
@@ -191,6 +194,31 @@ public sealed record QueryExecution(
     int Skip,
     int Take,
     QueryPolicySettings Settings);
+
+/// <summary>An explained query (doc 14 §7.3): what would run, without running it.</summary>
+/// <param name="Columns">The result columns.</param>
+/// <param name="Sources">The consistency each source would use.</param>
+/// <param name="Engine">The engine that would run it (<c>in-memory</c>, <c>postgresql</c>, …).</param>
+/// <param name="Statement">The engine's statement with placeholders only (SQL engines), or null.</param>
+/// <param name="ParameterCount">The number of bound parameters.</param>
+/// <param name="QueryHash">The query hash.</param>
+public sealed record QueryPlan(
+    IReadOnlyList<QueryColumn> Columns,
+    IReadOnlyList<QuerySourceConsistency> Sources,
+    string Engine,
+    string? Statement,
+    int ParameterCount,
+    string QueryHash);
+
+/// <summary>An engine that can show its statement for a query without running it (<c>/query/explain</c>).</summary>
+public interface IQueryExplainer
+{
+    /// <summary>The engine's name, for example <c>postgresql</c>.</summary>
+    string EngineName { get; }
+
+    /// <summary>The statement for <paramref name="execution"/>, with placeholders only (never values), and its parameter count.</summary>
+    (string Statement, int ParameterCount) Explain(QueryExecution execution);
+}
 
 /// <summary>A row from a query engine: its output values and its sort-key values (the keyset of the next page).</summary>
 public sealed record QueryResultRow(IReadOnlyList<object?> Values, IReadOnlyList<object?> SortKeys);
@@ -341,6 +369,31 @@ internal sealed class QueryService : IQueryService
         DomainQueryDescriptor descriptor = _runtime.Model.DomainQueries.FirstOrDefault(q => q.QueryType == query.GetType())
             ?? throw new DomainQueryException($"'{query.GetType().Name}' is not a registered domain query; add [DomainQuery] and include its module.");
         return (IReadOnlyList<TResult>)await descriptor.ExecuteAsync(this, query, options, cancellationToken).ConfigureAwait(false);
+    }
+
+    public ValueTask<QueryPlan> ExplainAsync(string query, IReadOnlyDictionary<string, object?>? parameters = null, QueryOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        options ??= new QueryOptions();
+        Plan plan = PlanFor(query, options.Language);
+        IReadOnlyDictionary<string, object?> values = Convert(plan.Query, parameters);
+        IReadOnlyList<QueryDiagnostic> policy = SfqlPolicy.Check(plan.Query, query, options.Permissions, values, _settings);
+        if (policy.Count > 0)
+        {
+            throw new QueryException(policy);
+        }
+
+        string tenant = options.Tenant ?? _runtime.CurrentTenant;
+        var execution = new QueryExecution(plan.Query, values, tenant, _runtime.Time.GetUtcNow(), null, 0,
+            Math.Clamp(options.PageSize ?? _settings.Limits.PageSize, 1, Math.Max(1, _settings.Limits.MaxRows)) + 1, _settings);
+        IQueryEngine? engine = _engines.FirstOrDefault(e => e.CanExecute(plan.Query));
+        IReadOnlyList<QuerySourceConsistency> sources = [.. plan.Query.Sources.Select(s => new QuerySourceConsistency(SourceLabel(s), Level(s, plan.Query.Options.Consistency), false))];
+        if (engine is IQueryExplainer explainer)
+        {
+            (string statement, int count) = explainer.Explain(execution);
+            return ValueTask.FromResult(new QueryPlan(plan.Columns, sources, explainer.EngineName, statement, count, plan.Hash));
+        }
+
+        return ValueTask.FromResult(new QueryPlan(plan.Columns, sources, "in-memory", null, values.Count, plan.Hash));
     }
 
     public EventQuery<TEvent> Events<TEvent>()
