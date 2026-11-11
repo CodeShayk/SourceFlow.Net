@@ -159,7 +159,7 @@ public sealed class SourceFlowBuilder
         return UseStorage(sp =>
         {
             InMemoryStore s = store ?? new InMemoryStore(sp.GetService<TimeProvider>());
-            return new StoragePorts(s, s, s, s, s, s, s, s, s, s) { Retention = s, Nodes = s, Schemas = s, DocumentAdmin = s };
+            return new StoragePorts(s, s, s, s, s, s, s, s, s, s) { Retention = s, Nodes = s, Schemas = s, DocumentAdmin = s, Aliases = s };
         });
     }
 
@@ -186,6 +186,18 @@ public sealed class ProjectionsBuilder
     {
         _builder.ProjectionModes[typeof(TProjection)] = ProjectionMode.Async;
         return new ProjectionModeBuilder(_builder, typeof(TProjection));
+    }
+
+    /// <summary>
+    /// Leaves out a projection a module registers, for example the previous version when this service carries a new version
+    /// of it: the new version builds its own generation and takes over reads once it has caught up (doc 06 §6).
+    /// </summary>
+    public ProjectionsBuilder Remove<TProjection>()
+        where TProjection : class
+    {
+        _builder.Model.RemoveProjection<TProjection>();
+        _builder.ProjectionModes.Remove(typeof(TProjection));
+        return this;
     }
 }
 

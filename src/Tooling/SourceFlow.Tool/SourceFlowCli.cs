@@ -3,6 +3,7 @@ using ParseResult = System.CommandLine.ParseResult;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.DependencyInjection;
 using SourceFlow.Catalog;
 using SourceFlow.Messaging;
@@ -317,12 +318,20 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
         }));
 
         var collection = new Argument<string>("collection") { Description = "The read-model generation, for example account-summary@1." };
-        var rebuild = Store(new Command("rebuild", "Rebuild a document projection in place: drop its documents and replay it from the start (stop other nodes' subscriptions first)."), partitions);
+        var inPlace = new Option<bool>("--in-place") { Description = "Drop the documents and replay into the same generation (stop other nodes' subscriptions first) instead of building a new generation beside it." };
+        var rebuild = Store(new Command("rebuild", "Rebuild a projection blue/green: the service builds a new generation from the start and switches reads to it once it has caught up (doc 06 §6)."), partitions, inPlace);
         rebuild.Arguments.Add(collection);
         rebuild.SetAction((r, ct) => Guard(async () =>
         {
             string name = r.GetValue(collection)!;
             await using Ports ports = await PortsAsync(r, ct);
+            if (!r.GetValue(inPlace))
+            {
+                (string serving, string building) = await RequestGenerationAsync(ports.Storage, name, ct);
+                await Out.WriteLineAsync($"{ReadModelGeneration.Parse(building).Name}: building {building} beside {serving}; reads switch to it once it has caught up.");
+                return 0;
+            }
+
             IDocumentAdmin admin = ports.Storage.DocumentAdmin ?? throw new CliException("This storage can't drop collections.");
             List<LeaseToken> leases = await AcquireAllAsync(ports.Storage, "projection:" + name, r.GetValue(partitions), ct);
             try
@@ -349,20 +358,134 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
         drop.Arguments.Add(collection);
         drop.SetAction((r, ct) => Guard(async () =>
         {
+            string name = r.GetValue(collection)!;
             await using Ports ports = await PortsAsync(r, ct);
             IDocumentAdmin admin = ports.Storage.DocumentAdmin ?? throw new CliException("This storage can't drop collections.");
-            int dropped = await admin.DropCollectionAsync(r.GetValue(collection)!, ct);
-            await Out.WriteLineAsync($"Dropped {dropped} document(s) of {r.GetValue(collection)}");
+            if (ports.Storage.Aliases is { } aliases && ReadModelGeneration.TryParse(name, out ReadModelGeneration? generation)
+                && (await aliases.ListAliasesAsync(ct)).FirstOrDefault(a => a.Alias == generation.Value.Name) is { } alias)
+            {
+                if (alias.Target == name || alias.Building == name)
+                {
+                    throw new CliException($"{name} {(alias.Target == name ? "serves reads" : "is being built")}; only a retired generation can be dropped.");
+                }
+
+                if (alias.Previous == name)
+                {
+                    await aliases.ClearPreviousAsync(alias.Alias, name, ct);
+                }
+            }
+
+            int dropped = await admin.DropCollectionAsync(name, ct);
+            await Out.WriteLineAsync($"Dropped {dropped} document(s) of {name}");
+            return 0;
+        }));
+
+        var format = new Option<string>("--format") { Description = "text or json.", DefaultValueFactory = _ => "text" };
+        format.AcceptOnlyFromAmong("text", "json");
+        var generations = Store(new Command("generations", "List the read-model aliases: the generation serving reads, the one building and the retired one (doc 06 §6)."), format);
+        generations.SetAction((r, ct) => Guard(async () =>
+        {
+            await using Ports ports = await PortsAsync(r, ct);
+            ICollectionAliases aliases = ports.Storage.Aliases ?? throw new CliException("This storage keeps no read-model aliases.");
+            IReadOnlyList<CollectionAlias> rows = await aliases.ListAliasesAsync(ct);
+            if (r.GetValue(format) == "json")
+            {
+                var array = new JsonArray();
+                foreach (CollectionAlias a in rows)
+                {
+                    array.Add(new JsonObject
+                    {
+                        ["projection"] = a.Alias,
+                        ["serving"] = a.Target,
+                        ["building"] = a.Building,
+                        ["previous"] = a.Previous,
+                        ["switchedAt"] = a.SwitchedAt.ToString("O", CultureInfo.InvariantCulture),
+                    });
+                }
+
+                await Out.WriteLineAsync(array.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                return 0;
+            }
+
+            foreach (CollectionAlias a in rows)
+            {
+                await Out.WriteLineAsync($"{a.Alias}  serving {a.Target}  building {a.Building ?? "-"}  previous {a.Previous ?? "-"}  switched {a.SwitchedAt:O}");
+            }
+
+            if (rows.Count == 0)
+            {
+                await Out.WriteLineAsync("No read-model aliases yet.");
+            }
+
+            return 0;
+        }));
+
+        var aliasName = new Argument<string>("projection") { Description = "The projection name, for example account-summary." };
+        var target = new Argument<string>("generation") { Description = "The generation to serve reads, for example account-summary@1." };
+        var switchCommand = Store(new Command("switch", "Point a projection's reads at another generation (a rollback while the previous generation is kept)."), reason);
+        switchCommand.Arguments.Add(aliasName);
+        switchCommand.Arguments.Add(target);
+        switchCommand.SetAction((r, ct) => Guard(async () =>
+        {
+            string projectionName = r.GetValue(aliasName)!;
+            string to = r.GetValue(target)!;
+            if (!ReadModelGeneration.TryParse(to, out ReadModelGeneration? generation) || generation.Value.Name != projectionName)
+            {
+                throw new CliException($"{to} is not a generation of {projectionName}.");
+            }
+
+            await using Ports ports = await PortsAsync(r, ct);
+            ICollectionAliases aliases = ports.Storage.Aliases ?? throw new CliException("This storage keeps no read-model aliases.");
+            CollectionAlias current = (await aliases.ListAliasesAsync(ct)).FirstOrDefault(a => a.Alias == projectionName)
+                ?? throw new CliException($"{projectionName} has no alias yet.");
+            if (current.Target == to)
+            {
+                throw new CliException($"{to} already serves reads.");
+            }
+
+            if (!await aliases.SwitchAsync(projectionName, current.Target, to, ct))
+            {
+                throw new CliException($"{projectionName} switched concurrently; list the generations and retry.");
+            }
+
+            await Out.WriteLineAsync($"{projectionName}: reads switched from {current.Target} to {to} ({r.GetValue(reason)}). Nodes running an older version resume it; newer versions build again.");
             return 0;
         }));
 
         var projection = new Command("projection", "Projections and subscriptions (doc 06).");
-        foreach (Command c in new[] { skip, repartition, rebuild, drop })
+        foreach (Command c in new[] { skip, repartition, rebuild, drop, generations, switchCommand })
         {
             projection.Subcommands.Add(c);
         }
 
         return projection;
+    }
+
+    // Requests the next generation of the serving one: name@v.n+1 (doc 06 §6). The service builds it and switches reads.
+    private static async Task<(string Serving, string Building)> RequestGenerationAsync(StoragePorts storage, string name, CancellationToken ct)
+    {
+        ICollectionAliases aliases = storage.Aliases ?? throw new CliException("This storage keeps no read-model aliases; use --in-place.");
+        if (!ReadModelGeneration.TryParse(name, out ReadModelGeneration? requested))
+        {
+            throw new CliException($"'{name}' is not a read-model generation (name@version).");
+        }
+
+        CollectionAlias? alias = (await aliases.ListAliasesAsync(ct)).FirstOrDefault(a => a.Alias == requested.Value.Name);
+        ReadModelGeneration serving = alias is null ? requested.Value : ReadModelGeneration.Parse(alias.Target);
+        if (serving.Version != requested.Value.Version)
+        {
+            throw new CliException($"{serving} serves reads of {serving.Name}, not version {requested.Value.Version}; rebuild the serving version.");
+        }
+
+        ReadModelGeneration latest = serving;
+        if (alias?.Building is { } building && ReadModelGeneration.TryParse(building, out ReadModelGeneration? pending) && pending.Value.IsNewerThan(latest))
+        {
+            latest = pending.Value;
+        }
+
+        ReadModelGeneration next = latest.Next();
+        await aliases.RequestAsync(serving.Name, serving.Collection, next.Collection, ct);
+        return (serving.Collection, next.Collection);
     }
 
     private void RequireIdempotent(string subscription, bool confirmed)

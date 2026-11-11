@@ -25,6 +25,7 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
     private readonly Dictionary<(Type, Type), EventHandlerDescriptor> _eventHandlers = [];
     private readonly List<string> _modules = [];
     private readonly Dictionary<Type, Query.DomainQueryDescriptor> _domainQueries = [];
+    private readonly HashSet<Type> _removedProjections = [];
 
     /// <summary>The names of the registered modules.</summary>
     public IReadOnlyList<string> Modules => _modules;
@@ -126,6 +127,17 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
         _projections.TryAdd(typeof(TProjection), new ProjectionDescriptor<TProjection, TDocument, TKey>());
     }
 
+    /// <summary>
+    /// Leaves out a projection a module registers, for example the previous version when a host carries a new version of
+    /// a library's projection (a service runs one version of each projection, doc 06 §6).
+    /// </summary>
+    public SourceFlowModelBuilder RemoveProjection<TProjection>()
+        where TProjection : class
+    {
+        _removedProjections.Add(typeof(TProjection));
+        return this;
+    }
+
     /// <inheritdoc />
     public void AddSessionProjection<TProjection, TUnitOfWork>()
         where TProjection : class, ISessionProjectionRuntime<TProjection, TUnitOfWork>, new()
@@ -160,6 +172,11 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
     /// <summary>Validates every registration and freezes the model (fail fast at startup).</summary>
     public RuntimeModel Build()
     {
+        foreach (Type removed in _removedProjections)
+        {
+            _projections.Remove(removed);
+        }
+
         JsonSerializerOptions options = SystemTextJsonMessageSerializer.CreateOptions(_resolvers, _converters);
         MessageTypeRegistry registry = _messages.Build(options);
 
@@ -211,6 +228,14 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
         if (duplicate is not null)
         {
             throw new InvalidOperationException($"Two projections share the name and version '{duplicate}'.");
+        }
+
+        IGrouping<string, ProjectionDescriptor>? versions = _projections.Values.GroupBy(p => p.Name, StringComparer.Ordinal).FirstOrDefault(g => g.Count() > 1);
+        if (versions is not null)
+        {
+            throw new InvalidOperationException(
+                $"Projections {string.Join(" and ", versions.Select(p => $"{p.ProjectionType.Name} (version {p.Version})"))} share the name '{versions.Key}'. "
+                + "A service runs one version of a projection; leave the old one out with Projections(p => p.Remove<T>()) (doc 06 §6).");
         }
 
         string? duplicateQuery = _domainQueries.Values.GroupBy(q => (q.Name, q.Version)).FirstOrDefault(g => g.Count() > 1)?.Key.Name;

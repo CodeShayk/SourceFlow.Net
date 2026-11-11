@@ -145,12 +145,13 @@ public sealed class SourceFlowTestHost : IAsyncDisposable
         return stored is null ? null : (TDocument?)JsonSerializer.Deserialize(stored.Data.Span, Runtime.Model.JsonTypeInfoFor(typeof(TDocument)));
     }
 
-    /// <summary>Reads the document of a projection registered with this service.</summary>
-    public Task<TDocument?> DocumentAsync<TProjection, TDocument>(string id, string? tenant = null)
+    /// <summary>Reads the document of a projection registered with this service, from the generation serving reads (doc 06 §6).</summary>
+    public async Task<TDocument?> DocumentAsync<TProjection, TDocument>(string id, string? tenant = null)
         where TDocument : class
     {
         ProjectionDescriptor projection = Runtime.Model.Projections.Single(p => p.ProjectionType == typeof(TProjection));
-        return DocumentAsync<TDocument>(projection.Collection, id, tenant);
+        string collection = await Runtime.Generations.ReadCollectionAsync(projection.Name, projection.Collection, CancellationToken.None).ConfigureAwait(false);
+        return await DocumentAsync<TDocument>(collection, id, tenant).ConfigureAwait(false);
     }
 
     /// <summary>Reads a stream's events (deserialized and upcast).</summary>

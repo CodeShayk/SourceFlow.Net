@@ -11,7 +11,7 @@ using SourceFlow.Tool;
 
 namespace SourceFlow.Tooling.Tests;
 
-/// <summary>UT-CLI-01..30 (plan 05, WP-4.1): <c>dotnet sourceflow</c> parsing and handlers, run inside an in-memory service.</summary>
+/// <summary>UT-CLI-01..34 (plan 05, WP-4.1, WP-2.7): <c>dotnet sourceflow</c> parsing and handlers, run inside an in-memory service.</summary>
 [Trait("Category", "Unit")]
 public sealed class CliTests
 {
@@ -212,7 +212,7 @@ public sealed class CliTests
     [Trait("Id", "UT-CLI-12")]
     [Trait("Id", "UT-CLI-13")]
     [Trait("Covers", "doc 06 6")]
-    public async Task ProjectionRebuild_RefusesWhileRunning_ThenDropsTheDocumentsAndReplays_DropDeletesAGeneration()
+    public async Task ProjectionRebuildInPlace_RefusesWhileRunning_ThenDropsTheDocumentsAndReplays_DropRefusesTheServingGeneration()
     {
         var store = new SourceFlow.Storage.InMemory.InMemoryStore();
         var id = AccountId.New();
@@ -220,14 +220,14 @@ public sealed class CliTests
         {
             await running.SendAsync(new OpenAccount(id, "Ada", 1m), cancellationToken: Ct);
             await running.WaitForIdleAsync();
-            (int refused, _, string error) = await RunAsync(running, "projection", "rebuild", "account-summary@1");
+            (int refused, _, string error) = await RunAsync(running, "projection", "rebuild", "account-summary@1", "--in-place");
             refused.ShouldBe(1);
             error.ShouldContain("stop the subscription first");
         }
 
         await using (SourceFlowTestHost stopped = await BankAsync(loops: false, store: store))
         {
-            (int rebuilt, string output, _) = await RunAsync(stopped, "projection", "rebuild", "account-summary@1");
+            (int rebuilt, string output, _) = await RunAsync(stopped, "projection", "rebuild", "account-summary@1", "--in-place");
             rebuilt.ShouldBe(0);
             output.ShouldContain("dropped 1 document(s)");
             (await stopped.DocumentAsync<AccountSummaryProjection, AccountSummary>(id.ToStreamSegment())).ShouldBeNull();
@@ -237,9 +237,91 @@ public sealed class CliTests
         await restarted.WaitForIdleAsync();
         (await restarted.DocumentAsync<AccountSummaryProjection, AccountSummary>(id.ToStreamSegment())).ShouldNotBeNull();   // replayed
 
-        (int dropped, string drop, _) = await RunAsync(restarted, "projection", "drop", "account-summary@1");
+        (int dropped, _, string refusal) = await RunAsync(restarted, "projection", "drop", "account-summary@1");
+        dropped.ShouldBe(1);
+        refusal.ShouldContain("serves reads");
+    }
+
+    [Fact]
+    [Trait("Id", "UT-CLI-31")]
+    [Trait("Id", "UT-CLI-32")]
+    [Trait("Covers", "doc 06 6;ADR-032")]
+    public async Task ProjectionRebuild_BuildsANewGenerationBesideTheServingOne_ThenTheRetiredOneCanBeDropped()
+    {
+        var store = new SourceFlow.Storage.InMemory.InMemoryStore();
+        var id = AccountId.New();
+        await using SourceFlowTestHost host = await BankAsync(store: store);
+        await host.SendAsync(new OpenAccount(id, "Ada", 7m), cancellationToken: Ct);
+        await host.WaitForIdleAsync();
+        await AliasAsync(store, host, a => a.Target == "account-summary@1");
+
+        (int rebuilt, string output, _) = await RunAsync(host, "projection", "rebuild", "account-summary@1");
+        rebuilt.ShouldBe(0);
+        output.ShouldContain("building account-summary@1.2 beside account-summary@1");
+        await AliasAsync(store, host, a => a.Target == "account-summary@1.2");
+
+        (int listed, string list, _) = await RunAsync(host, "projection", "generations", "--format", "json");
+        listed.ShouldBe(0);
+        JsonNode row = JsonNode.Parse(list)!.AsArray().ShouldHaveSingleItem()!;
+        row["serving"]!.GetValue<string>().ShouldBe("account-summary@1.2");
+        row["previous"]!.GetValue<string>().ShouldBe("account-summary@1");
+        (await host.DocumentAsync<AccountSummaryProjection, AccountSummary>(id.ToStreamSegment()))!.Balance.ShouldBe(7m);
+
+        (int dropped, string drop, _) = await RunAsync(host, "projection", "drop", "account-summary@1");
         dropped.ShouldBe(0);
         drop.ShouldContain("Dropped 1 document(s)");
+        (await store.ListAliasesAsync(Ct))[0].Previous.ShouldBeNull();
+    }
+
+    [Fact]
+    [Trait("Id", "UT-CLI-33")]
+    [Trait("Id", "UT-CLI-34")]
+    [Trait("Covers", "doc 06 6")]
+    public async Task ProjectionSwitch_RollsReadsBack_AndRebuildValidatesTheGeneration()
+    {
+        var store = new SourceFlow.Storage.InMemory.InMemoryStore();
+        await using SourceFlowTestHost host = await BankAsync(store: store);
+        await host.SendAsync(new OpenAccount(AccountId.New(), "Ada", 1m), cancellationToken: Ct);
+        await host.WaitForIdleAsync();
+        await AliasAsync(store, host, a => a.Target == "account-summary@1");
+        await RunAsync(host, "projection", "rebuild", "account-summary@1");
+        await AliasAsync(store, host, a => a.Target == "account-summary@1.2");
+
+        (int switched, string output, _) = await RunAsync(host, "projection", "switch", "account-summary", "account-summary@1", "--reason", "bad build");
+        (int same, _, string already) = await RunAsync(host, "projection", "switch", "account-summary", "account-summary@1", "--reason", "again");
+        (int foreign, _, string mismatch) = await RunAsync(host, "projection", "switch", "account-summary", "other@1", "--reason", "typo");
+        (int version, _, string wrongVersion) = await RunAsync(host, "projection", "rebuild", "account-summary@3");
+        (int malformed, _, string bad) = await RunAsync(host, "projection", "rebuild", "account-summary");
+
+        switched.ShouldBe(0);
+        output.ShouldContain("from account-summary@1.2 to account-summary@1");
+        CollectionAlias alias = (await store.ListAliasesAsync(Ct)).ShouldHaveSingleItem();
+        alias.Target.ShouldBe("account-summary@1");
+        alias.Previous.ShouldBe("account-summary@1.2");
+        same.ShouldBe(1);
+        already.ShouldContain("already serves reads");
+        foreign.ShouldBe(1);
+        mismatch.ShouldContain("not a generation of account-summary");
+        version.ShouldBe(1);
+        wrongVersion.ShouldContain("not version 3");
+        malformed.ShouldBe(1);
+        bad.ShouldContain("not a read-model generation");
+    }
+
+    private static async Task AliasAsync(SourceFlow.Storage.InMemory.InMemoryStore store, SourceFlowTestHost host, Func<CollectionAlias, bool> condition)
+    {
+        for (int i = 0; i < 300; i++)
+        {
+            if ((await store.ListAliasesAsync(Ct)).FirstOrDefault() is { } alias && condition(alias))
+            {
+                return;
+            }
+
+            await host.WaitForIdleAsync();
+            await Task.Delay(TimeSpan.FromMilliseconds(10), TimeProvider.System, Ct);
+        }
+
+        throw new TimeoutException("The alias did not reach the expected state: " + string.Join(", ", await store.ListAliasesAsync(Ct)));
     }
 
     // ================================================================ topology

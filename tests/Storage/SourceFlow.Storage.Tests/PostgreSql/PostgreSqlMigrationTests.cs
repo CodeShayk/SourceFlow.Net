@@ -33,8 +33,8 @@ public sealed class PostgreSqlMigrationTests(PostgreSqlServer server) : PostgreS
 
         IReadOnlyList<int> applied = await migrator.MigrateAsync(Ct);
 
-        applied.ShouldBe([1, 2, 3]);
-        (await migrator.GetAppliedVersionsAsync(Ct)).ShouldBe([1, 2, 3]);
+        applied.ShouldBe([1, 2, 3, 4]);
+        (await migrator.GetAppliedVersionsAsync(Ct)).ShouldBe([1, 2, 3, 4]);
         (await TablesAsync(schema)).ShouldBe(Tables);
         await migrator.VerifyAsync(Ct);
     }
@@ -145,7 +145,7 @@ public sealed class PostgreSqlMigrationTests(PostgreSqlServer server) : PostgreS
         await Server.ExecuteAsync(scripter.Script());
 
         (await ColumnsAsync(scripted)).ShouldBe(await ColumnsAsync(migrated));
-        (await scripter.GetAppliedVersionsAsync(Ct)).ShouldBe([1, 2, 3]);
+        (await scripter.GetAppliedVersionsAsync(Ct)).ShouldBe([1, 2, 3, 4]);
         await scripter.VerifyAsync(Ct);
         (await scripter.MigrateAsync(Ct)).ShouldBeEmpty();
     }

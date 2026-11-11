@@ -56,6 +56,12 @@ internal static partial class Log
     [LoggerMessage(1302, LogLevel.Warning, "Subscription {Subscription} partition {Partition} lost its lease")]
     public static partial void SubscriptionLeaseLost(ILogger logger, string subscription, int partition);
 
+    [LoggerMessage(1304, LogLevel.Information, "Read model {Projection} switched from {Previous} to {Target}")]
+    public static partial void ReadModelSwitched(ILogger logger, string projection, string previous, string target);
+
+    [LoggerMessage(1305, LogLevel.Information, "Dropped retired read-model generation {Generation}")]
+    public static partial void ReadModelDropped(ILogger logger, string generation);
+
     [LoggerMessage(1401, LogLevel.Information, "SourceFlow service {Service} started: {Modules} module(s), {Aggregates} aggregate(s), {Subscriptions} subscription(s)")]
     public static partial void Started(ILogger logger, string service, int modules, int aggregates, int subscriptions);
 }

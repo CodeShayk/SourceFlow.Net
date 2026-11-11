@@ -81,6 +81,16 @@ public sealed class SourceFlowOptions
     [Range(1, 1024)]
     public int SubscriptionPartitions { get; set; } = 1;
 
+    /// <summary>
+    /// A new read-model generation takes over reads once every partition is at most this many events behind the log
+    /// (doc 06 §6). 0 waits until it is fully caught up.
+    /// </summary>
+    [Range(0, 1_000_000)]
+    public int SwitchLagThreshold { get; set; } = 100;
+
+    /// <summary>How long a retired read-model generation's data is kept after the switch before it is dropped (doc 06 §6).</summary>
+    public TimeSpan RetainPreviousFor { get; set; } = TimeSpan.FromDays(7);
+
     /// <summary>The in-process aggregate state cache (doc 05 §8.2); off by default.</summary>
     public AggregateCacheMode AggregateCache { get; set; } = AggregateCacheMode.Off;
 
@@ -135,6 +145,7 @@ public sealed class SourceFlowOptionsTimingValidator : IValidateOptions<SourceFl
         Between(options.InboxRetention, TimeSpan.FromMinutes(1), TimeSpan.FromDays(3650), nameof(options.InboxRetention), failures);
         Between(options.DeadLetterRetention, TimeSpan.FromMinutes(1), TimeSpan.FromDays(3650), nameof(options.DeadLetterRetention), failures);
         Between(options.RetentionInterval, TimeSpan.FromSeconds(1), TimeSpan.FromDays(7), nameof(options.RetentionInterval), failures);
+        Between(options.RetainPreviousFor, TimeSpan.Zero, TimeSpan.FromDays(3650), nameof(options.RetainPreviousFor), failures);
         if (options.LeaseTtl <= options.PollInterval)
         {
             failures.Add($"{nameof(options.LeaseTtl)} ({options.LeaseTtl}) must be longer than {nameof(options.PollInterval)} ({options.PollInterval}) so leases are renewed in time.");

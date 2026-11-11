@@ -86,7 +86,7 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
             }
         }
 
-        if (_settings.Roles.HasFlag(SourceFlowRoles.Subscriptions) && _subscriptions.Definitions.Count > 0)
+        if (_settings.Roles.HasFlag(SourceFlowRoles.Subscriptions) && _subscriptions.HasSubscriptions)
         {
             if (_runtime.Storage.Nodes is { } nodes)
             {
@@ -121,7 +121,7 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
             // Unfinished work is retried after restart (outbox rows stay, messages are redelivered).
         }
 
-        if (_settings.Roles.HasFlag(SourceFlowRoles.Subscriptions) && _subscriptions.Definitions.Count > 0)
+        if (_settings.Roles.HasFlag(SourceFlowRoles.Subscriptions) && _subscriptions.HasSubscriptions)
         {
             try
             {

@@ -193,7 +193,21 @@ public sealed record QueryExecution(
     IReadOnlyList<object?>? After,
     int Skip,
     int Take,
-    QueryPolicySettings Settings);
+    QueryPolicySettings Settings)
+{
+    /// <summary>
+    /// The collection serving each read model (by name) for this execution: the alias target of a projection rebuilt
+    /// blue/green (doc 06 §6). Read models not listed use <see cref="QueryReadModel.Collection"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? Collections { get; init; }
+
+    /// <summary>The collection to read for <paramref name="readModel"/>.</summary>
+    public string CollectionOf(QueryReadModel readModel)
+    {
+        ArgumentNullException.ThrowIfNull(readModel);
+        return Collections is not null && Collections.TryGetValue(readModel.Name, out string? collection) ? collection : readModel.Collection;
+    }
+}
 
 /// <summary>An explained query (doc 14 §7.3): what would run, without running it.</summary>
 /// <param name="Columns">The result columns.</param>
@@ -246,7 +260,7 @@ internal sealed class InterpreterQueryEngine(SourceFlowRuntime runtime) : IQuery
 
     public async IAsyncEnumerable<QueryResultRow> ExecuteAsync(QueryExecution execution, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var interpreter = new Interpreter(execution.Query, new QueryEnvironment(runtime, execution.Tenant, execution.Now, execution.Settings.MaxGroups), execution.Parameters);
+        var interpreter = new Interpreter(execution.Query, new QueryEnvironment(runtime, execution.Tenant, execution.Now, execution.Settings.MaxGroups) { Collections = execution.Collections }, execution.Parameters);
         List<InterpretedRow> rows = await interpreter.RunAsync(cancellationToken).ConfigureAwait(false);
         object?[]? after = execution.After is null ? null : [.. execution.After];
         int skipped = 0;
@@ -315,7 +329,8 @@ internal sealed class QueryService : IQueryService
         string tenant = options.Tenant ?? _runtime.CurrentTenant;
         DateTimeOffset now = _runtime.Time.GetUtcNow();
         var probe = new Interpreter(plan.Query, new QueryEnvironment(_runtime, tenant, now, _settings.MaxGroups), values);
-        IReadOnlyList<QuerySourceConsistency> consistency = await WaitAsync(plan.Query, probe, cancellationToken).ConfigureAwait(false);
+        IReadOnlyDictionary<string, string> collections = await CollectionsAsync(plan.Query, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<QuerySourceConsistency> consistency = await WaitAsync(plan.Query, probe, collections, cancellationToken).ConfigureAwait(false);
 
         int limit = Count(probe, plan.Query.Ast.Limit) ?? int.MaxValue;
         int remaining = cursor?.Remaining ?? limit;
@@ -323,7 +338,7 @@ internal sealed class QueryService : IQueryService
         int take = Math.Min(pageSize, remaining);
         int skip = cursor is null ? Count(probe, plan.Query.Ast.Offset) ?? 0 : 0;
 
-        var execution = new QueryExecution(plan.Query, values, tenant, now, cursor?.Keys, skip, take + 1, _settings);
+        var execution = new QueryExecution(plan.Query, values, tenant, now, cursor?.Keys, skip, take + 1, _settings) { Collections = collections };
         IQueryEngine engine = _engines.FirstOrDefault(e => e.CanExecute(plan.Query)) ?? _interpreter;
         var rows = new List<QueryRow>();
         IReadOnlyList<object?>? lastKeys = null;
@@ -371,7 +386,7 @@ internal sealed class QueryService : IQueryService
         return (IReadOnlyList<TResult>)await descriptor.ExecuteAsync(this, query, options, cancellationToken).ConfigureAwait(false);
     }
 
-    public ValueTask<QueryPlan> ExplainAsync(string query, IReadOnlyDictionary<string, object?>? parameters = null, QueryOptions? options = null, CancellationToken cancellationToken = default)
+    public async ValueTask<QueryPlan> ExplainAsync(string query, IReadOnlyDictionary<string, object?>? parameters = null, QueryOptions? options = null, CancellationToken cancellationToken = default)
     {
         options ??= new QueryOptions();
         Plan plan = PlanFor(query, options.Language);
@@ -384,16 +399,19 @@ internal sealed class QueryService : IQueryService
 
         string tenant = options.Tenant ?? _runtime.CurrentTenant;
         var execution = new QueryExecution(plan.Query, values, tenant, _runtime.Time.GetUtcNow(), null, 0,
-            Math.Clamp(options.PageSize ?? _settings.Limits.PageSize, 1, Math.Max(1, _settings.Limits.MaxRows)) + 1, _settings);
+            Math.Clamp(options.PageSize ?? _settings.Limits.PageSize, 1, Math.Max(1, _settings.Limits.MaxRows)) + 1, _settings)
+        {
+            Collections = await CollectionsAsync(plan.Query, cancellationToken).ConfigureAwait(false),
+        };
         IQueryEngine? engine = _engines.FirstOrDefault(e => e.CanExecute(plan.Query));
         IReadOnlyList<QuerySourceConsistency> sources = [.. plan.Query.Sources.Select(s => new QuerySourceConsistency(SourceLabel(s), Level(s, plan.Query.Options.Consistency), false))];
         if (engine is IQueryExplainer explainer)
         {
             (string statement, int count) = explainer.Explain(execution);
-            return ValueTask.FromResult(new QueryPlan(plan.Columns, sources, explainer.EngineName, statement, count, plan.Hash));
+            return new QueryPlan(plan.Columns, sources, explainer.EngineName, statement, count, plan.Hash);
         }
 
-        return ValueTask.FromResult(new QueryPlan(plan.Columns, sources, "in-memory", null, values.Count, plan.Hash));
+        return new QueryPlan(plan.Columns, sources, "in-memory", null, values.Count, plan.Hash);
     }
 
     public EventQuery<TEvent> Events<TEvent>()
@@ -639,7 +657,19 @@ internal sealed class QueryService : IQueryService
 
     // ================================================================ consistency (doc 14 §6)
 
-    private async ValueTask<IReadOnlyList<QuerySourceConsistency>> WaitAsync(BoundQuery query, Interpreter probe, CancellationToken cancellationToken)
+    // The serving generation of every read model in the catalog (aliases, doc 06 §6); subqueries read the same map.
+    private async ValueTask<IReadOnlyDictionary<string, string>> CollectionsAsync(BoundQuery query, CancellationToken cancellationToken)
+    {
+        var collections = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (QueryReadModel model in query.Catalog.ReadModels)
+        {
+            collections[model.Name] = await _runtime.Generations.ReadCollectionAsync(model.Name, model.Collection, cancellationToken).ConfigureAwait(false);
+        }
+
+        return collections;
+    }
+
+    private async ValueTask<IReadOnlyList<QuerySourceConsistency>> WaitAsync(BoundQuery query, Interpreter probe, IReadOnlyDictionary<string, string> collections, CancellationToken cancellationToken)
     {
         BoundOptions options = query.Options;
         var stale = new HashSet<int>();
@@ -662,13 +692,15 @@ internal sealed class QueryService : IQueryService
             long started = Stopwatch.GetTimestamp();
             foreach (BoundSource source in query.Sources.Where(s => s.Kind == SourceKind.ReadModel))
             {
-                ProjectionDescriptor? projection = _runtime.AsyncProjections.FirstOrDefault(p => p.Collection == source.ReadModel!.Collection);
+                ProjectionDescriptor? projection = _runtime.AsyncProjections.FirstOrDefault(p => p.Name == source.ReadModel!.Name);
                 if (projection is null)
                 {
                     continue;   // inline projections satisfy any token immediately
                 }
 
-                while (!await CaughtUpAsync("projection:" + projection.Collection, token.Position, cancellationToken).ConfigureAwait(false))
+                // The generation serving reads: its subscription must reach the token (doc 06 §6).
+                string collection = collections.GetValueOrDefault(source.ReadModel!.Name, source.ReadModel!.Collection);
+                while (!await CaughtUpAsync("projection:" + collection, token.Position, cancellationToken).ConfigureAwait(false))
                 {
                     if (Stopwatch.GetElapsedTime(started) >= timeout)
                     {

@@ -81,8 +81,12 @@ public static class ServiceCollectionExtensions
                 throw new InvalidOperationException(string.Join(Environment.NewLine, missing));
             }
 
+            // Blue/green (doc 06 §6): document projections, and session projections whose store keeps generations apart.
+            runtime.Generations.SetParticipants(runtime.AsyncProjections.Where(p => p is DocumentProjectionDescriptor || p.GenerationStore(sp) is not null));
             return runtime;
         });
+        services.AddSingleton<IReadModelResolver>(sp => sp.GetRequiredService<SourceFlowRuntime>().Generations);
+        services.TryAddScoped<Storage.ProjectionTarget>();
         services.AddSingleton<CommandProcessor>();
         services.AddSingleton<ICommandSender, CommandSender>();
         services.AddSingleton<OutboxRelay>();

@@ -36,6 +36,18 @@ internal sealed class ProjectionScope : IAsyncDisposable
 
     public IServiceProvider Services { get; }
 
+    /// <summary>
+    /// The read-model generation this scope writes (a subscription building or serving one generation, doc 06 §6), or null
+    /// for each projection's first generation (inline projections).
+    /// </summary>
+    public ReadModelGeneration? Generation { get; init; }
+
+    /// <summary>The collection a document projection writes in this scope.</summary>
+    public string CollectionOf(DocumentProjectionDescriptor projection)
+    {
+        return Generation is { } generation && generation.Name == projection.Name ? generation.Collection : projection.Collection;
+    }
+
     public ValueTask ApplyAsync(ProjectionDescriptor projection, IEvent @event, EventContext context, CancellationToken cancellationToken)
     {
         return projection.ApplyAsync(this, @event, context, cancellationToken);
@@ -44,10 +56,11 @@ internal sealed class ProjectionScope : IAsyncDisposable
     /// <summary>Loads, in one read, every document the batch will touch that is not cached yet.</summary>
     public async ValueTask PrefetchAsync(DocumentProjectionDescriptor projection, IReadOnlyList<(IEvent Event, EventContext Context)> batch, CancellationToken cancellationToken)
     {
+        string collection = CollectionOf(projection);
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach ((IEvent @event, EventContext context) in batch)
         {
-            if (projection.Handles(@event.GetType()) && projection.TryGetDocumentId(@event, context, out string? id) && !_documents.ContainsKey((projection.Collection, id)))
+            if (projection.Handles(@event.GetType()) && projection.TryGetDocumentId(@event, context, out string? id) && !_documents.ContainsKey((collection, id)))
             {
                 ids.Add(id);
             }
@@ -58,44 +71,51 @@ internal sealed class ProjectionScope : IAsyncDisposable
             return;
         }
 
-        foreach (StoredDocument stored in await Session.Documents.GetManyAsync(projection.Collection, ids, cancellationToken).ConfigureAwait(false))
+        foreach (StoredDocument stored in await Session.Documents.GetManyAsync(collection, ids, cancellationToken).ConfigureAwait(false))
         {
-            _documents[(projection.Collection, stored.Id)] = Cached(projection, stored);
+            _documents[(collection, stored.Id)] = Cached(projection, stored);
             ids.Remove(stored.Id);
         }
 
         foreach (string missing in ids)
         {
-            _documents[(projection.Collection, missing)] = new CachedDocument(projection);
+            _documents[(collection, missing)] = new CachedDocument(projection);
         }
     }
 
     /// <summary>The cached document, read from the session on a miss.</summary>
     public async ValueTask<CachedDocument> DocumentAsync(DocumentProjectionDescriptor projection, string id, CancellationToken cancellationToken)
     {
-        if (_documents.TryGetValue((projection.Collection, id), out CachedDocument? cached))
+        string collection = CollectionOf(projection);
+        if (_documents.TryGetValue((collection, id), out CachedDocument? cached))
         {
             return cached;
         }
 
-        StoredDocument? stored = await Session.Documents.GetAsync(projection.Collection, id, cancellationToken).ConfigureAwait(false);
+        StoredDocument? stored = await Session.Documents.GetAsync(collection, id, cancellationToken).ConfigureAwait(false);
         cached = stored is null ? new CachedDocument(projection) : Cached(projection, stored);
-        _documents[(projection.Collection, id)] = cached;
+        _documents[(collection, id)] = cached;
         return cached;
     }
 
-    public async ValueTask<TUnitOfWork> UnitOfWorkAsync<TUnitOfWork>(Type projectionType, CancellationToken cancellationToken)
+    public async ValueTask<TUnitOfWork> UnitOfWorkAsync<TUnitOfWork>(ProjectionDescriptor projection, CancellationToken cancellationToken)
         where TUnitOfWork : class
     {
+        Type projectionType = projection.ProjectionType;
+        IProjectionUnitOfWork<TUnitOfWork>? factory = Services.GetService<IProjectionUnitOfWork<TUnitOfWork>>();
+
+        // A store that keeps generations apart (an EF Core schema per generation) gets one unit of work per generation.
+        ReadModelGeneration generation = Generation is { } g && g.Name == projection.Name ? g : new ReadModelGeneration(projection.Name, projection.Version, 1);
+        string? key = factory is IProjectionGenerationStore { SeparatesGenerations: true } ? generation.Collection : null;
         foreach (UnitOfWork unit in _units)
         {
-            if (unit.Instance is TUnitOfWork existing)
+            if (unit.Instance is TUnitOfWork existing && unit.Generation == key)
             {
                 return existing;
             }
         }
 
-        IProjectionUnitOfWork<TUnitOfWork> factory = Services.GetService<IProjectionUnitOfWork<TUnitOfWork>>()
+        factory = factory
             ?? throw new InvalidOperationException(
                 $"Projection {projectionType.Name} writes through {typeof(TUnitOfWork).Name}, but no IProjectionUnitOfWork<{typeof(TUnitOfWork).Name}> is registered. "
                 + $"Register it with the storage package, for example UseEntityFrameworkProjections<{typeof(TUnitOfWork).Name}>(…).");
@@ -105,8 +125,13 @@ internal sealed class ProjectionScope : IAsyncDisposable
             await Session.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        if (Services.GetService<ProjectionTarget>() is { } target)
+        {
+            target.Generation = generation;
+        }
+
         TUnitOfWork created = await factory.BeginAsync(Session, Services, cancellationToken).ConfigureAwait(false);
-        _units.Add(new UnitOfWork(created, ct => factory.CompleteAsync(created, ct)));
+        _units.Add(new UnitOfWork(created, key, ct => factory.CompleteAsync(created, ct)));
         return created;
     }
 
@@ -168,7 +193,7 @@ internal sealed class ProjectionScope : IAsyncDisposable
         return new CachedDocument(projection) { Value = JsonSerializer.Deserialize(stored.Data.Span, typeInfo), Version = stored.Version, Stored = true };
     }
 
-    private sealed record UnitOfWork(object Instance, Func<CancellationToken, ValueTask> Complete);
+    private sealed record UnitOfWork(object Instance, string? Generation, Func<CancellationToken, ValueTask> Complete);
 }
 
 /// <summary>A document in a <see cref="ProjectionScope"/>: its current value, version and whether it must be written.</summary>

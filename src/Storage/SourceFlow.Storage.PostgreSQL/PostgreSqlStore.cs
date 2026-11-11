@@ -24,6 +24,7 @@ public sealed partial class PostgreSqlStore :
     INodeRegistry,
     ISchemaStore,
     IDocumentAdmin,
+    ICollectionAliases,
     IAsyncDisposable
 {
     private readonly bool _ownsDataSource;
@@ -64,7 +65,7 @@ public sealed partial class PostgreSqlStore :
     /// <summary>Every port of this store.</summary>
     public Runtime.StoragePorts ToPorts()
     {
-        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this) { Retention = this, Nodes = this, Schemas = this, DocumentAdmin = this };
+        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this) { Retention = this, Nodes = this, Schemas = this, DocumentAdmin = this, Aliases = this };
     }
 
     // ------------------------------------------------------------------ IStorageSessionFactory
@@ -321,6 +322,63 @@ public sealed partial class PostgreSqlStore :
         await using var command = new NpgsqlCommand(Sql.DropCollection, connection);
         command.Parameters.Add(new NpgsqlParameter<string>("collection", collection));
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<CollectionAlias>> ListAliasesAsync(CancellationToken cancellationToken)
+    {
+        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(Sql.ListAliases, connection);
+        var aliases = new List<CollectionAlias>();
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            aliases.Add(new CollectionAlias(
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.GetFieldValue<DateTimeOffset>(4)));
+        }
+
+        return aliases;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<bool> SwitchAsync(string alias, string? expectedTarget, string target, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(alias);
+        ArgumentException.ThrowIfNullOrEmpty(target);
+        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(expectedTarget is null ? Sql.ClaimAlias : Sql.SwitchAlias, connection);
+        command.Parameters.Add(new NpgsqlParameter<string>("alias", alias));
+        command.Parameters.Add(new NpgsqlParameter<string>("target", target));
+        if (expectedTarget is not null)
+        {
+            command.Parameters.Add(new NpgsqlParameter<string>("expected", expectedTarget));
+        }
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    /// <inheritdoc />
+    public ValueTask RequestAsync(string alias, string currentTarget, string building, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(alias);
+        ArgumentException.ThrowIfNullOrEmpty(currentTarget);
+        ArgumentException.ThrowIfNullOrEmpty(building);
+        return ExecuteAsync(Sql.RequestAlias, cancellationToken,
+            new NpgsqlParameter<string>("alias", alias),
+            new NpgsqlParameter<string>("target", currentTarget),
+            new NpgsqlParameter<string>("building", building));
+    }
+
+    /// <inheritdoc />
+    public ValueTask ClearPreviousAsync(string alias, string previous, CancellationToken cancellationToken)
+    {
+        return ExecuteAsync(Sql.ClearPreviousAlias, cancellationToken,
+            new NpgsqlParameter<string>("alias", alias),
+            new NpgsqlParameter<string>("previous", previous));
     }
 
     /// <inheritdoc />

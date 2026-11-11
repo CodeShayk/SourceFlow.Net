@@ -58,6 +58,7 @@ Isolation: every test uses a unique prefix (`t{testId}{random}`) for schemas, qu
 | SCK-56..60 | Tenancy: tenant-scoped streams, documents, inbox; RLS on → a cross-tenant read returns nothing even with a forged query | ADR-022 | new |
 | SCK-61..64 | EF Core projection: `SaveChanges` and checkpoint in one transaction; fencing failure rolls back the EF changes | doc 05 §10 | → `EfViewModelStoreIntegrationTests` |
 | SCK-L01 | Linearisability (CsCheck `SampleParallel`). Parallel `Any` appends, `NoStream` appends and appends with outbox rows must equal the model under some sequential ordering, which checks the compare-and-set and append/outbox atomicity under concurrency. Runs on in-memory, PostgreSQL, and PostgreSQL with RLS. | ADR-006, ADR-008 | new |
+| SCK-73..75 | Read-model aliases: first claim once, compare-and-set switch recording the previous target, requested generation kept until switched, concurrent switches with one winner | doc 06 §6, ADR-032 | new |
 | SCK-65..72 | Partitioned events variant: append across a partition boundary; horizon read across partitions; detach an old partition; archive exclusion rules | doc 09 §5 | new |
 | SCK-M01..M06 | Schema: fresh install; upgrade from every prior version; concurrent migrators serialise; `AutoMigrate` off outside Development; runtime role has DML only; `db script` output equals applied DDL | doc 05 §11 | → `DbContextMigrationHelper` problems (EF-06) |
 

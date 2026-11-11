@@ -236,6 +236,12 @@ public abstract class ProjectionDescriptor
     {
         return null;
     }
+
+    // The store that keeps a session projection's generations apart (blue/green rebuilds), or null.
+    internal virtual Storage.IProjectionGenerationStore? GenerationStore(IServiceProvider services)
+    {
+        return null;
+    }
 }
 
 /// <summary>A registered document projection: JSON documents in the store's document collection (doc 05 §10).</summary>
@@ -320,8 +326,13 @@ internal sealed class SessionProjectionDescriptor<TProjection, TUnitOfWork> : Pr
             return;
         }
 
-        TUnitOfWork unitOfWork = await scope.UnitOfWorkAsync<TUnitOfWork>(ProjectionType, cancellationToken).ConfigureAwait(false);
+        TUnitOfWork unitOfWork = await scope.UnitOfWorkAsync<TUnitOfWork>(this, cancellationToken).ConfigureAwait(false);
         await _projection.ApplyAsync(@event, unitOfWork, context, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal override Storage.IProjectionGenerationStore? GenerationStore(IServiceProvider services)
+    {
+        return services.GetService<Storage.IProjectionUnitOfWork<TUnitOfWork>>() is Storage.IProjectionGenerationStore { SeparatesGenerations: true } store ? store : null;
     }
 
     internal override string? MissingDependency(IServiceProvider services)

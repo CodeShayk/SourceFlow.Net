@@ -19,10 +19,20 @@ public sealed class AccountActivity : IVersionedReadModel
     public long Version { get; set; }
 }
 
-/// <summary>The reporting context; its tables live in the shared <c>reporting</c> schema, keyed by unique account ids.</summary>
-public sealed class ReportingDbContext(DbContextOptions<ReportingDbContext> options) : DbContext(options)
+/// <summary>
+/// The reporting context; its tables live in the shared <c>reporting</c> schema, keyed by unique account ids, or in a
+/// schema per read-model generation (UT-EF-11..13).
+/// </summary>
+public sealed class ReportingDbContext(DbContextOptions<ReportingDbContext> options, string schema) : DbContext(options), IGenerationSchemaContext
 {
-    public const string Schema = "reporting";
+    public const string SharedSchema = "reporting";
+
+    public ReportingDbContext(DbContextOptions<ReportingDbContext> options)
+        : this(options, SharedSchema)
+    {
+    }
+
+    public string Schema { get; } = schema;
 
     public DbSet<AccountActivity> Activity => Set<AccountActivity>();
 

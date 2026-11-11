@@ -34,7 +34,16 @@ internal sealed record Frame(Row? Row, IReadOnlyList<Row>? Group, object?[]? Out
 internal sealed record InterpretedRow(object?[] Outputs, object?[] SortKeys);
 
 /// <summary>What the interpreter runs against: the runtime's storage, the tenant and the query's fixed <c>now()</c>.</summary>
-internal sealed record QueryEnvironment(SourceFlowRuntime Runtime, string Tenant, DateTimeOffset Now, int MaxGroups);
+internal sealed record QueryEnvironment(SourceFlowRuntime Runtime, string Tenant, DateTimeOffset Now, int MaxGroups)
+{
+    /// <summary>The serving collection of each read model by name (blue/green aliases, doc 06 §6).</summary>
+    public IReadOnlyDictionary<string, string>? Collections { get; init; }
+
+    public string CollectionOf(QueryReadModel readModel)
+    {
+        return Collections is not null && Collections.TryGetValue(readModel.Name, out string? collection) ? collection : readModel.Collection;
+    }
+}
 
 /// <summary>
 /// The in-memory interpreter (doc 14 §7.1): a tree-walking evaluator over rows read through the storage ports (no
@@ -242,7 +251,7 @@ internal sealed class Interpreter(BoundQuery query, QueryEnvironment environment
 
             case SourceKind.ReadModel:
             {
-                IReadOnlyList<StoredDocument> documents = await storage.Documents.ListAsync(environment.Tenant, source.ReadModel!.Collection, int.MaxValue, cancellationToken).ConfigureAwait(false);
+                IReadOnlyList<StoredDocument> documents = await storage.Documents.ListAsync(environment.Tenant, environment.CollectionOf(source.ReadModel!), int.MaxValue, cancellationToken).ConfigureAwait(false);
                 return [.. documents.Select(d => (SourceRow)new DocumentRow(d, JsonDocument.Parse(d.Data).RootElement.Clone()))];
             }
 

@@ -376,8 +376,10 @@ CREATE TABLE sourceflow.documents (
 CREATE TABLE sourceflow.nodes (                                             -- liveness for lease fair-share (doc 06 §4)
     node_id text PRIMARY KEY, roles int NOT NULL, heartbeat_at timestamptz NOT NULL);
 
-CREATE TABLE sourceflow.collection_aliases (                                -- blue/green projection switch (doc 06 §6)
-    alias text PRIMARY KEY, target text NOT NULL, switched_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE sourceflow.collection_aliases (                                -- blue/green projection switch (doc 06 §6, ADR-032)
+    alias text PRIMARY KEY, target text NOT NULL, switched_at timestamptz NOT NULL DEFAULT now(),
+    previous text NULL,                                                     -- retired by the last switch, dropped after RetainPreviousFor
+    building text NULL);                                                    -- requested by `projection rebuild`, cleared by its switch
 
 CREATE TABLE sourceflow.subject_streams (                                   -- which streams hold a subject's PII (doc 10 §4)
     tenant_id text NOT NULL, subject_id text NOT NULL, stream_id text NOT NULL,

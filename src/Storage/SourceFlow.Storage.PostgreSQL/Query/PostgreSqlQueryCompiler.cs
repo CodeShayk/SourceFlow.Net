@@ -203,7 +203,7 @@ internal sealed class PostgreSqlQueryCompiler
         {
             case SourceKind.ReadModel:
                 yield return $"{alias}.tenant_id = {Tenant()}";
-                yield return $"{alias}.collection = {Parameter(source.ReadModel!.Collection, NpgsqlDbType.Text)}";
+                yield return $"{alias}.collection = {Parameter(_execution.CollectionOf(source.ReadModel!), NpgsqlDbType.Text)}";
                 break;
             case SourceKind.Stream:
                 yield return $"{alias}.tenant_id = {Tenant()}";

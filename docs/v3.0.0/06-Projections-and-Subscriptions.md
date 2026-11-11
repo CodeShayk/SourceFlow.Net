@@ -80,7 +80,14 @@ while lease held:
 4. Once `@2` lag is below `SwitchLagThreshold` (default 100 events), the engine updates `sourceflow.collection_aliases` (`account-summary → @2`) in one transaction. `IDocumentReader<AccountSummary>` resolves the alias on every query (cached, invalidated by notification).
 5. `@1` is stopped. Its data is dropped after `RetainPreviousFor` (default 7 days), or by `dotnet sourceflow projection drop account-summary@1`.
 
-The CLI command `projection rebuild <name>` forces steps 2–5 without a code change (same version, new generation suffix).
+The CLI command `projection rebuild <name@version>` forces steps 2–5 without a code change (same version, new generation suffix: `account-summary@1.2`). `projection generations` lists the aliases, `projection switch` rolls back to a retained generation, and `--in-place` drops and replays the same generation instead.
+
+**Details ([ADR-032](ADR-032-blue-green-read-model-generations-behind-forward-only-aliases.md)).**
+- The alias only moves forward, by compare-and-set: one node switches it.
+- Old-version nodes stop their generation once a newer version serves reads.
+- EF Core projections take part when they opt in to a schema per generation (`IGenerationSchemaContext`). Their reads resolve the generation with `IReadModelResolver`.
+- A service runs one version of each projection; `Projections(p => p.Remove<T>())` leaves out a module's older one.
+- Inline projections always write their first generation.
 
 **Rebuild speed.** `IDocumentProjection` is *batch-aware*:
 1. Collect the document keys touched by the batch.
@@ -90,7 +97,7 @@ The CLI command `projection rebuild <name>` forces steps 2–5 without a code ch
 
 For a typical rebuild this cuts database round trips from O(events) to O(batches) ([doc 09](09-Performance-and-Scalability.md)).
 
-Replay is side-effect free by construction: projections are pure functions of events, and event handlers and process managers are **excluded** from rebuilds unless `IncludeInReplay` is set explicitly. This closes v2's replay side-effect problem (GAP-06).
+Replay is side-effect free by construction: projections are pure functions of events, and event handlers and process managers are **never** part of a rebuild. They keep their own subscriptions and checkpoints (E2E-08, UT-SUB-28). This closes v2's replay side-effect problem (GAP-06).
 
 ## 7. Errors and poison events
 

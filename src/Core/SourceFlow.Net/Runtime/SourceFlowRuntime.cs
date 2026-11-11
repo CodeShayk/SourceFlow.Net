@@ -66,6 +66,12 @@ public sealed record StoragePorts(
     /// <summary>Projection data administration, when the adapter supports it (doc 06 §6).</summary>
     public IDocumentAdmin? DocumentAdmin { get; init; }
 
+    /// <summary>
+    /// Read-model aliases for blue/green rebuilds, when the adapter supports them (doc 06 §6); without them every projection
+    /// reads and writes its first generation.
+    /// </summary>
+    public ICollectionAliases? Aliases { get; init; }
+
     /// <summary>The schema registry, when the adapter supports it (doc 14 §2.2); startup registers this service's schemas.</summary>
     public ISchemaStore? Schemas { get; init; }
 
@@ -109,7 +115,11 @@ public sealed class SourceFlowRuntime
         AsyncProjections = [];
         AggregateCache = new AggregateCache(Options);
         Snapshots = new SnapshotWriter(this);
+        Generations = new ReadModelGenerations(this);
     }
+
+    /// <summary>Read-model generations and aliases (doc 06 §6).</summary>
+    internal ReadModelGenerations Generations { get; }
 
     /// <summary>The aggregate state cache (doc 05 §8.2).</summary>
     internal AggregateCache AggregateCache { get; }

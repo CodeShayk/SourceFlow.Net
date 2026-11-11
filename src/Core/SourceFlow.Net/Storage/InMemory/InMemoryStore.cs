@@ -22,7 +22,8 @@ public sealed class InMemoryStore :
     IStoreRetention,
     INodeRegistry,
     ISchemaStore,
-    IDocumentAdmin
+    IDocumentAdmin,
+    ICollectionAliases
 {
     private readonly Lock _gate = new();
     private readonly TimeProvider _time;
@@ -40,6 +41,7 @@ public sealed class InMemoryStore :
     private readonly List<Action> _subscribers = [];
     private readonly Dictionary<string, (int Roles, DateTimeOffset HeartbeatAt)> _nodes = new(StringComparer.Ordinal);
     private readonly Dictionary<(string Type, int Version), Catalog.SchemaEntry> _schemas = [];
+    private readonly Dictionary<string, CollectionAlias> _aliases = new(StringComparer.Ordinal);
     private ulong _commit;
     private long _outboxSequence;
 
@@ -180,6 +182,65 @@ public sealed class InMemoryStore :
 
             return ValueTask.FromResult(keys.Length);
         }
+    }
+
+    // ------------------------------------------------------------------ ICollectionAliases
+
+    /// <inheritdoc />
+    public ValueTask<IReadOnlyList<CollectionAlias>> ListAliasesAsync(CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            return ValueTask.FromResult<IReadOnlyList<CollectionAlias>>([.. _aliases.Values.OrderBy(a => a.Alias, StringComparer.Ordinal)]);
+        }
+    }
+
+    /// <inheritdoc />
+    public ValueTask<bool> SwitchAsync(string alias, string? expectedTarget, string target, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(alias);
+        ArgumentException.ThrowIfNullOrEmpty(target);
+        lock (_gate)
+        {
+            _aliases.TryGetValue(alias, out CollectionAlias? current);
+            if (current?.Target != expectedTarget)
+            {
+                return ValueTask.FromResult(false);
+            }
+
+            _aliases[alias] = new CollectionAlias(alias, target, current?.Target, current?.Building == target ? null : current?.Building, _time.GetUtcNow());
+            return ValueTask.FromResult(true);
+        }
+    }
+
+    /// <inheritdoc />
+    public ValueTask RequestAsync(string alias, string currentTarget, string building, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(alias);
+        ArgumentException.ThrowIfNullOrEmpty(currentTarget);
+        ArgumentException.ThrowIfNullOrEmpty(building);
+        lock (_gate)
+        {
+            _aliases[alias] = _aliases.TryGetValue(alias, out CollectionAlias? current)
+                ? current with { Building = building }
+                : new CollectionAlias(alias, currentTarget, null, building, _time.GetUtcNow());
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public ValueTask ClearPreviousAsync(string alias, string previous, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            if (_aliases.TryGetValue(alias, out CollectionAlias? current) && current.Previous == previous)
+            {
+                _aliases[alias] = current with { Previous = null };
+            }
+        }
+
+        return ValueTask.CompletedTask;
     }
 
     // ------------------------------------------------------------------ ISchemaStore

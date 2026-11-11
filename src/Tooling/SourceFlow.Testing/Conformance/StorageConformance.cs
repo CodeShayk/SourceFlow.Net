@@ -40,6 +40,9 @@ public interface IStorageFixture : IAsyncDisposable
     /// <summary>Retention cleanup (doc 05 §9); by default the event store when it implements it.</summary>
     IStoreRetention? Retention => Events as IStoreRetention;
 
+    /// <summary>Read-model aliases (doc 06 §6); by default the event store when it implements them.</summary>
+    ICollectionAliases? Aliases => Events as ICollectionAliases;
+
     /// <summary>True when <see cref="AdvanceClockAsync"/> moves the store's clock (in-memory with a fake clock).</summary>
     bool SupportsClockControl { get; }
 
@@ -116,6 +119,9 @@ public static class StorageConformance
         new("SCK-56", "Tenancy: the same stream id in two tenants is isolated", TenantStreams),
         new("SCK-57", "Tenancy: documents are tenant scoped", TenantDocuments),
         new("SCK-58", "Documents: read own writes, versions, older writes ignored", DocumentVersions),
+        new("SCK-73", "Aliases: the first generation claims once; a switch is a compare-and-set that records the previous target", AliasSwitch),
+        new("SCK-74", "Aliases: a requested generation is kept until it is switched in; previous is cleared only when it matches", AliasRequest),
+        new("SCK-75", "Aliases: concurrent switches from the same target, exactly one wins", AliasRace),
     ];
 
     // ------------------------------------------------------------------ helpers
@@ -904,6 +910,64 @@ public static class StorageConformance
 
         Check.NotNull(await f.Documents.GetAsync("eu", "docs", "1", ct).ConfigureAwait(false), "eu document");
         Check.Null(await f.Documents.GetAsync("us", "docs", "1", ct).ConfigureAwait(false), "us cannot read it");
+    }
+
+    // ------------------------------------------------------------------ read-model aliases (doc 06 §6)
+
+    private static async Task<CollectionAlias> AliasAsync(ICollectionAliases aliases, string name, CancellationToken ct)
+    {
+        IReadOnlyList<CollectionAlias> rows = await aliases.ListAliasesAsync(ct).ConfigureAwait(false);
+        return Check.NotNull(rows.FirstOrDefault(a => a.Alias == name), "alias row " + name);
+    }
+
+    private static async Task AliasSwitch(IStorageFixture f, CancellationToken ct)
+    {
+        ICollectionAliases aliases = Check.NotNull(f.Aliases, "aliases port");
+        string name = "sck-" + Guid.CreateVersion7().ToString("N");
+        Check.True(await aliases.SwitchAsync(name, null, name + "@1", ct).ConfigureAwait(false), "first claim");
+        Check.True(!await aliases.SwitchAsync(name, null, name + "@1", ct).ConfigureAwait(false), "second claim refused");
+        CollectionAlias claimed = await AliasAsync(aliases, name, ct).ConfigureAwait(false);
+        Check.Equal(name + "@1", claimed.Target, "claimed target");
+        Check.Null(claimed.Previous, "no previous after a claim");
+
+        Check.True(!await aliases.SwitchAsync(name, name + "@9", name + "@2", ct).ConfigureAwait(false), "stale expectation refused");
+        Check.True(await aliases.SwitchAsync(name, name + "@1", name + "@2", ct).ConfigureAwait(false), "switch");
+        CollectionAlias switched = await AliasAsync(aliases, name, ct).ConfigureAwait(false);
+        Check.Equal(name + "@2", switched.Target, "switched target");
+        Check.Equal(name + "@1", switched.Previous, "previous target");
+        Check.True(switched.SwitchedAt >= claimed.SwitchedAt, "switch time moves forward");
+    }
+
+    private static async Task AliasRequest(IStorageFixture f, CancellationToken ct)
+    {
+        ICollectionAliases aliases = Check.NotNull(f.Aliases, "aliases port");
+        string name = "sck-" + Guid.CreateVersion7().ToString("N");
+        await aliases.RequestAsync(name, name + "@1", name + "@1.2", ct).ConfigureAwait(false);
+        CollectionAlias requested = await AliasAsync(aliases, name, ct).ConfigureAwait(false);
+        Check.Equal(name + "@1", requested.Target, "request creates the row at the current target");
+        Check.Equal(name + "@1.2", requested.Building, "building");
+
+        await aliases.RequestAsync(name, name + "@1", name + "@1.3", ct).ConfigureAwait(false);
+        Check.Equal(name + "@1.3", (await AliasAsync(aliases, name, ct).ConfigureAwait(false)).Building, "a later request replaces the building generation");
+        Check.True(await aliases.SwitchAsync(name, name + "@1", name + "@1.3", ct).ConfigureAwait(false), "switch to the requested generation");
+        CollectionAlias switched = await AliasAsync(aliases, name, ct).ConfigureAwait(false);
+        Check.Null(switched.Building, "building cleared by its switch");
+
+        await aliases.ClearPreviousAsync(name, name + "@0", ct).ConfigureAwait(false);
+        Check.Equal(name + "@1", (await AliasAsync(aliases, name, ct).ConfigureAwait(false)).Previous, "a different previous is kept");
+        await aliases.ClearPreviousAsync(name, name + "@1", ct).ConfigureAwait(false);
+        Check.Null((await AliasAsync(aliases, name, ct).ConfigureAwait(false)).Previous, "previous cleared");
+    }
+
+    private static async Task AliasRace(IStorageFixture f, CancellationToken ct)
+    {
+        ICollectionAliases aliases = Check.NotNull(f.Aliases, "aliases port");
+        string name = "sck-" + Guid.CreateVersion7().ToString("N");
+        Check.True(await aliases.SwitchAsync(name, null, name + "@1", ct).ConfigureAwait(false), "claim");
+        bool[] wins = await Task.WhenAll(Enumerable.Range(2, 8).Select(v => aliases.SwitchAsync(name, name + "@1", $"{name}@{v}", ct).AsTask())).ConfigureAwait(false);
+        Check.Equal(1, wins.Count(w => w), "exactly one switch wins");
+        CollectionAlias alias = await AliasAsync(aliases, name, ct).ConfigureAwait(false);
+        Check.Equal(name + "@1", alias.Previous, "the winner's previous");
     }
 
     private static async Task DocumentVersions(IStorageFixture f, CancellationToken ct)

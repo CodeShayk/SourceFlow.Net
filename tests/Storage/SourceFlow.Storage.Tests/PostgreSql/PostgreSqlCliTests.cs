@@ -68,7 +68,7 @@ public sealed class PostgreSqlCliTests(PostgreSqlServer server) : PostgreSqlTest
     [Fact]
     [Trait("Id", "E2E-26")]
     [Trait("Covers", "doc 06 6")]
-    public async Task GlobalTool_RebuildsAProjection_TheServiceReplaysIt()
+    public async Task GlobalTool_RebuildsAProjectionInPlace_TheServiceReplaysIt()
     {
         string schema = PostgreSqlServer.NewSchema("cli");
         var id = AccountId.New();
@@ -79,12 +79,42 @@ public sealed class PostgreSqlCliTests(PostgreSqlServer server) : PostgreSqlTest
             await running.StopAsync(Ct);   // releases the subscription leases
         }
 
-        (int rebuilt, string output, _) = await RunAsync(null, "projection", "rebuild", "account-summary@1", "--connection", Server.ConnectionString, "--schema", schema);
+        (int rebuilt, string output, _) = await RunAsync(null, "projection", "rebuild", "account-summary@1", "--in-place", "--connection", Server.ConnectionString, "--schema", schema);
 
         rebuilt.ShouldBe(0);
         output.ShouldContain("dropped 1 document(s)");
         using IHost restarted = await StartAsync(schema);
         await EventuallyAsync(restarted, id, exists: true);
+    }
+
+    [Fact]
+    [Trait("Id", "E2E-08")]
+    [Trait("Id", "E2E-26")]
+    [Trait("Covers", "doc 06 6;ADR-032")]
+    public async Task GlobalTool_RebuildsBlueGreen_WhileTheServiceRuns_AndQueriesFollowTheAlias()
+    {
+        string schema = PostgreSqlServer.NewSchema("cli");
+        var ada = AccountId.New();
+        using IHost host = await StartAsync(schema);
+        await host.Services.GetRequiredService<ICommandSender>().SendAsync(new OpenAccount(ada, "Ada", 5m), null, Ct);
+        await EventuallyAsync(host, ada, exists: true);
+        PostgreSqlStore store = host.Services.GetRequiredService<PostgreSqlStore>();
+        await AliasAsync(store, "account-summary@1");
+
+        (int rebuilt, string output, _) = await RunAsync(null, "projection", "rebuild", "account-summary@1", "--connection", Server.ConnectionString, "--schema", schema);
+        rebuilt.ShouldBe(0);
+        output.ShouldContain("building account-summary@1.2 beside account-summary@1");
+        await AliasAsync(store, "account-summary@1.2");
+
+        // The service's queries now read the rebuilt generation (the compiler binds the collection as a parameter).
+        (await ((IDocumentReader)store).GetAsync(MessageEnvelope.DefaultTenant, "account-summary@1.2", ada.ToStreamSegment(), Ct)).ShouldNotBeNull();
+        await store.DropCollectionAsync("account-summary@1", Ct);   // what the retention would do later
+        Query.QueryPage page = await host.Services.GetRequiredService<Query.IQueryService>()
+            .QueryPageAsync("from readmodel \"account-summary\" | where holder = @h | project holder, balance", new Dictionary<string, object?> { ["h"] = "Ada" }, cancellationToken: Ct);
+        page.Rows.ShouldHaveSingleItem()["balance"].ShouldBe(5m);
+        (int listed, string generations, _) = await RunAsync(null, "projection", "generations", "--connection", Server.ConnectionString, "--schema", schema);
+        listed.ShouldBe(0);
+        generations.ShouldContain("account-summary  serving account-summary@1.2  building -  previous account-summary@1");
     }
 
     [Fact]
@@ -126,6 +156,21 @@ public sealed class PostgreSqlCliTests(PostgreSqlServer server) : PostgreSqlTest
         IHost host = builder.Build();
         await host.StartAsync(Ct);
         return host;
+    }
+
+    private static async Task AliasAsync(PostgreSqlStore store, string target)
+    {
+        for (int i = 0; i < 300; i++)
+        {
+            if ((await store.ListAliasesAsync(Ct)).Any(a => a.Alias == "account-summary" && a.Target == target))
+            {
+                return;
+            }
+
+            await RealClock.WaitAsync(TimeSpan.FromMilliseconds(50));
+        }
+
+        throw new TimeoutException($"account-summary did not switch to {target}.");
     }
 
     private static async Task EventuallyAsync(IHost host, AccountId id, bool exists)

@@ -174,6 +174,19 @@ internal sealed class SqlText
             """);
         ListSchemas = R("SELECT message_type, type_version, kind, json_schema::text FROM {s}.schemas WHERE tenant_id = '-' ORDER BY message_type, type_version");
         DropCollection = R("DELETE FROM {s}.documents WHERE collection = @collection");
+        ListAliases = R("SELECT alias, target, previous, building, switched_at FROM {s}.collection_aliases ORDER BY alias");
+        ClaimAlias = R("INSERT INTO {s}.collection_aliases (alias, target) VALUES (@alias, @target) ON CONFLICT (alias) DO NOTHING");
+        SwitchAlias = R("""
+            UPDATE {s}.collection_aliases
+               SET target = @target, previous = target, switched_at = now(),
+                   building = CASE WHEN building = @target THEN NULL ELSE building END
+             WHERE alias = @alias AND target = @expected
+            """);
+        RequestAlias = R("""
+            INSERT INTO {s}.collection_aliases (alias, target, building) VALUES (@alias, @target, @building)
+            ON CONFLICT (alias) DO UPDATE SET building = excluded.building
+            """);
+        ClearPreviousAlias = R("UPDATE {s}.collection_aliases SET previous = NULL WHERE alias = @alias AND previous = @previous");
         NodeLeave = R("DELETE FROM {s}.nodes WHERE node_id = @node");
         ReleaseLease = R("UPDATE {s}.leases SET owner = NULL, expires_at = NULL WHERE name = @lease AND owner = @lease_owner AND token = @lease_token");
 
@@ -302,6 +315,16 @@ internal sealed class SqlText
     public string NodeLeave { get; }
 
     public string DropCollection { get; }
+
+    public string ListAliases { get; }
+
+    public string ClaimAlias { get; }
+
+    public string SwitchAlias { get; }
+
+    public string RequestAlias { get; }
+
+    public string ClearPreviousAlias { get; }
 
     public string RegisterSchemas { get; }
 

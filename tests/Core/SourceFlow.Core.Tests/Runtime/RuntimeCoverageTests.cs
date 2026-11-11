@@ -106,6 +106,7 @@ public sealed class RuntimeCoverageTests
             await host.SendAsync(new Increment(id), cancellationToken: Ct);
         }
 
+        await host.WaitForIdleAsync();   // the async subscriptions checkpoint the batch in the background
         IAggregateReader reader = host.Services.GetRequiredService<IAggregateReader>();
         long commits = host.Store.CommitCount;
         AggregateSnapshot<Counter> first = await reader.LoadAsync<Counter, CounterId>(id, cancellationToken: Ct);

@@ -23,10 +23,10 @@ A global tool can't see a service's model without loading the service's assembly
 3. **Inside a service**, `Program.cs` calls `if (await SourceFlowCli.TryRunAsync(args, app.Services) is { } code) return code;` before `app.Run()`. Every command then works with the service's own storage, model, routing and query service: `dotnet run --project <service> -- sourceflow schema check --baseline schemas.lock.json`. The Bank sample does this.
 4. **Without a transport, the global tool replays dead letters through the outbox.** It enqueues the original envelope, with the same message id, so the inbox still protects. The running service's relay then sends it.
 5. **Projection admin needs the leases.** `projection skip`, `repartition` and `rebuild` take the partitions' leases as `sourceflow-cli`. They refuse while a running node holds them, so subscriptions must be stopped first; `skip` runs on the node that holds the lease.
-6. **`projection rebuild <name@version>` rebuilds in place.** It drops the generation's documents in every tenant (`IDocumentAdmin`) and resets its checkpoints, and the service replays it from the start on its next run. Blue/green generation switching with collection aliases (doc 06 §6, steps 3 and 4) is still to come. It is tracked with E2E-08 under WP-2.7.
+6. **`projection rebuild <name@version>` is blue/green** ([ADR-032](ADR-032-blue-green-read-model-generations-behind-forward-only-aliases.md)). It requests the next generation, and the running service builds it and switches reads once it has caught up. With `--in-place`, it instead drops the generation's documents in every tenant (`IDocumentAdmin`) and resets its checkpoints; the service then replays it from the start on its next run. `projection generations` lists the aliases, `projection switch` rolls reads back to a retained generation, and `projection drop` refuses a generation that is serving or being built.
 
 ## Consequences
 
 - CI can check schemas with the service's own build, and nothing is loaded by reflection.
 - Operators can run store commands without deploying anything.
-- An in-place rebuild serves an empty, growing read model while it catches up. Use a version bump (a new generation) when that matters, until alias switching lands.
+- An in-place rebuild serves an empty, growing read model while it catches up; the default blue/green rebuild does not.

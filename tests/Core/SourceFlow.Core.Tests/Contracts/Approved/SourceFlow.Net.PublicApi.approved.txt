@@ -678,6 +678,8 @@ namespace SourceFlow.Hosting
     {
         public SourceFlow.Hosting.ProjectionModeBuilder Add<TProjection>()
             where TProjection :  class { }
+        public SourceFlow.Hosting.ProjectionsBuilder Remove<TProjection>()
+            where TProjection :  class { }
     }
     public static class ServiceCollectionExtensions
     {
@@ -1391,6 +1393,7 @@ namespace SourceFlow.Query
     {
         public QueryExecution(SourceFlow.Query.BoundQuery Query, System.Collections.Generic.IReadOnlyDictionary<string, object?> Parameters, string Tenant, System.DateTimeOffset Now, System.Collections.Generic.IReadOnlyList<object?>? After, int Skip, int Take, SourceFlow.Query.QueryPolicySettings Settings) { }
         public System.Collections.Generic.IReadOnlyList<object?>? After { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string>? Collections { get; init; }
         public System.DateTimeOffset Now { get; init; }
         public System.Collections.Generic.IReadOnlyDictionary<string, object?> Parameters { get; init; }
         public SourceFlow.Query.BoundQuery Query { get; init; }
@@ -1398,6 +1401,7 @@ namespace SourceFlow.Query
         public int Skip { get; init; }
         public int Take { get; init; }
         public string Tenant { get; init; }
+        public string CollectionOf(SourceFlow.Query.QueryReadModel readModel) { }
     }
     public sealed class QueryField : System.IEquatable<SourceFlow.Query.QueryField>
     {
@@ -1717,6 +1721,10 @@ namespace SourceFlow.Runtime
         System.Threading.Tasks.ValueTask<int> PurgeAsync(System.DateTimeOffset resolvedBefore, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask ReplayAsync(System.Guid id, string? note = null, System.Threading.CancellationToken cancellationToken = default);
     }
+    public interface IReadModelResolver
+    {
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.ReadModelGeneration> ResolveAsync(string projection, System.Threading.CancellationToken cancellationToken = default);
+    }
     public interface ISubscriptionAdmin
     {
         System.Collections.Generic.IReadOnlyList<SourceFlow.Runtime.SubscriptionStall> Stalls { get; }
@@ -1867,6 +1875,8 @@ namespace SourceFlow.Runtime
             where TUpcaster :  class, SourceFlow.IUpcaster<TFrom, TTo>, new () { }
         public SourceFlow.Runtime.RuntimeModel Build() { }
         public void RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services) { }
+        public SourceFlow.Runtime.SourceFlowModelBuilder RemoveProjection<TProjection>()
+            where TProjection :  class { }
     }
     public sealed class SourceFlowOptions
     {
@@ -1899,6 +1909,7 @@ namespace SourceFlow.Runtime
         public int PrefetchPerWorker { get; set; }
         [System.ComponentModel.DataAnnotations.Range(1, 1024)]
         public int ReceiveConcurrency { get; set; }
+        public System.TimeSpan RetainPreviousFor { get; set; }
         [System.ComponentModel.DataAnnotations.Range(1, 100000)]
         public int RetentionBatchSize { get; set; }
         public System.TimeSpan RetentionInterval { get; set; }
@@ -1913,6 +1924,8 @@ namespace SourceFlow.Runtime
         public int SubscriptionBatchSize { get; set; }
         [System.ComponentModel.DataAnnotations.Range(1, 1024)]
         public int SubscriptionPartitions { get; set; }
+        [System.ComponentModel.DataAnnotations.Range(0, 1000000)]
+        public int SwitchLagThreshold { get; set; }
     }
     public sealed class SourceFlowOptionsTimingValidator : Microsoft.Extensions.Options.IValidateOptions<SourceFlow.Runtime.SourceFlowOptions>
     {
@@ -1956,6 +1969,7 @@ namespace SourceFlow.Runtime
     public sealed class StoragePorts : System.IEquatable<SourceFlow.Runtime.StoragePorts>
     {
         public StoragePorts(SourceFlow.Storage.IEventStore Events, SourceFlow.Storage.IEventLogReader Log, SourceFlow.Storage.IStorageSessionFactory Sessions, SourceFlow.Storage.ICheckpointStore Checkpoints, SourceFlow.Storage.ILeaseManager Leases, SourceFlow.Storage.IOutboxStore Outbox, SourceFlow.Storage.IDeadLetterStore DeadLetters, SourceFlow.Storage.ISnapshotStore Snapshots, SourceFlow.Storage.IDocumentReader Documents, SourceFlow.Storage.IStoreNotifications Notifications) { }
+        public SourceFlow.Storage.ICollectionAliases? Aliases { get; init; }
         public SourceFlow.Storage.ICheckpointStore Checkpoints { get; init; }
         public SourceFlow.Storage.IDeadLetterStore DeadLetters { get; init; }
         public SourceFlow.Storage.IDocumentAdmin? DocumentAdmin { get; init; }
@@ -2012,6 +2026,15 @@ namespace SourceFlow.Storage
         public const int Count = 1024;
         public static int Of(string tenantId, SourceFlow.StreamId stream) { }
         public static SourceFlow.Storage.BucketRange Range(int partition, int partitions) { }
+    }
+    public sealed class CollectionAlias : System.IEquatable<SourceFlow.Storage.CollectionAlias>
+    {
+        public CollectionAlias(string Alias, string Target, string? Previous, string? Building, System.DateTimeOffset SwitchedAt) { }
+        public string Alias { get; init; }
+        public string? Building { get; init; }
+        public string? Previous { get; init; }
+        public System.DateTimeOffset SwitchedAt { get; init; }
+        public string Target { get; init; }
     }
     public readonly struct CommitResult : System.IEquatable<SourceFlow.Storage.CommitResult>
     {
@@ -2098,6 +2121,13 @@ namespace SourceFlow.Storage
     {
         System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetAsync(string subscription, int partition, System.Threading.CancellationToken cancellationToken);
     }
+    public interface ICollectionAliases
+    {
+        System.Threading.Tasks.ValueTask ClearPreviousAsync(string alias, string previous, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.CollectionAlias>> ListAliasesAsync(System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask RequestAsync(string alias, string currentTarget, string building, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<bool> SwitchAsync(string alias, string? expectedTarget, string target, System.Threading.CancellationToken cancellationToken);
+    }
     public interface IDeadLetterStore
     {
         System.Threading.Tasks.ValueTask<SourceFlow.Storage.DeadLetter?> GetAsync(System.Guid id, System.Threading.CancellationToken cancellationToken);
@@ -2149,6 +2179,11 @@ namespace SourceFlow.Storage
         System.Threading.Tasks.ValueTask CompleteAsync(SourceFlow.Storage.LeaseToken lease, System.Collections.Generic.IReadOnlyList<long> sequences, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<int> CountAsync(System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask RetryAsync(SourceFlow.Storage.LeaseToken lease, long sequence, System.DateTimeOffset deliverAt, string error, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface IProjectionGenerationStore
+    {
+        bool SeparatesGenerations { get; }
+        System.Threading.Tasks.ValueTask DropGenerationAsync(SourceFlow.Storage.ReadModelGeneration generation, SourceFlow.Storage.IStorageSession session, System.Threading.CancellationToken cancellationToken);
     }
     public interface IProjectionUnitOfWork<TUnitOfWork>
         where TUnitOfWork :  class
@@ -2268,6 +2303,26 @@ namespace SourceFlow.Storage
         public System.DateTimeOffset UpdatedAt { get; init; }
         public long Version { get; init; }
     }
+    public sealed class ProjectionTarget
+    {
+        public ProjectionTarget() { }
+        public SourceFlow.Storage.ReadModelGeneration? Generation { get; set; }
+    }
+    public readonly struct ReadModelGeneration : System.IComparable<SourceFlow.Storage.ReadModelGeneration>, System.IEquatable<SourceFlow.Storage.ReadModelGeneration>
+    {
+        public ReadModelGeneration(string Name, int Version, int Number) { }
+        public string Collection { get; }
+        public string Name { get; init; }
+        public int Number { get; init; }
+        public string Subscription { get; }
+        public int Version { get; init; }
+        public int CompareTo(SourceFlow.Storage.ReadModelGeneration other) { }
+        public bool IsNewerThan(SourceFlow.Storage.ReadModelGeneration other) { }
+        public SourceFlow.Storage.ReadModelGeneration Next() { }
+        public override string ToString() { }
+        public static SourceFlow.Storage.ReadModelGeneration Parse(string collection) { }
+        public static bool TryParse(string? collection, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out SourceFlow.Storage.ReadModelGeneration? generation) { }
+    }
     public sealed class Snapshot : System.IEquatable<SourceFlow.Storage.Snapshot>
     {
         public Snapshot(SourceFlow.StreamId StreamId, SourceFlow.StreamVersion Version, string StateType, string SchemaHash, System.ReadOnlyMemory<byte> Data) { }
@@ -2333,7 +2388,7 @@ namespace SourceFlow.Storage.InMemory
         public InMemoryFaults() { }
         public void FailNextCommits(int count, System.Exception exception) { }
     }
-    public sealed class InMemoryStore : SourceFlow.Storage.ICheckpointStore, SourceFlow.Storage.IDeadLetterStore, SourceFlow.Storage.IDocumentAdmin, SourceFlow.Storage.IDocumentReader, SourceFlow.Storage.IEventLogReader, SourceFlow.Storage.IEventStore, SourceFlow.Storage.ILeaseManager, SourceFlow.Storage.INodeRegistry, SourceFlow.Storage.IOutboxStore, SourceFlow.Storage.ISchemaStore, SourceFlow.Storage.ISnapshotStore, SourceFlow.Storage.IStorageSessionFactory, SourceFlow.Storage.IStoreNotifications, SourceFlow.Storage.IStoreRetention
+    public sealed class InMemoryStore : SourceFlow.Storage.ICheckpointStore, SourceFlow.Storage.ICollectionAliases, SourceFlow.Storage.IDeadLetterStore, SourceFlow.Storage.IDocumentAdmin, SourceFlow.Storage.IDocumentReader, SourceFlow.Storage.IEventLogReader, SourceFlow.Storage.IEventStore, SourceFlow.Storage.ILeaseManager, SourceFlow.Storage.INodeRegistry, SourceFlow.Storage.IOutboxStore, SourceFlow.Storage.ISchemaStore, SourceFlow.Storage.ISnapshotStore, SourceFlow.Storage.IStorageSessionFactory, SourceFlow.Storage.IStoreNotifications, SourceFlow.Storage.IStoreRetention
     {
         public InMemoryStore(System.TimeProvider? time = null) { }
         public long CommitCount { get; }
@@ -2341,6 +2396,7 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask ArchiveStreamAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.IStorageSession> BeginAsync(string tenantId, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.OutboxRecord>> ClaimAsync(int partition, SourceFlow.Storage.LeaseToken lease, int maxCount, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask ClearPreviousAsync(string alias, string previous, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask CompleteAsync(SourceFlow.Storage.LeaseToken lease, System.Collections.Generic.IReadOnlyList<long> sequences, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<int> CountAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask DeleteStreamAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken) { }
@@ -2352,6 +2408,7 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamInfo?> GetStreamInfoAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<int> HeartbeatAsync(string nodeId, int roles, System.TimeSpan liveWindow, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask LeaveAsync(string nodeId, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.CollectionAlias>> ListAliasesAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.StoredDocument>> ListAsync(string tenantId, string collection, int maxCount, System.Threading.CancellationToken cancellationToken) { }
         public System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.OutboxRecord> OutboxSnapshot() { }
         public System.Threading.Tasks.ValueTask ParkAsync(SourceFlow.Storage.DeadLetter deadLetter, System.Threading.CancellationToken cancellationToken) { }
@@ -2362,10 +2419,12 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamSlice> ReadStreamAsync(string tenantId, SourceFlow.StreamId stream, SourceFlow.StreamVersion fromInclusive, int maxCount, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Catalog.SchemaConflict>> RegisterAsync(string service, System.Collections.Generic.IReadOnlyList<SourceFlow.Catalog.SchemaEntry> schemas, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask ReleaseAsync(SourceFlow.Storage.LeaseToken lease, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask RequestAsync(string alias, string currentTarget, string building, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask RetryAsync(SourceFlow.Storage.LeaseToken lease, long sequence, System.DateTimeOffset deliverAt, string error, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask SaveAsync(string tenantId, SourceFlow.Storage.Snapshot snapshot, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask SetStatusAsync(System.Guid id, SourceFlow.Storage.DeadLetterStatus status, string? note, System.Threading.CancellationToken cancellationToken) { }
         public System.IDisposable Subscribe(System.Action onCommit) { }
+        public System.Threading.Tasks.ValueTask<bool> SwitchAsync(string alias, string? expectedTarget, string target, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.LeaseToken?> TryAcquireAsync(string name, string owner, System.TimeSpan ttl, System.Threading.CancellationToken cancellationToken) { }
     }
 }
