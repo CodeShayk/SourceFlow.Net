@@ -62,6 +62,10 @@
     <Project Path="samples/Bank/Bank.Accounts/Bank.Accounts.csproj" />
     <Project Path="samples/Bank/Bank.Transfers/Bank.Transfers.csproj" />
     <Project Path="samples/Bank/Bank.Notifications/Bank.Notifications.csproj" />
+    <Project Path="samples/Bank/Bank.Api/Bank.Api.csproj" />
+  </Folder>
+  <Folder Name="/samples/Studio/">
+    <Project Path="samples/Studio/SourceFlow.Studio.Demo/SourceFlow.Studio.Demo.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/SourceFlow.Benchmarks/SourceFlow.Benchmarks.csproj" />

@@ -1,0 +1,75 @@
+# Demo images (Bank sample service and Studio demo console) on GitHub Container Registry.
+# Tags: the branch name, the short commit SHA and v3-latest (the tag docker-compose.yml pulls by default).
+name: v3-images
+
+on:
+  push:
+    branches: [ "v3.0.0", "v3/**" ]
+    paths:
+      - "src/Core/**"
+      - "src/Hosting/**"
+      - "src/Storage/SourceFlow.Storage.PostgreSQL/**"
+      - "samples/**"
+      - "Directory.Build.props"
+      - "Directory.Build.targets"
+      - "Directory.Packages.props"
+      - "global.json"
+      - ".dockerignore"
+      - ".github/workflows/v3-images.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: v3-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: sourceflow-bank-api
+            dockerfile: samples/Bank/Bank.Api/Dockerfile
+          - image: sourceflow-studio-demo
+            dockerfile: samples/Studio/SourceFlow.Studio.Demo/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image name
+        id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+            type=raw,value=v3-latest
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
