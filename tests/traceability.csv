@@ -7,3 +7,19 @@ ARCH-05,plan 06 9,No reflection activation in runtime packages
 ARCH-07,plan 06 9,Public adapter classes are sealed
 ARCH-08,plan 04 7,Traceability ids are covered
 ADR-027,ADRs,Single core package with extensibility SPIs
+ADR-003,ADRs,Aggregates as pure deciders
+ADR-004,ADRs,Source generation instead of reflection
+ADR-005,ADRs,Logical message type names and registry
+ADR-006,ADRs,Transactional outbox and inbox (idempotency ids)
+ADR-011,ADRs,CloudEvents envelope and W3C trace context
+ADR-015,ADRs,Strongly typed caller-assigned ids
+ADR-016,ADRs,Projections
+ADR-018,ADRs,Business rejections are values
+ADR-020,ADRs,Process managers
+DM-R3,doc 03 2,Command target id rule
+DC-1,ADR-004,Module-declared JSON context
+DC-3,doc 03 6.1,Reaction API shape
+GAP-09,product 06,Idempotency key scoping
+GAP-10,product 06,Unknown types are never deserialized
+GAP-16,product 06,No assembly scanning
+NFR-PERF-07,product 05,Size limits before the outbox insert

@@ -64,12 +64,17 @@ public sealed class DependencyRuleTests
     [Trait("Covers", "ARCH-05;ADR-004")]
     public void Runtime_packages_do_not_use_reflection_activation(string package)
     {
-        NetArchTest.Rules.TestResult result = Types.InAssembly(Packages.Load(package))
-            .ShouldNot()
-            .HaveDependencyOnAny("System.Activator", "System.Reflection.Emit")
-            .GetResult();
+        // IL scan: the generic Activator.CreateInstance<T>() that C# emits for 'new T()' is AOT-safe and allowed;
+        // activation and generic instantiation from a runtime Type, and CLR-name type lookup, are not (HP-1, GAP-04).
+        string[] offending = ReflectionScan.FindBannedCalls(Packages.Load(package).Location).ToArray();
 
-        result.IsSuccessful.ShouldBeTrue(Describe(result));
+        offending.ShouldBeEmpty($"{package} must not use reflection activation (ARCH-05).");
+
+        NetArchTest.Rules.TestResult emit = Types.InAssembly(Packages.Load(package))
+            .ShouldNot()
+            .HaveDependencyOn("System.Reflection.Emit")
+            .GetResult();
+        emit.IsSuccessful.ShouldBeTrue(Describe(emit));
     }
 
     [Theory]

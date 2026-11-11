@@ -1,0 +1,668 @@
+namespace SourceFlow
+{
+    [System.AttributeUsage(System.AttributeTargets.Class, Inherited=false)]
+    public sealed class AggregateAttribute : System.Attribute
+    {
+        public AggregateAttribute(string name) { }
+        public string Name { get; }
+        public int SnapshotEvery { get; set; }
+        public int SnapshotVersion { get; set; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field | System.AttributeTargets.Parameter, Inherited=false)]
+    public sealed class AggregateIdAttribute : System.Attribute
+    {
+        public AggregateIdAttribute() { }
+    }
+    public sealed class CommandFailedException : System.Exception
+    {
+        public CommandFailedException(SourceFlow.CommandResult result) { }
+        public SourceFlow.CommandResult Result { get; }
+    }
+    public readonly struct CommandResult : System.IEquatable<SourceFlow.CommandResult>
+    {
+        public CommandResult(SourceFlow.CommandStatus Status, SourceFlow.StreamVersion Version, SourceFlow.Error? Error, SourceFlow.ConsistencyToken Token) { }
+        public SourceFlow.Error? Error { get; init; }
+        public bool IsSuccess { get; }
+        public SourceFlow.CommandStatus Status { get; init; }
+        public SourceFlow.ConsistencyToken Token { get; init; }
+        public SourceFlow.StreamVersion Version { get; init; }
+        public SourceFlow.CommandResult ThrowIfNotAccepted() { }
+    }
+    public enum CommandStatus
+    {
+        Accepted = 1,
+        NoOp = 2,
+        Rejected = 3,
+        Conflict = 4,
+        Duplicate = 5,
+        Dispatched = 6,
+    }
+    public readonly struct ConsistencyToken : System.IEquatable<SourceFlow.ConsistencyToken>
+    {
+        public ConsistencyToken(SourceFlow.GlobalPosition Position, string? Tenant = null) { }
+        public SourceFlow.GlobalPosition Position { get; init; }
+        public string? Tenant { get; init; }
+        public static SourceFlow.ConsistencyToken None { get; }
+        public override string ToString() { }
+        public static bool TryParse([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? value, out SourceFlow.ConsistencyToken token) { }
+    }
+    public readonly struct CorrelationId : System.IEquatable<SourceFlow.CorrelationId>
+    {
+        public CorrelationId(string Value) { }
+        public bool IsNone { get; }
+        public string Value { get; init; }
+        public static SourceFlow.CorrelationId None { get; }
+        public override string ToString() { }
+        public static SourceFlow.CorrelationId From(SourceFlow.MessageId id) { }
+    }
+    public readonly struct Decision
+    {
+        public SourceFlow.Error? Error { get; }
+        public System.ReadOnlySpan<SourceFlow.IEvent> Events { get; }
+        public bool IsAccepted { get; }
+        public bool IsRejected { get; }
+        public SourceFlow.DecisionKind Kind { get; }
+        public static SourceFlow.Decision NoOp { get; }
+        public override string ToString() { }
+        public static SourceFlow.Decision Accept(SourceFlow.IEvent @event) { }
+        public static SourceFlow.Decision Accept([System.Runtime.CompilerServices.ParamCollection] [System.Runtime.CompilerServices.ScopedRef] System.ReadOnlySpan<SourceFlow.IEvent> events) { }
+        public static SourceFlow.Decision Reject(SourceFlow.Error error) { }
+    }
+    public readonly struct DecisionContext : System.IEquatable<SourceFlow.DecisionContext>
+    {
+        public DecisionContext(System.DateTimeOffset Now, SourceFlow.StreamVersion Version, SourceFlow.MessageId CommandId, SourceFlow.CorrelationId CorrelationId, System.Collections.Generic.IReadOnlyDictionary<string, string> Headers) { }
+        public SourceFlow.MessageId CommandId { get; init; }
+        public SourceFlow.CorrelationId CorrelationId { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string> Headers { get; init; }
+        public bool IsNew { get; }
+        public System.DateTimeOffset Now { get; init; }
+        public SourceFlow.StreamVersion Version { get; init; }
+    }
+    public enum DecisionKind
+    {
+        NoOp = 0,
+        Accepted = 1,
+        Rejected = 2,
+    }
+    [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=true, Inherited=false)]
+    public sealed class EmitsAttribute : System.Attribute
+    {
+        public EmitsAttribute(System.Type eventType) { }
+        public System.Type EventType { get; }
+    }
+    public sealed class Error : System.IEquatable<SourceFlow.Error>
+    {
+        public static readonly SourceFlow.Error ConcurrencyConflict;
+        public static readonly SourceFlow.Error VersionMismatch;
+        public Error(string Code, string Message, System.Collections.Generic.IReadOnlyDictionary<string, object?>? Details = null) { }
+        public string Code { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, object?>? Details { get; init; }
+        public string Message { get; init; }
+        public static SourceFlow.Error InvalidCommand(string message) { }
+    }
+    public readonly struct EventContext : System.IEquatable<SourceFlow.EventContext>
+    {
+        public EventContext(SourceFlow.MessageId EventId, SourceFlow.StreamId StreamId, SourceFlow.StreamVersion StreamVersion, SourceFlow.GlobalPosition Position, System.DateTimeOffset Timestamp, SourceFlow.CorrelationId CorrelationId, SourceFlow.MessageId? CausationId, string? TenantId) { }
+        public string AggregateKey { get; }
+        public SourceFlow.MessageId? CausationId { get; init; }
+        public SourceFlow.CorrelationId CorrelationId { get; init; }
+        public SourceFlow.MessageId EventId { get; init; }
+        public SourceFlow.GlobalPosition Position { get; init; }
+        public SourceFlow.StreamId StreamId { get; init; }
+        public SourceFlow.StreamVersion StreamVersion { get; init; }
+        public string? TenantId { get; init; }
+        public System.DateTimeOffset Timestamp { get; init; }
+    }
+    public readonly struct ExpectedVersion : System.IEquatable<SourceFlow.ExpectedVersion>
+    {
+        public SourceFlow.ExpectedVersionKind Kind { get; }
+        public SourceFlow.StreamVersion Version { get; }
+        public static SourceFlow.ExpectedVersion Any { get; }
+        public static SourceFlow.ExpectedVersion NoStream { get; }
+        public static SourceFlow.ExpectedVersion StreamExists { get; }
+        public bool IsSatisfiedBy(SourceFlow.StreamVersion current) { }
+        public override string ToString() { }
+        public static SourceFlow.ExpectedVersion Exact(SourceFlow.StreamVersion version) { }
+    }
+    public enum ExpectedVersionKind
+    {
+        Any = 0,
+        NoStream = 1,
+        StreamExists = 2,
+        Exact = 3,
+    }
+    public readonly struct GlobalPosition : System.IComparable<SourceFlow.GlobalPosition>, System.IEquatable<SourceFlow.GlobalPosition>
+    {
+        public GlobalPosition(ulong Commit, ulong Sequence) { }
+        public ulong Commit { get; init; }
+        public ulong Sequence { get; init; }
+        public static SourceFlow.GlobalPosition Start { get; }
+        public int CompareTo(SourceFlow.GlobalPosition other) { }
+        public override string ToString() { }
+        public static bool TryParse([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? value, out SourceFlow.GlobalPosition position) { }
+        public static bool operator <(SourceFlow.GlobalPosition left, SourceFlow.GlobalPosition right) { }
+        public static bool operator <=(SourceFlow.GlobalPosition left, SourceFlow.GlobalPosition right) { }
+        public static bool operator >(SourceFlow.GlobalPosition left, SourceFlow.GlobalPosition right) { }
+        public static bool operator >=(SourceFlow.GlobalPosition left, SourceFlow.GlobalPosition right) { }
+    }
+    public interface IAggregateRuntime<TSelf, TId> : SourceFlow.IAggregate<TSelf, TId>
+        where TSelf :  class, SourceFlow.IAggregateRuntime<TSelf, TId>
+        where TId :  struct, SourceFlow.IStronglyTypedId<TId>
+    {
+        string AggregateName { get; }
+        System.Collections.Generic.IReadOnlyList<System.Type> DecidedCommands { get; }
+        int SnapshotEvery { get; }
+        System.Collections.Generic.IReadOnlyList<System.Type> TargetingCommands { get; }
+        TSelf Evolve(SourceFlow.IEvent @event);
+        SourceFlow.Decision Decide(TSelf state, SourceFlow.ICommand command, in SourceFlow.DecisionContext context);
+        TId TargetOf(SourceFlow.ICommand command);
+    }
+    public interface IAggregate<TSelf, TId>
+        where TSelf :  class, SourceFlow.IAggregate<TSelf, TId>
+        where TId :  struct, SourceFlow.IStronglyTypedId<TId>
+    {
+        TSelf Initial { get; }
+    }
+    public interface ICommand : SourceFlow.IMessage { }
+    public interface ICommandHandler<in TCommand, TAggregate>
+        where in TCommand : SourceFlow.ICommand<TAggregate>
+        where TAggregate :  class
+    {
+        System.Threading.Tasks.ValueTask<SourceFlow.Decision> HandleAsync(TCommand command, TAggregate state, SourceFlow.DecisionContext context, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface ICommandSender
+    {
+        System.Threading.Tasks.ValueTask<SourceFlow.CommandResult> SendAsync<TCommand>(TCommand command, SourceFlow.SendOptions? options = null, System.Threading.CancellationToken cancellationToken = default)
+            where TCommand :  class, SourceFlow.ICommand;
+    }
+    public interface ICommand<TAggregate> : SourceFlow.ICommand, SourceFlow.IMessage
+        where TAggregate :  class { }
+    public interface IDocumentProjectionRuntime<TSelf, TDocument, TKey> : SourceFlow.IDocumentProjection<TDocument, TKey>
+        where TSelf :  class, SourceFlow.IDocumentProjectionRuntime<TSelf, TDocument, TKey>
+        where TDocument :  class
+        where TKey :  notnull
+    {
+        System.Collections.Generic.IReadOnlyList<System.Type> HandledEvents { get; }
+        string ProjectionName { get; }
+        int ProjectionVersion { get; }
+        TDocument? Apply(SourceFlow.IEvent @event, TDocument? current, in SourceFlow.EventContext context);
+        string FormatKey(TKey key);
+        bool TryGetKey(SourceFlow.IEvent @event, in SourceFlow.EventContext context, out TKey key);
+    }
+    public interface IDocumentProjection<TDocument, TKey>
+        where TDocument :  class
+        where TKey :  notnull { }
+    public interface IEvent : SourceFlow.IMessage { }
+    public interface IEventHandler<in TEvent>
+        where in TEvent :  class, SourceFlow.IMessage
+    {
+        System.Threading.Tasks.ValueTask HandleAsync(TEvent @event, SourceFlow.EventContext context, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface IIntegrationEvent : SourceFlow.IMessage { }
+    public interface IMessage { }
+    public interface IProcessManagerRuntime<TSelf, TId> : SourceFlow.IProcessManager<TSelf, TId>
+        where TSelf :  class, SourceFlow.IProcessManagerRuntime<TSelf, TId>
+        where TId :  struct, SourceFlow.IStronglyTypedId<TId>
+    {
+        System.Collections.Generic.IReadOnlyList<System.Type> HandledMessages { get; }
+        string ProcessName { get; }
+        SourceFlow.Reaction React(SourceFlow.IMessage message, SourceFlow.ReactionContext<TId> context);
+        bool TryCorrelate(SourceFlow.IMessage message, out TId id);
+    }
+    public interface IProcessManager<TSelf, TId>
+        where TSelf :  class, SourceFlow.IProcessManager<TSelf, TId>
+        where TId :  struct, SourceFlow.IStronglyTypedId<TId>
+    {
+        TSelf Initial { get; }
+    }
+    public interface ISourceFlowModule
+    {
+        string ModuleName { get; }
+        void Register(SourceFlow.ISourceFlowModuleBuilder builder);
+    }
+    public interface ISourceFlowModuleBuilder
+    {
+        void AddAggregate<TAggregate, TId>()
+            where TAggregate :  class, SourceFlow.IAggregateRuntime<TAggregate, TId>
+            where TId :  struct, SourceFlow.IStronglyTypedId<TId>;
+        void AddCommandHandler<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors)]  THandler, TCommand, TAggregate>()
+            where THandler :  class, SourceFlow.ICommandHandler<TCommand, TAggregate>
+            where TCommand :  class, SourceFlow.ICommand<TAggregate>
+            where TAggregate :  class;
+        void AddEventHandler<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors)]  THandler, TEvent>()
+            where THandler :  class, SourceFlow.IEventHandler<TEvent>
+            where TEvent :  class, SourceFlow.IMessage;
+        void AddJsonConverter(System.Text.Json.Serialization.JsonConverter converter);
+        void AddJsonTypeInfoResolver(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver);
+        void AddMessage<TMessage>(string name, int version)
+            where TMessage :  class, SourceFlow.IMessage;
+        void AddProcessManager<TProcess, TId>()
+            where TProcess :  class, SourceFlow.IProcessManagerRuntime<TProcess, TId>
+            where TId :  struct, SourceFlow.IStronglyTypedId<TId>;
+        void AddProjection<TProjection, TDocument, TKey>()
+            where TProjection :  class, SourceFlow.IDocumentProjectionRuntime<TProjection, TDocument, TKey>, new ()
+            where TDocument :  class
+            where TKey :  notnull;
+        void AddUpcaster<TFrom, TTo, TUpcaster>()
+            where TFrom :  class, SourceFlow.IMessage
+            where TTo :  class, SourceFlow.IMessage
+            where TUpcaster :  class, SourceFlow.IUpcaster<TFrom, TTo>, new ();
+    }
+    public interface IStronglyTypedId
+    {
+        bool IsDefault { get; }
+        string ToStreamSegment();
+    }
+    public interface IStronglyTypedId<TSelf> : SourceFlow.IStronglyTypedId
+        where TSelf :  struct, SourceFlow.IStronglyTypedId<TSelf>
+    {
+        TSelf Parse(string value);
+        bool TryParse(string? value, out TSelf id);
+    }
+    public interface ITimeout : SourceFlow.IMessage { }
+    public interface IUpcaster<in TFrom, out TTo>
+        where in TFrom :  class, SourceFlow.IMessage
+        where out TTo :  class, SourceFlow.IMessage
+    {
+        TTo Upcast(TFrom old);
+    }
+    public enum IdBacking
+    {
+        Guid = 0,
+        String = 1,
+        Int64 = 2,
+    }
+    public readonly struct MessageId : System.IComparable<SourceFlow.MessageId>, System.IEquatable<SourceFlow.MessageId>
+    {
+        public MessageId(System.Guid Value) { }
+        public bool IsEmpty { get; }
+        public System.Guid Value { get; init; }
+        public static SourceFlow.MessageId Empty { get; }
+        public int CompareTo(SourceFlow.MessageId other) { }
+        public override string ToString() { }
+        public static SourceFlow.MessageId New(System.TimeProvider time) { }
+        public static SourceFlow.MessageId Parse(string value) { }
+    }
+    public enum MessageKind
+    {
+        Command = 1,
+        Event = 2,
+        IntegrationEvent = 3,
+        Timeout = 4,
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class, Inherited=false)]
+    public sealed class MessageTypeAttribute : System.Attribute
+    {
+        public MessageTypeAttribute(string name, int version = 1) { }
+        public string Name { get; }
+        public int Version { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field | System.AttributeTargets.Parameter, Inherited=false)]
+    public sealed class PersonalDataAttribute : System.Attribute
+    {
+        public PersonalDataAttribute() { }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class, Inherited=false)]
+    public sealed class ProcessManagerAttribute : System.Attribute
+    {
+        public ProcessManagerAttribute(string name) { }
+        public string Name { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class, Inherited=false)]
+    public sealed class ProjectionAttribute : System.Attribute
+    {
+        public ProjectionAttribute(string name) { }
+        public string Name { get; }
+        public int Version { get; set; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field | System.AttributeTargets.Parameter, Inherited=false)]
+    public sealed class QueryableAttribute : System.Attribute
+    {
+        public QueryableAttribute() { }
+    }
+    public sealed class Reaction
+    {
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.ICommand> Commands { get; }
+        public bool Completes { get; }
+        public bool IsIgnored { get; }
+        public object? NewState { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.ScheduledMessage> Scheduled { get; }
+        public static SourceFlow.Reaction Ignore { get; }
+        public SourceFlow.Reaction AndBecome(object newState) { }
+        public SourceFlow.Reaction AndComplete() { }
+        public SourceFlow.Reaction AndSend(SourceFlow.ICommand command) { }
+        public SourceFlow.Reaction Schedule(SourceFlow.IMessage message, System.DateTimeOffset deliverAt) { }
+        public static SourceFlow.Reaction Become(object newState) { }
+        public static SourceFlow.Reaction Complete() { }
+        public static SourceFlow.Reaction Send(SourceFlow.ICommand command) { }
+    }
+    public readonly struct ReactionContext<TId> : System.IEquatable<SourceFlow.ReactionContext<TId>>
+        where TId :  struct, SourceFlow.IStronglyTypedId<TId>
+    {
+        public ReactionContext(TId Id, System.DateTimeOffset Now, SourceFlow.MessageId MessageId, bool IsNew) { }
+        public TId Id { get; init; }
+        public bool IsNew { get; init; }
+        public SourceFlow.MessageId MessageId { get; init; }
+        public System.DateTimeOffset Now { get; init; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=true, Inherited=false)]
+    public sealed class RejectsAttribute : System.Attribute
+    {
+        public RejectsAttribute(string code) { }
+        public string Code { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field | System.AttributeTargets.Parameter, AllowMultiple=true, Inherited=false)]
+    public sealed class RenamedFromAttribute : System.Attribute
+    {
+        public RenamedFromAttribute(string name) { }
+        public string Name { get; }
+        public int Version { get; set; }
+    }
+    public sealed class ScheduledMessage : System.IEquatable<SourceFlow.ScheduledMessage>
+    {
+        public ScheduledMessage(SourceFlow.IMessage Message, System.DateTimeOffset DeliverAt) { }
+        public System.DateTimeOffset DeliverAt { get; init; }
+        public SourceFlow.IMessage Message { get; init; }
+    }
+    public sealed class SendOptions : System.IEquatable<SourceFlow.SendOptions>
+    {
+        public SendOptions() { }
+        public SourceFlow.CorrelationId? CorrelationId { get; init; }
+        public SourceFlow.StreamVersion? ExpectedVersion { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string>? Headers { get; init; }
+        public string? IdempotencyKey { get; init; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class, Inherited=false)]
+    public sealed class SourceFlowModuleAttribute : System.Attribute
+    {
+        public SourceFlowModuleAttribute(System.Type? jsonContext = null) { }
+        public System.Type? JsonContext { get; }
+    }
+    public readonly struct StreamId : System.IEquatable<SourceFlow.StreamId>
+    {
+        public const int MaxLength = 200;
+        public StreamId(string value) { }
+        public string AggregateKey { get; }
+        public string Value { get; }
+        public override string ToString() { }
+        public static SourceFlow.StreamId For(string aggregateName, string segment) { }
+        public static SourceFlow.StreamId For<TId>(string aggregateName, TId id)
+            where TId :  struct, SourceFlow.IStronglyTypedId<TId> { }
+    }
+    public readonly struct StreamVersion : System.IComparable<SourceFlow.StreamVersion>, System.IEquatable<SourceFlow.StreamVersion>
+    {
+        public StreamVersion(long Value) { }
+        public long Value { get; init; }
+        public static SourceFlow.StreamVersion None { get; }
+        public int CompareTo(SourceFlow.StreamVersion other) { }
+        public override string ToString() { }
+        public static SourceFlow.StreamVersion operator +(SourceFlow.StreamVersion version, int count) { }
+        public static bool operator <(SourceFlow.StreamVersion left, SourceFlow.StreamVersion right) { }
+        public static bool operator <=(SourceFlow.StreamVersion left, SourceFlow.StreamVersion right) { }
+        public static bool operator >(SourceFlow.StreamVersion left, SourceFlow.StreamVersion right) { }
+        public static bool operator >=(SourceFlow.StreamVersion left, SourceFlow.StreamVersion right) { }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Struct, Inherited=false)]
+    public sealed class StronglyTypedIdAttribute : System.Attribute
+    {
+        public StronglyTypedIdAttribute() { }
+        public SourceFlow.IdBacking Backing { get; set; }
+        public int MaxLength { get; set; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Property | System.AttributeTargets.Field | System.AttributeTargets.Parameter, Inherited=false)]
+    public sealed class TagAttribute : System.Attribute
+    {
+        public TagAttribute(string name) { }
+        public string Name { get; }
+    }
+    public sealed class UnhandledMessageException : System.InvalidOperationException
+    {
+        public UnhandledMessageException(System.Type messageType) { }
+        public System.Type MessageType { get; }
+    }
+}
+namespace SourceFlow.Messaging
+{
+    public static class CloudEvents
+    {
+        public const string Actor = "sfactor";
+        public const string Causation = "sfcausationid";
+        public const string Correlation = "sfcorrelationid";
+        public const string DataContentType = "datacontenttype";
+        public const string HeadersAttribute = "sfheaders";
+        public const string Id = "id";
+        public const string OverflowAttribute = "sfext";
+        public const string PartitionKey = "sfpartitionkey";
+        public const string Protection = "sfenc";
+        public const string Source = "source";
+        public const string SpecVersion = "1.0";
+        public const string Specversion = "specversion";
+        public const string StreamVersion = "sfstreamversion";
+        public const string StructuredContentType = "application/cloudevents+json";
+        public const string Subject = "subject";
+        public const string Tenant = "sftenant";
+        public const string Time = "time";
+        public const string TraceParent = "traceparent";
+        public const string TraceState = "tracestate";
+        public const string Type = "type";
+        public static string FormatType(string name, int version) { }
+        public static SourceFlow.Messaging.MessageEnvelope FromAttributes(System.Collections.Generic.IReadOnlyDictionary<string, string> attributes, System.ReadOnlyMemory<byte> body) { }
+        public static SourceFlow.Messaging.MessageEnvelope FromStructured(System.ReadOnlyMemory<byte> document) { }
+        public static System.Collections.Generic.Dictionary<string, string> ToAttributes(SourceFlow.Messaging.MessageEnvelope envelope, int maxAttributes = 2147483647) { }
+        public static byte[] ToStructured(SourceFlow.Messaging.MessageEnvelope envelope) { }
+        public static bool TryParseType(string? value, out string name, out int version) { }
+    }
+    public static class EnvelopeLimits
+    {
+        public const int MaxHeaderBytes = 256;
+        public const int MaxHeaders = 8;
+        public static void ValidateBody(SourceFlow.Messaging.MessageEnvelope envelope, int maxBodyBytes) { }
+        public static void ValidateHeaders(System.Collections.Generic.IReadOnlyDictionary<string, string>? headers) { }
+    }
+    public interface IMessageSerializer
+    {
+        string ContentType { get; }
+        object Deserialize(System.Buffers.ReadOnlySequence<byte> source, SourceFlow.Messaging.MessageTypeInfo type);
+        void Serialize(object message, SourceFlow.Messaging.MessageTypeInfo type, System.Buffers.IBufferWriter<byte> destination);
+    }
+    public sealed class MessageEnvelope : System.IEquatable<SourceFlow.Messaging.MessageEnvelope>
+    {
+        public const string DefaultTenant = "-";
+        public const string JsonContentType = "application/json";
+        public MessageEnvelope() { }
+        public string? Actor { get; init; }
+        public System.ReadOnlyMemory<byte> Body { get; init; }
+        public SourceFlow.MessageId? CausationId { get; init; }
+        public string CloudEventType { get; }
+        public string ContentType { get; init; }
+        public SourceFlow.CorrelationId CorrelationId { get; init; }
+        public string? EffectivePartitionKey { get; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string> Headers { get; init; }
+        public required SourceFlow.MessageId MessageId { get; init; }
+        public string? PartitionKey { get; init; }
+        public string? Protection { get; init; }
+        public required string Source { get; init; }
+        public long? StreamVersion { get; init; }
+        public string? Subject { get; init; }
+        public string TenantId { get; init; }
+        public required System.DateTimeOffset Time { get; init; }
+        public string? TraceParent { get; init; }
+        public string? TraceState { get; init; }
+        public required string Type { get; init; }
+        public required int TypeVersion { get; init; }
+        public bool Equals(SourceFlow.Messaging.MessageEnvelope? other) { }
+        public override int GetHashCode() { }
+        public override string ToString() { }
+    }
+    public static class MessageIds
+    {
+        public static readonly System.Guid SourceFlowNamespace;
+        public static System.Guid CreateVersion5(System.Guid namespaceId, string name) { }
+        public static SourceFlow.MessageId Derive(SourceFlow.MessageId source, string discriminator) { }
+        public static SourceFlow.MessageId FromKey(string scope, string key) { }
+        public static SourceFlow.MessageId New(System.TimeProvider time) { }
+        public static long UnixTimeMillisecondsOf(System.Guid version7) { }
+        public static int VersionOf(System.Guid id) { }
+    }
+    public static class MessageSerializerExtensions
+    {
+        public static object Deserialize(this SourceFlow.Messaging.IMessageSerializer serializer, System.ReadOnlyMemory<byte> source, SourceFlow.Messaging.MessageTypeInfo type) { }
+        public static byte[] SerializeToArray(this SourceFlow.Messaging.IMessageSerializer serializer, object message, SourceFlow.Messaging.MessageTypeInfo type) { }
+    }
+    public sealed class MessageTooLargeException : System.InvalidOperationException
+    {
+        public MessageTooLargeException(string type, int size, int limit) { }
+        public int Limit { get; }
+        public string MessageType { get; }
+        public int Size { get; }
+    }
+    public sealed class MessageTypeInfo
+    {
+        public string CloudEventType { get; }
+        public System.Type ClrType { get; }
+        public System.Text.Json.Serialization.Metadata.JsonTypeInfo JsonTypeInfo { get; }
+        public SourceFlow.MessageKind Kind { get; }
+        public string Name { get; }
+        public SourceFlow.Messaging.MessageTypeInfo? UpcastsTo { get; }
+        public int Version { get; }
+        public override string ToString() { }
+    }
+    public sealed class MessageTypeRegistry
+    {
+        public System.Collections.Generic.IReadOnlyCollection<SourceFlow.Messaging.MessageTypeInfo> All { get; }
+        public System.Text.Json.JsonSerializerOptions Options { get; }
+        public SourceFlow.Messaging.MessageTypeInfo Get(System.Type clrType) { }
+        public SourceFlow.Messaging.MessageTypeInfo Get(string name, int version) { }
+        public bool TryGet(System.Type clrType, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out SourceFlow.Messaging.MessageTypeInfo? info) { }
+        public bool TryGet(string name, int version, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out SourceFlow.Messaging.MessageTypeInfo? info) { }
+        public object UpcastToLatest(object message, SourceFlow.Messaging.MessageTypeInfo type, out SourceFlow.Messaging.MessageTypeInfo latest) { }
+    }
+    public sealed class MessageTypeRegistryBuilder
+    {
+        public MessageTypeRegistryBuilder() { }
+        public SourceFlow.Messaging.MessageTypeRegistryBuilder Add(System.Type clrType, string name, int version) { }
+        public SourceFlow.Messaging.MessageTypeRegistryBuilder AddUpcaster(System.Type from, System.Type to, System.Func<object, object> upcast) { }
+        public SourceFlow.Messaging.MessageTypeRegistry Build(System.Text.Json.JsonSerializerOptions options) { }
+    }
+    public sealed class SystemTextJsonMessageSerializer : SourceFlow.Messaging.IMessageSerializer
+    {
+        public SystemTextJsonMessageSerializer() { }
+        public string ContentType { get; }
+        public object Deserialize(System.Buffers.ReadOnlySequence<byte> source, SourceFlow.Messaging.MessageTypeInfo type) { }
+        public void Serialize(object message, SourceFlow.Messaging.MessageTypeInfo type, System.Buffers.IBufferWriter<byte> destination) { }
+        public static System.Text.Json.JsonSerializerOptions CreateOptions(System.Collections.Generic.IEnumerable<System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver> resolvers, System.Collections.Generic.IEnumerable<System.Text.Json.Serialization.JsonConverter> converters) { }
+    }
+    public sealed class UnknownMessageTypeException : System.Exception
+    {
+        public UnknownMessageTypeException(string type, int version, string? message = null) { }
+        public string Type { get; }
+        public int Version { get; }
+    }
+}
+namespace SourceFlow.Runtime
+{
+    public abstract class AggregateDescriptor
+    {
+        protected AggregateDescriptor() { }
+        public abstract System.Collections.Generic.IReadOnlyList<System.Type> DecidedCommands { get; }
+        public abstract System.Type IdType { get; }
+        public abstract object Initial { get; }
+        public abstract string Name { get; }
+        public abstract int SnapshotEvery { get; }
+        public abstract System.Type StateType { get; }
+        public abstract System.Collections.Generic.IReadOnlyList<System.Type> TargetingCommands { get; }
+        public abstract SourceFlow.Decision Decide(object state, SourceFlow.ICommand command, in SourceFlow.DecisionContext context);
+        public abstract object Evolve(object state, SourceFlow.IEvent @event);
+        public abstract SourceFlow.StreamId StreamOf(SourceFlow.ICommand command);
+    }
+    public abstract class CommandHandlerDescriptor
+    {
+        protected CommandHandlerDescriptor() { }
+        public abstract System.Type AggregateType { get; }
+        public abstract System.Type CommandType { get; }
+        public abstract System.Type HandlerType { get; }
+        public abstract System.Threading.Tasks.ValueTask<SourceFlow.Decision> HandleAsync(System.IServiceProvider scope, SourceFlow.ICommand command, object state, SourceFlow.DecisionContext context, System.Threading.CancellationToken cancellationToken);
+        public abstract void RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services);
+    }
+    public abstract class EventHandlerDescriptor
+    {
+        protected EventHandlerDescriptor() { }
+        public abstract System.Type EventType { get; }
+        public abstract System.Type HandlerType { get; }
+        public string Name { get; }
+        public abstract System.Threading.Tasks.ValueTask HandleAsync(System.IServiceProvider scope, SourceFlow.IMessage message, SourceFlow.EventContext context, System.Threading.CancellationToken cancellationToken);
+        public abstract void RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services);
+    }
+    public sealed class InvalidCommandException : System.ArgumentException
+    {
+        public InvalidCommandException(System.Type commandType, string message) { }
+        public System.Type CommandType { get; }
+    }
+    public abstract class ProcessManagerDescriptor
+    {
+        protected ProcessManagerDescriptor() { }
+        public abstract System.Collections.Generic.IReadOnlyList<System.Type> HandledMessages { get; }
+        public abstract object Initial { get; }
+        public abstract string Name { get; }
+        public abstract System.Type StateType { get; }
+        public abstract SourceFlow.Reaction React(object state, SourceFlow.IMessage message, string instanceId, System.DateTimeOffset now, SourceFlow.MessageId messageId, bool isNew);
+        public abstract bool TryCorrelate(SourceFlow.IMessage message, SourceFlow.CorrelationId envelopeCorrelation, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? instanceId);
+    }
+    public abstract class ProjectionDescriptor
+    {
+        protected ProjectionDescriptor() { }
+        public string Collection { get; }
+        public abstract System.Type DocumentType { get; }
+        public abstract System.Collections.Generic.IReadOnlyList<System.Type> HandledEvents { get; }
+        public abstract string Name { get; }
+        public abstract int Version { get; }
+        public abstract object? Apply(SourceFlow.IEvent @event, object? current, in SourceFlow.EventContext context);
+        public abstract bool TryGetDocumentId(SourceFlow.IEvent @event, in SourceFlow.EventContext context, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? documentId);
+    }
+    public sealed class RuntimeModel
+    {
+        public System.Collections.Frozen.FrozenDictionary<System.Type, SourceFlow.Runtime.AggregateDescriptor> Aggregates { get; }
+        public System.Collections.Frozen.FrozenDictionary<System.Type, SourceFlow.Runtime.CommandHandlerDescriptor> CommandHandlers { get; }
+        public System.Collections.Frozen.FrozenDictionary<System.Type, SourceFlow.Runtime.AggregateDescriptor> CommandOwners { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Runtime.EventHandlerDescriptor> EventHandlers { get; }
+        public System.Collections.Generic.IReadOnlyList<string> Modules { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Runtime.ProcessManagerDescriptor> ProcessManagers { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Runtime.ProjectionDescriptor> Projections { get; }
+        public SourceFlow.Messaging.MessageTypeRegistry Registry { get; }
+        public System.Text.Json.Serialization.Metadata.JsonTypeInfo JsonTypeInfoFor(System.Type type) { }
+    }
+    public sealed class SourceFlowModelBuilder : SourceFlow.ISourceFlowModuleBuilder
+    {
+        public SourceFlowModelBuilder() { }
+        public System.Collections.Generic.IReadOnlyList<string> Modules { get; }
+        public void AddAggregate<TAggregate, TId>()
+            where TAggregate :  class, SourceFlow.IAggregateRuntime<TAggregate, TId>
+            where TId :  struct, SourceFlow.IStronglyTypedId<TId> { }
+        public void AddCommandHandler<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors)]  THandler, TCommand, TAggregate>()
+            where THandler :  class, SourceFlow.ICommandHandler<TCommand, TAggregate>
+            where TCommand :  class, SourceFlow.ICommand<TAggregate>
+            where TAggregate :  class { }
+        public void AddEventHandler<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors)]  THandler, TEvent>()
+            where THandler :  class, SourceFlow.IEventHandler<TEvent>
+            where TEvent :  class, SourceFlow.IMessage { }
+        public void AddJsonConverter(System.Text.Json.Serialization.JsonConverter converter) { }
+        public void AddJsonTypeInfoResolver(System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver resolver) { }
+        public void AddMessage<TMessage>(string name, int version)
+            where TMessage :  class, SourceFlow.IMessage { }
+        public SourceFlow.Runtime.SourceFlowModelBuilder AddModule<TModule>()
+            where TModule : SourceFlow.ISourceFlowModule { }
+        public void AddProcessManager<TProcess, TId>()
+            where TProcess :  class, SourceFlow.IProcessManagerRuntime<TProcess, TId>
+            where TId :  struct, SourceFlow.IStronglyTypedId<TId> { }
+        public void AddProjection<TProjection, TDocument, TKey>()
+            where TProjection :  class, SourceFlow.IDocumentProjectionRuntime<TProjection, TDocument, TKey>, new ()
+            where TDocument :  class
+            where TKey :  notnull { }
+        public void AddUpcaster<TFrom, TTo, TUpcaster>()
+            where TFrom :  class, SourceFlow.IMessage
+            where TTo :  class, SourceFlow.IMessage
+            where TUpcaster :  class, SourceFlow.IUpcaster<TFrom, TTo>, new () { }
+        public SourceFlow.Runtime.RuntimeModel Build() { }
+        public void RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services) { }
+    }
+}

@@ -1,0 +1,296 @@
+using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
+namespace SourceFlow.Runtime;
+
+/// <summary>
+/// A registered aggregate, exposing the generated static dispatch through non-generic members so the engine needs no
+/// reflection (ADR-004, HP-1). Created by generated module code through closed generics.
+/// </summary>
+public abstract class AggregateDescriptor
+{
+    /// <summary>The aggregate (stream type) name.</summary>
+    public abstract string Name { get; }
+
+    /// <summary>The state type.</summary>
+    public abstract Type StateType { get; }
+
+    /// <summary>The id type.</summary>
+    public abstract Type IdType { get; }
+
+    /// <summary>The snapshot interval; 0 disables snapshots.</summary>
+    public abstract int SnapshotEvery { get; }
+
+    /// <summary>Commands with a generated <c>Decide</c>.</summary>
+    public abstract IReadOnlyList<Type> DecidedCommands { get; }
+
+    /// <summary>Every command that targets this aggregate.</summary>
+    public abstract IReadOnlyList<Type> TargetingCommands { get; }
+
+    /// <summary>The initial state.</summary>
+    public abstract object Initial { get; }
+
+    /// <summary>Applies one event.</summary>
+    public abstract object Evolve(object state, IEvent @event);
+
+    /// <summary>Runs the generated <c>Decide</c>.</summary>
+    public abstract Decision Decide(object state, ICommand command, in DecisionContext context);
+
+    /// <summary>The target stream of a command.</summary>
+    /// <exception cref="InvalidCommandException">The target id is the default value (GAP-20).</exception>
+    public abstract StreamId StreamOf(ICommand command);
+}
+
+internal sealed class AggregateDescriptor<TAggregate, TId> : AggregateDescriptor
+    where TAggregate : class, IAggregateRuntime<TAggregate, TId>
+    where TId : struct, IStronglyTypedId<TId>
+{
+    public override string Name => TAggregate.AggregateName;
+
+    public override Type StateType => typeof(TAggregate);
+
+    public override Type IdType => typeof(TId);
+
+    public override int SnapshotEvery => TAggregate.SnapshotEvery;
+
+    public override IReadOnlyList<Type> DecidedCommands => TAggregate.DecidedCommands;
+
+    public override IReadOnlyList<Type> TargetingCommands => TAggregate.TargetingCommands;
+
+    public override object Initial => TAggregate.Initial;
+
+    public override object Evolve(object state, IEvent @event)
+    {
+        return ((TAggregate)state).Evolve(@event);
+    }
+
+    public override Decision Decide(object state, ICommand command, in DecisionContext context)
+    {
+        return TAggregate.Decide((TAggregate)state, command, context);
+    }
+
+    public override StreamId StreamOf(ICommand command)
+    {
+        TId id = TAggregate.TargetOf(command);
+        if (id.IsDefault)
+        {
+            throw new InvalidCommandException(command.GetType(), $"The target {typeof(TId).Name} of {command.GetType().Name} is the default value (GAP-20).");
+        }
+
+        return StreamId.For(TAggregate.AggregateName, id.ToStreamSegment());
+    }
+}
+
+/// <summary>A command handler with dependencies (doc 03 §5.3).</summary>
+public abstract class CommandHandlerDescriptor
+{
+    /// <summary>The handler type.</summary>
+    public abstract Type HandlerType { get; }
+
+    /// <summary>The handled command type.</summary>
+    public abstract Type CommandType { get; }
+
+    /// <summary>The target aggregate type.</summary>
+    public abstract Type AggregateType { get; }
+
+    /// <summary>Registers the handler as a scoped service.</summary>
+    public abstract void RegisterServices(IServiceCollection services);
+
+    /// <summary>Resolves the handler from <paramref name="scope"/> and decides.</summary>
+    public abstract ValueTask<Decision> HandleAsync(IServiceProvider scope, ICommand command, object state, DecisionContext context, CancellationToken cancellationToken);
+}
+
+internal sealed class CommandHandlerDescriptor<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TCommand, TAggregate> : CommandHandlerDescriptor
+    where THandler : class, ICommandHandler<TCommand, TAggregate>
+    where TCommand : class, ICommand<TAggregate>
+    where TAggregate : class
+{
+    public override Type HandlerType => typeof(THandler);
+
+    public override Type CommandType => typeof(TCommand);
+
+    public override Type AggregateType => typeof(TAggregate);
+
+    public override void RegisterServices(IServiceCollection services)
+    {
+        services.TryAddScoped<THandler>();
+    }
+
+    public override ValueTask<Decision> HandleAsync(IServiceProvider scope, ICommand command, object state, DecisionContext context, CancellationToken cancellationToken)
+    {
+        return scope.GetRequiredService<THandler>().HandleAsync((TCommand)command, (TAggregate)state, context, cancellationToken);
+    }
+}
+
+/// <summary>A registered process manager (ADR-020).</summary>
+public abstract class ProcessManagerDescriptor
+{
+    /// <summary>The process type name.</summary>
+    public abstract string Name { get; }
+
+    /// <summary>The state type.</summary>
+    public abstract Type StateType { get; }
+
+    /// <summary>Every message type with a <c>React</c>.</summary>
+    public abstract IReadOnlyList<Type> HandledMessages { get; }
+
+    /// <summary>The initial state.</summary>
+    public abstract object Initial { get; }
+
+    /// <summary>
+    /// Correlates a message to an instance id (its stream segment form): <c>CorrelateBy</c> first, then the envelope
+    /// correlation id when it parses as the id type.
+    /// </summary>
+    public abstract bool TryCorrelate(IMessage message, CorrelationId envelopeCorrelation, [NotNullWhen(true)] out string? instanceId);
+
+    /// <summary>Runs the generated <c>React</c>.</summary>
+    public abstract Reaction React(object state, IMessage message, string instanceId, DateTimeOffset now, MessageId messageId, bool isNew);
+}
+
+internal sealed class ProcessManagerDescriptor<TProcess, TId> : ProcessManagerDescriptor
+    where TProcess : class, IProcessManagerRuntime<TProcess, TId>
+    where TId : struct, IStronglyTypedId<TId>
+{
+    public override string Name => TProcess.ProcessName;
+
+    public override Type StateType => typeof(TProcess);
+
+    public override IReadOnlyList<Type> HandledMessages => TProcess.HandledMessages;
+
+    public override object Initial => TProcess.Initial;
+
+    public override bool TryCorrelate(IMessage message, CorrelationId envelopeCorrelation, [NotNullWhen(true)] out string? instanceId)
+    {
+        if (TProcess.TryCorrelate(message, out TId id) && !id.IsDefault)
+        {
+            instanceId = id.ToStreamSegment();
+            return true;
+        }
+
+        if (!envelopeCorrelation.IsNone && TId.TryParse(envelopeCorrelation.Value, out TId fromEnvelope) && !fromEnvelope.IsDefault)
+        {
+            instanceId = fromEnvelope.ToStreamSegment();
+            return true;
+        }
+
+        instanceId = null;
+        return false;
+    }
+
+    public override Reaction React(object state, IMessage message, string instanceId, DateTimeOffset now, MessageId messageId, bool isNew)
+    {
+        TId id = TId.Parse(instanceId);
+        return ((TProcess)state).React(message, new ReactionContext<TId>(id, now, messageId, isNew));
+    }
+}
+
+/// <summary>A registered document projection (ADR-016).</summary>
+public abstract class ProjectionDescriptor
+{
+    /// <summary>The projection name.</summary>
+    public abstract string Name { get; }
+
+    /// <summary>The projection version.</summary>
+    public abstract int Version { get; }
+
+    /// <summary>The document collection: <c>{name}@{version}</c> (doc 06 §6).</summary>
+    public string Collection => $"{Name}@{Version}";
+
+    /// <summary>The document type.</summary>
+    public abstract Type DocumentType { get; }
+
+    /// <summary>Every event type with a <c>When</c>.</summary>
+    public abstract IReadOnlyList<Type> HandledEvents { get; }
+
+    /// <summary>Finds the stored document id of an event.</summary>
+    public abstract bool TryGetDocumentId(IEvent @event, in EventContext context, [NotNullWhen(true)] out string? documentId);
+
+    /// <summary>Applies an event; returns the new document or null to delete it.</summary>
+    public abstract object? Apply(IEvent @event, object? current, in EventContext context);
+}
+
+internal sealed class ProjectionDescriptor<TProjection, TDocument, TKey> : ProjectionDescriptor
+    where TProjection : class, IDocumentProjectionRuntime<TProjection, TDocument, TKey>, new()
+    where TDocument : class
+    where TKey : notnull
+{
+    private readonly TProjection _projection = new();
+
+    public override string Name => TProjection.ProjectionName;
+
+    public override int Version => TProjection.ProjectionVersion;
+
+    public override Type DocumentType => typeof(TDocument);
+
+    public override IReadOnlyList<Type> HandledEvents => TProjection.HandledEvents;
+
+    public override bool TryGetDocumentId(IEvent @event, in EventContext context, [NotNullWhen(true)] out string? documentId)
+    {
+        if (TProjection.TryGetKey(@event, context, out TKey key))
+        {
+            documentId = TProjection.FormatKey(key);
+            return documentId.Length > 0;
+        }
+
+        documentId = null;
+        return false;
+    }
+
+    public override object? Apply(IEvent @event, object? current, in EventContext context)
+    {
+        return _projection.Apply(@event, (TDocument?)current, context);
+    }
+}
+
+/// <summary>A registered event handler (at-least-once side effects, doc 03 §6.2).</summary>
+public abstract class EventHandlerDescriptor
+{
+    /// <summary>The handler type.</summary>
+    public abstract Type HandlerType { get; }
+
+    /// <summary>The handled message type.</summary>
+    public abstract Type EventType { get; }
+
+    /// <summary>The consumer name used for checkpoints and the inbox.</summary>
+    public string Name => HandlerType.Name;
+
+    /// <summary>Registers the handler as a scoped service.</summary>
+    public abstract void RegisterServices(IServiceCollection services);
+
+    /// <summary>Resolves the handler from <paramref name="scope"/> and handles the message.</summary>
+    public abstract ValueTask HandleAsync(IServiceProvider scope, IMessage message, EventContext context, CancellationToken cancellationToken);
+}
+
+internal sealed class EventHandlerDescriptor<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TEvent> : EventHandlerDescriptor
+    where THandler : class, IEventHandler<TEvent>
+    where TEvent : class, IMessage
+{
+    public override Type HandlerType => typeof(THandler);
+
+    public override Type EventType => typeof(TEvent);
+
+    public override void RegisterServices(IServiceCollection services)
+    {
+        services.TryAddScoped<THandler>();
+    }
+
+    public override ValueTask HandleAsync(IServiceProvider scope, IMessage message, EventContext context, CancellationToken cancellationToken)
+    {
+        return scope.GetRequiredService<THandler>().HandleAsync((TEvent)message, context, cancellationToken);
+    }
+}
+
+/// <summary>A command is structurally invalid (for example a default target id); it is rejected, never retried.</summary>
+public sealed class InvalidCommandException : ArgumentException
+{
+    /// <summary>Creates the exception.</summary>
+    public InvalidCommandException(Type commandType, string message)
+        : base(message)
+    {
+        CommandType = commandType;
+    }
+
+    /// <summary>The command type.</summary>
+    public Type CommandType { get; }
+}
