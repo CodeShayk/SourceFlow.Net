@@ -88,6 +88,45 @@ public sealed class PostgreSqlStoreTests(PostgreSqlServer server) : PostgreSqlTe
     }
 
     [Fact]
+    [Trait("Id", "SCK-28")]
+    [Trait("Covers", "doc 05 8.1")]
+    public async Task LostListenConnection_Reconnects_AndNoCommitIsMissed()
+    {
+        await using PostgreSqlStore listener = await Server.CreateStoreAsync(configure: o => o.ListenReconnectDelay = TimeSpan.FromMilliseconds(100));
+        await using var writer = new PostgreSqlStore(new PostgreSqlStorageOptions { DataSource = Server.DataSource, Schema = listener.Options.Schema });
+        int signals = 0;
+        var signalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using IDisposable subscription = listener.Subscribe(() =>
+        {
+            Interlocked.Increment(ref signals);
+            signalled.TrySetResult();
+        });
+        await signalled.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);   // LISTEN is active
+
+        // Kill the LISTEN backend; while it reconnects, another process commits.
+        string listen = "LISTEN \"" + listener.Options.Channel + "\"";
+        await Server.ExecuteAsync($"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query = '{listen}'");
+        int beforeCommit = Volatile.Read(ref signals);
+        await AppendAsync(writer, Stream, ExpectedVersion.NoStream);
+
+        // The reconnect raises a catch-up signal, so the commit made while disconnected is never missed.
+        DateTimeOffset deadline = TimeProvider.System.GetUtcNow() + TimeSpan.FromSeconds(10);
+        while (Volatile.Read(ref signals) == beforeCommit && TimeProvider.System.GetUtcNow() < deadline)
+        {
+            await RealClock.WaitAsync(TimeSpan.FromMilliseconds(20));
+        }
+
+        Volatile.Read(ref signals).ShouldBeGreaterThan(beforeCommit);
+
+        // And live notifications flow again on the new connection.
+        signalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await RealClock.WaitAsync(TimeSpan.FromMilliseconds(300));
+        signalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await AppendAsync(writer, new StreamId("pg-b-2"), ExpectedVersion.NoStream);
+        await signalled.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);
+    }
+
+    [Fact]
     [Trait("Id", "SCK-26")]
     [Trait("Covers", "ADR-010")]
     public async Task InProgressWritingTransaction_HoldsTheHorizon_UntilItEnds()

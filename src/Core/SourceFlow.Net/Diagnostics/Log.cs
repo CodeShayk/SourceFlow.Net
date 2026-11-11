@@ -23,6 +23,12 @@ internal static partial class Log
     [LoggerMessage(1103, LogLevel.Error, "Outbox relay loop failed; continuing")]
     public static partial void OutboxLoopFailed(ILogger logger, Exception exception);
 
+    [LoggerMessage(1104, LogLevel.Warning, "Retention cleanup failed; retrying at the next interval")]
+    public static partial void RetentionFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(1105, LogLevel.Information, "Retention cleanup deleted {Inbox} inbox rows and {DeadLetters} resolved dead letters")]
+    public static partial void RetentionPurged(ILogger logger, int inbox, int deadLetters);
+
     [LoggerMessage(1201, LogLevel.Warning, "Message {MessageId} ({MessageType}) failed transiently on attempt {Attempt}; redelivering after {Delay}")]
     public static partial void ReceiveRetry(ILogger logger, Exception exception, string messageId, string messageType, int attempt, TimeSpan delay);
 

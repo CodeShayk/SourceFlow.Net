@@ -18,7 +18,8 @@ public sealed class InMemoryStore :
     IDeadLetterStore,
     ISnapshotStore,
     IDocumentReader,
-    IStoreNotifications
+    IStoreNotifications,
+    IStoreRetention
 {
     private readonly Lock _gate = new();
     private readonly TimeProvider _time;
@@ -412,6 +413,42 @@ public sealed class InMemoryStore :
                 .Select(d => d.Value)
                 .ToArray();
             return ValueTask.FromResult<IReadOnlyList<StoredDocument>>(documents);
+        }
+    }
+
+    // ------------------------------------------------------------------ IStoreRetention
+
+    /// <inheritdoc />
+    public ValueTask<int> PurgeInboxAsync(DateTimeOffset processedBefore, int batchSize, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
+        lock (_gate)
+        {
+            (string, MessageId)[] expired = [.. _inbox.Where(e => e.Value.ProcessedAt < processedBefore).Select(e => e.Key)];
+            foreach ((string, MessageId) key in expired)
+            {
+                _inbox.Remove(key);
+            }
+
+            return ValueTask.FromResult(expired.Length);
+        }
+    }
+
+    /// <inheritdoc />
+    public ValueTask<int> PurgeDeadLettersAsync(DateTimeOffset resolvedBefore, int batchSize, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
+        lock (_gate)
+        {
+            Guid[] expired = [.. _deadLetters.Values
+                .Where(d => d.Status != DeadLetterStatus.Parked && d.StatusChangedAt is { } changed && changed < resolvedBefore)
+                .Select(d => d.Id)];
+            foreach (Guid id in expired)
+            {
+                _deadLetters.Remove(id);
+            }
+
+            return ValueTask.FromResult(expired.Length);
         }
     }
 

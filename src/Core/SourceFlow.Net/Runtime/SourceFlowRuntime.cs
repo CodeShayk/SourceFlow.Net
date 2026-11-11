@@ -56,7 +56,11 @@ public sealed record StoragePorts(
     IDeadLetterStore DeadLetters,
     ISnapshotStore Snapshots,
     IDocumentReader Documents,
-    IStoreNotifications Notifications);
+    IStoreNotifications Notifications)
+{
+    /// <summary>Retention cleanup, when the adapter supports it (doc 05 §9).</summary>
+    public IStoreRetention? Retention { get; init; }
+}
 
 /// <summary>Everything the engine components share; one per host.</summary>
 public sealed class SourceFlowRuntime

@@ -453,6 +453,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         var command = new NpgsqlBatchCommand(_store.Sql.InsertInbox);
         command.Parameters.Add(new NpgsqlParameter<string>("consumer", consumer));
         command.Parameters.Add(new NpgsqlParameter<Guid>("id", id.Value));
+        command.Parameters.Add(new NpgsqlParameter<DateTimeOffset>("now", _store.Time.GetUtcNow().ToUniversalTime()));
         command.Parameters.Add(new NpgsqlParameter<short>("status", (short)result.Status));
         command.Parameters.Add(new NpgsqlParameter<long>("version", result.Version.Value));
         command.Parameters.Add(PostgreSqlStore.Text("error", result.ErrorCode));

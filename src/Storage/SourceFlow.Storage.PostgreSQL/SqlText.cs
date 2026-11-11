@@ -79,8 +79,8 @@ internal sealed class SqlText
              ORDER BY o.ord
             """);
         InsertInbox = R("""
-            INSERT INTO {s}.inbox (consumer, message_id, result_status, result_version, result_error, result_commit, result_seq)
-            VALUES (@consumer, @id, @status, @version, @error, @commit, @seq)
+            INSERT INTO {s}.inbox (consumer, message_id, processed_at, result_status, result_version, result_error, result_commit, result_seq)
+            VALUES (@consumer, @id, @now, @status, @version, @error, @commit, @seq)
             """);
         InboxSeen = R("SELECT processed_at, result_status, result_version, result_error, result_commit, result_seq FROM {s}.inbox WHERE consumer = @consumer AND message_id = @id");
 
@@ -194,6 +194,10 @@ internal sealed class SqlText
             """);
 
         Notify = "SELECT pg_notify(@channel, @origin)";
+
+        // Bounded batches (doc 05 §9): each statement deletes at most @batch rows and holds its locks briefly.
+        PurgeInbox = R("DELETE FROM {s}.inbox WHERE ctid IN (SELECT ctid FROM {s}.inbox WHERE processed_at < @before LIMIT @batch)");
+        PurgeDeadLetters = R("DELETE FROM {s}.dead_letters WHERE id IN (SELECT id FROM {s}.dead_letters WHERE status <> 0 AND status_changed_at < @before LIMIT @batch)");
     }
 
     public string ReadStream { get; }
@@ -265,4 +269,8 @@ internal sealed class SqlText
     public string SaveSnapshot { get; }
 
     public string Notify { get; }
+
+    public string PurgeInbox { get; }
+
+    public string PurgeDeadLetters { get; }
 }

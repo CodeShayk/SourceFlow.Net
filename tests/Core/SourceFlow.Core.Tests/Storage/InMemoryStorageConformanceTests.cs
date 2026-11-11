@@ -52,6 +52,19 @@ internal sealed class InMemoryStorageFixture : IStorageFixture
     }
 }
 
+/// <summary>Linearisability of appends and the outbox on the in-memory store (WP-2.9).</summary>
+[Trait("Category", "Conformance")]
+public sealed class InMemoryLinearizabilityTests
+{
+    [Fact]
+    [Trait("Id", "SCK-L01")]
+    [Trait("Covers", "ADR-006;ADR-008")]
+    public void AppendsAndOutbox_AreLinearizable()
+    {
+        SourceFlow.Tests.Shared.StorageLinearizability.AppendsAndOutbox(() => new InMemoryStorageFixture(), iterations: 200, threads: Environment.ProcessorCount);
+    }
+}
+
 /// <summary>The storage conformance kit against the in-memory store (SCK-01..58, plan 06 §2).</summary>
 [Trait("Category", "Conformance")]
 public sealed class InMemoryStorageConformanceTests

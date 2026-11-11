@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CsCheck;
 using SourceFlow.Core.Tests.Messaging;
 using SourceFlow.Storage;
 using SourceFlow.Testing;
@@ -89,6 +90,42 @@ public sealed class SnapshotTests
         await snapshots.SaveAsync("-", snapshot with { Version = new StreamVersion(7), Data = "{\"count\":1000}"u8.ToArray() }, TestContext.Current.CancellationToken);
         await host.SendAsync(new Increment(id));
         (await host.EventsAsync(stream)).Last().ShouldBe(new Incremented(id, 1001));
+    }
+
+    [Fact]
+    [Trait("Id", "SCK-54")]
+    [Trait("Covers", "doc 05 8.1")]
+    public async Task LoadFromSnapshotPlusTail_EqualsTheFullFold_ForRandomHistories()
+    {
+        // Each history runs against SnapshotEvery = 3 with snapshots written in the background at varying lag; every
+        // decision depends on the loaded state, so a wrong snapshot + tail fold shows up as a diverging decision.
+        await Gen.Bool.Array[1, 30].SampleAsync(async increments =>
+        {
+            await using SourceFlowTestHost host = await SourceFlowTestHost.StartAsync(sf =>
+            {
+                sf.ServiceName = "counters";
+                sf.AddModule<CoreTestModule>();
+            });
+            var id = CounterId.New();
+            int model = 0;
+            foreach (bool increment in increments)
+            {
+                CommandResult result = increment ? await host.SendAsync(new Increment(id)) : await host.SendAsync(new Decrement(id));
+                if (increment || model > 0)
+                {
+                    model += increment ? 1 : -1;
+                    result.Status.ShouldBe(CommandStatus.Accepted);
+                }
+                else
+                {
+                    result.Status.ShouldBe(CommandStatus.Rejected);
+                }
+            }
+
+            await host.WaitForIdleAsync();
+            IReadOnlyList<IEvent> events = await host.EventsAsync(StreamId.For(Counter.AggregateName, id));
+            (events.Count == 0 ? 0 : ((Incremented)events[^1]).Count).ShouldBe(model);
+        }, iter: 40);
     }
 
     [Fact]

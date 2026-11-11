@@ -20,6 +20,7 @@ public sealed partial class PostgreSqlStore :
     ISnapshotStore,
     IDocumentReader,
     IStoreNotifications,
+    IStoreRetention,
     IAsyncDisposable
 {
     private readonly bool _ownsDataSource;
@@ -60,7 +61,7 @@ public sealed partial class PostgreSqlStore :
     /// <summary>Every port of this store.</summary>
     public Runtime.StoragePorts ToPorts()
     {
-        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this);
+        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this) { Retention = this };
     }
 
     // ------------------------------------------------------------------ IStorageSessionFactory
@@ -511,6 +512,39 @@ public sealed partial class PostgreSqlStore :
         }
 
         return documents;
+    }
+
+    // ------------------------------------------------------------------ IStoreRetention
+
+    /// <inheritdoc />
+    public ValueTask<int> PurgeInboxAsync(DateTimeOffset processedBefore, int batchSize, CancellationToken cancellationToken)
+    {
+        return PurgeAsync(Sql.PurgeInbox, processedBefore, batchSize, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public ValueTask<int> PurgeDeadLettersAsync(DateTimeOffset resolvedBefore, int batchSize, CancellationToken cancellationToken)
+    {
+        return PurgeAsync(Sql.PurgeDeadLetters, resolvedBefore, batchSize, cancellationToken);
+    }
+
+    private async ValueTask<int> PurgeAsync(string sql, DateTimeOffset before, int batchSize, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchSize);
+        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        int total = 0;
+        while (true)
+        {
+            await using var command = new NpgsqlCommand(sql, connection);
+            command.Parameters.Add(new NpgsqlParameter<DateTimeOffset>("before", before.ToUniversalTime()));
+            command.Parameters.Add(new NpgsqlParameter<int>("batch", batchSize));
+            int deleted = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            total += deleted;
+            if (deleted < batchSize)
+            {
+                return total;
+            }
+        }
     }
 
     // ------------------------------------------------------------------ lifetime

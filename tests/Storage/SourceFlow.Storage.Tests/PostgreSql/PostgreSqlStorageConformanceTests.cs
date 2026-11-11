@@ -68,4 +68,22 @@ public sealed class PostgreSqlStorageConformanceTests(PostgreSqlServer server) :
 
         await @case.Run(fixture, TestContext.Current.CancellationToken);
     }
+
+    [Fact]
+    [Trait("Id", "SCK-L01")]
+    [Trait("Covers", "ADR-006;ADR-008")]
+    public void AppendsAndOutbox_AreLinearizable()
+    {
+        SourceFlow.Tests.Shared.StorageLinearizability.AppendsAndOutbox(
+            () => new PostgreSqlStorageFixture(Server.CreateStoreAsync().GetAwaiter().GetResult()), iterations: 40, threads: 4);
+    }
+
+    [Fact]
+    [Trait("Id", "SCK-L01")]
+    [Trait("Covers", "ADR-022")]
+    public void AppendsAndOutbox_AreLinearizable_UnderRowLevelSecurity()
+    {
+        SourceFlow.Tests.Shared.StorageLinearizability.AppendsAndOutbox(
+            () => new PostgreSqlStorageFixture(Server.CreateRowLevelSecurityStoreAsync().GetAwaiter().GetResult()), iterations: 20, threads: 4);
+    }
 }

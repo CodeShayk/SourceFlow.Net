@@ -37,6 +37,9 @@ public interface IStorageFixture : IAsyncDisposable
     /// <summary>Commit notifications.</summary>
     IStoreNotifications Notifications { get; }
 
+    /// <summary>Retention cleanup (doc 05 §9); by default the event store when it implements it.</summary>
+    IStoreRetention? Retention => Events as IStoreRetention;
+
     /// <summary>True when <see cref="AdvanceClockAsync"/> moves the store's clock (in-memory with a fake clock).</summary>
     bool SupportsClockControl { get; }
 
@@ -81,6 +84,7 @@ public static class StorageConformance
         new("SCK-19", "Unicode data and metadata round trip", Unicode),
         new("SCK-21", "The log reads in commit order with an exclusive 'after'", LogOrder),
         new("SCK-22", "Bucket range filtering", BucketFilter),
+        new("SCK-23", "The safe horizon excludes written but uncommitted events", HorizonExcludesInFlight),
         new("SCK-24", "Gap-freedom under concurrent writers with a checkpointing reader", GapFreedom),
         new("SCK-25", "Per-stream log order equals version order", PerStreamOrder),
         new("SCK-27", "Notifications are raised after commit", Notifications),
@@ -91,6 +95,7 @@ public static class StorageConformance
         new("SCK-33", "Rows due in the future are not claimed", OutboxDeliverAt, RequiresClockControl: true),
         new("SCK-34", "The inbox records the result", InboxRecords),
         new("SCK-35", "A duplicate inbox row fails the commit", InboxDuplicate),
+        new("SCK-37", "Retention: expired inbox rows and resolved dead letters are purged in batches", Retention),
         new("SCK-38", "Checkpoints save with a valid lease", CheckpointWithLease),
         new("SCK-39", "A stale lease token rejects the checkpoint", CheckpointStaleToken),
         new("SCK-40", "An expired lease rejects the checkpoint", CheckpointExpired, RequiresClockControl: true),
@@ -486,6 +491,22 @@ public static class StorageConformance
         Check.Equal(writers * perWriter, seen.Count, "every committed event seen");
     }
 
+    private static async Task HorizonExcludesInFlight(IStorageFixture f, CancellationToken ct)
+    {
+        CommitResult first = await AppendAsync(f, StreamA, ExpectedVersion.NoStream, Events(1), ct).ConfigureAwait(false);
+        await using IStorageSession inFlight = await f.Sessions.BeginAsync(Tenant, ct).ConfigureAwait(false);
+        inFlight.Append(StreamB, "sck", ExpectedVersion.NoStream, Events(1));
+        await inFlight.FlushAsync(ct).ConfigureAwait(false);   // written inside the transaction, not committed
+
+        LogBatch during = await ReadFinalAsync(f, GlobalPosition.Start, BucketRange.All, 100, first.LastPosition!.Value, ct).ConfigureAwait(false);
+        Check.True(during.Events.All(e => e.StreamId != StreamB), "an uncommitted event is invisible");
+        CommitResult second = await inFlight.CommitAsync(ct).ConfigureAwait(false);
+
+        Check.True(second.LastPosition!.Value > during.Horizon, "a later commit lands above the earlier horizon (nothing appears below it)");
+        LogBatch after = await ReadFinalAsync(f, GlobalPosition.Start, BucketRange.All, 100, second.LastPosition!.Value, ct).ConfigureAwait(false);
+        Check.True(after.Events.Any(e => e.StreamId == StreamB), "visible once committed");
+    }
+
     private static async Task PerStreamOrder(IStorageFixture f, CancellationToken ct)
     {
         GlobalPosition last = GlobalPosition.Start;
@@ -629,6 +650,36 @@ public static class StorageConformance
     }
 
     // ------------------------------------------------------------------ checkpoints and leases
+
+    private static async Task Retention(IStorageFixture f, CancellationToken ct)
+    {
+        IStoreRetention retention = Check.NotNull(f.Retention, "retention port");
+        MessageId[] ids = [.. Enumerable.Range(0, 3).Select(_ => new MessageId(Guid.CreateVersion7()))];
+        foreach (MessageId id in ids)
+        {
+            await using IStorageSession session = await f.Sessions.BeginAsync(Tenant, ct).ConfigureAwait(false);
+            session.RecordInbox("sck", id, new InboxResult(CommandStatus.Accepted, new StreamVersion(1), null));
+            await session.CommitAsync(ct).ConfigureAwait(false);
+        }
+
+        Check.Equal(0, await retention.PurgeInboxAsync(f.Now.AddMinutes(-5), 2, ct).ConfigureAwait(false), "recent inbox rows kept");
+        Check.Equal(3, await retention.PurgeInboxAsync(f.Now.AddMinutes(5), 2, ct).ConfigureAwait(false), "expired inbox rows purged across batches");
+        await using (IStorageSession check = await f.Sessions.BeginAsync(Tenant, ct).ConfigureAwait(false))
+        {
+            Check.Null(await check.InboxSeenAsync("sck", ids[0], ct).ConfigureAwait(false), "purged row gone");
+        }
+
+        DeadLetter parked = SampleDeadLetter();
+        DeadLetter discarded = SampleDeadLetter();
+        await f.DeadLetters.ParkAsync(parked, ct).ConfigureAwait(false);
+        await f.DeadLetters.ParkAsync(discarded, ct).ConfigureAwait(false);
+        await f.DeadLetters.SetStatusAsync(discarded.Id, Storage.DeadLetterStatus.Discarded, "obsolete", ct).ConfigureAwait(false);
+
+        Check.Equal(0, await retention.PurgeDeadLettersAsync(f.Now.AddMinutes(-5), 10, ct).ConfigureAwait(false), "recently resolved kept");
+        Check.Equal(1, await retention.PurgeDeadLettersAsync(f.Now.AddMinutes(5), 10, ct).ConfigureAwait(false), "resolved dead letter purged");
+        Check.NotNull(await f.DeadLetters.GetAsync(parked.Id, ct).ConfigureAwait(false), "parked dead letters are never purged");
+        Check.Null(await f.DeadLetters.GetAsync(discarded.Id, ct).ConfigureAwait(false), "discarded one gone");
+    }
 
     private static async Task CheckpointWithLease(IStorageFixture f, CancellationToken ct)
     {

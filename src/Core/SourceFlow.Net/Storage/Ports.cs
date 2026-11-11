@@ -172,6 +172,21 @@ public interface ISnapshotStore
     ValueTask SaveAsync(string tenantId, Snapshot snapshot, CancellationToken cancellationToken);
 }
 
+/// <summary>Batched retention cleanup (doc 05 §9): stores delete in bounded batches so cleanup never holds long locks.</summary>
+public interface IStoreRetention
+{
+    /// <summary>Deletes inbox rows processed before <paramref name="processedBefore"/>, <paramref name="batchSize"/> rows per statement.</summary>
+    /// <returns>The rows deleted.</returns>
+    ValueTask<int> PurgeInboxAsync(DateTimeOffset processedBefore, int batchSize, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Deletes dead letters that were replayed or discarded before <paramref name="resolvedBefore"/>; parked ones are kept
+    /// until an operator acts.
+    /// </summary>
+    /// <returns>The dead letters deleted.</returns>
+    ValueTask<int> PurgeDeadLettersAsync(DateTimeOffset resolvedBefore, int batchSize, CancellationToken cancellationToken);
+}
+
 /// <summary>Commit notifications that wake subscriptions and the outbox relay (doc 06 §2).</summary>
 public interface IStoreNotifications
 {

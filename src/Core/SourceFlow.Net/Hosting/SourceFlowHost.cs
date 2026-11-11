@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Diagnostics;
 using SourceFlow.Runtime;
+using SourceFlow.Storage;
 using SourceFlow.Transport;
 
 namespace SourceFlow.Hosting;
@@ -74,6 +75,10 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
         if (_settings.Roles.HasFlag(SourceFlowRoles.Relay))
         {
             _loops.Add(Task.Run(() => LoopAsync(ct => _relay.RunOnceAsync(ct), stopping), CancellationToken.None));
+            if (_runtime.Storage.Retention is { } retention)
+            {
+                _loops.Add(Task.Run(() => RetentionLoopAsync(retention, stopping), CancellationToken.None));
+            }
         }
 
         if (_settings.Roles.HasFlag(SourceFlowRoles.Subscriptions) && _subscriptions.Definitions.Count > 0)
@@ -127,6 +132,42 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
     {
         _stopping?.Dispose();
         await _receiver.DisposeAsync().ConfigureAwait(false);
+    }
+
+    // Batched retention cleanup (doc 05 §9): cutoffs on the business clock, the interval on the system clock.
+    private async Task RetentionLoopAsync(IStoreRetention retention, CancellationToken stopping)
+    {
+        SourceFlowOptions options = _runtime.Options;
+        while (!stopping.IsCancellationRequested)
+        {
+            try
+            {
+                DateTimeOffset now = _runtime.Time.GetUtcNow();
+                int inbox = await retention.PurgeInboxAsync(now - options.InboxRetention, options.RetentionBatchSize, stopping).ConfigureAwait(false);
+                int deadLetters = await retention.PurgeDeadLettersAsync(now - options.DeadLetterRetention, options.RetentionBatchSize, stopping).ConfigureAwait(false);
+                if (inbox + deadLetters > 0)
+                {
+                    Log.RetentionPurged(_logger, inbox, deadLetters);
+                }
+            }
+            catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                Log.RetentionFailed(_logger, exception);
+            }
+
+            try
+            {
+                await Task.Delay(options.RetentionInterval, TimeProvider.System, stopping).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
     }
 
     private async Task LoopAsync(Func<CancellationToken, ValueTask<int>> pass, CancellationToken stopping)

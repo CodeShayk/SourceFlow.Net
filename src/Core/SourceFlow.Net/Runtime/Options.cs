@@ -77,6 +77,19 @@ public sealed class SourceFlowOptions
     [Range(1, 1_000_000)]
     public int SnapshotQueueCapacity { get; set; } = 1024;
 
+    /// <summary>How long processed inbox rows are kept for deduplication (doc 05 §9); redeliveries older than this are not detected.</summary>
+    public TimeSpan InboxRetention { get; set; } = TimeSpan.FromDays(7);
+
+    /// <summary>How long replayed or discarded dead letters are kept for audit; parked ones are never purged.</summary>
+    public TimeSpan DeadLetterRetention { get; set; } = TimeSpan.FromDays(30);
+
+    /// <summary>How often the relay role runs retention cleanup.</summary>
+    public TimeSpan RetentionInterval { get; set; } = TimeSpan.FromHours(1);
+
+    /// <summary>Rows deleted per cleanup statement.</summary>
+    [Range(1, 100_000)]
+    public int RetentionBatchSize { get; set; } = 5000;
+
     /// <summary>How long shutdown waits for in-flight work (RX-R6).</summary>
     public TimeSpan ShutdownTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
@@ -101,6 +114,9 @@ public sealed class SourceFlowOptionsTimingValidator : IValidateOptions<SourceFl
         Between(options.PollInterval, TimeSpan.FromMilliseconds(10), TimeSpan.FromMinutes(10), nameof(options.PollInterval), failures);
         Between(options.LeaseTtl, TimeSpan.FromSeconds(1), TimeSpan.FromHours(1), nameof(options.LeaseTtl), failures);
         Between(options.ShutdownTimeout, TimeSpan.Zero, TimeSpan.FromMinutes(10), nameof(options.ShutdownTimeout), failures);
+        Between(options.InboxRetention, TimeSpan.FromMinutes(1), TimeSpan.FromDays(3650), nameof(options.InboxRetention), failures);
+        Between(options.DeadLetterRetention, TimeSpan.FromMinutes(1), TimeSpan.FromDays(3650), nameof(options.DeadLetterRetention), failures);
+        Between(options.RetentionInterval, TimeSpan.FromSeconds(1), TimeSpan.FromDays(7), nameof(options.RetentionInterval), failures);
         if (options.LeaseTtl <= options.PollInterval)
         {
             failures.Add($"{nameof(options.LeaseTtl)} ({options.LeaseTtl}) must be longer than {nameof(options.PollInterval)} ({options.PollInterval}) so leases are renewed in time.");
