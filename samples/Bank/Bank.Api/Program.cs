@@ -37,6 +37,12 @@ if (demoQueries)
 
 WebApplication app = builder.Build();
 
+// `dotnet run -- sourceflow <command>` runs the SourceFlow CLI with this service's model and storage (ADR-031).
+if (await SourceFlow.Tool.SourceFlowCli.TryRunAsync(args, app.Services) is { } exitCode)
+{
+    return exitCode;
+}
+
 app.MapGet("/health", (RequestDelegate)(http => http.Response.WriteAsync("ok", http.RequestAborted)));
 
 // Commands (doc 03 §5.1): POST with a JSON body; route values fill the ids. Responses carry ETag and SourceFlow-Consistency.
@@ -55,6 +61,7 @@ if (demoQueries)
 }
 
 app.Run();
+return 0;
 
 static bool Flag(IConfiguration configuration, string key, bool fallback)
 {

@@ -43,3 +43,4 @@ Every ADR is **Proposed** until the v3 architecture review. "Traces" lists the [
 | [ADR-028](ADR-028-postgresql-payload-columns-and-adapter-refinements.md) | PostgreSQL payload columns are `json`, plus adapter refinements | Accepted |
 | [ADR-029](ADR-029-schema-catalog-derived-from-serializer-metadata.md) | The schema catalog is derived at startup from the serializer's source-generated metadata | Accepted |
 | [ADR-030](ADR-030-domain-queries-bind-at-startup.md) | Domain queries are checked in two stages: shape at build time, binding at startup | Accepted |
+| [ADR-031](ADR-031-cli-runs-store-commands-globally-and-model-commands-in-the-service.md) | The CLI runs store commands as a global tool and model commands inside the service | Accepted |

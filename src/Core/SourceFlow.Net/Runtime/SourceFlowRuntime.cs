@@ -63,6 +63,9 @@ public sealed record StoragePorts(
     /// <summary>Retention cleanup, when the adapter supports it (doc 05 §9).</summary>
     public IStoreRetention? Retention { get; init; }
 
+    /// <summary>Projection data administration, when the adapter supports it (doc 06 §6).</summary>
+    public IDocumentAdmin? DocumentAdmin { get; init; }
+
     /// <summary>The schema registry, when the adapter supports it (doc 14 §2.2); startup registers this service's schemas.</summary>
     public ISchemaStore? Schemas { get; init; }
 

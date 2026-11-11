@@ -21,7 +21,8 @@ public sealed class InMemoryStore :
     IStoreNotifications,
     IStoreRetention,
     INodeRegistry,
-    ISchemaStore
+    ISchemaStore,
+    IDocumentAdmin
 {
     private readonly Lock _gate = new();
     private readonly TimeProvider _time;
@@ -161,6 +162,23 @@ public sealed class InMemoryStore :
         lock (_gate)
         {
             return ValueTask.FromResult(_checkpoints.GetValueOrDefault((subscription, partition)));
+        }
+    }
+
+    // ------------------------------------------------------------------ IDocumentAdmin
+
+    /// <inheritdoc />
+    public ValueTask<int> DropCollectionAsync(string collection, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            var keys = _documents.Keys.Where(k => k.Collection == collection).ToArray();
+            foreach (var key in keys)
+            {
+                _documents.Remove(key);
+            }
+
+            return ValueTask.FromResult(keys.Length);
         }
     }
 

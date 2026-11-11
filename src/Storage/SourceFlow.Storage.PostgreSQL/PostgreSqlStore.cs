@@ -23,6 +23,7 @@ public sealed partial class PostgreSqlStore :
     IStoreRetention,
     INodeRegistry,
     ISchemaStore,
+    IDocumentAdmin,
     IAsyncDisposable
 {
     private readonly bool _ownsDataSource;
@@ -63,7 +64,7 @@ public sealed partial class PostgreSqlStore :
     /// <summary>Every port of this store.</summary>
     public Runtime.StoragePorts ToPorts()
     {
-        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this) { Retention = this, Nodes = this, Schemas = this };
+        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this) { Retention = this, Nodes = this, Schemas = this, DocumentAdmin = this };
     }
 
     // ------------------------------------------------------------------ IStorageSessionFactory
@@ -308,6 +309,18 @@ public sealed partial class PostgreSqlStore :
         }
 
         return entries;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<int> DropCollectionAsync(string collection, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collection);
+
+        // Every tenant: the system (BYPASSRLS) connection, as for the global log (ADR-022).
+        await using NpgsqlConnection connection = await SystemDataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(Sql.DropCollection, connection);
+        command.Parameters.Add(new NpgsqlParameter<string>("collection", collection));
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />

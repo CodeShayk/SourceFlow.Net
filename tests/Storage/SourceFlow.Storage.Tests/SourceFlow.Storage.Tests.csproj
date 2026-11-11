@@ -11,6 +11,7 @@
     <ProjectReference Include="..\..\..\src\Storage\SourceFlow.Storage.SqlServer\SourceFlow.Storage.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Storage\SourceFlow.Storage.EntityFrameworkCore\SourceFlow.Storage.EntityFrameworkCore.csproj" />
     <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
+    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Tool\SourceFlow.Tool.csproj" />
     <ProjectReference Include="..\..\..\samples\Bank\Bank.Contracts\Bank.Contracts.csproj" />
     <ProjectReference Include="..\..\..\samples\Bank\Bank.Accounts\Bank.Accounts.csproj" />
     <ProjectReference Include="..\..\..\samples\Bank\Bank.Transfers\Bank.Transfers.csproj" />

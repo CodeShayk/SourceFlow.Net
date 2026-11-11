@@ -4,7 +4,7 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 
 ## Progress summary
 
-Updated 2026-11-11. **32 of 63 work packages are done (51%)**, 1 in progress and 30 not started. By estimated effort, 61 of 138.5 engineer-weeks are done (44%).
+Updated 2026-11-11. **33 of 63 work packages are done (52%)**, 1 in progress and 29 not started. By estimated effort, 64 of 138.5 engineer-weeks are done (46%).
 
 | Milestone | Done | In progress | Todo | Effort done (ew) |
 |-----------|------|-------------|------|------------------|
@@ -12,7 +12,7 @@ Updated 2026-11-11. **32 of 63 work packages are done (51%)**, 1 in progress and
 | M1 Core | 15 | 0 | 0 | 37 of 37 |
 | M2 PostgreSQL | 10 | 1 | 0 | 17 of 19 |
 | M3 Cloud transports | 0 | 0 | 7 | 0 of 19 |
-| M4 Tooling and operations | 1 | 0 | 6 | 2.5 of 16.5 |
+| M4 Tooling and operations | 2 | 0 | 5 | 5.5 of 16.5 |
 | M5 Security and migration | 1 | 0 | 4 | 0.5 of 11 |
 | Track S: Workflow DSL and Studio | 0 | 0 | 13 | 0 of 32 |
 
@@ -27,12 +27,13 @@ Completed in this round:
 - WP-2.8: PostgreSQL index sync for `[Queryable]` fields.
 - WP-1.R and WP-2.R: v2 core and v2 EF stores retired after every plan 07 row was satisfied. This needed about 80 new v3 tests, the Stop subscription policy, the DC-2 guard, and dead-letter show/purge/filters.
 - WP-5.3: redaction wiring (taxonomy, Erasing/HMAC redactors, `LogPayloads`).
+- WP-4.1: the `dotnet sourceflow` CLI (ADR-031).
 
 Still in progress:
 
 - WP-2.7 (`SourceFlow.Storage.EntityFrameworkCore` read models): rebuilding a projection into a new schema, which waits for the blue/green rebuild tooling.
 
-Not started: the v2 cloud retirement (3.R), every cloud transport (M3), the CLI, health and dashboards, SQL Server, event partitioning, chaos and load testing, payload protection, crypto-shredding (redaction is done), the v2 migration tool, and the whole Studio track.
+Not started: the v2 cloud retirement (3.R), every cloud transport (M3), health and dashboards, SQL Server, event partitioning, chaos and load testing, payload protection, crypto-shredding (redaction is done), the v2 migration tool, and the whole Studio track.
 
 | WP | Title | Estimate (ew) | Status | Notes |
 |----|-------|---------------|--------|-------|
@@ -62,7 +63,7 @@ Not started: the v2 cloud retirement (3.R), every cloud transport (M3), the CLI,
 | WP-2.4 | Outbox, inbox, checkpoints, leases, dead letters, process state, documents | 2.5 | done | Head-of-key claim, fenced complete/retry, database-clock leases, fenced checkpoint upsert, inbox with stored result, process state CAS, versioned documents, dead letters with the full envelope; SCK-29..58 green. Batched inbox/outbox retention cleanup pending (with WP-4.3 operations) |
 | WP-2.5 | Snapshots and aggregate cache | 1.5 | done | Background snapshot writer (bounded, drop-oldest, drained on shutdown), MemoryCache aggregate cache (ReadTail, Optimistic with rejection confirmation and no shortcut for If-Match), cache and snapshot metrics; UT-SNAP-01..10, SCK-51..53/55 on in-memory and PostgreSQL (with and without RLS), parallel deposits on PostgreSQL in both cache modes. PERF-04 moves to the WP-2.10 baseline |
 | WP-2.6 | Tenancy with row-level security | 1 | done | V002 tenant_isolation policies; TenantIsolation.RowLevelSecurity enables and forces RLS (migrator applies and verifies the state); session-scoped set_config; system (BYPASSRLS) data source for the global log; tenant-aware buckets. The whole SCK passes under RLS through a DML-only role; SCK-59/60/M07, Bank transfer E2E under RLS. Per-tenant metric tags (bounded top-N) move to WP-4.3 |
-| WP-2.7 | `SourceFlow.Storage.EntityFrameworkCore` read models | 2 | in progress | Core session-projection SPI (ISessionProjection, IProjectionUnitOfWork, IStorageSession.FlushAsync for ES-R1), generator support (GEN-41/42), IEfProjection, EfSessionContextFactory on the session connection and transaction, UseEntityFrameworkProjections, IdempotentUpsert; UT-EF-01..04, SCK-61..64 inline and async on PostgreSQL. Rebuild with schema-per-generation waits for the blue/green rebuild tooling (doc 06 §6) |
+| WP-2.7 | `SourceFlow.Storage.EntityFrameworkCore` read models | 2 | in progress | Core session-projection SPI (ISessionProjection, IProjectionUnitOfWork, IStorageSession.FlushAsync for ES-R1), generator support (GEN-41/42), IEfProjection, EfSessionContextFactory on the session connection and transaction, UseEntityFrameworkProjections, IdempotentUpsert; UT-EF-01..04, SCK-61..64 inline and async on PostgreSQL. In-place rebuild is available (`projection rebuild`, WP-4.1). Remaining: blue/green generations with collection-alias switching and EF schema-per-generation (doc 06 §6), E2E-08 |
 | WP-2.8 | SFQL on PostgreSQL (incl. joins and grouping) + index sync + domain queries | 3.5 | done | PostgreSqlQueryEngine (`IQueryEngine`): one parameterised statement per page (every request value a typed `$n` parameter, I-3), keyset predicate and ORDER BY outside a derived table, `COLLATE "C"` text ordering, horizon predicate, per-version rename CASE, tenant predicates (G-9), `NULLIF` division, read-only transaction with `statement_timeout` (`QueryTimeout`, default 5 s) and the RLS tenant setting; aggregate and schema sources stay in the interpreter. Cross-provider equivalence with the interpreter on the same data (QRY-01..20, incl. joins, grouping/having, distinct, subqueries, keyset pages interchangeable between engines), golden SQL (QRY-42/43), injection corpus (QRY-44), no-literal CsCheck property (QRY-60). Catalog now types enums by their JSON (number or string). Domain queries run through the engine (ExecuteAsync and `/queries`). `/query/explain` shows the parameterised SQL. `PostgreSqlIndexSync` (plan/apply, CONCURRENTLY by default): one partial expression index per `[Queryable]` field over `events` (per type) and `documents` (per collection), using the compiler's exact expression, `sfq_` hash names, stale ones dropped; QRY-45 shows the planner using it. The CLI command (`db index sync`) is WP-4.1 |
 | WP-2.9 | Storage conformance kit complete | 2 | done | SCK-01..58 in SourceFlow.Testing, run on in-memory, PostgreSQL and PostgreSQL with RLS. New in this package: SCK-23 (in-flight writes invisible), SCK-37 (batched retention via IStoreRetention, plus the host retention loop), SCK-54 (CsCheck property: snapshot + tail = full fold), PostgreSQL SCK-28 (LISTEN loss and reconnect), and SCK-L01 CsCheck linearisability of appends and the outbox. SCK-36 is covered by SCK-34. SCK-20 (one round trip) moves to WP-2.10, and SCK-65..72 (partitioned events) to WP-4.5 |
 | WP-2.10 | Performance baseline | 1 | done | benchmarks/SourceFlow.Benchmarks (BenchmarkDotNet PERF-01..04, 06; measurement harness PERF-05, 08, 10); baselines in benchmarks/baselines and the report in implementation/perf-baseline.md. One-round-trip PostgreSQL commit (SCK-20), batch-aware document projections and adaptive subscription batches. Deviations logged with owners (PERF-01/02 allocations, PERF-10 borderline). PERF-07 waits for M3 and PERF-09 for WP-4.7 |
@@ -74,7 +75,7 @@ Not started: the v2 cloud retirement (3.R), every cloud transport (M3), the CLI,
 | WP-3.5 | Provisioning, topology export, DLQ ingestor, IaC modules | 2.5 | todo | |
 | WP-3.6 | Cross-service E2E per transport | 1.5 | todo | |
 | WP-3.R | Retire v2 cloud providers | 0.5 | todo | |
-| WP-4.1 | `SourceFlow.Tool` (`dotnet sourceflow`) | 3 | todo | |
+| WP-4.1 | `SourceFlow.Tool` (`dotnet sourceflow`) | 3 | done | `dotnet sourceflow` (System.CommandLine, ADR-031): `db migrate|script|index sync`, `dlq list|show|replay|discard|purge`, `projection skip|repartition|rebuild|drop`, `topology export|validate`, `query [--sql] [--param] [--validate] [--explain] [--format table|json|csv]`, `schema export --format lock|jsonschema|asyncapi` and `schema check --baseline`. Store commands run from the global tool against PostgreSQL; model commands run inside the service via `SourceFlowCli.TryRunAsync` (the Bank sample does this). `IDocumentAdmin` drops collections. UT-CLI-01..30, E2E-25..28. `migrate v2` is WP-5.4; blue/green alias switching is WP-2.7 |
 | WP-4.2 | `SourceFlow.AspNetCore` (incl. the per-service query API) | 2.5 | done | MapCommand (Idempotency-Key, If-Match, ETag, consistency token, ProblemDetails); `AddSourceFlowQueryApi` + `MapSourceFlowQueryApi` (`/query`, `/validate`, `/explain`, `/schema`) and `MapDomainQueries` (`/queries`, `/queries/{name}/v{n}`): fail-closed without an authorization decision (SFQ0504, checked when the pipeline is built), transport guard (64 KB, JSON only, depth 16 → 413/415/400), per-principal rate and concurrency limits and a service limit (SFQ0502/0503, Retry-After), permissions and tenant from claims, problem+json without input echo, security headers, NDJSON with trailer, CSV with formula neutralisation, OpenAPI metadata. UT-ASP-01..06, 21..36. The Bank demo now uses it (anonymous only by explicit opt-in). QRY-53..56 (API end to end on PostgreSQL) and the nightly DAST scan remain with WP-4.7 |
 | WP-4.3 | Health checks, dashboards and alerts | 2 | todo | |
 | WP-4.4 | `SourceFlow.Storage.SqlServer` + SFQL SQL Server compiler | 4 | todo | |

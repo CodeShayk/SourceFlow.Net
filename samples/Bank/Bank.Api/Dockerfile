@@ -10,6 +10,7 @@ COPY samples/Directory.Build.props samples/
 COPY src/Core/ src/Core/
 COPY src/Hosting/ src/Hosting/
 COPY src/Storage/SourceFlow.Storage.PostgreSQL/ src/Storage/SourceFlow.Storage.PostgreSQL/
+COPY src/Tooling/SourceFlow.Tool/ src/Tooling/SourceFlow.Tool/
 COPY samples/Bank/ samples/Bank/
 RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages \
     dotnet publish samples/Bank/Bank.Api/Bank.Api.csproj -c Release -o /app -p:UseAppHost=false

@@ -173,6 +173,7 @@ internal sealed class SqlText
              WHERE x.fingerprint <> i.f
             """);
         ListSchemas = R("SELECT message_type, type_version, kind, json_schema::text FROM {s}.schemas WHERE tenant_id = '-' ORDER BY message_type, type_version");
+        DropCollection = R("DELETE FROM {s}.documents WHERE collection = @collection");
         NodeLeave = R("DELETE FROM {s}.nodes WHERE node_id = @node");
         ReleaseLease = R("UPDATE {s}.leases SET owner = NULL, expires_at = NULL WHERE name = @lease AND owner = @lease_owner AND token = @lease_token");
 
@@ -299,6 +300,8 @@ internal sealed class SqlText
     public string NodeHeartbeat { get; }
 
     public string NodeLeave { get; }
+
+    public string DropCollection { get; }
 
     public string RegisterSchemas { get; }
 

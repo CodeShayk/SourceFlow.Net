@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Hosting\SourceFlow.AspNetCore\SourceFlow.AspNetCore.csproj" />
     <ProjectReference Include="..\..\..\src\Storage\SourceFlow.Storage.PostgreSQL\SourceFlow.Storage.PostgreSQL.csproj" />
+    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Tool\SourceFlow.Tool.csproj" />
     <ProjectReference Include="..\Bank.Contracts\Bank.Contracts.csproj" />
     <ProjectReference Include="..\Bank.Accounts\Bank.Accounts.csproj" />
     <ProjectReference Include="..\Bank.Transfers\Bank.Transfers.csproj" />

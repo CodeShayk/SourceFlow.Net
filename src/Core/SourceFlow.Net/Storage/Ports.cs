@@ -206,6 +206,13 @@ public interface ISchemaStore
     ValueTask<IReadOnlyList<Catalog.SchemaEntry>> ListAsync(CancellationToken cancellationToken);
 }
 
+/// <summary>Projection data administration (doc 06 §6): drop a read-model generation's documents in every tenant.</summary>
+public interface IDocumentAdmin
+{
+    /// <summary>Deletes every document of <paramref name="collection"/> (all tenants); returns how many.</summary>
+    ValueTask<int> DropCollectionAsync(string collection, CancellationToken cancellationToken);
+}
+
 /// <summary>
 /// Node liveness for lease fair-share (doc 06 §4): instances heartbeat into a shared table with the store's clock, and
 /// each acquires at most <c>ceil(leases / live nodes)</c> leases.
