@@ -1,0 +1,11 @@
+# Google Cloud Pub/Sub emulator for the SourceFlow.Cloud.Gcp transport tests (pinned; see ../README.md).
+# Clients detect it through PUBSUB_EMULATOR_HOST=localhost:8085.
+services:
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:502.0.0-emulators
+    command: >-
+      gcloud beta emulators pubsub start
+      --host-port=0.0.0.0:8085
+      --project=sourceflow-emulator
+    ports:
+      - "8085:8085"

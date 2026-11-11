@@ -1,0 +1,105 @@
+# v3 nightly (implementation plan 08 §3): full matrices, real cloud, chaos, long property runs.
+name: v3-nightly
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # OIDC federation to the cloud sandboxes (no long-lived secrets)
+
+env:
+  DOTNET_NOLOGO: "true"
+  TEST_ARGS: "-c Release --no-build --ignore-exit-code 8 --report-trx"
+
+jobs:
+  database-matrix:
+    name: storage (${{ matrix.db }})
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [ "postgres:15", "postgres:16", "postgres:17", "postgres:17-partitioned", "mssql:2022", "mssql:2025" ]
+    runs-on: ubuntu-latest
+    env:
+      SOURCEFLOW_TEST_DATABASE: ${{ matrix.db }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build SourceFlow.slnx -c Release
+      - run: dotnet test --project tests/Storage/SourceFlow.Storage.Tests/SourceFlow.Storage.Tests.csproj ${{ env.TEST_ARGS }}
+
+  real-cloud:
+    name: real cloud (${{ matrix.cloud }})
+    if: vars.SOURCEFLOW_REAL_CLOUD == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { cloud: aws, trait: Aws }
+          - { cloud: azure, trait: Azure }
+          - { cloud: gcp, trait: Gcp }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - if: matrix.cloud == 'aws'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TEST_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_TEST_REGION }}
+      - if: matrix.cloud == 'azure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - if: matrix.cloud == 'gcp'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_TEST_SERVICE_ACCOUNT }}
+      - run: dotnet build SourceFlow.slnx -c Release
+      - name: Transport TCK, KMS and E2E on the real cloud
+        env:
+          SOURCEFLOW_REAL_CLOUD: ${{ matrix.cloud }}
+        run: |
+          dotnet test --project tests/Cloud/SourceFlow.Cloud.Tests/SourceFlow.Cloud.Tests.csproj ${{ env.TEST_ARGS }} --filter-trait "Cloud=${{ matrix.trait }}"
+          dotnet test --project tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj ${{ env.TEST_ARGS }} --filter-trait "Cloud=${{ matrix.trait }}"
+
+  chaos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build SourceFlow.slnx -c Release
+      - run: >-
+          dotnet test --project tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj
+          ${{ env.TEST_ARGS }} --filter-trait "Category=Chaos"
+
+  long-properties:
+    runs-on: ubuntu-latest
+    env:
+      CsCheck_Iter: "50000"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build SourceFlow.slnx -c Release
+      - run: dotnet test --solution SourceFlow.slnx ${{ env.TEST_ARGS }} --filter-trait "Category=Property"
