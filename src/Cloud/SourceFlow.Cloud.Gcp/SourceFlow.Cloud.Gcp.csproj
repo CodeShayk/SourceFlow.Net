@@ -1,10 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Scaffold (WP-0.2). Implemented in WP-3.3 (transport), WP-5.1 (Cloud KMS); packable once implemented. -->
+  <!-- WP-3.3 (transport); WP-5.1 adds the Cloud KMS key provider. -->
   <PropertyGroup>
     <Description>SourceFlow.Net v3: Google Cloud: Pub/Sub implementation of the transport SPI, provisioner, and the Cloud KMS implementation of the security SPI.</Description>
-    <IsPackable>false</IsPackable>
+    <PackageTags>sourceflow;event-sourcing;cqrs;gcp;google-cloud;pubsub;cloudevents</PackageTags>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <PackageReference Include="Google.Cloud.PubSub.V1" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" />
   </ItemGroup>
 </Project>

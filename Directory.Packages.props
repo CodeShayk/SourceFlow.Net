@@ -22,6 +22,7 @@
     <PackageVersion Include="AWSSDK.SQS" Version="4.0.100.13" />
     <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.0.100.13" />
     <PackageVersion Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.101.3" />
+    <PackageVersion Include="Google.Cloud.PubSub.V1" Version="3.39.0" />
   </ItemGroup>
   <ItemGroup Label="Generator (Roslyn 4.14 loads in every .NET 10 SDK compiler)">
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />

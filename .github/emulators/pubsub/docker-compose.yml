@@ -2,7 +2,7 @@
 # Clients detect it through PUBSUB_EMULATOR_HOST=localhost:8085.
 services:
   pubsub-emulator:
-    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:502.0.0-emulators
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:590.0.1-emulators
     command: >-
       gcloud beta emulators pubsub start
       --host-port=0.0.0.0:8085

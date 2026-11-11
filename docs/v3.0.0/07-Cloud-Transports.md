@@ -109,6 +109,27 @@ Ordered endpoints and topics are opt-in per endpoint or topic (`.Ordered()`). Th
 > - **Late settlement.** A settlement after the visibility timeout expired, made with a stale receipt handle, is ignored.
 > - **Shutdown.** Disposing a receiver makes its unsettled messages visible again at once.
 
+> **As built (WP-3.3, Google Pub/Sub).** `SourceFlow.Cloud.Gcp` follows the Google Pub/Sub column, with these details fixed by the implementation:
+>
+> - **Ids.** Topics and subscriptions share one id namespace per project, so ids the transport derives use separators that logical names never contain (`~` and `+` in logical names become `-`):
+>   - an event topic is `{topic}`;
+>   - an endpoint is the topic `{endpoint}+in` with the subscription `{endpoint}`;
+>   - a service's subscription to a topic is `{endpoint}~{topic}` (the doc's `{svc}.{topic}`, made unambiguous, since `.` is common in logical names);
+>   - the dead-letter topic and its subscription are `{endpoint}+dlq`.
+>
+>   Ids start with a letter and fit 255 characters (long ones keep a readable head and a hash).
+> - **Attributes.** CloudEvents attributes travel as `ce-{attribute}` (the CloudEvents Pub/Sub binding). Pub/Sub limits a value to 1,024 bytes, so longer values (a long subject, the user headers) are split into `ce-{attribute}#0`, `#1`, … and joined on receipt. The body is the message data, byte for byte, up to 9 MiB (10 MB per publish request).
+> - **Ordering.** The publisher always sets the ordering key to the partition key. The subscription decides: ordered endpoints enable message ordering on every one of their subscriptions, and Validate checks it (GAP-13). A zero-delay abandon on an ordered subscription uses a one-second ack deadline instead of a nack: the emulator redelivers a nacked ordered message after its successor, while an expiring lease keeps the order everywhere.
+> - **Receiving.** A receiver uses synchronous pull with immediate return, taking the endpoint's subscriptions in turn, and polls every `PollInterval` while it waits. It does not use streaming pull with automatic lease extension, because a lease must lapse when a process dies holding a message (TCK-22). The receiver sets each message's ack deadline to its lock duration (at most 10 minutes); abandon sets it to the delay (native delay up to 10 minutes); renew extends it. A late ack is ignored by Pub/Sub, so a lapsed lock is detected by the receiver on renew.
+> - **Dead letters.**
+>   - Every endpoint subscription has a dead-letter policy to `{endpoint}+dlq`.
+>   - Pub/Sub accepts 5 to 100 deliveries, so the policy holds the clamped value and the label `sf-max-deliveries` holds the topology's limit. The receiver moves a message delivered more often than that to the dead-letter topic itself, with reason `MaxDeliveryAttemptsExceeded`. That also covers projects where the Pub/Sub service agent lacks the publisher grant on the dead-letter topic (the Terraform module grants it, WP-3.5).
+>   - A message that is not a SourceFlow CloudEvent is moved at once (`MalformedMessage: …`).
+>   - An explicit `DeadLetterAsync` publishes a copy carrying `sf-reason` and acknowledges the original.
+> - **Filters.** `ExactTypes` and `TypePrefixes` become a Pub/Sub filter on `attributes.ce-type` when it fits the 256-byte limit. Other CESQL filters leave the subscription unfiltered and are evaluated by the receiver for that subscription, which acknowledges non-matching events unseen. Pub/Sub filters, like ordering, are immutable: drift is reported, never repaired in place.
+> - **Subscriptions.** New subscriptions have a 30-second ack deadline (the default lock, so most pulls need no deadline change), retention from `MessageRetention` (at most 7 days), and no expiry. Validate reports a subscription that expires without receivers.
+> - **Broker deduplication.** It is not declared: publishing has no deduplication, and the inbox absorbs duplicates.
+
 ### 4.1 How each v2 provider defect is fixed
 
 | v2 defect | v3 resolution |

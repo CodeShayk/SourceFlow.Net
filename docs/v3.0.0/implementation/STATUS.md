@@ -4,14 +4,14 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 
 ## Progress summary
 
-Updated 2026-11-11. **36 of 63 work packages are done (57%)**, 0 in progress and 27 not started. By estimated effort, 73 of 138.5 engineer-weeks are done (53%).
+Updated 2026-11-11. **37 of 63 work packages are done (59%)**, 0 in progress and 26 not started. By estimated effort, 76.5 of 138.5 engineer-weeks are done (55%).
 
 | Milestone | Done | In progress | Todo | Effort done (ew) |
 |-----------|------|-------------|------|------------------|
 | M0 Foundations | 5 | 0 | 0 | 4 of 4 |
 | M1 Core | 15 | 0 | 0 | 37 of 37 |
 | M2 PostgreSQL | 11 | 0 | 0 | 19 of 19 |
-| M3 Cloud transports | 2 | 0 | 5 | 7 of 19 |
+| M3 Cloud transports | 3 | 0 | 4 | 10.5 of 19 |
 | M4 Tooling and operations | 2 | 0 | 5 | 5.5 of 16.5 |
 | M5 Security and migration | 1 | 0 | 4 | 0.5 of 11 |
 | Track S: Workflow DSL and Studio | 0 | 0 | 13 | 0 of 32 |
@@ -31,10 +31,11 @@ Completed in this round:
 - WP-2.7: blue/green read-model generations behind forward-only aliases, including EF Core schema per generation (ADR-032, E2E-08).
 - WP-3.1: the final transport SPI and the 45-case transport conformance kit, passed by the in-memory reference broker (ADR-033).
 - WP-3.2: the AWS transport (SQS and SNS), passing all 45 conformance cases on LocalStack.
+- WP-3.3: the Google Cloud transport (Pub/Sub), passing all 45 conformance cases on the Pub/Sub emulator, with per-service subscriptions and enforced ordering (GAP-13).
 
-Nothing is in progress. M2 (PostgreSQL) is complete; M3 is under way: WP-3.1 and the AWS transport (WP-3.2) are done; Google Cloud and Azure are next.
+Nothing is in progress. M2 (PostgreSQL) is complete; M3 is under way: WP-3.1 and the AWS and Google Cloud transports (WP-3.2, WP-3.3) are done; Azure is next.
 
-Not started: the Google Cloud and Azure transports and provisioning (WP-3.3..3.6), the v2 cloud retirement (3.R), health and dashboards, SQL Server, event partitioning, chaos and load testing, payload protection, crypto-shredding (redaction is done), the v2 migration tool, and the whole Studio track.
+Not started: the Azure transport and provisioning (WP-3.4..3.6), the v2 cloud retirement (3.R), health and dashboards, SQL Server, event partitioning, chaos and load testing, payload protection, crypto-shredding (redaction is done), the v2 migration tool, and the whole Studio track.
 
 | WP | Title | Estimate (ew) | Status | Notes |
 |----|-------|---------------|--------|-------|
@@ -71,7 +72,7 @@ Not started: the Google Cloud and Azure transports and provisioning (WP-3.3..3.6
 | WP-2.R | Retire v2 EF stores | 0.5 | done | Every `SourceFlow.Stores.EntityFramework.Tests` row is satisfied (SCK on three adapters, UT-EF-01..10). `src/SourceFlow.Stores.EntityFramework` and its tests are deleted |
 | WP-3.1 | Transport SPI final + Transport Conformance Kit | 3 | done | Final pull-based SPI (ADR-033): `RenewAsync`, `DeadLetterAsync`, `CreateDeadLetterReceiverAsync`, capabilities (ordered delivery, native DLQ, native filters, batch size, deduplication, lock), typed errors (`TransportException.IsTransient`, per-message `TransportSendException`, `DestinationNotFoundException`, `TopologyValidationException.Problems`), topology with ordering, max deliveries and filters (`SourceFlowRuntime.Topology()`). CloudEvents SQL filters (`CloudEventFilter`; `Only<T>()` and `Where(…)` in routing; native translation or client-side evaluation). Core: lock renewal while handling, client-side filtering, broker dead-letter ingestor. In-memory broker as the reference: CloudEvents binary wire with a 10-attribute budget, ordered endpoints, locks, max deliveries and DLQ, filtered fan-out, batches, provisioning diff, faults. TCK-01..45 in `SourceFlow.Testing` with a generated end-to-end domain and the fixture contract (faults, defects); all 45 pass on in-memory. UT-CE-01..08, UT-RT-21..22, UT-RX-22..24 |
 | WP-3.2 | `SourceFlow.Cloud.Aws` | 4 | done | SQS/SNS transport (doc 07 §4): `AwsTransportOptions` → SDK client config and `AWSOptions` (region, profile, endpoint, retries, timeout; validated at registration, GAP-03), credentials from the SDK chain; CloudEvents binary wire (`ce_*` attributes, 10-attribute budget, `ce_sfext` overflow, bodies as SQS text or base64, never transcoded); `SendMessageBatch`/`PublishBatch` in batches of 10 and 256 KiB with per-message failures, FIFO group (partition key) and deduplication ids; long-poll receiver with visibility lock, renewal and native delay (`ChangeMessageVisibility`, 12 h), explicit dead-lettering to the redrive queue; filters as SNS filter policies on `ce_type` where expressible, otherwise evaluated per topic by the receiver (`sf_topic`); provisioner (FIFO queues and topics, redrive DLQ with max deliveries, raw-delivery subscriptions, queue policy; Create/Validate/None with the full diff, GAP-02); `UseAwsTransport`, `AddSourceFlowAws` health check. TCK-01..45 green on LocalStack 3.8 (fault injection in the SDK HTTP pipeline, counted credential refreshes); the real-account run is wired for the nightly (`SOURCEFLOW_REAL_CLOUD=aws`). Core fix found by the TCK: stopping with an in-flight settlement no longer fails the host (UT-RX-25). UT-AWS-01..30 |
-| WP-3.3 | `SourceFlow.Cloud.Gcp` | 3.5 | todo | |
+| WP-3.3 | `SourceFlow.Cloud.Gcp` | 3.5 | done | Pub/Sub transport (doc 07 §4): `GcpTransportOptions` → client builders and call settings (ProjectId, emulator detection through `PUBSUB_EMULATOR_HOST`, endpoint, credentials with Application Default Credentials by default, RPC retries, deadline; validated at registration, GAP-03); an endpoint is the topic `{endpoint}+in` with the subscription `{endpoint}`, plus one `{endpoint}~{topic}` subscription per subscribed topic so services fan out and instances compete (GAP-13), all pulled by one receiver; CloudEvents Pub/Sub binding (`ce-*` attributes, values over 1,024 bytes chunked, bodies byte for byte up to 9 MiB); publishes in batches of 100 within 10 MB with the partition key as ordering key; ordered endpoints enable message ordering on every subscription, validated (GAP-13); synchronous-pull receiver with the lock as ack deadline, renewal (ack-deadline extension), nack-based delay up to 10 minutes; dead-letter policy to `{endpoint}+dlq` with the delivery limit enforced by the receiver below Pub/Sub's minimum of 5, explicit dead-lettering with `sf-reason`; filters as Pub/Sub filters on `ce-type` where expressible within 256 bytes, otherwise evaluated per subscription by the receiver; provisioner (Create/Validate/None with the full diff: ordering, dead-letter policy and limit, filter drift, topic attachment, expiry); `UseGcpTransport`, `AddSourceFlowGcp` health check. TCK-01..45 green on the Pub/Sub emulator (fault injection in the gRPC call pipeline, counted token refreshes); the real-project run is wired for the nightly (`SOURCEFLOW_REAL_CLOUD=gcp`). The emulator image is re-pinned to `590.0.1-emulators` (the registry had pruned `502.0.0`). UT-GCP-01..25 |
 | WP-3.4 | `SourceFlow.Cloud.Azure` | 4 | todo | |
 | WP-3.5 | Provisioning, topology export, DLQ ingestor, IaC modules | 2.5 | todo | |
 | WP-3.6 | Cross-service E2E per transport | 1.5 | todo | |
