@@ -210,6 +210,75 @@ public sealed class AnalyzerTests
         missing.Severity.ShouldBe(DiagnosticSeverity.Error);
     }
 
+    private const string Aggregate = """
+        [MessageType("t.open", 1)] public sealed record Open(Aid A) : ICommand<Agg>;
+        [MessageType("t.opened", 1)] public sealed record Opened(Aid A) : IEvent;
+        [MessageType("t.noted", 1)] public sealed record Noted(Aid A) : IEvent;
+        """;
+
+    [Fact]
+    [Trait("Id", "GEN-28")]
+    public void SF0005_EventFromDecideWithoutWhen_IsAWarning()
+    {
+        ImmutableArray<Diagnostic> missing = Analyze(Id + Aggregate + """
+            [Aggregate("agg")] public sealed partial record Agg : IAggregate<Agg, Aid>
+            {
+                public static Agg Initial { get; } = new();
+                public Decision Decide(Open c, DecisionContext ctx) => Decision.Accept(new Opened(c.A), new Noted(c.A));
+                private Agg When(Opened e) => this;
+            }
+            """);
+        ImmutableArray<Diagnostic> complete = Analyze(Id + Aggregate + """
+            [Aggregate("agg")] public sealed partial record Agg : IAggregate<Agg, Aid>
+            {
+                public static Agg Initial { get; } = new();
+                public Decision Decide(Open c, DecisionContext ctx) => Decision.Accept(new Opened(c.A), new Noted(c.A));
+                private Agg When(Opened e) => this;
+                private Agg When(Noted e) => this;
+            }
+            """);
+
+        Diagnostic warning = missing.Where(d => d.Id == "SF0005").ShouldHaveSingleItem();
+        warning.Severity.ShouldBe(DiagnosticSeverity.Warning);
+        warning.GetMessage().ShouldContain("Noted");
+        complete.ShouldNotContain(d => d.Id == "SF0005");
+    }
+
+    [Fact]
+    [Trait("Id", "GEN-36")]
+    [Trait("Covers", "ADR-007")]
+    public void SF0014_CommandOwnedAndRouted_IsAnError()
+    {
+        const string Owned = """
+            [Aggregate("agg")] public sealed partial record Agg : IAggregate<Agg, Aid>
+            {
+                public static Agg Initial { get; } = new();
+                public Decision Decide(Open c, DecisionContext ctx) => Decision.Accept(new Opened(c.A));
+                private Agg When(Opened e) => this;
+            }
+            [MessageType("t.remote", 1)] public sealed record Remote(Aid A) : ICommand<Other>;
+            [Aggregate("other")] public sealed partial record Other : IAggregate<Other, Aid> { public static Other Initial { get; } = new(); }
+            """;
+
+        ImmutableArray<Diagnostic> conflict = Analyze(Id + Aggregate + Owned + """
+            public static class Routes
+            {
+                public static void Configure(SourceFlow.Runtime.RoutingBuilder r) => r.Command<Open>().To("accounts");
+            }
+            """);
+        ImmutableArray<Diagnostic> remoteOnly = Analyze(Id + Aggregate + Owned + """
+            public static class Routes
+            {
+                public static void Configure(SourceFlow.Runtime.RoutingBuilder r) => r.Command<Remote>().To("other-service");
+            }
+            """);
+
+        Diagnostic error = conflict.Where(d => d.Id == "SF0014").ShouldHaveSingleItem();
+        error.Severity.ShouldBe(DiagnosticSeverity.Error);
+        error.GetMessage().ShouldContain("Agg");
+        remoteOnly.ShouldNotContain(d => d.Id == "SF0014");
+    }
+
     [Fact]
     public void BankSample_HasNoDiagnostics()
     {

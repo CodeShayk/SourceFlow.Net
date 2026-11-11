@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
@@ -9,7 +10,7 @@ using Microsoft.CodeAnalysis.Operations;
 
 namespace SourceFlow.Generators
 {
-    /// <summary>Contract analyzers SF0001–SF0004 and SF0007–SF0009 (design doc 03 §9).</summary>
+    /// <summary>Contract analyzers SF0001–SF0010 and SF0014 (design doc 03 §9).</summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public sealed class SourceFlowAnalyzer : DiagnosticAnalyzer
     {
@@ -23,7 +24,9 @@ namespace SourceFlow.Generators
             Diagnostics.MissingJsonType,
             Diagnostics.AsyncDecide,
             Diagnostics.StateShape,
-            Diagnostics.NonDeterministic);
+            Diagnostics.NonDeterministic,
+            Diagnostics.EventWithoutWhen,
+            Diagnostics.OwnedAndRouted);
 
         /// <inheritdoc />
         public override void Initialize(AnalysisContext context)
@@ -41,6 +44,8 @@ namespace SourceFlow.Generators
                 start.RegisterSymbolAction(symbolContext => AnalyzeType(symbolContext, seen), SymbolKind.NamedType);
                 start.RegisterOperationAction(AnalyzeNonDeterminism, OperationKind.Invocation, OperationKind.PropertyReference, OperationKind.ObjectCreation);
                 start.RegisterOperationAction(AnalyzeWhenAssignment, OperationKind.SimpleAssignment, OperationKind.CompoundAssignment, OperationKind.Increment, OperationKind.Decrement);
+                start.RegisterOperationAction(AnalyzeDecidedEvent, OperationKind.ObjectCreation);
+                start.RegisterOperationAction(AnalyzeCommandRoute, OperationKind.Invocation);
 
                 var inventory = new CompilationInventory();
                 start.RegisterSymbolAction(symbolContext => inventory.Collect((INamedTypeSymbol)symbolContext.Symbol), SymbolKind.NamedType);
@@ -203,6 +208,96 @@ namespace SourceFlow.Generators
             if (mutatesState)
             {
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ImpureWhen, context.Operation.Syntax.GetLocation(), method.ContainingType.Name, "it assigns state; return 'this with { … }' instead"));
+            }
+        }
+
+        // SF0005: an event created in an aggregate's Decide that no When of the aggregate accepts.
+        private static void AnalyzeDecidedEvent(OperationAnalysisContext context)
+        {
+            var creation = (IObjectCreationOperation)context.Operation;
+            if (creation.Type is not INamedTypeSymbol created || !created.Implements(KnownNames.Event) || created.Implements(KnownNames.IntegrationEvent))
+            {
+                return;
+            }
+
+            ISymbol? current = context.ContainingSymbol;
+            while (current is IMethodSymbol { MethodKind: MethodKind.LambdaMethod or MethodKind.LocalFunction } local)
+            {
+                current = local.ContainingSymbol;
+            }
+
+            if (current is not IMethodSymbol { Name: "Decide" } decide
+                || decide.ContainingType is not { } aggregate
+                || aggregate.FindAttribute(KnownNames.AggregateAttribute) is null)
+            {
+                return;
+            }
+
+            bool handled = aggregate.GetMembers("When").OfType<IMethodSymbol>()
+                .Any(when => when.Parameters.Length >= 1 && created.InheritsOrIs(when.Parameters[0].Type));
+            if (!handled)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.EventWithoutWhen, creation.Syntax.GetLocation(), aggregate.Name, created.Name));
+            }
+        }
+
+        // SF0014: routing.Command<T>().To(...) for a command this compilation owns (a Decide or an ICommandHandler).
+        private static void AnalyzeCommandRoute(OperationAnalysisContext context)
+        {
+            var invocation = (IInvocationOperation)context.Operation;
+            if (invocation.TargetMethod is not { Name: "To" } to || !to.ContainingType.Is("SourceFlow.Runtime.CommandRouteBuilder")
+                || invocation.Instance is not IInvocationOperation { TargetMethod: { Name: "Command", IsGenericMethod: true } command }
+                || !command.ContainingType.Is("SourceFlow.Runtime.RoutingBuilder")
+                || command.TypeArguments[0] is not INamedTypeSymbol commandType)
+            {
+                return;
+            }
+
+            string? owner = OwnerOf(commandType, context.Compilation);
+            if (owner is not null)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.OwnedAndRouted, invocation.Syntax.GetLocation(), commandType.Name, owner));
+            }
+        }
+
+        private static string? OwnerOf(INamedTypeSymbol command, Compilation compilation)
+        {
+            // The target aggregate's Decide (in source or in a referenced module).
+            if (command.FindInterface(KnownNames.CommandOf)?.TypeArguments[0] is INamedTypeSymbol aggregate
+                && aggregate.FindAttribute(KnownNames.AggregateAttribute) is not null
+                && aggregate.GetMembers("Decide").OfType<IMethodSymbol>().Any(d => d.Parameters.Length >= 1 && SymbolEqualityComparer.Default.Equals(d.Parameters[0].Type, command)))
+            {
+                return aggregate.Name;
+            }
+
+            // An ICommandHandler<TCommand, …> declared in this compilation.
+            foreach (INamedTypeSymbol type in AllTypes(compilation.Assembly.GlobalNamespace))
+            {
+                if (!type.IsAbstract && type.AllInterfaces.Any(i => SymbolExtensions.MetadataName(i) == KnownNames.CommandHandler
+                    && SymbolEqualityComparer.Default.Equals(i.TypeArguments[0], command)))
+                {
+                    return type.Name;
+                }
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<INamedTypeSymbol> AllTypes(INamespaceSymbol root)
+        {
+            foreach (INamespaceOrTypeSymbol member in root.GetMembers())
+            {
+                if (member is INamespaceSymbol ns)
+                {
+                    foreach (INamedTypeSymbol nested in AllTypes(ns))
+                    {
+                        yield return nested;
+                    }
+                }
+                else if (member is INamedTypeSymbol type)
+                {
+                    yield return type;
+                }
             }
         }
 

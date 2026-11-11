@@ -176,6 +176,11 @@ namespace SourceFlow.Generators
                 w.Line($"case {m} m: id = CorrelateBy(m); return true;");
             }
 
+            foreach (string m in model.TextCorrelatedMessages)
+            {
+                w.Line($"case {m} m: return {model.IdType}.TryParse(CorrelateBy(m), out id);");
+            }
+
             w.Line("default: id = default; return false;");
             w.Close();
             w.Close();

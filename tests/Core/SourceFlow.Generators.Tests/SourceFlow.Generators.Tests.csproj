@@ -2,6 +2,7 @@
   <!-- Generator and analyzer tests (GEN-xx, plan 05 §2). -->
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Core\SourceFlow.Generators\SourceFlow.Generators.csproj" />

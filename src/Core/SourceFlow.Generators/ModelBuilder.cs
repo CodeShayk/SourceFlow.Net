@@ -173,6 +173,7 @@ namespace SourceFlow.Generators
             ITypeSymbol idType = contract.TypeArguments[1];
             var reacted = new List<string>();
             var correlated = new List<string>();
+            var textCorrelated = new List<string>();
             foreach (IMethodSymbol method in type.GetMembers().OfType<IMethodSymbol>())
             {
                 if (!method.IsStatic && method.Name == "React" && method.Parameters.Length == 2
@@ -188,6 +189,11 @@ namespace SourceFlow.Generators
                 {
                     correlated.Add(method.Parameters[0].Type.FullName());
                 }
+                else if (method.IsStatic && method.Name == "CorrelateBy" && method.Parameters.Length == 1
+                    && method.ReturnType.SpecialType == SpecialType.System_String)
+                {
+                    textCorrelated.Add(method.Parameters[0].Type.FullName());   // GEN-13: the text is the id, parsed as is
+                }
             }
 
             return new ProcessManagerModel(
@@ -198,7 +204,8 @@ namespace SourceFlow.Generators
                 name,
                 idType.FullName(),
                 reacted.Distinct().OrderBy(x => x, System.StringComparer.Ordinal).ToEquatableArray(),
-                correlated.Distinct().OrderBy(x => x, System.StringComparer.Ordinal).ToEquatableArray());
+                correlated.Distinct().OrderBy(x => x, System.StringComparer.Ordinal).ToEquatableArray(),
+                textCorrelated.Distinct().OrderBy(x => x, System.StringComparer.Ordinal).ToEquatableArray());
         }
 
         public static SessionProjectionModel? SessionProjection(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)

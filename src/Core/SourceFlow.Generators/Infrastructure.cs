@@ -168,6 +168,27 @@ namespace SourceFlow.Generators
             return symbol.FindInterface(metadataName) is not null || MetadataName(symbol) == metadataName;
         }
 
+        public static bool InheritsOrIs(this ITypeSymbol type, ITypeSymbol target)
+        {
+            for (ITypeSymbol? current = type; current is not null; current = current.BaseType)
+            {
+                if (SymbolEqualityComparer.Default.Equals(current, target))
+                {
+                    return true;
+                }
+            }
+
+            foreach (INamedTypeSymbol contract in type.AllInterfaces)
+            {
+                if (SymbolEqualityComparer.Default.Equals(contract, target))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public static AttributeData? FindAttribute(this ISymbol symbol, string metadataName)
         {
             foreach (AttributeData attribute in symbol.GetAttributes())

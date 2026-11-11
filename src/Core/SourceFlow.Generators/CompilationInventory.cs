@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -121,7 +122,11 @@ namespace SourceFlow.Generators
                 {
                     if (!listed.Contains(required) && required.Locations.Any(l => l.IsInSource))
                     {
-                        context.ReportDiagnostic(Diagnostic.Create(Diagnostics.MissingJsonType, required.Locations.First(l => l.IsInSource), required.Name, jsonContext.Name));
+                        // The code fix reads the context and the type from the properties.
+                        var properties = ImmutableDictionary<string, string?>.Empty
+                            .Add(JsonContextCodeFix.ContextKey, SymbolExtensions.MetadataName(jsonContext))
+                            .Add(JsonContextCodeFix.TypeKey, required.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                        context.ReportDiagnostic(Diagnostic.Create(Diagnostics.MissingJsonType, required.Locations.First(l => l.IsInSource), properties, required.Name, jsonContext.Name));
                     }
                 }
             }

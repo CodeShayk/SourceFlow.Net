@@ -144,6 +144,35 @@ public sealed class GeneratorTests
     }
 
     [Fact]
+    [Trait("Id", "GEN-13")]
+    public void ProcessManager_CorrelateByText_IsParsedAsTheId()
+    {
+        GeneratorRun run = GeneratorHarness.Run(Sources.Usings + """
+
+            namespace Text;
+
+            [StronglyTypedId] public readonly partial record struct CaseId(Guid Value);
+            [MessageType("text.opened", 1)] public sealed record CaseOpened(string Reference) : IEvent;
+            [MessageType("text.closed", 1)] public sealed record CaseClosed(CaseId Id) : IEvent;
+
+            [ProcessManager("case")]
+            public sealed partial record CaseProcess : IProcessManager<CaseProcess, CaseId>
+            {
+                public static CaseProcess Initial { get; } = new();
+                public static string CorrelateBy(CaseOpened e) => e.Reference;
+                public static CaseId CorrelateBy(CaseClosed e) => e.Id;
+                public Reaction React(CaseOpened e, ReactionContext<CaseId> ctx) => Reaction.Ignore;
+                public Reaction React(CaseClosed e, ReactionContext<CaseId> ctx) => Reaction.Complete();
+            }
+            """);
+
+        string source = run.Source("Text.CaseProcess.ProcessManager.g.cs");
+        source.ShouldContain("case global::Text.CaseOpened m: return global::Text.CaseId.TryParse(CorrelateBy(m), out id);");
+        source.ShouldContain("case global::Text.CaseClosed m: id = CorrelateBy(m); return true;");
+        run.CompilationErrors().ShouldBeEmpty();
+    }
+
+    [Fact]
     [Trait("Id", "GEN-14")]
     [Trait("Covers", "ADR-005")]
     public void Module_RegistersMessagesSortedByName()

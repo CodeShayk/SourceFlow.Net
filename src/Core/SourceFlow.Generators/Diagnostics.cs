@@ -27,6 +27,16 @@ namespace SourceFlow.Generators
             "'When' in '{0}' must be pure: {1}",
             "SourceFlow.Purity", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpBase);
 
+        public static readonly DiagnosticDescriptor EventWithoutWhen = new(
+            "SF0005", "Event produced by Decide has no When",
+            "'{0}' produces '{1}' in Decide but has no 'When({1})'; the state ignores it",
+            "SourceFlow.Shape", DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpBase);
+
+        public static readonly DiagnosticDescriptor OwnedAndRouted = new(
+            "SF0014", "Command is both owned and routed",
+            "Command '{0}' is handled in this service by '{1}' and also routed to an endpoint; a command is owned or routed, never both (ADR-007)",
+            "SourceFlow.Commands", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpBase);
+
         public static readonly DiagnosticDescriptor NoOwner = new(
             "SF0006", "Command has no Decide or handler",
             "Command '{0}' targets '{1}' but has no Decide method and no ICommandHandler in this compilation; add one or route it (startup fails otherwise)",

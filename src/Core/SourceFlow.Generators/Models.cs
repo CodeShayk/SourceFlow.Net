@@ -42,7 +42,8 @@ namespace SourceFlow.Generators
         string ProcessName,
         string IdType,
         EquatableArray<string> ReactedMessages,
-        EquatableArray<string> CorrelatedMessages);
+        EquatableArray<string> CorrelatedMessages,
+        EquatableArray<string> TextCorrelatedMessages);
 
     internal enum KeySource
     {

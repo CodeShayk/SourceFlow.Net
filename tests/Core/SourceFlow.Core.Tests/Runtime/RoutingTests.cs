@@ -13,7 +13,9 @@ public sealed class RoutingTests
     public void Command_OwnedAndRouted_IsRejected()
     {
         var routing = new RoutingBuilder();
+#pragma warning disable SF0014 // deliberate: this test checks that startup also rejects it (RT-R1)
         routing.Command<Deposit>().To("payments");
+#pragma warning restore SF0014
 
         InvalidOperationException error = Should.Throw<InvalidOperationException>(() => routing.Build("accounts", BankModel.Instance));
         error.Message.ShouldContain("RT-R1");

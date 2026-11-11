@@ -9,6 +9,8 @@ namespace SourceFlow.Generators.Tests;
 /// <summary>Runs the generator and analyzers over in-memory sources against the real SourceFlow.Net contracts.</summary>
 internal static class GeneratorHarness
 {
+    public static ImmutableArray<MetadataReference> MetadataReferences => References.Value;
+
     private static readonly Lazy<ImmutableArray<MetadataReference>> References = new(() =>
     {
         string trusted = (string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!;
