@@ -32,6 +32,29 @@ public sealed partial class AccountSummaryProjection : IDocumentProjection<Accou
     }
 }
 
+/// <summary>
+/// Accounts below a balance: a named, versioned domain query (doc 14 Q-B4), the stable contract other services and UIs
+/// use instead of ad-hoc queries.
+/// </summary>
+/// <param name="Below">The balance threshold.</param>
+[DomainQuery("accounts.low-balance", 1)]
+public sealed partial record LowBalanceAccounts(decimal Below) : IDomainQuery<LowBalanceAccount>
+{
+    /// <summary>The query text.</summary>
+    public const string Sfql = """
+        from readmodel "account-summary"
+        | where status = 1 and balance < @below
+        | project accountId = id, holder, balance
+        | order by balance
+        """;
+}
+
+/// <summary>A row of <see cref="LowBalanceAccounts"/>.</summary>
+/// <param name="AccountId">The account.</param>
+/// <param name="Holder">The holder.</param>
+/// <param name="Balance">The balance.</param>
+public sealed record LowBalanceAccount(AccountId AccountId, string Holder, decimal Balance);
+
 /// <summary>Maps domain events to the public contract (doc 03 §7).</summary>
 public static class AccountContracts
 {

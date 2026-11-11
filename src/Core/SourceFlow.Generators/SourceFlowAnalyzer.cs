@@ -26,7 +26,10 @@ namespace SourceFlow.Generators
             Diagnostics.StateShape,
             Diagnostics.NonDeterministic,
             Diagnostics.EventWithoutWhen,
-            Diagnostics.OwnedAndRouted);
+            Diagnostics.OwnedAndRouted,
+            Diagnostics.QueryInWriteModel,
+            Diagnostics.QueryInCommandHandler,
+            Diagnostics.DomainQueryShape);
 
         /// <inheritdoc />
         public override void Initialize(AnalysisContext context)
@@ -46,6 +49,7 @@ namespace SourceFlow.Generators
                 start.RegisterOperationAction(AnalyzeWhenAssignment, OperationKind.SimpleAssignment, OperationKind.CompoundAssignment, OperationKind.Increment, OperationKind.Decrement);
                 start.RegisterOperationAction(AnalyzeDecidedEvent, OperationKind.ObjectCreation);
                 start.RegisterOperationAction(AnalyzeCommandRoute, OperationKind.Invocation);
+                start.RegisterOperationAction(AnalyzeQueryUse, OperationKind.Invocation, OperationKind.PropertyReference);
 
                 var inventory = new CompilationInventory();
                 start.RegisterSymbolAction(symbolContext => inventory.Collect((INamedTypeSymbol)symbolContext.Symbol), SymbolKind.NamedType);
@@ -110,6 +114,140 @@ namespace SourceFlow.Generators
             if (type.FindAttribute(KnownNames.ProcessManagerAttribute) is not null)
             {
                 AnalyzeStateShape(context, type, location, "process manager");
+            }
+
+            if (type.FindAttribute(KnownNames.DomainQueryAttribute) is { } domainQuery)
+            {
+                AnalyzeDomainQuery(context, type, domainQuery, location);
+            }
+        }
+
+        // SF0018 (build-time part): the shape of a [DomainQuery]. Binding against the catalog happens at startup (ADR-030).
+        private static void AnalyzeDomainQuery(SymbolAnalysisContext context, INamedTypeSymbol type, AttributeData attribute, Location location)
+        {
+            void Report(string problem)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.DomainQueryShape, location, type.Name, problem));
+            }
+
+            if (attribute.ConstructorArguments.Length == 0 || attribute.ConstructorArguments[0].Value is not string name || name.Length == 0)
+            {
+                Report("it needs a name, for example [DomainQuery(\"accounts.overdrawn\", 1)]");
+                return;
+            }
+
+            if (type.FindInterface(KnownNames.DomainQuery) is not { } contract)
+            {
+                Report("it must implement IDomainQuery<TResult>");
+                return;
+            }
+
+            if (type.IsValueType || type.IsAbstract || type.ContainingType is not null || !type.IsPartial())
+            {
+                Report("it must be a top-level 'partial record' (or partial class)");
+                return;
+            }
+
+            IFieldSymbol? text = type.GetMembers().OfType<IFieldSymbol>()
+                .FirstOrDefault(f => f.IsConst && f.Type.SpecialType == SpecialType.System_String && (f.Name == "Sfql" || f.Name == "Sql"));
+            if (text?.ConstantValue is not string query)
+            {
+                Report("it needs a 'const string Sfql' (or 'Sql') with the query text");
+                return;
+            }
+
+            if (contract.TypeArguments[0] is not INamedTypeSymbol result
+                || !result.InstanceConstructors.Any(c => c.DeclaredAccessibility == Accessibility.Public && c.Parameters.Length > 0))
+            {
+                Report($"its result '{contract.TypeArguments[0].Name}' needs a public constructor with a parameter per output column");
+                return;
+            }
+
+            var members = new HashSet<string>(
+                type.GetMembers().OfType<IPropertySymbol>().Where(p => !p.IsStatic && p.DeclaredAccessibility == Accessibility.Public).Select(p => p.Name),
+                System.StringComparer.OrdinalIgnoreCase);
+            foreach (string parameter in Parameters(query))
+            {
+                if (!members.Contains(parameter))
+                {
+                    Report($"the text uses @{parameter} but '{type.Name}' has no member '{parameter}'");
+                }
+            }
+        }
+
+        // @names in a query text, outside string and quoted-name literals.
+        private static IEnumerable<string> Parameters(string text)
+        {
+            var found = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+            char quote = '\0';
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+                if (quote != '\0')
+                {
+                    if (c == quote)
+                    {
+                        quote = '\0';
+                    }
+
+                    continue;
+                }
+
+                if (c is '\'' or '"')
+                {
+                    quote = c;
+                }
+                else if (c == '@' && i + 1 < text.Length && (char.IsLetter(text[i + 1]) || text[i + 1] == '_'))
+                {
+                    int start = ++i;
+                    while (i < text.Length && (char.IsLetterOrDigit(text[i]) || text[i] == '_'))
+                    {
+                        i++;
+                    }
+
+                    found.Add(text.Substring(start, i - start));
+                    i--;
+                }
+            }
+
+            return found;
+        }
+
+        // SF0015 / SF0016 (Q-R1): IQueryService or IAggregateReader used where state must come from the own stream.
+        private static void AnalyzeQueryUse(OperationAnalysisContext context)
+        {
+            INamedTypeSymbol? target = context.Operation switch
+            {
+                IInvocationOperation invocation => invocation.TargetMethod.ContainingType,
+                IPropertyReferenceOperation property => property.Property.ContainingType,
+                _ => null,
+            };
+            if (target is null || !(target.Is(KnownNames.QueryService) || target.Is(KnownNames.AggregateReader)))
+            {
+                return;
+            }
+
+            ISymbol? current = context.ContainingSymbol;
+            while (current is IMethodSymbol { MethodKind: MethodKind.LambdaMethod or MethodKind.LocalFunction } local)
+            {
+                current = local.ContainingSymbol;
+            }
+
+            if (current?.ContainingType is not { } owner)
+            {
+                return;
+            }
+
+            string api = target.Name;
+            if (owner.FindAttribute(KnownNames.AggregateAttribute) is not null
+                || owner.FindAttribute(KnownNames.ProcessManagerAttribute) is not null
+                || owner.FindAttribute(KnownNames.ProjectionAttribute) is not null)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.QueryInWriteModel, context.Operation.Syntax.GetLocation(), owner.Name, api));
+            }
+            else if (owner.AllInterfaces.Any(i => SymbolExtensions.MetadataName(i) == KnownNames.CommandHandler))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.QueryInCommandHandler, context.Operation.Syntax.GetLocation(), owner.Name, api));
             }
         }
 

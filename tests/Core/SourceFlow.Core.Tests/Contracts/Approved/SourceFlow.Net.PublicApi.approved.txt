@@ -98,6 +98,32 @@ namespace SourceFlow
         Accepted = 1,
         Rejected = 2,
     }
+    [System.AttributeUsage(System.AttributeTargets.Class, Inherited=false)]
+    public sealed class DomainQueryAttribute : System.Attribute
+    {
+        public DomainQueryAttribute(string name, int version = 1) { }
+        public string Name { get; }
+        public int Version { get; }
+    }
+    public sealed class DomainQueryParameter : System.IEquatable<SourceFlow.DomainQueryParameter>
+    {
+        public DomainQueryParameter(string Name, System.Type Type) { }
+        public string Name { get; init; }
+        public System.Type Type { get; init; }
+    }
+    public static class DomainQueryValues
+    {
+        public static object? Column(SourceFlow.IQueryRow row, string name) { }
+        public static T Enum<T>(object? value)
+            where T :  struct, System.Enum { }
+        public static T Get<T>(object? value) { }
+        public static T Id<T>(object? value)
+            where T :  struct, SourceFlow.IStronglyTypedId<T> { }
+        public static T? NullableEnum<T>(object? value)
+            where T :  struct, System.Enum { }
+        public static T? NullableId<T>(object? value)
+            where T :  struct, SourceFlow.IStronglyTypedId<T> { }
+    }
     [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=true, Inherited=false)]
     public sealed class EmitsAttribute : System.Attribute
     {
@@ -214,6 +240,21 @@ namespace SourceFlow
     public interface IDocumentProjection<TDocument, TKey>
         where TDocument :  class
         where TKey :  notnull { }
+    public interface IDomainQueryRuntime<TSelf, TResult> : SourceFlow.IDomainQuery<TResult>
+        where TSelf :  class, SourceFlow.IDomainQueryRuntime<TSelf, TResult>
+        where TResult :  class
+    {
+        bool IsSql { get; }
+        string QueryName { get; }
+        System.Collections.Generic.IReadOnlyList<SourceFlow.DomainQueryParameter> QueryParameters { get; }
+        string QueryText { get; }
+        int QueryVersion { get; }
+        System.Collections.Generic.IReadOnlyList<string> ResultColumns { get; }
+        System.Collections.Generic.IReadOnlyDictionary<string, object?> ToParameters();
+        TResult Materialize(SourceFlow.IQueryRow row);
+    }
+    public interface IDomainQuery<TResult>
+        where TResult :  class { }
     public interface IEvent : SourceFlow.IMessage { }
     public interface IEventHandler<in TEvent>
         where in TEvent :  class, SourceFlow.IMessage
@@ -236,6 +277,10 @@ namespace SourceFlow
         where TId :  struct, SourceFlow.IStronglyTypedId<TId>
     {
         TSelf Initial { get; }
+    }
+    public interface IQueryRow
+    {
+        bool TryGetColumn(string name, out object? value);
     }
     public interface ISessionProjectionRuntime<TSelf, TUnitOfWork> : SourceFlow.ISessionProjection<TUnitOfWork>
         where TSelf :  class, SourceFlow.ISessionProjectionRuntime<TSelf, TUnitOfWork>
@@ -262,6 +307,9 @@ namespace SourceFlow
             where THandler :  class, SourceFlow.ICommandHandler<TCommand, TAggregate>
             where TCommand :  class, SourceFlow.ICommand<TAggregate>
             where TAggregate :  class;
+        void AddDomainQuery<TQuery, TResult>()
+            where TQuery :  class, SourceFlow.IDomainQueryRuntime<TQuery, TResult>
+            where TResult :  class;
         void AddEventHandler<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors)]  THandler, TEvent>()
             where THandler :  class, SourceFlow.IEventHandler<TEvent>
             where TEvent :  class, SourceFlow.IMessage;
@@ -1040,6 +1088,37 @@ namespace SourceFlow.Query
         Field = 2,
         Output = 3,
     }
+    public abstract class DomainQueryDescriptor
+    {
+        public abstract SourceFlow.Query.QueryLanguage Language { get; }
+        public abstract string Name { get; }
+        public abstract System.Collections.Generic.IReadOnlyList<SourceFlow.DomainQueryParameter> Parameters { get; }
+        public abstract System.Type QueryType { get; }
+        public abstract System.Collections.Generic.IReadOnlyList<string> ResultColumns { get; }
+        public abstract System.Type ResultType { get; }
+        public abstract string Text { get; }
+        public abstract int Version { get; }
+    }
+    public sealed class DomainQueryException : System.InvalidOperationException
+    {
+        public DomainQueryException(string message) { }
+    }
+    public sealed class EventQuery<TEvent> : SourceFlow.Query.TypedQuery<SourceFlow.Query.EventRecord<TEvent>, TEvent>
+        where TEvent :  class, SourceFlow.IEvent
+    {
+        public SourceFlow.Query.EventQuery<TEvent> Since(System.TimeSpan window) { }
+        public override string ToSfql() { }
+    }
+    public sealed class EventRecord<TEvent> : System.IEquatable<SourceFlow.Query.EventRecord<TEvent>>
+        where TEvent :  class, SourceFlow.IEvent
+    {
+        public EventRecord(TEvent Data, string Stream, long Version, System.DateTimeOffset Time, SourceFlow.GlobalPosition Position) { }
+        public TEvent Data { get; init; }
+        public SourceFlow.GlobalPosition Position { get; init; }
+        public string Stream { get; init; }
+        public System.DateTimeOffset Time { get; init; }
+        public long Version { get; init; }
+    }
     public sealed class EventsSource : SourceFlow.Query.SourceRef, System.IEquatable<SourceFlow.Query.EventsSource>
     {
         public EventsSource(System.Collections.Generic.IReadOnlyList<SourceFlow.Query.LiteralExpr> Types, SourceFlow.Query.Expr? Version, bool Upcast, string? Alias, SourceFlow.Query.TextSpan Span) { }
@@ -1077,8 +1156,14 @@ namespace SourceFlow.Query
     }
     public interface IQueryService
     {
+        SourceFlow.Query.EventQuery<TEvent> Events<TEvent>()
+            where TEvent :  class, SourceFlow.IEvent;
+        System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<TResult>> ExecuteAsync<TResult>(SourceFlow.IDomainQuery<TResult> query, SourceFlow.Query.QueryOptions? options = null, System.Threading.CancellationToken cancellationToken = default)
+            where TResult :  class;
         System.Collections.Generic.IAsyncEnumerable<SourceFlow.Query.QueryRow> QueryAsync(string query, System.Collections.Generic.IReadOnlyDictionary<string, object?>? parameters = null, SourceFlow.Query.QueryOptions? options = null, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<SourceFlow.Query.QueryPage> QueryPageAsync(string query, System.Collections.Generic.IReadOnlyDictionary<string, object?>? parameters = null, string? continuation = null, SourceFlow.Query.QueryOptions? options = null, System.Threading.CancellationToken cancellationToken = default);
+        SourceFlow.Query.ReadModelQuery<TDocument> ReadModel<TDocument>()
+            where TDocument :  class;
         System.Threading.Tasks.ValueTask<SourceFlow.Query.QueryValidation> ValidateAsync(string query, System.Collections.Generic.IReadOnlyDictionary<string, object?>? parameters = null, SourceFlow.Query.QueryOptions? options = null, System.Threading.CancellationToken cancellationToken = default);
     }
     public sealed class InListExpr : SourceFlow.Query.Expr, System.IEquatable<SourceFlow.Query.InListExpr>
@@ -1382,12 +1467,13 @@ namespace SourceFlow.Query
         public System.Collections.Generic.IReadOnlyList<object?> SortKeys { get; init; }
         public System.Collections.Generic.IReadOnlyList<object?> Values { get; init; }
     }
-    public sealed class QueryRow
+    public sealed class QueryRow : SourceFlow.IQueryRow
     {
         public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryColumn> Columns { get; }
         public object? this[int index] { get; }
         public object? this[string name] { get; }
         public System.Collections.Generic.IReadOnlyList<object?> Values { get; }
+        public bool TryGetColumn(string name, out object? value) { }
     }
     public sealed class QuerySourceConsistency : System.IEquatable<SourceFlow.Query.QuerySourceConsistency>
     {
@@ -1416,6 +1502,11 @@ namespace SourceFlow.Query
         public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryColumn> Columns { get; init; }
         public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryDiagnostic> Diagnostics { get; init; }
         public bool IsValid { get; }
+    }
+    public sealed class ReadModelQuery<TDocument> : SourceFlow.Query.TypedQuery<TDocument, TDocument>
+        where TDocument :  class
+    {
+        public override string ToSfql() { }
     }
     public sealed class ReadModelSource : SourceFlow.Query.SourceRef, System.IEquatable<SourceFlow.Query.ReadModelSource>
     {
@@ -1482,6 +1573,18 @@ namespace SourceFlow.Query
         public int Length { get; init; }
         public int Start { get; init; }
         public SourceFlow.Query.TextSpan Cover(SourceFlow.Query.TextSpan other) { }
+    }
+    public abstract class TypedQuery<TRow, TSource>
+        where TRow :  class
+    {
+        public System.Collections.Generic.IReadOnlyDictionary<string, object?> Parameters { get; }
+        public SourceFlow.Query.TypedQuery<TRow, TSource> OrderBy<TKey>(System.Linq.Expressions.Expression<System.Func<TSource, TKey>> key) { }
+        public SourceFlow.Query.TypedQuery<TRow, TSource> OrderByDescending<TKey>(System.Linq.Expressions.Expression<System.Func<TSource, TKey>> key) { }
+        public SourceFlow.Query.TypedQuery<TRow, TSource> Skip(int count) { }
+        public SourceFlow.Query.TypedQuery<TRow, TSource> Take(int count) { }
+        public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<TRow>> ToListAsync(SourceFlow.Query.QueryOptions? options = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public abstract string ToSfql();
+        public SourceFlow.Query.TypedQuery<TRow, TSource> Where(System.Linq.Expressions.Expression<System.Func<TSource, bool>> predicate) { }
     }
     public sealed class UnaryExpr : SourceFlow.Query.Expr, System.IEquatable<SourceFlow.Query.UnaryExpr>
     {
@@ -1661,6 +1764,7 @@ namespace SourceFlow.Runtime
         public System.Collections.Frozen.FrozenDictionary<System.Type, SourceFlow.Runtime.AggregateDescriptor> Aggregates { get; }
         public System.Collections.Frozen.FrozenDictionary<System.Type, SourceFlow.Runtime.CommandHandlerDescriptor> CommandHandlers { get; }
         public System.Collections.Frozen.FrozenDictionary<System.Type, SourceFlow.Runtime.AggregateDescriptor> CommandOwners { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.DomainQueryDescriptor> DomainQueries { get; }
         public System.Collections.Generic.IReadOnlyList<SourceFlow.Runtime.EventHandlerDescriptor> EventHandlers { get; }
         public System.Collections.Generic.IReadOnlyList<string> Modules { get; }
         public System.Collections.Generic.IReadOnlyList<SourceFlow.Runtime.ProcessManagerDescriptor> ProcessManagers { get; }
@@ -1685,6 +1789,9 @@ namespace SourceFlow.Runtime
             where THandler :  class, SourceFlow.ICommandHandler<TCommand, TAggregate>
             where TCommand :  class, SourceFlow.ICommand<TAggregate>
             where TAggregate :  class { }
+        public void AddDomainQuery<TQuery, TResult>()
+            where TQuery :  class, SourceFlow.IDomainQueryRuntime<TQuery, TResult>
+            where TResult :  class { }
         public void AddEventHandler<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors)]  THandler, TEvent>()
             where THandler :  class, SourceFlow.IEventHandler<TEvent>
             where TEvent :  class, SourceFlow.IMessage { }

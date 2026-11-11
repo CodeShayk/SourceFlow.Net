@@ -280,6 +280,98 @@ public sealed class AnalyzerTests
     }
 
     [Fact]
+    [Trait("Id", "GEN-47")]
+    [Trait("Covers", "Q-R1")]
+    public void SF0015_QueryServiceInAnAggregate_IsAnError()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + Aggregate + """
+            [Aggregate("agg")] public sealed partial record Agg : IAggregate<Agg, Aid>
+            {
+                public static Agg Initial { get; } = new();
+                public static SourceFlow.Query.IQueryService? Queries { get; set; }
+                public Decision Decide(Open c, DecisionContext ctx)
+                {
+                    _ = Queries!.ValidateAsync("from readmodel \"x\"");
+                    return Decision.Accept(new Opened(c.A));
+                }
+
+                private Agg When(Opened e) => this;
+            }
+            """);
+
+        Diagnostic error = diagnostics.Where(d => d.Id == "SF0015").ShouldHaveSingleItem();
+        error.Severity.ShouldBe(DiagnosticSeverity.Error);
+        error.GetMessage().ShouldContain("IQueryService");
+    }
+
+    [Fact]
+    [Trait("Id", "GEN-48")]
+    [Trait("Covers", "Q-R1")]
+    public void SF0016_QueryServiceInACommandHandler_IsAWarning()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + Aggregate + """
+            [Aggregate("agg")] public sealed partial record Agg : IAggregate<Agg, Aid>
+            {
+                public static Agg Initial { get; } = new();
+                private Agg When(Opened e) => this;
+            }
+
+            public sealed class OpenHandler(SourceFlow.Query.IQueryService queries) : ICommandHandler<Open, Agg>
+            {
+                public async System.Threading.Tasks.ValueTask<Decision> HandleAsync(Open c, Agg state, DecisionContext ctx, System.Threading.CancellationToken ct)
+                {
+                    await queries.ValidateAsync("from readmodel \"x\"", cancellationToken: ct);
+                    return Decision.Accept(new Opened(c.A));
+                }
+            }
+            """);
+
+        Diagnostic warning = diagnostics.Where(d => d.Id == "SF0016").ShouldHaveSingleItem();
+        warning.Severity.ShouldBe(DiagnosticSeverity.Warning);
+        diagnostics.ShouldNotContain(d => d.Id == "SF0015");
+    }
+
+    private const string DomainQueryResult = """
+        public sealed record Row(string Id, decimal Balance);
+        """;
+
+    [Fact]
+    [Trait("Id", "GEN-49")]
+    [Trait("Covers", "Q-B4")]
+    public void SF0018_AParameterWithoutAMember_IsAnError()
+    {
+        ImmutableArray<Diagnostic> bad = Analyze(DomainQueryResult + """
+            [DomainQuery("t.low", 1)]
+            public sealed partial record Low(decimal Below) : IDomainQuery<Row>
+            {
+                public const string Sfql = "from readmodel \"r\" | where balance < @below and holder <> @holder and note <> '@literal'";
+            }
+            """);
+        ImmutableArray<Diagnostic> good = Analyze(DomainQueryResult + """
+            [DomainQuery("t.low", 1)]
+            public sealed partial record Low(decimal Below) : IDomainQuery<Row>
+            {
+                public const string Sfql = "from readmodel \"r\" | where balance < @below";
+            }
+            """);
+
+        Diagnostic error = bad.Where(d => d.Id == "SF0018").ShouldHaveSingleItem();
+        error.GetMessage().ShouldContain("@holder");
+        good.ShouldNotContain(d => d.Id == "SF0018");
+    }
+
+    [Theory]
+    [Trait("Id", "GEN-50")]
+    [Trait("Covers", "Q-B4")]
+    [InlineData("""[DomainQuery("t.q", 1)] public sealed partial record Q(int A) : IDomainQuery<Row>;""", "const string Sfql")]
+    [InlineData("""[DomainQuery("t.q", 1)] public sealed record Q(int A) : IDomainQuery<Row> { public const string Sfql = "from readmodel \"r\""; }""", "partial")]
+    [InlineData("""[DomainQuery("t.q", 1)] public sealed partial record Q(int A) { public const string Sfql = "from readmodel \"r\""; }""", "IDomainQuery")]
+    public void SF0018_TheShapeOfADomainQuery(string source, string problem)
+    {
+        Analyze(DomainQueryResult + source).Where(d => d.Id == "SF0018").ShouldHaveSingleItem().GetMessage().ShouldContain(problem);
+    }
+
+    [Fact]
     public void BankSample_HasNoDiagnostics()
     {
         Analyze(Id).ShouldBeEmpty();

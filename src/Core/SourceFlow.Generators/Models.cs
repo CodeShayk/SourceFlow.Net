@@ -99,5 +99,23 @@ namespace SourceFlow.Generators
 
     internal sealed record HandlerModel(HandlerKind Kind, string FullName, string First, string? Second);
 
+    /// <summary>A <c>[DomainQuery]</c>: contract, parameters and how its result is built (doc 14 Q-B4).</summary>
+    internal sealed record DomainQueryModel(
+        string Namespace,
+        string Name,
+        string FullName,
+        string Keyword,
+        string QueryName,
+        int Version,
+        string ResultType,
+        string TextMember,
+        bool IsSql,
+        EquatableArray<QueryParameterModel> Parameters,
+        EquatableArray<QueryResultModel> Results);
+
+    internal sealed record QueryParameterModel(string Member, string Name, string Type);
+
+    internal sealed record QueryResultModel(string Name, string Converter);
+
     internal sealed record ModuleModel(string Namespace, string Name, string FullName, string? JsonContext);
 }

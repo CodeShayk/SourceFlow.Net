@@ -26,8 +26,11 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
     private IDisposable? _notifications;
     private volatile bool _ready;
 
-    internal SourceFlowHost(SourceFlowRuntime runtime, OutboxRelay relay, ReceiveEndpoint receiver, SubscriptionEngine subscriptions, HostSettings settings)
+    private readonly Query.QueryService? _queries;
+
+    internal SourceFlowHost(SourceFlowRuntime runtime, OutboxRelay relay, ReceiveEndpoint receiver, SubscriptionEngine subscriptions, HostSettings settings, Query.QueryService? queries = null)
     {
+        _queries = queries;
         _runtime = runtime;
         _relay = relay;
         _receiver = receiver;
@@ -62,6 +65,7 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
         await _runtime.Transport.ProvisionAsync(topology, _settings.Provisioning, cancellationToken).ConfigureAwait(false);
 
         await RegisterSchemasAsync(cancellationToken).ConfigureAwait(false);
+        CheckDomainQueries();
         _stopping = new CancellationTokenSource();
         CancellationToken stopping = _stopping.Token;
         _runtime.Snapshots.Start();
@@ -158,6 +162,26 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
     }
 
     // Batched retention cleanup (doc 05 §9): cutoffs on the business clock, the interval on the system clock.
+    // doc 14 Q-B4 / SF0018: every domain query binds against this service's catalog, or startup fails.
+    private void CheckDomainQueries()
+    {
+        if (_runtime.Model.DomainQueries.Count == 0 || _queries is not { } service)
+        {
+            return;
+        }
+
+        var problems = new List<string>();
+        foreach (Query.DomainQueryDescriptor query in _runtime.Model.DomainQueries)
+        {
+            problems.AddRange(service.CheckDomainQuery(query).Select(p => $"{query.Name} v{query.Version}: {p}"));
+        }
+
+        if (problems.Count > 0)
+        {
+            throw new Query.DomainQueryException("SF0018: domain queries don't match this service's catalog: " + string.Join(" ", problems));
+        }
+    }
+
     // doc 14 §2.2: register this service's schemas; a changed published (type, version) fails startup.
     private async Task RegisterSchemasAsync(CancellationToken cancellationToken)
     {

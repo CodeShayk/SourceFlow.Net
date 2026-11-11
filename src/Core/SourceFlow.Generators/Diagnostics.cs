@@ -37,6 +37,21 @@ namespace SourceFlow.Generators
             "Command '{0}' is handled in this service by '{1}' and also routed to an endpoint; a command is owned or routed, never both (ADR-007)",
             "SourceFlow.Commands", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpBase);
 
+        public static readonly DiagnosticDescriptor QueryInWriteModel = new(
+            "SF0015", "The query side is used in write-model code",
+            "'{0}' uses {1}; Decide, When, React and projections get state only from their own stream (Q-R1)",
+            "SourceFlow.Query", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpBase);
+
+        public static readonly DiagnosticDescriptor QueryInCommandHandler = new(
+            "SF0016", "A command handler reads through the query side",
+            "'{0}' uses {1}: decisions based on eventually consistent reads (Q-R1)",
+            "SourceFlow.Query", DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpBase);
+
+        public static readonly DiagnosticDescriptor DomainQueryShape = new(
+            "SF0018", "Domain query is not valid",
+            "Domain query '{0}': {1}",
+            "SourceFlow.Query", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpBase);
+
         public static readonly DiagnosticDescriptor NoOwner = new(
             "SF0006", "Command has no Decide or handler",
             "Command '{0}' targets '{1}' but has no Decide method and no ICommandHandler in this compilation; add one or route it (startup fails otherwise)",

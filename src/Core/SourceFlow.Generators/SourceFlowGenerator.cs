@@ -46,6 +46,14 @@ namespace SourceFlow.Generators
                 .Where(static m => m is not null)!
                 .WithTrackingName("SessionProjections")!;
 
+            IncrementalValuesProvider<DomainQueryModel> domainQueries = context.SyntaxProvider
+                .ForAttributeWithMetadataName(KnownNames.DomainQueryAttribute, static (node, _) => node is TypeDeclarationSyntax, ModelBuilder.DomainQuery)
+                .Where(static m => m is not null)!
+                .WithTrackingName("DomainQueries")!;
+
+            context.RegisterSourceOutput(domainQueries, static (spc, model) =>
+                spc.AddSource(Literal.HintName(model.FullName, "DomainQuery"), Emitters.DomainQuery(model)));
+
             IncrementalValuesProvider<ModuleModel> modules = context.SyntaxProvider
                 .ForAttributeWithMetadataName(KnownNames.ModuleAttribute, static (node, _) => node is ClassDeclarationSyntax, ModelBuilder.Module)
                 .Where(static m => m is not null)!
@@ -85,10 +93,13 @@ namespace SourceFlow.Generators
                 .Combine(aggregates.Collect())
                 .Combine(processes.Collect())
                 .Combine(projections.Collect().Combine(sessionProjections.Collect()))
-                .Combine(handlers.Collect());
+                .Combine(handlers.Collect())
+                .Combine(domainQueries.Collect());
 
-            context.RegisterSourceOutput(everything, static (spc, data) =>
+            context.RegisterSourceOutput(everything, static (spc, all) =>
             {
+                ImmutableArray<DomainQueryModel> queryModels = all.Right;
+                var data = all.Left;
                 ImmutableArray<HandlerModel> handlerModels = data.Right;
                 ImmutableArray<ProjectionModel> projectionModels = data.Left.Right.Left;
                 ImmutableArray<SessionProjectionModel> sessionProjectionModels = data.Left.Right.Right;
@@ -102,7 +113,7 @@ namespace SourceFlow.Generators
                 {
                     spc.AddSource(
                         Literal.HintName(module.FullName, "Module"),
-                        Emitters.Module(module, idModels, messageModels, aggregateModels, processModels, projectionModels, sessionProjectionModels, handlerModels.Distinct().ToImmutableArray()));
+                        Emitters.Module(module, idModels, messageModels, aggregateModels, processModels, projectionModels, sessionProjectionModels, handlerModels.Distinct().ToImmutableArray(), queryModels));
                 }
             });
         }

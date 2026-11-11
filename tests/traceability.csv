@@ -55,3 +55,5 @@ doc 14 9.5,doc 14,In-process IQueryService
 doc 14 12,doc 14,Cross-provider query equivalence and injection corpus
 doc 14 2.1,doc 14,Schema catalog generation
 doc 14 2.2,doc 14,Schema registration, compatibility and export
+Q-R1,doc 14,Writes never read through the query side (SF0015/SF0016)
+Q-B4,doc 14,Named domain queries

@@ -24,6 +24,7 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
     private readonly Dictionary<Type, ProjectionDescriptor> _projections = [];
     private readonly Dictionary<(Type, Type), EventHandlerDescriptor> _eventHandlers = [];
     private readonly List<string> _modules = [];
+    private readonly Dictionary<Type, Query.DomainQueryDescriptor> _domainQueries = [];
 
     /// <summary>The names of the registered modules.</summary>
     public IReadOnlyList<string> Modules => _modules;
@@ -98,6 +99,14 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
         }
 
         _commandHandlers[typeof(TCommand)] = new CommandHandlerDescriptor<THandler, TCommand, TAggregate>();
+    }
+
+    /// <inheritdoc />
+    public void AddDomainQuery<TQuery, TResult>()
+        where TQuery : class, IDomainQueryRuntime<TQuery, TResult>
+        where TResult : class
+    {
+        _domainQueries.TryAdd(typeof(TQuery), new Query.DomainQueryDescriptor<TQuery, TResult>());
     }
 
     /// <inheritdoc />
@@ -204,6 +213,12 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
             throw new InvalidOperationException($"Two projections share the name and version '{duplicate}'.");
         }
 
+        string? duplicateQuery = _domainQueries.Values.GroupBy(q => (q.Name, q.Version)).FirstOrDefault(g => g.Count() > 1)?.Key.Name;
+        if (duplicateQuery is not null)
+        {
+            throw new InvalidOperationException($"Two domain queries share the name and version of '{duplicateQuery}'.");
+        }
+
         return new RuntimeModel(
             registry,
             [.. _modules],
@@ -212,7 +227,10 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
             _commandHandlers.ToFrozenDictionary(),
             [.. _processManagers.Values],
             [.. _projections.Values],
-            [.. _eventHandlers.Values]);
+            [.. _eventHandlers.Values])
+        {
+            DomainQueries = [.. _domainQueries.Values.OrderBy(q => q.Name, StringComparer.Ordinal).ThenBy(q => q.Version)],
+        };
     }
 
     private static void ResolveDocument(JsonSerializerOptions options, Type type, bool required)
@@ -257,6 +275,9 @@ public sealed class RuntimeModel
         Projections = projections;
         EventHandlers = eventHandlers;
     }
+
+    /// <summary>The named domain queries (doc 14 Q-B4).</summary>
+    public IReadOnlyList<Query.DomainQueryDescriptor> DomainQueries { get; internal init; } = [];
 
     /// <summary>The message type allow-list.</summary>
     public MessageTypeRegistry Registry { get; }

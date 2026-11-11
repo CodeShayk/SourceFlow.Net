@@ -98,7 +98,8 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<OutboxRelay>(),
             sp.GetRequiredService<ReceiveEndpoint>(),
             sp.GetRequiredService<SubscriptionEngine>(),
-            sp.GetRequiredService<HostSettings>()));
+            sp.GetRequiredService<HostSettings>(),
+            sp.GetService<Query.IQueryService>() as Query.QueryService));
         services.AddHostedService(sp => sp.GetRequiredService<SourceFlowHost>());
         return services;
     }

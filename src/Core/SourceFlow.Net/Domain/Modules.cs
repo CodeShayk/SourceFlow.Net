@@ -67,4 +67,9 @@ public interface ISourceFlowModuleBuilder
     void AddEventHandler<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THandler, TEvent>()
         where THandler : class, IEventHandler<TEvent>
         where TEvent : class, IMessage;
+
+    /// <summary>Registers a named domain query (doc 14 Q-B4).</summary>
+    void AddDomainQuery<TQuery, TResult>()
+        where TQuery : class, IDomainQueryRuntime<TQuery, TResult>
+        where TResult : class;
 }

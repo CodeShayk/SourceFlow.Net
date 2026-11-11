@@ -218,6 +218,100 @@ namespace SourceFlow.Generators
                 rejections.Distinct().OrderBy(x => x.LogicalName, System.StringComparer.Ordinal).ToEquatableArray());
         }
 
+        public static DomainQueryModel? DomainQuery(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
+        {
+            if (context.TargetSymbol is not INamedTypeSymbol type || type.IsNested() || type.IsValueType || type.IsAbstract || !type.IsPartial()
+                || type.FindInterface(KnownNames.DomainQuery) is not { } contract
+                || contract.TypeArguments[0] is not INamedTypeSymbol result)
+            {
+                return null;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            AttributeData attribute = context.Attributes[0];
+            if (attribute.ConstructorArguments.Length == 0 || attribute.ConstructorArguments[0].Value is not string queryName)
+            {
+                return null;
+            }
+
+            int version = attribute.ConstructorArguments.Length > 1 && attribute.ConstructorArguments[1].Value is int v ? v : 1;
+            IFieldSymbol? text = type.GetMembers().OfType<IFieldSymbol>()
+                .FirstOrDefault(f => f.IsConst && f.Type.SpecialType == SpecialType.System_String && (f.Name == "Sfql" || f.Name == "Sql"));
+            if (text is null)
+            {
+                return null;
+            }
+
+            var parameters = new List<QueryParameterModel>();
+            foreach (IPropertySymbol property in type.GetMembers().OfType<IPropertySymbol>())
+            {
+                if (property.IsStatic || property.DeclaredAccessibility != Accessibility.Public || property.Name == "EqualityContract" || property.IsIndexer)
+                {
+                    continue;
+                }
+
+                parameters.Add(new QueryParameterModel(property.Name, Camel(property.Name), property.Type.FullName()));
+            }
+
+            IMethodSymbol? constructor = result.InstanceConstructors
+                .Where(c => c.DeclaredAccessibility == Accessibility.Public)
+                .OrderByDescending(c => c.Parameters.Length)
+                .FirstOrDefault();
+            if (constructor is null)
+            {
+                return null;
+            }
+
+            var results = new List<QueryResultModel>();
+            foreach (IParameterSymbol parameter in constructor.Parameters)
+            {
+                results.Add(new QueryResultModel(parameter.Name, Converter(parameter.Type)));
+            }
+
+            return new DomainQueryModel(
+                type.Namespace(), type.Name, type.FullName(), type.Keyword(), queryName, version, result.FullName(), text.Name, text.Name == "Sql",
+                parameters.ToEquatableArray(), results.ToEquatableArray());
+        }
+
+        // The DomainQueryValues call that converts a column value to a result member's type; {0} is the value expression.
+        private static string Converter(ITypeSymbol type)
+        {
+            const string Values = "global::SourceFlow.DomainQueryValues";
+            if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
+            {
+                ITypeSymbol inner = nullable.TypeArguments[0];
+                if (IsStronglyTypedId(inner))
+                {
+                    return $"{Values}.NullableId<{inner.FullName()}>({{0}})";
+                }
+
+                if (inner.TypeKind == TypeKind.Enum)
+                {
+                    return $"{Values}.NullableEnum<{inner.FullName()}>({{0}})";
+                }
+
+                return $"{Values}.Get<{type.FullName()}>({{0}})";
+            }
+
+            if (IsStronglyTypedId(type))
+            {
+                return $"{Values}.Id<{type.FullName()}>({{0}})";
+            }
+
+            if (type.TypeKind == TypeKind.Enum)
+            {
+                return $"{Values}.Enum<{type.FullName()}>({{0}})";
+            }
+
+            bool reference = !type.IsValueType && type.NullableAnnotation != NullableAnnotation.Annotated;
+            return $"{Values}.Get<{type.FullName()}>({{0}})" + (reference ? "!" : string.Empty);
+        }
+
+        private static string Camel(string name)
+        {
+            return name.Length == 0 ? name : char.ToLowerInvariant(name[0]) + name.Substring(1);
+        }
+
         public static SessionProjectionModel? SessionProjection(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
         {
             if (context.TargetSymbol is not INamedTypeSymbol type || type.IsNested() || type.IsValueType || type.IsAbstract || !type.IsPartial())

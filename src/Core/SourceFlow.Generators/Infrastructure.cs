@@ -122,6 +122,10 @@ namespace SourceFlow.Generators
         public const string ReactionContext = "SourceFlow.ReactionContext`1";
         public const string EventContext = "SourceFlow.EventContext";
         public const string CommandRejected = "SourceFlow.CommandRejected`1";
+        public const string DomainQueryAttribute = "SourceFlow.DomainQueryAttribute";
+        public const string DomainQuery = "SourceFlow.IDomainQuery`1";
+        public const string QueryService = "SourceFlow.Query.IQueryService";
+        public const string AggregateReader = "SourceFlow.Query.IAggregateReader";
     }
 
     internal static class SymbolExtensions

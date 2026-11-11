@@ -85,7 +85,7 @@ namespace SourceFlow.Generators
             {
                 IdBackingKind.Int64 => "new(reader.GetInt64())",
                 IdBackingKind.String => $"Parse(reader.GetString() ?? throw new global::System.Text.Json.JsonException(\"{self} cannot be null.\"))",
-                _ => "new(reader.GetGuid())",
+                _ => "reader.TryGetGuid(out global::System.Guid guid) ? new(guid) : Parse(reader.GetString() ?? throw new global::System.Text.Json.JsonException(\"" + self + " cannot be null.\"))",
             };
             string write = model.Backing == IdBackingKind.Int64 ? "writer.WriteNumberValue(value.Value);" : "writer.WriteStringValue(value.ToString());";
             w.Line($"public override {self} Read(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options) => {read};");
@@ -292,6 +292,43 @@ namespace SourceFlow.Generators
             return w.ToString();
         }
 
+        public static string DomainQuery(DomainQueryModel model)
+        {
+            var w = new SourceWriter();
+            w.OpenNamespace(model.Namespace);
+            string self = model.Name;
+            string contract = $"{Sf}IDomainQueryRuntime<{self}, {model.ResultType}>";
+            w.Open($"partial {model.Keyword} {self} : {contract}");
+            w.Line($"private static readonly {Sf}DomainQueryParameter[] __sourceFlowParameters = [{string.Join(", ", model.Parameters.Select(p => $"new({Literal.Of(p.Name)}, typeof({p.Type}))"))}];");
+            w.Line($"private static readonly string[] __sourceFlowResultColumns = [{string.Join(", ", model.Results.Select(r => Literal.Of(r.Name)))}];");
+            w.Line($"static string {contract}.QueryName => {Literal.Of(model.QueryName)};");
+            w.Line($"static int {contract}.QueryVersion => {model.Version.ToString(CultureInfo.InvariantCulture)};");
+            w.Line($"static string {contract}.QueryText => {model.TextMember};");
+            w.Line($"static bool {contract}.IsSql => {(model.IsSql ? "true" : "false")};");
+            w.Line($"static global::System.Collections.Generic.IReadOnlyList<{Sf}DomainQueryParameter> {contract}.QueryParameters => __sourceFlowParameters;");
+            w.Line($"static global::System.Collections.Generic.IReadOnlyList<string> {contract}.ResultColumns => __sourceFlowResultColumns;");
+            w.Line();
+            w.Open($"global::System.Collections.Generic.IReadOnlyDictionary<string, object?> {contract}.ToParameters()");
+            w.Line("return new global::System.Collections.Generic.Dictionary<string, object?>(global::System.StringComparer.Ordinal)");
+            w.Line("{");
+            foreach (QueryParameterModel p in model.Parameters)
+            {
+                w.Line($"    [{Literal.Of(p.Name)}] = {p.Member},");
+            }
+
+            w.Line("};");
+            w.Close();
+            w.Line();
+            w.Open($"static {model.ResultType} {contract}.Materialize({Sf}IQueryRow row)");
+            string args = string.Join(", ", model.Results.Select(r =>
+                string.Format(CultureInfo.InvariantCulture, r.Converter, $"{Sf}DomainQueryValues.Column(row, {Literal.Of(r.Name)})")));
+            w.Line($"return new {model.ResultType}({args});");
+            w.Close();
+            w.Close();
+            w.CloseNamespace(model.Namespace);
+            return w.ToString();
+        }
+
         public static string Module(
             ModuleModel module,
             ImmutableArray<IdModel> ids,
@@ -300,7 +337,8 @@ namespace SourceFlow.Generators
             ImmutableArray<ProcessManagerModel> processes,
             ImmutableArray<ProjectionModel> projections,
             ImmutableArray<SessionProjectionModel> sessionProjections,
-            ImmutableArray<HandlerModel> handlers)
+            ImmutableArray<HandlerModel> handlers,
+            ImmutableArray<DomainQueryModel> domainQueries)
         {
             var w = new SourceWriter();
             w.OpenNamespace(module.Namespace);
@@ -344,6 +382,11 @@ namespace SourceFlow.Generators
             foreach (HandlerModel h in handlers.Where(h => h.Kind == HandlerKind.Command).OrderBy(h => h.FullName, System.StringComparer.Ordinal))
             {
                 w.Line($"builder.AddCommandHandler<{h.FullName}, {h.First}, {h.Second}>();");
+            }
+
+            foreach (DomainQueryModel q in domainQueries.OrderBy(q => q.FullName, System.StringComparer.Ordinal))
+            {
+                w.Line($"builder.AddDomainQuery<{q.FullName}, {q.ResultType}>();");
             }
 
             foreach (ProcessManagerModel p in processes.OrderBy(p => p.FullName, System.StringComparer.Ordinal))

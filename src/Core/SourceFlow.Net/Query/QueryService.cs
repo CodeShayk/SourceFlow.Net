@@ -36,7 +36,7 @@ public sealed record QueryColumn(string Name, QueryType Type);
 /// <see cref="DateTimeOffset"/> (UTC), <see cref="TimeSpan"/>, <see cref="GlobalPosition"/>, a <see cref="string"/>
 /// array (tags), a <see cref="JsonElement"/> (objects and arrays) or null.
 /// </summary>
-public sealed class QueryRow
+public sealed class QueryRow : IQueryRow
 {
     private readonly object?[] _values;
 
@@ -70,6 +70,22 @@ public sealed class QueryRow
 
             throw new KeyNotFoundException($"The result has no column '{name}'.");
         }
+    }
+
+    /// <inheritdoc />
+    public bool TryGetColumn(string name, out object? value)
+    {
+        for (int i = 0; i < Columns.Count; i++)
+        {
+            if (string.Equals(Columns[i].Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                value = _values[i];
+                return true;
+            }
+        }
+
+        value = null;
+        return false;
     }
 }
 
@@ -143,6 +159,18 @@ public interface IQueryService
 
     /// <summary>Parses, binds and checks a query without running it.</summary>
     ValueTask<QueryValidation> ValidateAsync(string query, IReadOnlyDictionary<string, object?>? parameters = null, QueryOptions? options = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Runs a named domain query (doc 14 Q-B4) and returns its typed rows (every page).</summary>
+    ValueTask<IReadOnlyList<TResult>> ExecuteAsync<TResult>(IDomainQuery<TResult> query, QueryOptions? options = null, CancellationToken cancellationToken = default)
+        where TResult : class;
+
+    /// <summary>Starts a typed query over an event type's payloads (doc 14 §9.5).</summary>
+    EventQuery<TEvent> Events<TEvent>()
+        where TEvent : class, IEvent;
+
+    /// <summary>Starts a typed query over the read model whose document is <typeparamref name="TDocument"/>.</summary>
+    ReadModelQuery<TDocument> ReadModel<TDocument>()
+        where TDocument : class;
 }
 
 /// <summary>What a query engine runs: a bound, policy-checked query with converted parameters.</summary>
@@ -304,6 +332,54 @@ internal sealed class QueryService : IQueryService
             continuation = page.Continuation;
         }
         while (continuation is not null);
+    }
+
+    public async ValueTask<IReadOnlyList<TResult>> ExecuteAsync<TResult>(IDomainQuery<TResult> query, QueryOptions? options = null, CancellationToken cancellationToken = default)
+        where TResult : class
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        DomainQueryDescriptor descriptor = _runtime.Model.DomainQueries.FirstOrDefault(q => q.QueryType == query.GetType())
+            ?? throw new DomainQueryException($"'{query.GetType().Name}' is not a registered domain query; add [DomainQuery] and include its module.");
+        return (IReadOnlyList<TResult>)await descriptor.ExecuteAsync(this, query, options, cancellationToken).ConfigureAwait(false);
+    }
+
+    public EventQuery<TEvent> Events<TEvent>()
+        where TEvent : class, IEvent
+    {
+        return new EventQuery<TEvent>(this, _runtime.Model.Registry.Get(typeof(TEvent)));
+    }
+
+    public ReadModelQuery<TDocument> ReadModel<TDocument>()
+        where TDocument : class
+    {
+        DocumentProjectionDescriptor projection = _runtime.Model.Projections.OfType<DocumentProjectionDescriptor>().FirstOrDefault(p => p.DocumentType == typeof(TDocument))
+            ?? throw new InvalidOperationException($"No document projection maintains '{typeof(TDocument).Name}'.");
+        return new ReadModelQuery<TDocument>(this, projection.Name, _runtime.Model.JsonTypeInfoFor(typeof(TDocument)));
+    }
+
+    /// <summary>
+    /// Binds a domain query against this service's catalog and checks its contract (SF0018 at startup): the text binds,
+    /// every parameter is a member, and every result column is an output.
+    /// </summary>
+    internal IReadOnlyList<string> CheckDomainQuery(DomainQueryDescriptor descriptor)
+    {
+        var problems = new List<string>();
+        Plan plan;
+        try
+        {
+            plan = PlanFor(descriptor.Text, descriptor.Language);
+        }
+        catch (QueryException e)
+        {
+            problems.AddRange(e.Diagnostics.Select(d => $"{d.Code} at {d.Line}:{d.Column}: {d.Message}"));
+            return problems;
+        }
+
+        var members = new HashSet<string>(descriptor.Parameters.Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
+        problems.AddRange(plan.Query.Parameters.Keys.Where(p => !members.Contains(p)).Select(p => $"@{p} is not a member of {descriptor.QueryType.Name}."));
+        var outputs = new HashSet<string>(plan.Columns.Select(c => c.Name), StringComparer.OrdinalIgnoreCase);
+        problems.AddRange(descriptor.ResultColumns.Where(c => !outputs.Contains(c)).Select(c => $"The result member '{c}' of {descriptor.ResultType.Name} is not an output column."));
+        return problems;
     }
 
     public ValueTask<QueryValidation> ValidateAsync(string query, IReadOnlyDictionary<string, object?>? parameters = null, QueryOptions? options = null, CancellationToken cancellationToken = default)

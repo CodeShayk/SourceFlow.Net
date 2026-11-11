@@ -13,3 +13,6 @@ SF0008 | SourceFlow.Shape | Error | Aggregate or process manager shape
 SF0009 | SourceFlow.Purity | Warning | Non-deterministic API in a pure method
 SF0010 | SourceFlow.Serialization | Error | Type missing from the module's JSON context
 SF0014 | SourceFlow.Commands | Error | Command is both owned and routed
+SF0015 | SourceFlow.Query | Error | The query side is used in write-model code
+SF0016 | SourceFlow.Query | Warning | A command handler reads through the query side
+SF0018 | SourceFlow.Query | Error | Domain query is not valid
