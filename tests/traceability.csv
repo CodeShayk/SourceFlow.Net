@@ -23,3 +23,8 @@ GAP-09,product 06,Idempotency key scoping
 GAP-10,product 06,Unknown types are never deserialized
 GAP-16,product 06,No assembly scanning
 NFR-PERF-07,product 05,Size limits before the outbox insert
+ADR-008,ADRs,Optimistic concurrency
+ADR-010,ADRs,Commit-ordered global position
+ES-R1,doc 05 5.3,Stream write first
+ES-R2,doc 05 3.1,One stream per session
+GAP-15,product 06,Not-found semantics

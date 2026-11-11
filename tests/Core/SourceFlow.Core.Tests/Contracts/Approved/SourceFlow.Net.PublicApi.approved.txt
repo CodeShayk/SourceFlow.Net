@@ -666,3 +666,336 @@ namespace SourceFlow.Runtime
         public void RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services) { }
     }
 }
+namespace SourceFlow.Storage
+{
+    public readonly struct BucketRange : System.IEquatable<SourceFlow.Storage.BucketRange>
+    {
+        public BucketRange(int Low, int High) { }
+        public int High { get; init; }
+        public int Low { get; init; }
+        public static SourceFlow.Storage.BucketRange All { get; }
+        public bool Contains(int bucket) { }
+    }
+    public static class Buckets
+    {
+        public const int Count = 1024;
+        public static int Of(string tenantId, SourceFlow.StreamId stream) { }
+        public static SourceFlow.Storage.BucketRange Range(int partition, int partitions) { }
+    }
+    public readonly struct CommitResult : System.IEquatable<SourceFlow.Storage.CommitResult>
+    {
+        public CommitResult(SourceFlow.StreamVersion? StreamVersion, SourceFlow.GlobalPosition? LastPosition) { }
+        public SourceFlow.GlobalPosition? LastPosition { get; init; }
+        public SourceFlow.StreamVersion? StreamVersion { get; init; }
+    }
+    public sealed class ConcurrencyException : System.Exception
+    {
+        public ConcurrencyException(string message) { }
+        public ConcurrencyException(SourceFlow.StreamId stream, SourceFlow.ExpectedVersion expected, SourceFlow.StreamVersion actual) { }
+        public SourceFlow.StreamVersion Actual { get; }
+        public SourceFlow.ExpectedVersion Expected { get; }
+        public SourceFlow.StreamId Stream { get; }
+    }
+    public sealed class DeadLetter : System.IEquatable<SourceFlow.Storage.DeadLetter>
+    {
+        public DeadLetter() { }
+        public int Attempts { get; init; }
+        public required string Consumer { get; init; }
+        public required SourceFlow.Messaging.MessageEnvelope Envelope { get; init; }
+        public string? ErrorDetail { get; init; }
+        public string? ErrorMessage { get; init; }
+        public string? ErrorType { get; init; }
+        public System.DateTimeOffset FirstFailedAt { get; init; }
+        public required System.Guid Id { get; init; }
+        public System.DateTimeOffset ParkedAt { get; init; }
+        public required string Reason { get; init; }
+        public required string Source { get; init; }
+        public SourceFlow.Storage.DeadLetterStatus Status { get; init; }
+        public System.DateTimeOffset? StatusChangedAt { get; init; }
+        public string? StatusNote { get; init; }
+    }
+    public sealed class DeadLetterQuery : System.IEquatable<SourceFlow.Storage.DeadLetterQuery>
+    {
+        public DeadLetterQuery(string? Consumer = null, string? Reason = null, SourceFlow.Storage.DeadLetterStatus? Status = 0, int Limit = 100) { }
+        public string? Consumer { get; init; }
+        public int Limit { get; init; }
+        public string? Reason { get; init; }
+        public SourceFlow.Storage.DeadLetterStatus? Status { get; init; }
+    }
+    public enum DeadLetterStatus
+    {
+        Parked = 0,
+        Replayed = 1,
+        Discarded = 2,
+    }
+    public sealed class DuplicateMessageException : System.Exception
+    {
+        public DuplicateMessageException(string consumer, SourceFlow.MessageId messageId) { }
+        public string Consumer { get; }
+        public SourceFlow.MessageId MessageId { get; }
+    }
+    public sealed class EventMetadata : System.IEquatable<SourceFlow.Storage.EventMetadata>
+    {
+        public EventMetadata() { }
+        public string? Actor { get; init; }
+        public SourceFlow.MessageId? CausationId { get; init; }
+        public SourceFlow.CorrelationId CorrelationId { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, string> Headers { get; init; }
+        public string Source { get; init; }
+        public string? TraceParent { get; init; }
+        public string? TraceState { get; init; }
+        public bool Equals(SourceFlow.Storage.EventMetadata? other) { }
+        public override int GetHashCode() { }
+    }
+    public sealed class EventToAppend : System.IEquatable<SourceFlow.Storage.EventToAppend>
+    {
+        public EventToAppend(SourceFlow.MessageId EventId, string Type, int TypeVersion, System.ReadOnlyMemory<byte> Data, SourceFlow.Storage.EventMetadata Metadata, System.DateTimeOffset CreatedAt, System.Collections.Generic.IReadOnlyList<string> Tags) { }
+        public System.DateTimeOffset CreatedAt { get; init; }
+        public System.ReadOnlyMemory<byte> Data { get; init; }
+        public SourceFlow.MessageId EventId { get; init; }
+        public SourceFlow.Storage.EventMetadata Metadata { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Tags { get; init; }
+        public string Type { get; init; }
+        public int TypeVersion { get; init; }
+    }
+    public interface ICheckpointStore
+    {
+        System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetAsync(string subscription, int partition, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface IDeadLetterStore
+    {
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.DeadLetter?> GetAsync(System.Guid id, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask ParkAsync(SourceFlow.Storage.DeadLetter deadLetter, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.DeadLetter>> QueryAsync(SourceFlow.Storage.DeadLetterQuery query, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask SetStatusAsync(System.Guid id, SourceFlow.Storage.DeadLetterStatus status, string? note, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface IDocumentReader
+    {
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.StoredDocument?> GetAsync(string tenantId, string collection, string id, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.StoredDocument>> ListAsync(string tenantId, string collection, int maxCount, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface IDocumentSession
+    {
+        void Delete(string collection, string id);
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.StoredDocument?> GetAsync(string collection, string id, System.Threading.CancellationToken cancellationToken);
+        void Upsert(string collection, string id, long version, System.ReadOnlyMemory<byte> data);
+    }
+    public interface IEventLogReader
+    {
+        System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetSafeHorizonAsync(System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.LogBatch> ReadAsync(SourceFlow.GlobalPosition after, SourceFlow.Storage.BucketRange buckets, int maxCount, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface IEventStore
+    {
+        System.Threading.Tasks.ValueTask ArchiveStreamAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask DeleteStreamAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamInfo?> GetStreamInfoAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamSlice> ReadStreamAsync(string tenantId, SourceFlow.StreamId stream, SourceFlow.StreamVersion fromInclusive, int maxCount, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface ILeaseManager
+    {
+        System.Threading.Tasks.ValueTask ReleaseAsync(SourceFlow.Storage.LeaseToken lease, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.LeaseToken?> TryAcquireAsync(string name, string owner, System.TimeSpan ttl, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface IOutboxStore
+    {
+        System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.OutboxRecord>> ClaimAsync(int partition, SourceFlow.Storage.LeaseToken lease, int maxCount, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask CompleteAsync(SourceFlow.Storage.LeaseToken lease, System.Collections.Generic.IReadOnlyList<long> sequences, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<int> CountAsync(System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask RetryAsync(SourceFlow.Storage.LeaseToken lease, long sequence, System.DateTimeOffset deliverAt, string error, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface ISnapshotStore
+    {
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.Snapshot?> GetAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask SaveAsync(string tenantId, SourceFlow.Storage.Snapshot snapshot, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface IStorageSession : System.IAsyncDisposable
+    {
+        System.Data.Common.DbConnection? Connection { get; }
+        SourceFlow.Storage.IDocumentSession Documents { get; }
+        string TenantId { get; }
+        System.Data.Common.DbTransaction? Transaction { get; }
+        void Append(SourceFlow.StreamId stream, string streamType, SourceFlow.ExpectedVersion expected, System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.EventToAppend> events);
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.CommitResult> CommitAsync(System.Threading.CancellationToken cancellationToken);
+        void EnqueueOutbox(SourceFlow.Storage.OutboxMessage message);
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.InboxEntry?> InboxSeenAsync(string consumer, SourceFlow.MessageId messageId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.ProcessState?> LoadProcessStateAsync(string processType, string processId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamSlice> ReadStreamAsync(SourceFlow.StreamId stream, SourceFlow.StreamVersion fromInclusive, int maxCount, System.Threading.CancellationToken cancellationToken);
+        void RecordInbox(string consumer, SourceFlow.MessageId messageId, SourceFlow.Storage.InboxResult result);
+        void SaveCheckpoint(string subscription, int partition, SourceFlow.GlobalPosition position, SourceFlow.Storage.LeaseToken lease);
+        void SaveProcessState(string processType, string processId, long expectedVersion, System.ReadOnlyMemory<byte> state, bool completed);
+    }
+    public interface IStorageSessionFactory
+    {
+        System.Threading.Tasks.ValueTask<SourceFlow.Storage.IStorageSession> BeginAsync(string tenantId, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface IStoreNotifications
+    {
+        System.IDisposable Subscribe(System.Action onCommit);
+    }
+    public sealed class InboxEntry : System.IEquatable<SourceFlow.Storage.InboxEntry>
+    {
+        public InboxEntry(string Consumer, SourceFlow.MessageId MessageId, System.DateTimeOffset ProcessedAt, SourceFlow.Storage.InboxResult Result) { }
+        public string Consumer { get; init; }
+        public SourceFlow.MessageId MessageId { get; init; }
+        public System.DateTimeOffset ProcessedAt { get; init; }
+        public SourceFlow.Storage.InboxResult Result { get; init; }
+    }
+    public sealed class InboxResult : System.IEquatable<SourceFlow.Storage.InboxResult>
+    {
+        public InboxResult(SourceFlow.CommandStatus Status, SourceFlow.StreamVersion Version, string? ErrorCode, SourceFlow.GlobalPosition Position = default) { }
+        public string? ErrorCode { get; init; }
+        public SourceFlow.GlobalPosition Position { get; init; }
+        public SourceFlow.CommandStatus Status { get; init; }
+        public SourceFlow.StreamVersion Version { get; init; }
+    }
+    public sealed class LeaseLostException : System.Exception
+    {
+        public LeaseLostException(string lease) { }
+        public string Lease { get; }
+    }
+    public sealed class LeaseToken : System.IEquatable<SourceFlow.Storage.LeaseToken>
+    {
+        public LeaseToken(string Name, string Owner, long Token) { }
+        public string Name { get; init; }
+        public string Owner { get; init; }
+        public long Token { get; init; }
+    }
+    public sealed class LogBatch : System.IEquatable<SourceFlow.Storage.LogBatch>
+    {
+        public LogBatch(System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.StoredEvent> Events, SourceFlow.GlobalPosition Horizon) { }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.StoredEvent> Events { get; init; }
+        public SourceFlow.GlobalPosition Horizon { get; init; }
+    }
+    public enum OutboxKind
+    {
+        Send = 1,
+        Publish = 2,
+        Scheduled = 3,
+    }
+    public sealed class OutboxMessage : System.IEquatable<SourceFlow.Storage.OutboxMessage>
+    {
+        public OutboxMessage(SourceFlow.Messaging.MessageEnvelope Envelope, string Destination, SourceFlow.Storage.OutboxKind Kind, System.DateTimeOffset DeliverAt, int Partition) { }
+        public System.DateTimeOffset DeliverAt { get; init; }
+        public string Destination { get; init; }
+        public SourceFlow.Messaging.MessageEnvelope Envelope { get; init; }
+        public SourceFlow.Storage.OutboxKind Kind { get; init; }
+        public int Partition { get; init; }
+    }
+    public static class OutboxPartitioning
+    {
+        public static int PartitionOf(string? partitionKey, int partitions) { }
+    }
+    public sealed class OutboxRecord : System.IEquatable<SourceFlow.Storage.OutboxRecord>
+    {
+        public OutboxRecord(long Sequence, SourceFlow.Storage.OutboxMessage Message, int Attempts, string? LastError, System.DateTimeOffset CreatedAt) { }
+        public int Attempts { get; init; }
+        public System.DateTimeOffset CreatedAt { get; init; }
+        public string? LastError { get; init; }
+        public SourceFlow.Storage.OutboxMessage Message { get; init; }
+        public long Sequence { get; init; }
+    }
+    public sealed class ProcessState : System.IEquatable<SourceFlow.Storage.ProcessState>
+    {
+        public ProcessState(string ProcessType, string ProcessId, long Version, System.ReadOnlyMemory<byte> State, bool Completed, System.DateTimeOffset UpdatedAt) { }
+        public bool Completed { get; init; }
+        public string ProcessId { get; init; }
+        public string ProcessType { get; init; }
+        public System.ReadOnlyMemory<byte> State { get; init; }
+        public System.DateTimeOffset UpdatedAt { get; init; }
+        public long Version { get; init; }
+    }
+    public sealed class Snapshot : System.IEquatable<SourceFlow.Storage.Snapshot>
+    {
+        public Snapshot(SourceFlow.StreamId StreamId, SourceFlow.StreamVersion Version, string StateType, string SchemaHash, System.ReadOnlyMemory<byte> Data) { }
+        public System.ReadOnlyMemory<byte> Data { get; init; }
+        public string SchemaHash { get; init; }
+        public string StateType { get; init; }
+        public SourceFlow.StreamId StreamId { get; init; }
+        public SourceFlow.StreamVersion Version { get; init; }
+    }
+    public sealed class StoredDocument : System.IEquatable<SourceFlow.Storage.StoredDocument>
+    {
+        public StoredDocument(string Collection, string Id, long Version, System.ReadOnlyMemory<byte> Data) { }
+        public string Collection { get; init; }
+        public System.ReadOnlyMemory<byte> Data { get; init; }
+        public string Id { get; init; }
+        public long Version { get; init; }
+    }
+    public sealed class StoredEvent : System.IEquatable<SourceFlow.Storage.StoredEvent>
+    {
+        public StoredEvent(SourceFlow.GlobalPosition Position, string TenantId, SourceFlow.StreamId StreamId, SourceFlow.StreamVersion StreamVersion, int Bucket, SourceFlow.MessageId EventId, string Type, int TypeVersion, System.ReadOnlyMemory<byte> Data, SourceFlow.Storage.EventMetadata Metadata, System.DateTimeOffset CreatedAt, System.Collections.Generic.IReadOnlyList<string> Tags) { }
+        public int Bucket { get; init; }
+        public System.DateTimeOffset CreatedAt { get; init; }
+        public System.ReadOnlyMemory<byte> Data { get; init; }
+        public SourceFlow.MessageId EventId { get; init; }
+        public SourceFlow.Storage.EventMetadata Metadata { get; init; }
+        public SourceFlow.GlobalPosition Position { get; init; }
+        public SourceFlow.StreamId StreamId { get; init; }
+        public SourceFlow.StreamVersion StreamVersion { get; init; }
+        public System.Collections.Generic.IReadOnlyList<string> Tags { get; init; }
+        public string TenantId { get; init; }
+        public string Type { get; init; }
+        public int TypeVersion { get; init; }
+        public SourceFlow.EventContext ToContext() { }
+        public SourceFlow.Messaging.MessageEnvelope ToEnvelope() { }
+    }
+    public sealed class StreamClosedException : System.Exception
+    {
+        public StreamClosedException(SourceFlow.StreamId stream, string state) { }
+        public SourceFlow.StreamId Stream { get; }
+    }
+    public sealed class StreamInfo : System.IEquatable<SourceFlow.Storage.StreamInfo>
+    {
+        public StreamInfo(SourceFlow.StreamId StreamId, string StreamType, SourceFlow.StreamVersion Version, bool IsDeleted, bool IsArchived) { }
+        public bool IsArchived { get; init; }
+        public bool IsDeleted { get; init; }
+        public SourceFlow.StreamId StreamId { get; init; }
+        public string StreamType { get; init; }
+        public SourceFlow.StreamVersion Version { get; init; }
+    }
+    public sealed class StreamSlice : System.IEquatable<SourceFlow.Storage.StreamSlice>
+    {
+        public StreamSlice(SourceFlow.StreamId StreamId, SourceFlow.StreamVersion CurrentVersion, System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.StoredEvent> Events, bool IsEndOfStream) { }
+        public SourceFlow.StreamVersion CurrentVersion { get; init; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.StoredEvent> Events { get; init; }
+        public bool IsEndOfStream { get; init; }
+        public SourceFlow.StreamId StreamId { get; init; }
+    }
+}
+namespace SourceFlow.Storage.InMemory
+{
+    public sealed class InMemoryFaults
+    {
+        public InMemoryFaults() { }
+        public void FailNextCommits(int count, System.Exception exception) { }
+    }
+    public sealed class InMemoryStore : SourceFlow.Storage.ICheckpointStore, SourceFlow.Storage.IDeadLetterStore, SourceFlow.Storage.IDocumentReader, SourceFlow.Storage.IEventLogReader, SourceFlow.Storage.IEventStore, SourceFlow.Storage.ILeaseManager, SourceFlow.Storage.IOutboxStore, SourceFlow.Storage.ISnapshotStore, SourceFlow.Storage.IStorageSessionFactory, SourceFlow.Storage.IStoreNotifications
+    {
+        public InMemoryStore(System.TimeProvider? time = null) { }
+        public long CommitCount { get; }
+        public SourceFlow.Storage.InMemory.InMemoryFaults Faults { get; }
+        public System.Threading.Tasks.ValueTask ArchiveStreamAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<SourceFlow.Storage.IStorageSession> BeginAsync(string tenantId, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.OutboxRecord>> ClaimAsync(int partition, SourceFlow.Storage.LeaseToken lease, int maxCount, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask CompleteAsync(SourceFlow.Storage.LeaseToken lease, System.Collections.Generic.IReadOnlyList<long> sequences, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<int> CountAsync(System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask DeleteStreamAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<SourceFlow.Storage.DeadLetter?> GetAsync(System.Guid id, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetAsync(string subscription, int partition, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetSafeHorizonAsync(System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamInfo?> GetStreamInfoAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.StoredDocument>> ListAsync(string tenantId, string collection, int maxCount, System.Threading.CancellationToken cancellationToken) { }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.OutboxRecord> OutboxSnapshot() { }
+        public System.Threading.Tasks.ValueTask ParkAsync(SourceFlow.Storage.DeadLetter deadLetter, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.DeadLetter>> QueryAsync(SourceFlow.Storage.DeadLetterQuery query, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<SourceFlow.Storage.LogBatch> ReadAsync(SourceFlow.GlobalPosition after, SourceFlow.Storage.BucketRange buckets, int maxCount, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamSlice> ReadStreamAsync(string tenantId, SourceFlow.StreamId stream, SourceFlow.StreamVersion fromInclusive, int maxCount, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask ReleaseAsync(SourceFlow.Storage.LeaseToken lease, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask RetryAsync(SourceFlow.Storage.LeaseToken lease, long sequence, System.DateTimeOffset deliverAt, string error, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask SaveAsync(string tenantId, SourceFlow.Storage.Snapshot snapshot, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask SetStatusAsync(System.Guid id, SourceFlow.Storage.DeadLetterStatus status, string? note, System.Threading.CancellationToken cancellationToken) { }
+        public System.IDisposable Subscribe(System.Action onCommit) { }
+        public System.Threading.Tasks.ValueTask<SourceFlow.Storage.LeaseToken?> TryAcquireAsync(string name, string owner, System.TimeSpan ttl, System.Threading.CancellationToken cancellationToken) { }
+    }
+}
