@@ -968,6 +968,17 @@ namespace SourceFlow.Query
             where TAggregate :  class, SourceFlow.IAggregateRuntime<TAggregate, TId>
             where TId :  struct, SourceFlow.IStronglyTypedId<TId>;
     }
+    public interface IQueryEngine
+    {
+        bool CanExecute(SourceFlow.Query.BoundQuery query);
+        System.Collections.Generic.IAsyncEnumerable<SourceFlow.Query.QueryResultRow> ExecuteAsync(SourceFlow.Query.QueryExecution execution, System.Threading.CancellationToken cancellationToken);
+    }
+    public interface IQueryService
+    {
+        System.Collections.Generic.IAsyncEnumerable<SourceFlow.Query.QueryRow> QueryAsync(string query, System.Collections.Generic.IReadOnlyDictionary<string, object?>? parameters = null, SourceFlow.Query.QueryOptions? options = null, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<SourceFlow.Query.QueryPage> QueryPageAsync(string query, System.Collections.Generic.IReadOnlyDictionary<string, object?>? parameters = null, string? continuation = null, SourceFlow.Query.QueryOptions? options = null, System.Threading.CancellationToken cancellationToken = default);
+        System.Threading.Tasks.ValueTask<SourceFlow.Query.QueryValidation> ValidateAsync(string query, System.Collections.Generic.IReadOnlyDictionary<string, object?>? parameters = null, SourceFlow.Query.QueryOptions? options = null, System.Threading.CancellationToken cancellationToken = default);
+    }
     public sealed class InListExpr : SourceFlow.Query.Expr, System.IEquatable<SourceFlow.Query.InListExpr>
     {
         public InListExpr(SourceFlow.Query.Expr Value, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.Expr> Items, bool Negated, SourceFlow.Query.TextSpan Span) { }
@@ -1111,6 +1122,12 @@ namespace SourceFlow.Query
         public const string Unsupported = "SFQ0102";
         public const string UpcastLimit = "SFQ0403";
     }
+    public sealed class QueryColumn : System.IEquatable<SourceFlow.Query.QueryColumn>
+    {
+        public QueryColumn(string Name, SourceFlow.Query.QueryType Type) { }
+        public string Name { get; init; }
+        public SourceFlow.Query.QueryType Type { get; init; }
+    }
     public enum QueryConsistency
     {
         Default = 0,
@@ -1142,6 +1159,25 @@ namespace SourceFlow.Query
         public System.Type ClrType { get; init; }
         public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryField> Fields { get; init; }
         public int Version { get; init; }
+    }
+    public sealed class QueryException : System.Exception
+    {
+        public QueryException(System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryDiagnostic> diagnostics) { }
+        public QueryException(string code, string message) { }
+        public string Code { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryDiagnostic> Diagnostics { get; }
+    }
+    public sealed class QueryExecution : System.IEquatable<SourceFlow.Query.QueryExecution>
+    {
+        public QueryExecution(SourceFlow.Query.BoundQuery Query, System.Collections.Generic.IReadOnlyDictionary<string, object?> Parameters, string Tenant, System.DateTimeOffset Now, System.Collections.Generic.IReadOnlyList<object?>? After, int Skip, int Take, SourceFlow.Query.QueryPolicySettings Settings) { }
+        public System.Collections.Generic.IReadOnlyList<object?>? After { get; init; }
+        public System.DateTimeOffset Now { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, object?> Parameters { get; init; }
+        public SourceFlow.Query.BoundQuery Query { get; init; }
+        public SourceFlow.Query.QueryPolicySettings Settings { get; init; }
+        public int Skip { get; init; }
+        public int Take { get; init; }
+        public string Tenant { get; init; }
     }
     public sealed class QueryField : System.IEquatable<SourceFlow.Query.QueryField>
     {
@@ -1184,6 +1220,23 @@ namespace SourceFlow.Query
         public SourceFlow.Query.TextSpan Span { get; init; }
         public SourceFlow.Query.Expr Value { get; init; }
     }
+    public sealed class QueryOptions : System.IEquatable<SourceFlow.Query.QueryOptions>
+    {
+        public QueryOptions() { }
+        public SourceFlow.Query.QueryLanguage Language { get; init; }
+        public int? PageSize { get; init; }
+        public SourceFlow.Query.QueryPermissions Permissions { get; init; }
+        public string? Tenant { get; init; }
+    }
+    public sealed class QueryPage : System.IEquatable<SourceFlow.Query.QueryPage>
+    {
+        public QueryPage(System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryColumn> Columns, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryRow> Rows, string? Continuation, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QuerySourceConsistency> Consistency, string QueryHash) { }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryColumn> Columns { get; init; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QuerySourceConsistency> Consistency { get; init; }
+        public string? Continuation { get; init; }
+        public string QueryHash { get; init; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryRow> Rows { get; init; }
+    }
     public static class QueryPermission
     {
         public const string Adhoc = "sourceflow.query.adhoc";
@@ -1206,7 +1259,10 @@ namespace SourceFlow.Query
     public sealed class QueryPolicySettings : System.IEquatable<SourceFlow.Query.QueryPolicySettings>
     {
         public QueryPolicySettings() { }
+        public System.TimeSpan ConsistencyTimeout { get; init; }
         public SourceFlow.Query.QueryLimits Limits { get; init; }
+        public System.TimeSpan MaxConsistencyTimeout { get; init; }
+        public int MaxGroups { get; init; }
         public System.TimeSpan MaxTimeRange { get; init; }
         public static SourceFlow.Query.QueryPolicySettings Default { get; }
     }
@@ -1217,6 +1273,26 @@ namespace SourceFlow.Query
         public System.Type DocumentType { get; init; }
         public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryField> Fields { get; init; }
         public string Name { get; init; }
+    }
+    public sealed class QueryResultRow : System.IEquatable<SourceFlow.Query.QueryResultRow>
+    {
+        public QueryResultRow(System.Collections.Generic.IReadOnlyList<object?> Values, System.Collections.Generic.IReadOnlyList<object?> SortKeys) { }
+        public System.Collections.Generic.IReadOnlyList<object?> SortKeys { get; init; }
+        public System.Collections.Generic.IReadOnlyList<object?> Values { get; init; }
+    }
+    public sealed class QueryRow
+    {
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryColumn> Columns { get; }
+        public object? this[int index] { get; }
+        public object? this[string name] { get; }
+        public System.Collections.Generic.IReadOnlyList<object?> Values { get; }
+    }
+    public sealed class QuerySourceConsistency : System.IEquatable<SourceFlow.Query.QuerySourceConsistency>
+    {
+        public QuerySourceConsistency(string Source, string Level, bool Stale) { }
+        public string Level { get; init; }
+        public string Source { get; init; }
+        public bool Stale { get; init; }
     }
     public enum QueryType
     {
@@ -1231,6 +1307,13 @@ namespace SourceFlow.Query
         Position = 8,
         Object = 9,
         Array = 10,
+    }
+    public sealed class QueryValidation : System.IEquatable<SourceFlow.Query.QueryValidation>
+    {
+        public QueryValidation(System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryDiagnostic> Diagnostics, System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryColumn> Columns) { }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryColumn> Columns { get; init; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.QueryDiagnostic> Diagnostics { get; init; }
+        public bool IsValid { get; }
     }
     public sealed class ReadModelSource : SourceFlow.Query.SourceRef, System.IEquatable<SourceFlow.Query.ReadModelSource>
     {

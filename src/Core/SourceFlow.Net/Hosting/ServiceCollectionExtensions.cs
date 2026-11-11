@@ -88,6 +88,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<SubscriptionEngine>();
         services.AddSingleton<IDeadLetterManager, DeadLetterManager>();
         services.AddSingleton<Query.IAggregateReader, Query.AggregateReader>();
+        services.TryAddSingleton(Query.QueryPolicySettings.Default);
+        services.AddSingleton<Query.IQueryService>(sp => new Query.QueryService(
+            sp.GetRequiredService<SourceFlowRuntime>(),
+            sp.GetServices<Query.IQueryEngine>(),
+            sp.GetRequiredService<Query.QueryPolicySettings>()));
         services.AddSingleton(sp => new SourceFlowHost(
             sp.GetRequiredService<SourceFlowRuntime>(),
             sp.GetRequiredService<OutboxRelay>(),

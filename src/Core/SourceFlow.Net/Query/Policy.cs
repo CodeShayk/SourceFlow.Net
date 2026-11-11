@@ -73,6 +73,15 @@ public sealed record QueryPolicySettings
 
     /// <summary>The request limits.</summary>
     public QueryLimits Limits { get; init; } = QueryLimits.Default;
+
+    /// <summary>How long <c>consistency = at_least(@token)</c> waits when the query gives no <c>timeout</c> (default 5 s).</summary>
+    public TimeSpan ConsistencyTimeout { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>The longest consistency wait a query may ask for (default 30 s).</summary>
+    public TimeSpan MaxConsistencyTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>The most result groups a grouped query may produce (default 10,000; SFQ0408).</summary>
+    public int MaxGroups { get; init; } = 10_000;
 }
 
 /// <summary>
