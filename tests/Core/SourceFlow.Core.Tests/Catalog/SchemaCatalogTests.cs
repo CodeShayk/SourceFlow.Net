@@ -51,7 +51,7 @@ public sealed class SchemaCatalogTests
 
         catalog.TryGet("account-summary", 1, out SchemaEntry? summary).ShouldBeTrue();
         summary!.Kind.ShouldBe(SchemaKind.ReadModel);
-        summary.Schema["properties"]!["status"]!.ToJsonString().ShouldBe("{\"type\":\"integer\",\"x-sourceflow-enum\":\"AccountStatus\"}");
+        summary.Schema["properties"]!["status"]!.ToJsonString().ShouldBe("{\"type\":\"integer\",\"x-sourceflow-enum\":\"AccountStatus\",\"x-sourceflow-queryable\":true}");
         catalog.TryGet("money-transfer", 1, out SchemaEntry? process).ShouldBeTrue();
         process!.Kind.ShouldBe(SchemaKind.ProcessState);
         catalog.TryGet("bank.account.withdraw.rejected", 1, out SchemaEntry? reply).ShouldBeTrue();

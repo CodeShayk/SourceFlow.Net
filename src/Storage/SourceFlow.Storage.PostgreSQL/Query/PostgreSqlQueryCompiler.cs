@@ -709,7 +709,7 @@ internal sealed class PostgreSqlQueryCompiler
         return sql.Append(" END").ToString();
     }
 
-    private static string Extract(string alias, IReadOnlyList<object> path, QueryType type)
+    internal static string Extract(string alias, IReadOnlyList<object> path, QueryType type)
     {
         var sql = new StringBuilder($"{alias}.data");
         bool json = type is QueryType.Object or QueryType.Array or QueryType.Any;

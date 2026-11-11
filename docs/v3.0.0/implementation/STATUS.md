@@ -4,13 +4,13 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 
 ## Progress summary
 
-Updated 2026-11-11. **28 of 63 work packages are done (44%)**, 2 in progress and 33 not started. By estimated effort, 56 of 138.5 engineer-weeks are done (40%).
+Updated 2026-11-11. **29 of 63 work packages are done (46%)**, 1 in progress and 33 not started. By estimated effort, 59.5 of 138.5 engineer-weeks are done (43%).
 
 | Milestone | Done | In progress | Todo | Effort done (ew) |
 |-----------|------|-------------|------|------------------|
 | M0 Foundations | 5 | 0 | 0 | 4 of 4 |
 | M1 Core | 14 | 0 | 1 | 36.5 of 37 |
-| M2 PostgreSQL | 8 | 2 | 1 | 13 of 19 |
+| M2 PostgreSQL | 9 | 1 | 1 | 16.5 of 19 |
 | M3 Cloud transports | 0 | 0 | 7 | 0 of 19 |
 | M4 Tooling and operations | 1 | 0 | 6 | 2.5 of 16.5 |
 | M5 Security and migration | 0 | 0 | 5 | 0 of 11 |
@@ -24,11 +24,11 @@ Completed in this round:
 - WP-1.13: named domain queries (ADR-030), the typed builder, and analyzers SF0015, SF0016 and SF0018.
 - WP-1.14: the Bank.Api host, the Studio demo console, the docker-compose demo, and images on ghcr.io.
 - WP-4.2: the production query API and domain queries over HTTP.
+- WP-2.8: PostgreSQL index sync for `[Queryable]` fields.
 
 Still in progress:
 
 - WP-2.7 (`SourceFlow.Storage.EntityFrameworkCore` read models): rebuilding a projection into a new schema, which waits for the blue/green rebuild tooling.
-- WP-2.8 (SFQL on PostgreSQL): index sync (`db index sync`).
 
 Not started: the v2 retirements (1.R, 2.R, 3.R), every cloud transport (M3), the CLI, health and dashboards, SQL Server, event partitioning, chaos and load testing, payload protection, crypto-shredding, the v2 migration tool, and the whole Studio track.
 
@@ -61,7 +61,7 @@ Not started: the v2 retirements (1.R, 2.R, 3.R), every cloud transport (M3), the
 | WP-2.5 | Snapshots and aggregate cache | 1.5 | done | Background snapshot writer (bounded, drop-oldest, drained on shutdown), MemoryCache aggregate cache (ReadTail, Optimistic with rejection confirmation and no shortcut for If-Match), cache and snapshot metrics; UT-SNAP-01..10, SCK-51..53/55 on in-memory and PostgreSQL (with and without RLS), parallel deposits on PostgreSQL in both cache modes. PERF-04 moves to the WP-2.10 baseline |
 | WP-2.6 | Tenancy with row-level security | 1 | done | V002 tenant_isolation policies; TenantIsolation.RowLevelSecurity enables and forces RLS (migrator applies and verifies the state); session-scoped set_config; system (BYPASSRLS) data source for the global log; tenant-aware buckets. The whole SCK passes under RLS through a DML-only role; SCK-59/60/M07, Bank transfer E2E under RLS. Per-tenant metric tags (bounded top-N) move to WP-4.3 |
 | WP-2.7 | `SourceFlow.Storage.EntityFrameworkCore` read models | 2 | in progress | Core session-projection SPI (ISessionProjection, IProjectionUnitOfWork, IStorageSession.FlushAsync for ES-R1), generator support (GEN-41/42), IEfProjection, EfSessionContextFactory on the session connection and transaction, UseEntityFrameworkProjections, IdempotentUpsert; UT-EF-01..04, SCK-61..64 inline and async on PostgreSQL. Rebuild with schema-per-generation waits for the blue/green rebuild tooling (doc 06 §6) |
-| WP-2.8 | SFQL on PostgreSQL (incl. joins and grouping) + index sync + domain queries | 3.5 | in progress | PostgreSqlQueryEngine (`IQueryEngine`): one parameterised statement per page (every request value a typed `$n` parameter, I-3), keyset predicate and ORDER BY outside a derived table, `COLLATE "C"` text ordering, horizon predicate, per-version rename CASE, tenant predicates (G-9), `NULLIF` division, read-only transaction with `statement_timeout` (`QueryTimeout`, default 5 s) and the RLS tenant setting; aggregate and schema sources stay in the interpreter. Cross-provider equivalence with the interpreter on the same data (QRY-01..20, incl. joins, grouping/having, distinct, subqueries, keyset pages interchangeable between engines), golden SQL (QRY-42/43), injection corpus (QRY-44), no-literal CsCheck property (QRY-60). Catalog now types enums by their JSON (number or string). Domain queries run through the engine (ExecuteAsync and `/queries`). `/query/explain` shows the parameterised SQL. Next: index sync (`db index sync`) |
+| WP-2.8 | SFQL on PostgreSQL (incl. joins and grouping) + index sync + domain queries | 3.5 | done | PostgreSqlQueryEngine (`IQueryEngine`): one parameterised statement per page (every request value a typed `$n` parameter, I-3), keyset predicate and ORDER BY outside a derived table, `COLLATE "C"` text ordering, horizon predicate, per-version rename CASE, tenant predicates (G-9), `NULLIF` division, read-only transaction with `statement_timeout` (`QueryTimeout`, default 5 s) and the RLS tenant setting; aggregate and schema sources stay in the interpreter. Cross-provider equivalence with the interpreter on the same data (QRY-01..20, incl. joins, grouping/having, distinct, subqueries, keyset pages interchangeable between engines), golden SQL (QRY-42/43), injection corpus (QRY-44), no-literal CsCheck property (QRY-60). Catalog now types enums by their JSON (number or string). Domain queries run through the engine (ExecuteAsync and `/queries`). `/query/explain` shows the parameterised SQL. `PostgreSqlIndexSync` (plan/apply, CONCURRENTLY by default): one partial expression index per `[Queryable]` field over `events` (per type) and `documents` (per collection), using the compiler's exact expression, `sfq_` hash names, stale ones dropped; QRY-45 shows the planner using it. The CLI command (`db index sync`) is WP-4.1 |
 | WP-2.9 | Storage conformance kit complete | 2 | done | SCK-01..58 in SourceFlow.Testing, run on in-memory, PostgreSQL and PostgreSQL with RLS. New in this package: SCK-23 (in-flight writes invisible), SCK-37 (batched retention via IStoreRetention, plus the host retention loop), SCK-54 (CsCheck property: snapshot + tail = full fold), PostgreSQL SCK-28 (LISTEN loss and reconnect), and SCK-L01 CsCheck linearisability of appends and the outbox. SCK-36 is covered by SCK-34. SCK-20 (one round trip) moves to WP-2.10, and SCK-65..72 (partitioned events) to WP-4.5 |
 | WP-2.10 | Performance baseline | 1 | done | benchmarks/SourceFlow.Benchmarks (BenchmarkDotNet PERF-01..04, 06; measurement harness PERF-05, 08, 10); baselines in benchmarks/baselines and the report in implementation/perf-baseline.md. One-round-trip PostgreSQL commit (SCK-20), batch-aware document projections and adaptive subscription batches. Deviations logged with owners (PERF-01/02 allocations, PERF-10 borderline). PERF-07 waits for M3 and PERF-09 for WP-4.7 |
 | WP-2.R | Retire v2 EF stores | 0.5 | todo | |

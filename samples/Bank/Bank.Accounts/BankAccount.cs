@@ -41,7 +41,7 @@ public sealed record AccountOpened(AccountId AccountId, [property: PersonalData]
 
 /// <summary>Money was deposited.</summary>
 [MessageType("bank.account.deposited", 1)]
-public sealed record MoneyDeposited(AccountId AccountId, decimal Amount, decimal BalanceAfter) : IEvent;
+public sealed record MoneyDeposited([property: Queryable] AccountId AccountId, decimal Amount, decimal BalanceAfter) : IEvent;
 
 /// <summary>Money was withdrawn.</summary>
 [MessageType("bank.account.withdrawn", 1)]

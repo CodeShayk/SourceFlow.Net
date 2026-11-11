@@ -5,7 +5,7 @@ using SourceFlow;
 namespace Bank.Accounts;
 
 /// <summary>The account summary read model (ported from the v2 AccountView).</summary>
-public sealed record AccountSummary(AccountId Id, string Holder, decimal Balance, AccountStatus Status, long Version);
+public sealed record AccountSummary(AccountId Id, string Holder, decimal Balance, [property: Queryable] AccountStatus Status, long Version);
 
 /// <summary>Maintains <see cref="AccountSummary"/> documents.</summary>
 [Projection("account-summary")]

@@ -1,4 +1,6 @@
 using System.Globalization;
+using Npgsql;
+using System.Text;
 using System.Text.Json;
 using Bank.Accounts;
 using CsCheck;
@@ -28,6 +30,7 @@ public sealed class PostgreSqlQueryTests(PostgreSqlServer server) : PostgreSqlTe
     private static readonly QueryCatalog Catalog = QueryCatalog.Build(Model);
 
     private IHost _host = null!;
+    private string _schema = null!;
     private ServiceProvider _reference = null!;
     private readonly List<AccountId> _accounts = [];
     private readonly List<CommandResult> _results = [];
@@ -41,7 +44,7 @@ public sealed class PostgreSqlQueryTests(PostgreSqlServer server) : PostgreSqlTe
     public override async ValueTask InitializeAsync()
     {
         await base.InitializeAsync();
-        string schema = PostgreSqlServer.NewSchema("q");
+        string schema = _schema = PostgreSqlServer.NewSchema("q");
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { EnvironmentName = Environments.Development, DisableDefaults = true });
         builder.Services.AddSourceFlow(sf => Configure(sf, schema));
         _host = builder.Build();
@@ -273,6 +276,45 @@ public sealed class PostgreSqlQueryTests(PostgreSqlServer server) : PostgreSqlTe
     }
 
     [Fact]
+    [Trait("Id", "QRY-45")]
+    [Trait("Covers", "doc 14 7.2")]
+    public async Task IndexSync_CreatesQueryableIndexes_Idempotently_AndThePlannerUsesThem()
+    {
+        QueryCatalog catalog = QueryCatalog.Build(_host.Services.GetRequiredService<RuntimeModel>());
+
+        QueryIndexPlan first = await PostgreSqlIndexSync.ApplyAsync(Server.DataSource, catalog, _schema, concurrently: false, Ct);
+        QueryIndexPlan second = await PostgreSqlIndexSync.ApplyAsync(Server.DataSource, catalog, _schema, concurrently: true, Ct);
+
+        first.Create.Select(i => i.Source).ShouldBe(["account-summary@1.status", "bank.account.deposited.accountId"]);
+        first.Create.ShouldAllBe(i => i.Name.StartsWith(PostgreSqlIndexSync.Prefix, StringComparison.Ordinal));
+        second.Create.ShouldBeEmpty();
+        second.Unchanged.Count.ShouldBe(2);
+
+        // The compiled predicate matches the index expression: with sequential scans off, the plan uses it.
+        CompiledQuery compiled = Compile("from readmodel \"account-summary\" | where status = 1 | project holder", new Dictionary<string, object?>(), _schema);
+        await using NpgsqlConnection connection = await Server.DataSource.OpenConnectionAsync(Ct);
+        await using var batch = new NpgsqlBatch(connection);
+        batch.BatchCommands.Add(new NpgsqlBatchCommand("SET enable_seqscan = off"));
+        var explain = new NpgsqlBatchCommand("EXPLAIN " + compiled.Sql);
+        foreach (NpgsqlParameter parameter in compiled.Parameters)
+        {
+            explain.Parameters.Add(parameter);
+        }
+        batch.BatchCommands.Add(explain);
+        var plan = new StringBuilder();
+        await using (NpgsqlDataReader reader = await batch.ExecuteReaderAsync(Ct))
+        {
+            while (await reader.ReadAsync(Ct))
+            {
+                plan.AppendLine(reader.GetString(0));
+            }
+        }
+
+        string index = first.Create.Single(i => i.Source == "account-summary@1.status").Name;
+        plan.ToString().ShouldContain(index);
+    }
+
+    [Fact]
     [Trait("Id", "QRY-60")]
     [Trait("Covers", "ADR-026")]
     public void NoLiteral_EverRequestValueIsAParameter()
@@ -312,14 +354,14 @@ public sealed class PostgreSqlQueryTests(PostgreSqlServer server) : PostgreSqlTe
         sf.UseInMemoryTransport();
     }
 
-    private static CompiledQuery Compile(string text, IReadOnlyDictionary<string, object?> parameters)
+    private static CompiledQuery Compile(string text, IReadOnlyDictionary<string, object?> parameters, string schema = "sf")
     {
         ParseResult parsed = SfqlParser.Parse(text, QueryLanguage.Sfql, QueryLimits.Default);
         parsed.Diagnostics.ShouldBeEmpty();
         BindResult bound = SfqlBinder.Bind(parsed.Query!, text, Catalog);
         bound.Diagnostics.ShouldBeEmpty();
         var execution = new QueryExecution(bound.Query!, parameters, "-", new DateTimeOffset(2026, 11, 11, 0, 0, 0, TimeSpan.Zero), null, 0, 51, QueryPolicySettings.Default);
-        return PostgreSqlQueryCompiler.Compile(execution, "sf");
+        return PostgreSqlQueryCompiler.Compile(execution, schema);
     }
 
     private static async Task<IReadOnlyList<string>> RowsAsync(IQueryService service, string query, IReadOnlyDictionary<string, object?>? parameters = null, QueryOptions? options = null)
