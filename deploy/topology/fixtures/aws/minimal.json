@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "service": "minimal",
+  "transport": "aws_sqs",
+  "endpoint": {
+    "name": "minimal",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [],
+  "subscribes": [],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "dev-minimal-dlq",
+      "logical": "minimal",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {
+        "allowTopics": [],
+        "deadLetterQueue": null,
+        "fifo": false,
+        "maxReceiveCount": null,
+        "messageRetentionSeconds": 1209600
+      }
+    },
+    {
+      "kind": "queue",
+      "name": "dev-minimal",
+      "logical": "minimal",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "allowTopics": [],
+        "deadLetterQueue": "dev-minimal-dlq",
+        "fifo": false,
+        "maxReceiveCount": 10,
+        "messageRetentionSeconds": 1209600
+      }
+    }
+  ]
+}

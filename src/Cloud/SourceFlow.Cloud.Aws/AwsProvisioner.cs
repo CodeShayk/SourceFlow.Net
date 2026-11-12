@@ -12,7 +12,7 @@ namespace SourceFlow.Cloud.Aws;
 /// that do not exist yet, raw-delivery subscriptions with the filter policy, and the queue policy that lets the topics
 /// send. Existing resources are never changed; Validate then reports every difference at once.
 /// </summary>
-internal sealed class AwsProvisioner
+internal sealed class AwsProvisioner : TopologyProvisioner
 {
     private const string RawDelivery = "RawMessageDelivery";
     private const string FilterPolicy = "FilterPolicy";
@@ -30,34 +30,9 @@ internal sealed class AwsProvisioner
 
     private string Prefix => Resources.Prefix;
 
-    public async ValueTask ProvisionAsync(TransportTopology topology, ProvisioningMode mode, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(topology);
-        foreach (string filter in topology.Filters.Values)
-        {
-            CloudEventFilter.Parse(filter);   // a malformed filter fails provisioning in every mode
-        }
-
-        if (mode == ProvisioningMode.None)
-        {
-            return;
-        }
-
-        if (mode == ProvisioningMode.CreateIfMissing)
-        {
-            await CreateAsync(topology, cancellationToken).ConfigureAwait(false);
-        }
-
-        IReadOnlyList<TopologyProblem> problems = await ValidateAsync(topology, cancellationToken).ConfigureAwait(false);
-        if (problems.Count > 0)
-        {
-            throw new TopologyValidationException(problems);
-        }
-    }
-
     // ================================================================ create
 
-    private async Task CreateAsync(TransportTopology topology, CancellationToken ct)
+    protected override async ValueTask CreateAsync(TransportTopology topology, CancellationToken ct)
     {
         QueueRef? queue = await Resources.FindQueueAsync(topology.Endpoint, ct, fresh: true).ConfigureAwait(false)
             ?? await CreateEndpointAsync(topology, ct).ConfigureAwait(false);
@@ -107,13 +82,13 @@ internal sealed class AwsProvisioner
     private async Task<QueueRef> CreateEndpointAsync(TransportTopology topology, CancellationToken ct)
     {
         bool ordered = topology.OrderedEndpoint;
-        string retention = ((int)_transport.Options.MessageRetention.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+        string retention = AwsTopology.SecondsText(_transport.Options.MessageRetention);
         string deadLetterName = AwsNaming.DeadLetterQueue(Prefix, topology.Endpoint, ordered);
         string deadLetterUrl = await Resources.QueueUrlAsync(deadLetterName, topology.Endpoint, ct).ConfigureAwait(false)
             ?? await CreateQueueAsync(deadLetterName, topology.Endpoint, ordered, new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 // The dead-letter queue keeps messages as long as SQS allows, for the ingestor and for inspection.
-                ["MessageRetentionPeriod"] = "1209600",
+                ["MessageRetentionPeriod"] = AwsTopology.SecondsText(AwsTopology.DeadLetterRetention),
             }, ct).ConfigureAwait(false);
         string deadLetterArn = await Resources.QueueArnAsync(deadLetterUrl, topology.Endpoint, ct).ConfigureAwait(false);
 
@@ -193,7 +168,7 @@ internal sealed class AwsProvisioner
 
     // ================================================================ validate
 
-    private async Task<IReadOnlyList<TopologyProblem>> ValidateAsync(TransportTopology topology, CancellationToken ct)
+    protected override async ValueTask<IReadOnlyList<TopologyProblem>> ValidateAsync(TransportTopology topology, CancellationToken ct)
     {
         var problems = new List<TopologyProblem>();
         QueueRef? queue = await ValidateEndpointAsync(topology, problems, ct).ConfigureAwait(false);

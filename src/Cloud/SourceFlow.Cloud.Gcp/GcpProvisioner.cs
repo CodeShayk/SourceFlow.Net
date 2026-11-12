@@ -17,7 +17,7 @@ namespace SourceFlow.Cloud.Gcp;
 /// to the source subscriptions (IAM, which the reference Terraform module grants). Without it the receiver still enforces
 /// the delivery limit itself.
 /// </remarks>
-internal sealed class GcpProvisioner
+internal sealed class GcpProvisioner : TopologyProvisioner
 {
     /// <summary>The ack deadline of new subscriptions: the default lock duration, so receivers rarely need to change it.</summary>
     public const int AckDeadlineSeconds = 30;
@@ -42,34 +42,9 @@ internal sealed class GcpProvisioner
         return Math.Clamp(maxDeliveries, MinPolicyDeliveries, MaxPolicyDeliveries);
     }
 
-    public async ValueTask ProvisionAsync(TransportTopology topology, ProvisioningMode mode, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(topology);
-        foreach (string filter in topology.Filters.Values)
-        {
-            CloudEventFilter.Parse(filter);   // a malformed filter fails provisioning in every mode
-        }
-
-        if (mode == ProvisioningMode.None)
-        {
-            return;
-        }
-
-        if (mode == ProvisioningMode.CreateIfMissing)
-        {
-            await CreateAsync(topology, cancellationToken).ConfigureAwait(false);
-        }
-
-        IReadOnlyList<TopologyProblem> problems = await ValidateAsync(topology, cancellationToken).ConfigureAwait(false);
-        if (problems.Count > 0)
-        {
-            throw new TopologyValidationException(problems);
-        }
-    }
-
     // ================================================================ create
 
-    private async Task CreateAsync(TransportTopology topology, CancellationToken ct)
+    protected override async ValueTask CreateAsync(TransportTopology topology, CancellationToken ct)
     {
         string endpoint = topology.Endpoint;
         string deadLetters = GcpNaming.DeadLetter(Prefix, endpoint);
@@ -79,7 +54,7 @@ internal sealed class GcpProvisioner
             SubscriptionName = _transport.SubscriptionName(deadLetters),
             TopicAsTopicName = _transport.TopicName(deadLetters),
             AckDeadlineSeconds = AckDeadlineSeconds,
-            MessageRetentionDuration = Duration.FromTimeSpan(TimeSpan.FromDays(7)),   // as long as Pub/Sub keeps messages
+            MessageRetentionDuration = Duration.FromTimeSpan(GcpTopology.DeadLetterRetention),   // as long as Pub/Sub keeps messages
             ExpirationPolicy = new ExpirationPolicy(),                                 // never expires
         }, endpoint, ct).ConfigureAwait(false);
 
@@ -165,7 +140,7 @@ internal sealed class GcpProvisioner
 
     // ================================================================ validate
 
-    private async Task<IReadOnlyList<TopologyProblem>> ValidateAsync(TransportTopology topology, CancellationToken ct)
+    protected override async ValueTask<IReadOnlyList<TopologyProblem>> ValidateAsync(TransportTopology topology, CancellationToken ct)
     {
         var problems = new List<TopologyProblem>();
         string endpoint = topology.Endpoint;

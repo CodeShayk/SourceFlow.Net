@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "service": "subscriber",
+  "transport": "sourceflow.inmemory",
+  "endpoint": {
+    "name": "subscriber",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [],
+  "subscribes": [
+    {
+      "topic": "shared",
+      "filter": "type = 'tck.shared.v1'"
+    }
+  ],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "subscriber",
+      "logical": "subscriber",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "maxDeliveries": 10,
+        "ordered": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "shared",
+      "logical": "shared",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "ordered": false
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "shared/subscriber",
+      "logical": "shared → subscriber",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "endpoint": "subscriber",
+        "filter": "type = 'tck.shared.v1'",
+        "topic": "shared"
+      }
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "service": "subscriber",
+  "transport": "servicebus",
+  "endpoint": {
+    "name": "subscriber",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [],
+  "subscribes": [
+    {
+      "topic": "shared",
+      "filter": "type = 'tck.shared.v1'"
+    }
+  ],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "dev-subscriber",
+      "logical": "subscriber",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "deadLetteringOnMessageExpiration": true,
+        "defaultMessageTimeToLive": "P14D",
+        "duplicateDetectionHistoryTimeWindow": null,
+        "lockDuration": "PT30S",
+        "maxDeliveryCount": 10,
+        "requiresDuplicateDetection": false,
+        "requiresSession": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-shared",
+      "logical": "shared",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-shared/dev-subscriber",
+      "logical": "shared → subscriber",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D",
+        "forwardTo": "dev-subscriber",
+        "subscription": "dev-subscriber",
+        "topic": "dev-shared"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "dev-shared/dev-subscriber/$Default",
+      "logical": "shared → subscriber",
+      "owned": true,
+      "role": "rule",
+      "properties": {
+        "correlationProperties": {
+          "cloudEvents:type": "tck.shared.v1"
+        },
+        "filterType": "CorrelationFilter",
+        "rule": "$Default",
+        "sqlExpression": null,
+        "subscription": "dev-subscriber",
+        "topic": "dev-shared"
+      }
+    }
+  ]
+}

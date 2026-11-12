@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "service": "full",
+  "transport": "servicebus",
+  "endpoint": {
+    "name": "full",
+    "ordered": false,
+    "maxDeliveries": 7,
+    "commands": []
+  },
+  "publishes": [
+    {
+      "topic": "full-out",
+      "ordered": false,
+      "messages": []
+    }
+  ],
+  "subscribes": [
+    {
+      "topic": "full-in",
+      "filter": "type LIKE 'tck.%'"
+    }
+  ],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "dev-full",
+      "logical": "full",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "deadLetteringOnMessageExpiration": true,
+        "defaultMessageTimeToLive": "P14D",
+        "duplicateDetectionHistoryTimeWindow": null,
+        "lockDuration": "PT30S",
+        "maxDeliveryCount": 7,
+        "requiresDuplicateDetection": false,
+        "requiresSession": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-full-out",
+      "logical": "full-out",
+      "owned": true,
+      "role": "topic",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-full-in",
+      "logical": "full-in",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-full-in/dev-full",
+      "logical": "full-in → full",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D",
+        "forwardTo": "dev-full",
+        "subscription": "dev-full",
+        "topic": "dev-full-in"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "dev-full-in/dev-full/$Default",
+      "logical": "full-in → full",
+      "owned": true,
+      "role": "rule",
+      "properties": {
+        "correlationProperties": null,
+        "filterType": "SqlFilter",
+        "rule": "$Default",
+        "sqlExpression": "[cloudEvents:type] LIKE 'tck.%'",
+        "subscription": "dev-full",
+        "topic": "dev-full-in"
+      }
+    }
+  ]
+}

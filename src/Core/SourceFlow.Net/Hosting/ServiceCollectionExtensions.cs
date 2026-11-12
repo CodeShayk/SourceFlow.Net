@@ -63,7 +63,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(model);
         services.AddSingleton(routing);
         services.AddSingleton(builder.ErrorRules);
-        services.AddSingleton(new HostSettings(builder.Roles, builder.Provisioning));
+        ProvisioningMode? provisioning = builder.Provisioning;
+        SourceFlowRoles roles = builder.Roles;
+        services.AddSingleton(sp => new HostSettings(roles, provisioning ?? DefaultProvisioning(sp.GetService<IHostEnvironment>(), sp.GetRequiredService<ITransport>())));
         services.AddSingleton<SourceFlowMetrics>();
         services.AddSingleton<IMessageSerializer, SystemTextJsonMessageSerializer>();
         services.AddSingleton(new MessagePipeline(builder.Middleware));
@@ -110,6 +112,18 @@ public static class ServiceCollectionExtensions
             sp.GetService<Query.IQueryService>() as Query.QueryService));
         services.AddHostedService(sp => sp.GetRequiredService<SourceFlowHost>());
         return services;
+    }
+
+    /// <summary>
+    /// The provisioning mode when none is configured (ADR-017): CreateIfMissing in Development, for the in-memory transport
+    /// (nothing outside the process to provision) and without a host environment; Validate in every other environment.
+    /// </summary>
+    public static ProvisioningMode DefaultProvisioning(IHostEnvironment? environment, ITransport transport)
+    {
+        ArgumentNullException.ThrowIfNull(transport);
+        return environment is null || environment.IsDevelopment() || transport is Transport.InMemory.InMemoryTransport
+            ? ProvisioningMode.CreateIfMissing
+            : ProvisioningMode.Validate;
     }
 
     /// <summary>Adds the SourceFlow readiness check (started, store and transport reachable).</summary>

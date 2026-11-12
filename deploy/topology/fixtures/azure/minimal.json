@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "service": "minimal",
+  "transport": "servicebus",
+  "endpoint": {
+    "name": "minimal",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [],
+  "subscribes": [],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "dev-minimal",
+      "logical": "minimal",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "deadLetteringOnMessageExpiration": true,
+        "defaultMessageTimeToLive": "P14D",
+        "duplicateDetectionHistoryTimeWindow": null,
+        "lockDuration": "PT30S",
+        "maxDeliveryCount": 10,
+        "requiresDuplicateDetection": false,
+        "requiresSession": false
+      }
+    }
+  ]
+}

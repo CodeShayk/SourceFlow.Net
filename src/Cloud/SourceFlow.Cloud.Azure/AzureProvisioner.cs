@@ -11,7 +11,7 @@ namespace SourceFlow.Cloud.Azure;
 /// subscription named after the endpoint that forwards to its queue with the filter's rules. Existing entities are never
 /// changed; Validate then reports every difference at once.
 /// </summary>
-internal sealed class AzureProvisioner
+internal sealed class AzureProvisioner : TopologyProvisioner
 {
     private readonly AzureTransport _transport;
 
@@ -24,34 +24,9 @@ internal sealed class AzureProvisioner
 
     private string Prefix => _transport.Prefix;
 
-    public async ValueTask ProvisionAsync(TransportTopology topology, ProvisioningMode mode, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(topology);
-        foreach (string filter in topology.Filters.Values)
-        {
-            CloudEventFilter.Parse(filter);   // a malformed filter fails provisioning in every mode
-        }
-
-        if (mode == ProvisioningMode.None)
-        {
-            return;
-        }
-
-        if (mode == ProvisioningMode.CreateIfMissing)
-        {
-            await CreateAsync(topology, cancellationToken).ConfigureAwait(false);
-        }
-
-        IReadOnlyList<TopologyProblem> problems = await ValidateAsync(topology, cancellationToken).ConfigureAwait(false);
-        if (problems.Count > 0)
-        {
-            throw new TopologyValidationException(problems);
-        }
-    }
-
     // ================================================================ create
 
-    private async Task CreateAsync(TransportTopology topology, CancellationToken ct)
+    protected override async ValueTask CreateAsync(TransportTopology topology, CancellationToken ct)
     {
         string endpoint = topology.Endpoint;
         string queue = AzureNaming.Queue(Prefix, endpoint);
@@ -127,7 +102,7 @@ internal sealed class AzureProvisioner
 
     // ================================================================ validate
 
-    private async Task<IReadOnlyList<TopologyProblem>> ValidateAsync(TransportTopology topology, CancellationToken ct)
+    protected override async ValueTask<IReadOnlyList<TopologyProblem>> ValidateAsync(TransportTopology topology, CancellationToken ct)
     {
         var problems = new List<TopologyProblem>();
         string endpoint = topology.Endpoint;

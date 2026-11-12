@@ -1020,8 +1020,7 @@ public static class TransportConformance
 
     private static TransportTopology FullTopology(ITransportFixture f, string name)
     {
-        return Topology(Name(f, name), [Name(f, name + "-in")], [Name(f, name + "-out")], maxDeliveries: 7,
-            filters: new Dictionary<string, string> { [Name(f, name + "-in")] = "type LIKE 'tck.%'" });
+        return TopologyFixtures.Full(Name(f, name));
     }
 
     private static async Task ProvisioningIdempotent(ITransportFixture f, CancellationToken ct)
@@ -1223,7 +1222,11 @@ public static class TransportConformance
                 r.Endpoint(endpoint);
                 routing?.Invoke(r);
             });
-            sf.Configure(o => o.PollInterval = TimeSpan.FromMilliseconds(20));
+            sf.Configure(o =>
+            {
+                o.PollInterval = TimeSpan.FromMilliseconds(20);
+                o.DeadLetterIngestInterval = TimeSpan.FromMilliseconds(200);
+            });
         }, store: new InMemoryStore(), services: s => s.AddSingleton(observations ?? new TckObservations()), cancellationToken: ct);
     }
 }

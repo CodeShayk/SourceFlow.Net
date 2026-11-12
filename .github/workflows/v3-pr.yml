@@ -56,7 +56,7 @@ jobs:
           dotnet test --solution SourceFlow.slnx ${{ env.TEST_ARGS }}
           --filter-not-trait "Requires=Docker" --filter-not-trait "Requires=LocalStack"
           --filter-not-trait "Requires=PubSubEmulator" --filter-not-trait "Requires=ServiceBusEmulator"
-          --filter-not-trait "Requires=RealCloud"
+          --filter-not-trait "Requires=RealCloud" --filter-not-trait "Requires=Terraform"
           --filter-not-trait "Category=Chaos" --filter-not-trait "Category=Performance"
       - uses: actions/upload-artifact@v4
         if: always()
@@ -132,11 +132,60 @@ jobs:
       - name: Transport unit tests + emulator TCK
         run: >-
           dotnet test --project tests/Cloud/SourceFlow.Cloud.Tests/SourceFlow.Cloud.Tests.csproj
-          ${{ env.TEST_ARGS }} --filter-trait "Cloud=${{ matrix.trait }}" --filter-not-trait "Requires=RealCloud"
+          ${{ env.TEST_ARGS }} --filter-trait "Cloud=${{ matrix.trait }}" --filter-not-trait "Requires=RealCloud" --filter-not-trait "Requires=Terraform"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: transports-${{ matrix.cloud }}-results
+          path: "**/TestResults/**"
+
+  iac:
+    # deploy/topology (WP-3.5): the Terraform modules applied to LocalStack and the Pub/Sub emulator and checked with
+    # ProvisioningMode.Validate, every module's `terraform test` suite, and the Bicep module built for every fixture.
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      AWS_ENDPOINT_URL: http://localhost:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: eu-west-1
+      PUBSUB_EMULATOR_HOST: localhost:8085
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugins
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+      - name: Bicep
+        run: az bicep install && az bicep version
+      - uses: actions/cache@v4
+        with:
+          path: .terraform-plugins
+          key: terraform-plugins-${{ hashFiles('deploy/topology/terraform/**/*.tf') }}
+      - name: Start emulators
+        run: |
+          mkdir -p .terraform-plugins
+          docker compose -f .github/emulators/localstack/docker-compose.yml up -d
+          docker compose -f .github/emulators/pubsub/docker-compose.yml up -d
+          for i in $(seq 1 90); do
+            curl -sf http://localhost:4566/_localstack/health | grep -q '"sqs": "available"' && curl -sf -X PUT http://localhost:8085/v1/projects/sourceflow-emulator/topics/health >/dev/null && exit 0
+            sleep 2
+          done
+          echo "emulators not healthy"; exit 1
+      - run: terraform fmt -check -recursive deploy/topology/terraform
+      - run: dotnet build SourceFlow.slnx -c Release
+      - name: IaC modules against the topology fixtures
+        run: >-
+          dotnet test --project tests/Cloud/SourceFlow.Cloud.Tests/SourceFlow.Cloud.Tests.csproj
+          ${{ env.TEST_ARGS }} --filter-trait "Requires=Terraform"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: iac-results
           path: "**/TestResults/**"
 
   e2e:

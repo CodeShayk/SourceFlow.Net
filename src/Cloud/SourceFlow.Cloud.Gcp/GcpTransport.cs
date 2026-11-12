@@ -13,7 +13,7 @@ namespace SourceFlow.Cloud.Gcp;
 /// endpoints enable message ordering on their subscriptions and the publisher sets the ordering key; every subscription
 /// dead-letters to the endpoint's dead-letter topic.
 /// </summary>
-public sealed class GcpTransport : ITransport
+public sealed class GcpTransport : ITransport, ITopologyDescriber
 {
     /// <summary>The <c>messaging.system</c> of Pub/Sub (OpenTelemetry semantic conventions).</summary>
     public const string System = "gcp_pubsub";
@@ -139,6 +139,12 @@ public sealed class GcpTransport : ITransport
         Subscription subscription = await GetSubscriptionAsync(GcpNaming.DeadLetter(Prefix, endpoint), destination, cancellationToken).ConfigureAwait(false)
             ?? throw new DestinationNotFoundException(destination);
         return new GcpReceiver(this, endpoint, [Describe(subscription, topic: null, clientFilter: null)], deadLetters: null, isDeadLetterReceiver: true, TimeSpan.FromSeconds(30));
+    }
+
+    /// <inheritdoc />
+    public PhysicalTopology Describe(TransportTopology topology)
+    {
+        return GcpTopology.Describe(Options, topology);
     }
 
     /// <inheritdoc />

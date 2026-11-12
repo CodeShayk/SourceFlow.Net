@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "service": "minimal",
+  "transport": "sourceflow.inmemory",
+  "endpoint": {
+    "name": "minimal",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [],
+  "subscribes": [],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "minimal",
+      "logical": "minimal",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "maxDeliveries": 10,
+        "ordered": false
+      }
+    }
+  ]
+}

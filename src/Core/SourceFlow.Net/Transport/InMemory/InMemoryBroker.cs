@@ -821,13 +821,15 @@ public sealed class InMemoryBrokerFaults
 }
 
 /// <summary>The in-memory <see cref="ITransport"/>, bound to an <see cref="InMemoryBroker"/>.</summary>
-public sealed class InMemoryTransport : ITransport
+public sealed class InMemoryTransport : ITransport, ITopologyDescriber
 {
     private readonly InMemoryBroker _broker;
+    private readonly Provisioner _provisioner;
 
     internal InMemoryTransport(InMemoryBroker broker)
     {
         _broker = broker;
+        _provisioner = new Provisioner(broker);
     }
 
     /// <inheritdoc />
@@ -868,26 +870,52 @@ public sealed class InMemoryTransport : ITransport
     /// <inheritdoc />
     public ValueTask ProvisionAsync(TransportTopology topology, ProvisioningMode mode, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(topology);
-        foreach ((string topic, string filter) in topology.Filters)
+        return _provisioner.ProvisionAsync(topology, mode, cancellationToken);
+    }
+
+    /// <summary>The in-memory resources: the endpoint queue with its dead letters, topics, and one subscription per subscribed topic.</summary>
+    public PhysicalTopology Describe(TransportTopology topology)
+    {
+        TopologyProvisioner.Check(topology);
+        var resources = new List<PhysicalResource>
         {
-            CloudEventFilter.Parse(filter);   // a malformed filter fails provisioning in every mode
-            _ = topic;
+            new(PhysicalResourceKind.Queue, topology.Endpoint, topology.Endpoint, Owned: true)
+            {
+                Properties = new() { ["ordered"] = topology.OrderedEndpoint, ["maxDeliveries"] = topology.MaxDeliveries },
+            },
+        };
+        foreach (string topic in topology.PublishedTopics.Concat(topology.SubscribedTopics).Distinct(StringComparer.Ordinal))
+        {
+            bool published = topology.PublishedTopics.Contains(topic, StringComparer.Ordinal);
+            bool ordered = published ? topology.OrderedTopics.Contains(topic, StringComparer.Ordinal) : topology.OrderedEndpoint;
+            resources.Add(new PhysicalResource(PhysicalResourceKind.Topic, topic, topic, published) { Properties = new() { ["ordered"] = ordered } });
         }
 
-        if (mode == ProvisioningMode.None)
+        foreach (string topic in topology.SubscribedTopics.Distinct(StringComparer.Ordinal))
         {
+            resources.Add(new PhysicalResource(PhysicalResourceKind.Subscription, $"{topic}/{topology.Endpoint}", $"{topic} → {topology.Endpoint}", Owned: true)
+            {
+                Properties = new() { ["topic"] = topic, ["endpoint"] = topology.Endpoint, ["filter"] = topology.Filters.GetValueOrDefault(topic) },
+            });
+        }
+
+        return new PhysicalTopology(SystemName, resources);
+    }
+
+    private sealed class Provisioner(InMemoryBroker broker) : TopologyProvisioner
+    {
+        protected override ValueTask CreateAsync(TransportTopology topology, CancellationToken cancellationToken)
+        {
+            broker.Guard();
+            broker.Create(topology);
             return ValueTask.CompletedTask;
         }
 
-        _broker.Guard();
-        if (mode == ProvisioningMode.CreateIfMissing)
+        protected override ValueTask<IReadOnlyList<TopologyProblem>> ValidateAsync(TransportTopology topology, CancellationToken cancellationToken)
         {
-            _broker.Create(topology);
+            broker.Guard();
+            return ValueTask.FromResult(broker.Validate(topology));
         }
-
-        IReadOnlyList<TopologyProblem> problems = _broker.Validate(topology);
-        return problems.Count == 0 ? ValueTask.CompletedTask : throw new TopologyValidationException(problems);
     }
 
     // Validates every message, sends the valid ones in batches of MaxBatchSize, then reports the ones not sent.

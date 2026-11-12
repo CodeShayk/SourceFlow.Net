@@ -12,12 +12,34 @@ public sealed class RoutingBuilder
     private readonly Dictionary<Type, CommandRoute> _commands = [];
     private readonly Dictionary<Type, List<PublicationRoute>> _publications = [];
     private readonly Dictionary<string, SubscriptionRoute> _subscriptions = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _orderedTopics = new(StringComparer.Ordinal);
     private string? _endpoint;
+    private bool _orderedEndpoint;
 
     /// <summary>Sets the service's input endpoint (default: the service name).</summary>
     public RoutingBuilder Endpoint(string name)
     {
         _endpoint = ValidateName(name, nameof(name));
+        return this;
+    }
+
+    /// <summary>
+    /// Makes the service's endpoint ordered (doc 07 §3): messages with the same partition key are delivered in order
+    /// across instances (FIFO queues, sessions, ordering keys). The core always keeps per-key order inside an instance.
+    /// </summary>
+    public RoutingBuilder OrderedEndpoint()
+    {
+        _orderedEndpoint = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Makes a published topic ordered (doc 07 §3): its events keep per-partition-key order for every subscriber
+    /// (<c>OrderedBy(key)</c> chooses the key; the stream id by default).
+    /// </summary>
+    public RoutingBuilder OrderedTopic(string topic)
+    {
+        _orderedTopics.Add(ValidateName(topic, nameof(topic)));
         return this;
     }
 
@@ -109,11 +131,23 @@ public sealed class RoutingBuilder
             }
         }
 
+        string[] unpublished = [.. _orderedTopics.Where(t => !_publications.Values.Any(routes => routes.Any(r => r.Destination == t))).Order(StringComparer.Ordinal)];
+        if (unpublished.Length > 0)
+        {
+            throw new InvalidOperationException(
+                $"OrderedTopic is declared for topic(s) the service does not publish to: {string.Join(", ", unpublished)}. " +
+                "A topic's ordering belongs to its publisher (doc 07 §3).");
+        }
+
         return new RoutingTable(
             _endpoint ?? serviceName,
             _commands.ToFrozenDictionary(),
             _publications.ToFrozenDictionary(p => p.Key, p => (IReadOnlyList<PublicationRoute>)[.. p.Value]),
-            [.. _subscriptions.Values.Select(s => s with { Filter = EffectiveFilter(s, model) })]);
+            [.. _subscriptions.Values.Select(s => s with { Filter = EffectiveFilter(s, model) })])
+        {
+            OrderedEndpoint = _orderedEndpoint,
+            OrderedTopics = _orderedTopics.ToFrozenSet(StringComparer.Ordinal),
+        };
     }
 
     // Only<T>() becomes `type IN (…)` on the CloudEvents types; Where(…) is ANDed with it (doc 07 §7).
@@ -325,6 +359,12 @@ public sealed class RoutingTable
 
     /// <summary>Topic subscriptions.</summary>
     public IReadOnlyList<SubscriptionRoute> Subscriptions { get; }
+
+    /// <summary>True when the endpoint keeps per-partition-key order across instances (<c>OrderedEndpoint()</c>).</summary>
+    public bool OrderedEndpoint { get; init; }
+
+    /// <summary>Published topics that keep per-partition-key order (<c>OrderedTopic(…)</c>).</summary>
+    public IReadOnlySet<string> OrderedTopics { get; init; } = FrozenSet<string>.Empty;
 
     /// <summary>Every topic the service publishes to.</summary>
     public IEnumerable<string> PublishedTopics => Publications.Values.SelectMany(r => r).Select(r => r.Destination).Distinct(StringComparer.Ordinal);

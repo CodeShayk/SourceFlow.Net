@@ -71,6 +71,11 @@ Physical names come from `INamingConvention`: by default `{environment}-{logical
 
 Ordered endpoints and topics are opt-in per endpoint or topic (`.Ordered()`). The core always serialises per partition key inside an instance (doc 04 RX-R1). Broker ordering adds ordering *across* instances.
 
+> **As built (WP-3.5).** The logical model is `TransportTopology` (ADR-033), built by `SourceFlowRuntime.Topology()` from routing:
+> - Ordering is declared with `RoutingBuilder.OrderedEndpoint()` and `OrderedTopic(topic)`. A topic's ordering belongs to its publisher, so `OrderedTopic` on a topic the service does not publish fails at startup.
+> - Physical names are not pluggable. Each transport's naming is fixed and deterministic (`AwsNaming`, `GcpNaming`, `AzureNaming`) with a `NamePrefix` option for the environment. A custom convention would have to be applied identically by every service and every IaC module, so instead the transports *describe* their names: `ITopologyDescriber.Describe(topology)` returns the `PhysicalTopology` (`AwsTopology`, `GcpTopology`, `AzureTopology`, and the in-memory transport), computed from the options without a broker call.
+> - The `DeadLetter(endpoint)` backstop is drained by the `DeadLetterIngestor`, which runs on receiver instances as its own loop. It drains while messages arrive, then checks every `DeadLetterIngestInterval` (30 s by default). Commits do not wake it, because each check is a broker call. After a broker error it recreates its receiver and backs off, from 1 s doubling up to the interval.
+
 ## 4. Provider mappings
 
 | Concern | AWS (SNS + SQS) | Azure Service Bus | Google Pub/Sub | In-memory |
@@ -174,6 +179,14 @@ Ordered endpoints and topics are opt-in per endpoint or topic (`.Ordered()`). Th
 ```
 
 Reference Terraform and Bicep modules that consume this JSON are published in the repository (`deploy/`). They are maintained with the conformance kit's topology fixtures.
+
+> **As built (WP-3.5).**
+> - **Shared mode behaviour.** Every transport's provisioner derives from `TopologyProvisioner`. It first checks the topology in every mode, `None` included: names present and logical, delivery limit ≥ 1, ordered topics published, filters only on subscribed topics, and filters that parse. Then `None` stops, `CreateIfMissing` creates what is missing, and both `CreateIfMissing` and `Validate` report every difference at once. Existing resources are never changed.
+> - **Default mode.** When `SourceFlowBuilder.Provisioning` is left unset, it is `CreateIfMissing` in Development, with the in-memory transport, or without a host environment, and `Validate` in every other environment.
+> - **Export.** The library export is `TopologyExport.ToJson(runtime.TopologyDocument())`, and `dotnet sourceflow topology export [--format json|text] [--output file]` writes it. The format is versioned (`schemaVersion: 1`) and deterministic: sorted, with no timestamps. Its JSON Schema is `deploy/topology/topology.schema.json`. Besides the logical topology and the CloudEvents types per topic and endpoint, it lists `resources`: each physical resource with its `kind`, `name`, `logical` owner, `role` and provider `properties` in the provider's units. A resource is marked `owned: false` when it belongs to another stack: subscribed topics belong to their publisher, and remote endpoints to their service.
+> - **Modules.** `deploy/topology/terraform/{aws,gcp,azure}` and `deploy/topology/bicep/servicebus.bicep` read the export and compute no names. The Google Cloud module also grants the Pub/Sub service agent the dead-letter permissions, and the AWS module outputs a least-privilege runtime IAM policy.
+> - **Azure `$Default` rule.** ARM creates a match-everything rule called `$Default` with every Azure subscription. The export names each subscription's first rule `$Default`, so the modules replace that rule rather than add one beside it.
+> - **Tests.** The modules are tested against the fixtures (plan 06 §3.1, IAC-01..04). The Terraform modules applied to LocalStack and the Pub/Sub emulator pass `Validate`. The Azure modules have no emulator for ARM, so they are checked with mock providers and `bicep build`.
 
 ## 6. Options are honoured, always
 

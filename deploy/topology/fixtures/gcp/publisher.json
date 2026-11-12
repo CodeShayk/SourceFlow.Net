@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "service": "publisher",
+  "transport": "gcp_pubsub",
+  "endpoint": {
+    "name": "publisher",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [
+    {
+      "topic": "shared",
+      "ordered": false,
+      "messages": []
+    }
+  ],
+  "subscribes": [],
+  "sends": [
+    {
+      "endpoint": "subscriber",
+      "commands": []
+    }
+  ],
+  "resources": [
+    {
+      "kind": "topic",
+      "name": "dev-publisher+dlq",
+      "logical": "publisher",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-publisher+dlq",
+      "logical": "publisher",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": null,
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "",
+        "labels": {},
+        "maxDeliveryAttempts": null,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-publisher+dlq"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-publisher+in",
+      "logical": "publisher",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-publisher",
+      "logical": "publisher",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": "dev-publisher+dlq",
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "",
+        "labels": {
+          "sf-max-deliveries": "10"
+        },
+        "maxDeliveryAttempts": 10,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-publisher+in"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-shared",
+      "logical": "shared",
+      "owned": true,
+      "role": "topic",
+      "properties": {}
+    },
+    {
+      "kind": "topic",
+      "name": "dev-subscriber+in",
+      "logical": "subscriber",
+      "owned": false,
+      "role": "remote-endpoint",
+      "properties": {}
+    }
+  ]
+}

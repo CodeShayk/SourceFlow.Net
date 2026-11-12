@@ -12,7 +12,7 @@ namespace SourceFlow.Cloud.Azure;
 /// forwards to its queue (<c>ForwardTo</c>), with correlation or SQL rules on the CloudEvents type. Each service has one
 /// queue and one receiver for commands and events alike.
 /// </summary>
-public sealed class AzureTransport : ITransport, IAsyncDisposable
+public sealed class AzureTransport : ITransport, ITopologyDescriber, IAsyncDisposable
 {
     /// <summary>The <c>messaging.system</c> of Service Bus (OpenTelemetry semantic conventions).</summary>
     public const string System = "servicebus";
@@ -142,6 +142,12 @@ public sealed class AzureTransport : ITransport, IAsyncDisposable
         _ = await IsOrderedAsync(endpoint, cancellationToken).ConfigureAwait(false);   // the queue exists
         ServiceBusReceiver receiver = Client.CreateReceiver(AzureNaming.Queue(Prefix, endpoint), new ServiceBusReceiverOptions { SubQueue = SubQueue.DeadLetter, PrefetchCount = 0 });
         return new AzureQueueReceiver(this, endpoint, receiver, deadLetters: true, TimeSpan.FromSeconds(30), new Dictionary<string, CloudEventFilter>());
+    }
+
+    /// <inheritdoc />
+    public PhysicalTopology Describe(TransportTopology topology)
+    {
+        return AzureTopology.Describe(Options, topology);
     }
 
     /// <inheritdoc />

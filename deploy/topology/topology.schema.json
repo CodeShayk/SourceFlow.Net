@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/CodeShayk/SourceFlow.Net/blob/v3.0.0/deploy/topology/topology.schema.json",
+  "title": "SourceFlow topology export",
+  "description": "What `dotnet sourceflow topology export` (TopologyExport.ToJson) writes for one service: its logical topology and, when the transport describes them, the broker resources in the provider's terms (doc 07 §5, ADR-017).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "service", "transport", "endpoint", "publishes", "subscribes", "sends"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "service": { "$ref": "#/$defs/name" },
+    "transport": {
+      "description": "The transport's messaging.system name (aws_sqs, gcp_pubsub, servicebus, sourceflow.inmemory); null when the transport does not describe its resources.",
+      "type": ["string", "null"]
+    },
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "ordered", "maxDeliveries", "commands"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "ordered": { "type": "boolean" },
+        "maxDeliveries": { "type": "integer", "minimum": 1 },
+        "commands": { "$ref": "#/$defs/names", "description": "CloudEvents types the service owns and receives on its endpoint." }
+      }
+    },
+    "publishes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["topic", "ordered", "messages"],
+        "properties": {
+          "topic": { "$ref": "#/$defs/name" },
+          "ordered": { "type": "boolean" },
+          "messages": { "$ref": "#/$defs/names" }
+        }
+      }
+    },
+    "subscribes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["topic", "filter"],
+        "properties": {
+          "topic": { "$ref": "#/$defs/name" },
+          "filter": { "type": ["string", "null"], "description": "The CloudEvents SQL filter, or null for every event." }
+        }
+      }
+    },
+    "sends": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["endpoint", "commands"],
+        "properties": {
+          "endpoint": { "$ref": "#/$defs/name" },
+          "commands": { "$ref": "#/$defs/names" }
+        }
+      }
+    },
+    "resources": {
+      "description": "The broker resources, in creation order. Owned resources belong to this service's infrastructure as code; the others (subscribed topics, remote endpoints) to their owners'.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/resource" }
+    }
+  },
+  "allOf": [
+    { "if": { "properties": { "transport": { "const": "aws_sqs" } }, "required": ["transport"] }, "then": { "properties": { "resources": { "items": { "$ref": "#/$defs/aws" } } } } },
+    { "if": { "properties": { "transport": { "const": "gcp_pubsub" } }, "required": ["transport"] }, "then": { "properties": { "resources": { "items": { "$ref": "#/$defs/gcp" } } } } },
+    { "if": { "properties": { "transport": { "const": "servicebus" } }, "required": ["transport"] }, "then": { "properties": { "resources": { "items": { "$ref": "#/$defs/azure" } } } } }
+  ],
+  "$defs": {
+    "name": { "type": "string", "minLength": 1 },
+    "names": { "type": "array", "items": { "$ref": "#/$defs/name" }, "uniqueItems": true },
+    "duration": { "type": "string", "pattern": "^P(?!$)(\\d+D)?(T(?=\\d)(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$" },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name", "logical", "owned", "role", "properties"],
+      "properties": {
+        "kind": { "enum": ["queue", "topic", "subscription", "rule"] },
+        "name": { "$ref": "#/$defs/name" },
+        "logical": { "$ref": "#/$defs/name" },
+        "owned": { "type": "boolean" },
+        "role": { "enum": ["endpoint", "dead-letter", "topic", "subscription", "rule", "remote-endpoint"] },
+        "properties": { "type": "object" }
+      }
+    },
+    "aws": {
+      "oneOf": [
+        {
+          "properties": {
+            "kind": { "const": "queue" },
+            "role": { "enum": ["endpoint", "dead-letter"] },
+            "name": { "pattern": "^[A-Za-z0-9_-]{1,80}$|^[A-Za-z0-9_-]{1,75}\\.fifo$" },
+            "properties": {
+              "type": "object",
+              "required": ["fifo", "messageRetentionSeconds", "deadLetterQueue", "maxReceiveCount", "allowTopics"],
+              "properties": {
+                "fifo": { "type": "boolean" },
+                "messageRetentionSeconds": { "type": "integer", "minimum": 60, "maximum": 1209600 },
+                "deadLetterQueue": { "type": ["string", "null"] },
+                "maxReceiveCount": { "type": ["integer", "null"], "minimum": 1 },
+                "allowTopics": { "$ref": "#/$defs/names" }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": { "const": "queue" },
+            "role": { "const": "remote-endpoint" },
+            "owned": { "const": false },
+            "properties": { "type": "object", "required": ["candidates"], "properties": { "candidates": { "$ref": "#/$defs/names" } } }
+          }
+        },
+        {
+          "properties": {
+            "kind": { "const": "topic" },
+            "name": { "pattern": "^[A-Za-z0-9_-]{1,256}$|^[A-Za-z0-9_-]{1,251}\\.fifo$" },
+            "properties": { "type": "object", "required": ["fifo"], "properties": { "fifo": { "type": "boolean" } } }
+          }
+        },
+        {
+          "properties": {
+            "kind": { "const": "subscription" },
+            "properties": {
+              "type": "object",
+              "required": ["topic", "queue", "protocol", "rawMessageDelivery", "filterPolicy", "filterPolicyScope"],
+              "properties": {
+                "protocol": { "const": "sqs" },
+                "rawMessageDelivery": { "const": true },
+                "filterPolicy": { "type": ["string", "null"] },
+                "filterPolicyScope": { "enum": ["MessageAttributes", null] }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "gcp": {
+      "oneOf": [
+        {
+          "properties": {
+            "kind": { "const": "topic" },
+            "name": { "pattern": "^[A-Za-z][A-Za-z0-9._~+%-]{2,254}$" },
+            "properties": { "type": "object", "maxProperties": 0 }
+          }
+        },
+        {
+          "properties": {
+            "kind": { "const": "subscription" },
+            "name": { "pattern": "^[A-Za-z][A-Za-z0-9._~+%-]{2,254}$" },
+            "properties": {
+              "type": "object",
+              "required": ["topic", "ackDeadlineSeconds", "enableMessageOrdering", "messageRetentionDuration", "filter", "expires", "labels", "deadLetterTopic", "maxDeliveryAttempts"],
+              "properties": {
+                "ackDeadlineSeconds": { "type": "integer", "minimum": 10, "maximum": 600 },
+                "enableMessageOrdering": { "type": "boolean" },
+                "messageRetentionDuration": { "type": "string", "pattern": "^\\d+s$" },
+                "filter": { "type": "string" },
+                "expires": { "const": false },
+                "labels": { "type": "object", "additionalProperties": { "type": "string" } },
+                "deadLetterTopic": { "type": ["string", "null"] },
+                "maxDeliveryAttempts": { "type": ["integer", "null"], "minimum": 5, "maximum": 100 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "azure": {
+      "oneOf": [
+        {
+          "properties": {
+            "kind": { "const": "queue" },
+            "role": { "const": "endpoint" },
+            "properties": {
+              "type": "object",
+              "required": ["requiresSession", "maxDeliveryCount", "lockDuration", "defaultMessageTimeToLive", "deadLetteringOnMessageExpiration", "requiresDuplicateDetection", "duplicateDetectionHistoryTimeWindow"],
+              "properties": {
+                "requiresSession": { "type": "boolean" },
+                "maxDeliveryCount": { "type": "integer", "minimum": 1 },
+                "lockDuration": { "$ref": "#/$defs/duration" },
+                "defaultMessageTimeToLive": { "$ref": "#/$defs/duration" },
+                "deadLetteringOnMessageExpiration": { "type": "boolean" },
+                "requiresDuplicateDetection": { "type": "boolean" },
+                "duplicateDetectionHistoryTimeWindow": { "oneOf": [{ "$ref": "#/$defs/duration" }, { "type": "null" }] }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": { "const": "queue" },
+            "role": { "const": "remote-endpoint" },
+            "owned": { "const": false }
+          }
+        },
+        {
+          "properties": {
+            "kind": { "const": "topic" },
+            "properties": { "type": "object", "required": ["defaultMessageTimeToLive"], "properties": { "defaultMessageTimeToLive": { "$ref": "#/$defs/duration" } } }
+          }
+        },
+        {
+          "properties": {
+            "kind": { "const": "subscription" },
+            "properties": {
+              "type": "object",
+              "required": ["topic", "subscription", "forwardTo", "defaultMessageTimeToLive"],
+              "properties": { "subscription": { "type": "string", "maxLength": 50 } }
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": { "const": "rule" },
+            "properties": {
+              "type": "object",
+              "required": ["topic", "subscription", "rule", "filterType", "correlationProperties", "sqlExpression"],
+              "properties": {
+                "filterType": { "enum": ["CorrelationFilter", "SqlFilter"] },
+                "correlationProperties": { "type": ["object", "null"], "additionalProperties": { "type": "string" } },
+                "sqlExpression": { "type": ["string", "null"] }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

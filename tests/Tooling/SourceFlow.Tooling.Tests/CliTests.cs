@@ -8,6 +8,7 @@ using SourceFlow.Runtime;
 using SourceFlow.Storage;
 using SourceFlow.Testing;
 using SourceFlow.Tool;
+using SourceFlow.Transport;
 
 namespace SourceFlow.Tooling.Tests;
 
@@ -330,6 +331,8 @@ public sealed class CliTests
     [Trait("Id", "UT-CLI-14")]
     [Trait("Id", "UT-CLI-15")]
     [Trait("Id", "UT-CLI-16")]
+    [Trait("Id", "UT-TOP-15")]
+    [Trait("Covers", "doc 07 5")]
     public async Task Topology_ExportsJsonAndText_AndValidates()
     {
         await using SourceFlowTestHost host = await BankAsync(routing: r => r.Publish<AccountOpened>().As(AccountContracts.ToV1).To("accounts.events"));
@@ -340,14 +343,42 @@ public sealed class CliTests
 
         json.ShouldBe(0);
         JsonNode topology = JsonNode.Parse(exported)!;
-        topology["endpoint"]!.GetValue<string>().ShouldBe("accounts");
+        topology["schemaVersion"]!.GetValue<int>().ShouldBe(TopologyExport.SchemaVersion);
+        topology["transport"]!.GetValue<string>().ShouldBe("sourceflow.inmemory");
+        topology["endpoint"]!["name"]!.GetValue<string>().ShouldBe("accounts");
         topology["publishes"]![0]!["topic"]!.GetValue<string>().ShouldBe("accounts.events");
-        topology["publishes"]![0]!["messages"]![0]!.GetValue<string>().ShouldBe("accounts.account-opened");
-        topology["commands"]!.AsArray().Select(c => c!.GetValue<string>()).ShouldContain("bank.account.open");
+        topology["publishes"]![0]!["messages"]![0]!.GetValue<string>().ShouldBe("accounts.account-opened.v1");
+        topology["endpoint"]!["commands"]!.AsArray().Select(c => c!.GetValue<string>()).ShouldContain("bank.account.open.v1");
+        topology["resources"]!.AsArray().Select(r => r!["name"]!.GetValue<string>()).ShouldBe(["accounts", "accounts.events"]);
         text.ShouldBe(0);
         lines.ShouldContain("publish   accounts.events");
         valid.ShouldBe(0);
         validated.ShouldContain("in place");
+        exported.ShouldBe(TopologyExport.ToJson(host.Runtime.TopologyDocument()), "the CLI writes the library export");
+        lines.ShouldContain("resources (sourceflow.inmemory)");
+    }
+
+    [Fact]
+    [Trait("Id", "UT-TOP-15")]
+    public async Task TopologyExport_WritesToAFile()
+    {
+        await using SourceFlowTestHost host = await BankAsync(routing: r => r.Publish<AccountOpened>().As(AccountContracts.ToV1).To("accounts.events"));
+        string file = Path.Combine(Path.GetTempPath(), $"topology-{Guid.CreateVersion7():N}.json");
+        try
+        {
+            (int code, string output, _) = await RunAsync(host, "topology", "export", "--output", file);
+            (int bad, _, string error) = await RunAsync(host, "topology", "export", "--format", "yaml");
+
+            code.ShouldBe(0);
+            output.ShouldContain(file);
+            (await File.ReadAllTextAsync(file, TestContext.Current.CancellationToken)).ShouldBe(TopologyExport.ToJson(host.Runtime.TopologyDocument()));
+            bad.ShouldNotBe(0);
+            error.ShouldContain("yaml");
+        }
+        finally
+        {
+            File.Delete(file);
+        }
     }
 
     // ================================================================ query

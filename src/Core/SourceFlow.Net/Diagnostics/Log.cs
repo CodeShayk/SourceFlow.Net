@@ -50,6 +50,9 @@ internal static partial class Log
     [LoggerMessage(1210, LogLevel.Warning, "Message {MessageId} was dead-lettered by the broker on {Endpoint} ({Reason}); parked for replay")]
     public static partial void BrokerDeadLetterIngested(ILogger logger, string messageId, string endpoint, string reason);
 
+    [LoggerMessage(1211, LogLevel.Error, "Moving broker dead letters of {Endpoint} into the dead-letter store failed; retrying in {Delay}")]
+    public static partial void BrokerDeadLetterIngestFailed(ILogger logger, Exception exception, string endpoint, TimeSpan delay);
+
     [LoggerMessage(1301, LogLevel.Error, "Subscription {Subscription} partition {Partition} failed on event {EventId}; {Policy}")]
     public static partial void SubscriptionFailed(ILogger logger, Exception exception, string subscription, int partition, string eventId, string policy);
 

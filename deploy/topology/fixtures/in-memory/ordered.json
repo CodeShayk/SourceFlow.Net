@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "service": "ordered",
+  "transport": "sourceflow.inmemory",
+  "endpoint": {
+    "name": "ordered",
+    "ordered": true,
+    "maxDeliveries": 5,
+    "commands": []
+  },
+  "publishes": [
+    {
+      "topic": "ordered-out",
+      "ordered": true,
+      "messages": []
+    }
+  ],
+  "subscribes": [
+    {
+      "topic": "ordered-in",
+      "filter": "type = 'tck.ordered.v1'"
+    }
+  ],
+  "sends": [
+    {
+      "endpoint": "minimal",
+      "commands": []
+    }
+  ],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "ordered",
+      "logical": "ordered",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "maxDeliveries": 5,
+        "ordered": true
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "ordered-out",
+      "logical": "ordered-out",
+      "owned": true,
+      "role": "topic",
+      "properties": {
+        "ordered": true
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "ordered-in",
+      "logical": "ordered-in",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "ordered": true
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "ordered-in/ordered",
+      "logical": "ordered-in → ordered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "endpoint": "ordered",
+        "filter": "type = 'tck.ordered.v1'",
+        "topic": "ordered-in"
+      }
+    }
+  ]
+}

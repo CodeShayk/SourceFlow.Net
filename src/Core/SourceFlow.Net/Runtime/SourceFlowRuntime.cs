@@ -119,8 +119,9 @@ public sealed class SourceFlowRuntime
     }
 
     /// <summary>
-    /// The service's transport topology (ADR-017): its endpoint with a dead-letter backstop after the retry budget plus
-    /// two deliveries (doc 07 §4), published and subscribed topics with their CloudEvents SQL filters, and remote endpoints.
+    /// The service's transport topology (ADR-017): its endpoint (ordered or not) with a dead-letter backstop after the retry
+    /// budget plus two deliveries (doc 07 §4), published topics (ordered or not), subscribed topics with their CloudEvents
+    /// SQL filters, and remote endpoints.
     /// </summary>
     public TransportTopology Topology()
     {
@@ -130,9 +131,37 @@ public sealed class SourceFlowRuntime
             [.. Routing.Subscriptions.Select(s => s.Topic)],
             [.. Routing.Commands.Values.Select(c => c.Endpoint).Distinct(StringComparer.Ordinal)])
         {
+            OrderedEndpoint = Routing.OrderedEndpoint,
+            OrderedTopics = [.. Routing.OrderedTopics.Order(StringComparer.Ordinal)],
             MaxDeliveries = 1 + Options.DelayedRetries.Count + 2,
             Filters = Routing.Subscriptions.Where(s => s.Filter is not null).ToDictionary(s => s.Topic, s => s.Filter!, StringComparer.Ordinal),
         };
+    }
+
+    /// <summary>
+    /// The service's topology for export (ADR-017): <see cref="Topology"/>, the physical resources when the transport
+    /// describes them, and the CloudEvents types the service owns, publishes per topic and sends per endpoint.
+    /// </summary>
+    public TopologyDocument TopologyDocument()
+    {
+        TransportTopology topology = Topology();
+        return new TopologyDocument(ServiceName, topology)
+        {
+            Physical = (Transport as ITopologyDescriber)?.Describe(topology),
+            OwnedCommands = [.. Model.CommandOwners.Keys.Select(CloudEventType)],
+            PublishedMessages = Routing.Publications.Values.SelectMany(p => p)
+                .GroupBy(p => p.Destination, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)[.. g.Select(p => CloudEventType(p.ContractType)).Distinct(StringComparer.Ordinal)], StringComparer.Ordinal),
+            SentCommands = Routing.Commands
+                .GroupBy(c => c.Value.Endpoint, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)[.. g.Select(c => CloudEventType(c.Key))], StringComparer.Ordinal),
+        };
+    }
+
+    private string CloudEventType(Type type)
+    {
+        MessageTypeInfo info = Model.Registry.Get(type);
+        return CloudEvents.FormatType(info.Name, info.Version);
     }
 
     /// <summary>Read-model generations and aliases (doc 06 §6).</summary>

@@ -57,8 +57,13 @@ public sealed class SourceFlowBuilder
     /// <summary>The background roles of this instance (default: all).</summary>
     public SourceFlowRoles Roles { get; set; } = SourceFlowRoles.All;
 
-    /// <summary>How transport resources are provisioned at startup (ADR-017).</summary>
-    public ProvisioningMode Provisioning { get; set; } = ProvisioningMode.CreateIfMissing;
+    /// <summary>
+    /// How transport resources are provisioned at startup (ADR-017, doc 07 §5). Null (the default) chooses by environment:
+    /// <see cref="ProvisioningMode.CreateIfMissing"/> in Development, with the in-memory transport, or without a host
+    /// environment; <see cref="ProvisioningMode.Validate"/> otherwise, so production needs describe permissions only and
+    /// resources come from infrastructure as code (<c>dotnet sourceflow topology export</c>).
+    /// </summary>
+    public ProvisioningMode? Provisioning { get; set; }
 
     internal SourceFlowModelBuilder Model { get; } = new();
 

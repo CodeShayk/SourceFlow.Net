@@ -92,6 +92,19 @@ As built ([ADR-033](../ADRs/ADR-033-final-transport-spi-pull-receivers-and-the-i
 | TCK-44 | Graceful shutdown: in-flight drained, nothing acknowledged without completion | new |
 | TCK-45 | End to end with the core: remote command appended once under injected duplicates | `AwsIntegrationTests` (concept) |
 
+### 3.1 Infrastructure as code (IAC, WP-3.5)
+
+The reference modules in `deploy/topology` are tested against the TCK topology fixtures (`TopologyFixtures`): an endpoint alone, the TCK provisioning topology, ordering, every kind of filter, and a publisher and subscriber sharing a topic. The tests run in the `iac` job of `v3-pr`, with `Requires=Terraform`.
+
+| ID | Scenario | Where |
+|----|----------|-------|
+| IAC-01 | `terraform/aws` applied to LocalStack for every fixture; each passes the AWS transport's `ProvisioningMode.Validate` | LocalStack |
+| IAC-02 | `terraform/gcp` applied to the Pub/Sub emulator for every fixture; each passes the Google Cloud transport's `Validate` | Pub/Sub emulator |
+| IAC-03 | Each Terraform module's `terraform test` suite: every committed fixture against mock providers, plus the wrong-provider check | none (mock providers) |
+| IAC-04 | `bicep build` of `bicep/servicebus.bicep` for every Azure fixture | none |
+
+The Service Bus emulator has no ARM endpoint, so the Azure modules are checked by IAC-03, IAC-04 and UT-TOP-12 (the provisioner creates exactly what the export describes) rather than by an apply.
+
 v2 suites **not** carried into the TCK: the LocalStack harness self-tests, the CI timeout exploration and IAM policy-syntax tests. Their reasons are in [plan 07](07-V2-Test-Disposition-Matrix.md).
 
 ## 4. End-to-end scenarios (`SourceFlow.EndToEnd.Tests`, Bank sample)

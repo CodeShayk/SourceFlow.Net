@@ -60,3 +60,5 @@ Q-B4,doc 14,Named domain queries
 GAP-02,product 06,One AWS endpoint and receiver per service with raw delivery
 ADR-017,ADRs,Provisioning modes and topology as data
 doc 07 6,doc 07,Transport options are honoured
+doc 07 3,doc 07,Topology model, ordering declarations, naming and the broker dead-letter ingestor
+doc 07 5,doc 07,Provisioning modes, topology export and IaC modules

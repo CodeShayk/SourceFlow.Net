@@ -74,7 +74,7 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
             if (_runtime.Options.IngestBrokerDeadLetters && _runtime.Transport.Capabilities.NativeDeadLetter)
             {
                 _ingestor = new DeadLetterIngestor(_runtime);
-                _loops.Add(Task.Run(() => LoopAsync(ct => _ingestor.RunOnceAsync(ct), stopping), CancellationToken.None));
+                _loops.Add(Task.Run(() => _ingestor.RunAsync(stopping), CancellationToken.None));
             }
         }
 

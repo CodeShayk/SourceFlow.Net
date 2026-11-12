@@ -15,7 +15,7 @@ namespace SourceFlow.Cloud.Aws;
 /// topic is an SNS topic, and a subscription is an SNS→SQS subscription with raw message delivery and, where the filter
 /// allows, an SNS filter policy. Each service has one endpoint and one receiver for commands and events alike (GAP-02).
 /// </summary>
-public sealed class AwsTransport : ITransport, IDisposable
+public sealed class AwsTransport : ITransport, ITopologyDescriber, IDisposable
 {
     /// <summary>The <c>messaging.system</c> of SQS (OpenTelemetry semantic conventions).</summary>
     public const string System = "aws_sqs";
@@ -168,6 +168,12 @@ public sealed class AwsTransport : ITransport, IDisposable
             ?? throw new DestinationNotFoundException(endpoint + " (dead-letter queue)");
         var deadLetters = new QueueRef(url, AwsNaming.DeadLetterQueue(Resources.Prefix, endpoint, queue.Ordered), queue.Ordered);
         return new AwsReceiver(this, endpoint, deadLetters, deadLetters: true, TimeSpan.FromSeconds(30), new Dictionary<string, CloudEventFilter>());
+    }
+
+    /// <inheritdoc />
+    public PhysicalTopology Describe(TransportTopology topology)
+    {
+        return AwsTopology.Describe(Options, topology);
     }
 
     /// <inheritdoc />

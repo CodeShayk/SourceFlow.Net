@@ -609,84 +609,31 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
     private Command Topology()
     {
         var format = new Option<string>("--format") { Description = "json (default) or text.", DefaultValueFactory = _ => "json" };
-        var export = new Command("export", "Write the service's messaging topology (endpoint, topics, routes) for IaC (doc 07).");
+        var output = new Option<FileInfo?>("--output") { Description = "Write to this file instead of standard output." };
+        var export = new Command("export", "Write the service's messaging topology (logical, and the transport's physical resources) for IaC (doc 07 §5, deploy/topology).");
         export.Options.Add(format);
-        export.SetAction((r, _) => Guard(async () =>
+        export.Options.Add(output);
+        export.SetAction((r, ct) => Guard(async () =>
         {
             SourceFlowRuntime runtime = Service("topology export").GetRequiredService<SourceFlowRuntime>();
-            RoutingTable routing = runtime.Routing;
-            if (r.GetValue(format) == "text")
+            TopologyDocument document = runtime.TopologyDocument();
+            string text = r.GetValue(format) switch
             {
-                await Out.WriteLineAsync($"endpoint  {routing.Endpoint}");
-                foreach (string topic in routing.PublishedTopics)
-                {
-                    await Out.WriteLineAsync($"publish   {topic}");
-                }
+                "json" => TopologyExport.ToJson(document),
+                "text" => TopologyText(document),
+                var other => throw new ArgumentException($"Unknown format '{other}': use json or text."),
+            };
 
-                foreach (SubscriptionRoute subscription in routing.Subscriptions)
-                {
-                    await Out.WriteLineAsync($"subscribe {subscription.Topic}");
-                }
-
-                foreach ((Type command, CommandRoute route) in routing.Commands)
-                {
-                    await Out.WriteLineAsync($"send      {runtime.Model.Registry.Get(command).Name} -> {route.Endpoint}{(route.ReplyOnReject ? " (reply on reject)" : string.Empty)}");
-                }
-
-                return 0;
+            if (r.GetValue(output) is { } file)
+            {
+                await File.WriteAllTextAsync(file.FullName, text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), ct);
+                await Out.WriteLineAsync($"Wrote the topology of {document.Service} to {file.FullName}.");
+            }
+            else
+            {
+                await Out.WriteAsync(text);
             }
 
-            var buffer = new System.Buffers.ArrayBufferWriter<byte>();
-            using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true }))
-            {
-                writer.WriteStartObject();
-                writer.WriteString("service", runtime.ServiceName);
-                writer.WriteString("endpoint", routing.Endpoint);
-                writer.WriteStartArray("commands");
-                foreach (Type owned in runtime.Model.CommandOwners.Keys.OrderBy(t => t.FullName, StringComparer.Ordinal))
-                {
-                    writer.WriteStringValue(runtime.Model.Registry.Get(owned).Name);
-                }
-
-                writer.WriteEndArray();
-                writer.WriteStartArray("publishes");
-                foreach (IGrouping<string, PublicationRoute> topic in routing.Publications.Values.SelectMany(p => p).GroupBy(p => p.Destination, StringComparer.Ordinal))
-                {
-                    writer.WriteStartObject();
-                    writer.WriteString("topic", topic.Key);
-                    writer.WriteStartArray("messages");
-                    foreach (Type contract in topic.Select(p => p.ContractType).Distinct())
-                    {
-                        writer.WriteStringValue(runtime.Model.Registry.Get(contract).Name);
-                    }
-
-                    writer.WriteEndArray();
-                    writer.WriteEndObject();
-                }
-
-                writer.WriteEndArray();
-                writer.WriteStartArray("subscribes");
-                foreach (SubscriptionRoute subscription in routing.Subscriptions)
-                {
-                    writer.WriteStringValue(subscription.Topic);
-                }
-
-                writer.WriteEndArray();
-                writer.WriteStartArray("sends");
-                foreach ((Type command, CommandRoute route) in routing.Commands.OrderBy(c => c.Key.FullName, StringComparer.Ordinal))
-                {
-                    writer.WriteStartObject();
-                    writer.WriteString("command", runtime.Model.Registry.Get(command).Name);
-                    writer.WriteString("endpoint", route.Endpoint);
-                    writer.WriteBoolean("replyOnReject", route.ReplyOnReject);
-                    writer.WriteEndObject();
-                }
-
-                writer.WriteEndArray();
-                writer.WriteEndObject();
-            }
-
-            await Out.WriteLineAsync(Encoding.UTF8.GetString(buffer.WrittenSpan));
             return 0;
         }));
 
@@ -713,6 +660,39 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
         command.Subcommands.Add(export);
         command.Subcommands.Add(validate);
         return command;
+    }
+
+    private static string TopologyText(TopologyDocument document)
+    {
+        TransportTopology topology = document.Topology;
+        var text = new StringBuilder();
+        text.Append(CultureInfo.InvariantCulture, $"endpoint  {topology.Endpoint}{(topology.OrderedEndpoint ? " (ordered)" : string.Empty)}, dead letter after {topology.MaxDeliveries} deliveries\n");
+        foreach (string topic in topology.PublishedTopics.Order(StringComparer.Ordinal))
+        {
+            text.Append(CultureInfo.InvariantCulture, $"publish   {topic}{(topology.OrderedTopics.Contains(topic) ? " (ordered)" : string.Empty)}\n");
+        }
+
+        foreach (string topic in topology.SubscribedTopics.Order(StringComparer.Ordinal))
+        {
+            string? filter = topology.Filters.GetValueOrDefault(topic);
+            text.Append(CultureInfo.InvariantCulture, $"subscribe {topic}{(filter is null ? string.Empty : " where " + filter)}\n");
+        }
+
+        foreach ((string endpoint, IReadOnlyList<string> commands) in document.SentCommands.OrderBy(c => c.Key, StringComparer.Ordinal))
+        {
+            text.Append(CultureInfo.InvariantCulture, $"send      {string.Join(", ", commands.Order(StringComparer.Ordinal))} -> {endpoint}\n");
+        }
+
+        if (document.Physical is { } physical)
+        {
+            text.Append(CultureInfo.InvariantCulture, $"resources ({physical.Transport})\n");
+            foreach (PhysicalResource resource in physical.Resources)
+            {
+                text.Append(CultureInfo.InvariantCulture, $"  {TopologyExport.KindName(resource.Kind),-12} {resource.Name}{(resource.Owned ? string.Empty : " (owned by the publisher)")}\n");
+            }
+        }
+
+        return text.ToString();
     }
 
     // ================================================================ query (service)

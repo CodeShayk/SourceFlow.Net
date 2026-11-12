@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 1,
+  "service": "filtered",
+  "transport": "gcp_pubsub",
+  "endpoint": {
+    "name": "filtered",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [],
+  "subscribes": [
+    {
+      "topic": "everything",
+      "filter": null
+    },
+    {
+      "topic": "prefixed",
+      "filter": "type LIKE 'tck.%' OR type LIKE 'payments.%'"
+    },
+    {
+      "topic": "tenant",
+      "filter": "type = 'tck.tenant.v1' AND sftenant = 'eu'"
+    },
+    {
+      "topic": "typed",
+      "filter": "type IN ('tck.also.v2', 'tck.wanted.v1')"
+    }
+  ],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "topic",
+      "name": "dev-filtered+dlq",
+      "logical": "filtered",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-filtered+dlq",
+      "logical": "filtered",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": null,
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "",
+        "labels": {},
+        "maxDeliveryAttempts": null,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-filtered+dlq"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-filtered+in",
+      "logical": "filtered",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-filtered",
+      "logical": "filtered",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": "dev-filtered+dlq",
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "",
+        "labels": {
+          "sf-max-deliveries": "10"
+        },
+        "maxDeliveryAttempts": 10,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-filtered+in"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-typed",
+      "logical": "typed",
+      "owned": false,
+      "role": "topic",
+      "properties": {}
+    },
+    {
+      "kind": "topic",
+      "name": "dev-prefixed",
+      "logical": "prefixed",
+      "owned": false,
+      "role": "topic",
+      "properties": {}
+    },
+    {
+      "kind": "topic",
+      "name": "dev-tenant",
+      "logical": "tenant",
+      "owned": false,
+      "role": "topic",
+      "properties": {}
+    },
+    {
+      "kind": "topic",
+      "name": "dev-everything",
+      "logical": "everything",
+      "owned": false,
+      "role": "topic",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-filtered~typed",
+      "logical": "typed → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": "dev-filtered+dlq",
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "attributes.ce-type = \"tck.also.v2\" OR attributes.ce-type = \"tck.wanted.v1\"",
+        "labels": {
+          "sf-max-deliveries": "10"
+        },
+        "maxDeliveryAttempts": 10,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-typed"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-filtered~prefixed",
+      "logical": "prefixed → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": "dev-filtered+dlq",
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "hasPrefix(attributes.ce-type, \"payments.\") OR hasPrefix(attributes.ce-type, \"tck.\")",
+        "labels": {
+          "sf-max-deliveries": "10"
+        },
+        "maxDeliveryAttempts": 10,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-prefixed"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-filtered~tenant",
+      "logical": "tenant → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": "dev-filtered+dlq",
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "",
+        "labels": {
+          "sf-max-deliveries": "10"
+        },
+        "maxDeliveryAttempts": 10,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-tenant"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-filtered~everything",
+      "logical": "everything → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": "dev-filtered+dlq",
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "",
+        "labels": {
+          "sf-max-deliveries": "10"
+        },
+        "maxDeliveryAttempts": 10,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-everything"
+      }
+    }
+  ]
+}

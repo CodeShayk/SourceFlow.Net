@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "service": "full",
+  "transport": "aws_sqs",
+  "endpoint": {
+    "name": "full",
+    "ordered": false,
+    "maxDeliveries": 7,
+    "commands": []
+  },
+  "publishes": [
+    {
+      "topic": "full-out",
+      "ordered": false,
+      "messages": []
+    }
+  ],
+  "subscribes": [
+    {
+      "topic": "full-in",
+      "filter": "type LIKE 'tck.%'"
+    }
+  ],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "dev-full-dlq",
+      "logical": "full",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {
+        "allowTopics": [],
+        "deadLetterQueue": null,
+        "fifo": false,
+        "maxReceiveCount": null,
+        "messageRetentionSeconds": 1209600
+      }
+    },
+    {
+      "kind": "queue",
+      "name": "dev-full",
+      "logical": "full",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "allowTopics": [
+          "dev-full-in"
+        ],
+        "deadLetterQueue": "dev-full-dlq",
+        "fifo": false,
+        "maxReceiveCount": 7,
+        "messageRetentionSeconds": 1209600
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-full-out",
+      "logical": "full-out",
+      "owned": true,
+      "role": "topic",
+      "properties": {
+        "fifo": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-full-in",
+      "logical": "full-in",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "fifo": false
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-full-in/dev-full",
+      "logical": "full-in → full",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "filterPolicy": "{\"ce_type\":[{\"prefix\":\"tck.\"}]}",
+        "filterPolicyScope": "MessageAttributes",
+        "protocol": "sqs",
+        "queue": "dev-full",
+        "rawMessageDelivery": true,
+        "topic": "dev-full-in"
+      }
+    }
+  ]
+}

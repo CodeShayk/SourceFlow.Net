@@ -685,10 +685,11 @@ namespace SourceFlow.Hosting
     {
         public static Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder AddSourceFlow(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder builder, string name = "sourceflow") { }
         public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddSourceFlow(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<SourceFlow.Hosting.SourceFlowBuilder> configure) { }
+        public static SourceFlow.Transport.ProvisioningMode DefaultProvisioning(Microsoft.Extensions.Hosting.IHostEnvironment? environment, SourceFlow.Transport.ITransport transport) { }
     }
     public sealed class SourceFlowBuilder
     {
-        public SourceFlow.Transport.ProvisioningMode Provisioning { get; set; }
+        public SourceFlow.Transport.ProvisioningMode? Provisioning { get; set; }
         public SourceFlow.Hosting.SourceFlowRoles Roles { get; set; }
         public string ServiceName { get; set; }
         public Microsoft.Extensions.DependencyInjection.IServiceCollection Services { get; }
@@ -1805,6 +1806,8 @@ namespace SourceFlow.Runtime
         public SourceFlow.Runtime.CommandRouteBuilder Command<TCommand>()
             where TCommand :  class, SourceFlow.ICommand { }
         public SourceFlow.Runtime.RoutingBuilder Endpoint(string name) { }
+        public SourceFlow.Runtime.RoutingBuilder OrderedEndpoint() { }
+        public SourceFlow.Runtime.RoutingBuilder OrderedTopic(string topic) { }
         public SourceFlow.Runtime.PublicationBuilder<TEvent> Publish<TEvent>()
             where TEvent :  class, SourceFlow.IEvent { }
         public SourceFlow.Runtime.RoutingBuilder Subscribe(string topic, System.Action<SourceFlow.Runtime.SubscriptionBuilder>? configure = null) { }
@@ -1813,6 +1816,8 @@ namespace SourceFlow.Runtime
     {
         public System.Collections.Frozen.FrozenDictionary<System.Type, SourceFlow.Runtime.CommandRoute> Commands { get; }
         public string Endpoint { get; }
+        public bool OrderedEndpoint { get; init; }
+        public System.Collections.Generic.IReadOnlySet<string> OrderedTopics { get; init; }
         public System.Collections.Frozen.FrozenDictionary<System.Type, System.Collections.Generic.IReadOnlyList<SourceFlow.Runtime.PublicationRoute>> Publications { get; }
         public System.Collections.Generic.IEnumerable<string> PublishedTopics { get; }
         public System.Collections.Generic.IReadOnlyList<SourceFlow.Runtime.SubscriptionRoute> Subscriptions { get; }
@@ -1884,6 +1889,7 @@ namespace SourceFlow.Runtime
         public SourceFlow.Runtime.AggregateCacheMode AggregateCache { get; set; }
         [System.ComponentModel.DataAnnotations.Range(1, 10000000)]
         public int AggregateCacheSize { get; set; }
+        public System.TimeSpan DeadLetterIngestInterval { get; set; }
         public System.TimeSpan DeadLetterRetention { get; set; }
         [System.ComponentModel.DataAnnotations.Required]
         public string DefaultTenant { get; set; }
@@ -1967,6 +1973,7 @@ namespace SourceFlow.Runtime
         public System.ReadOnlyMemory<byte> Serialize(object message, SourceFlow.Messaging.MessageTypeInfo type) { }
         public SourceFlow.Storage.OutboxMessage ToOutbox(SourceFlow.Messaging.MessageEnvelope envelope, string destination, SourceFlow.Storage.OutboxKind kind, System.DateTimeOffset? deliverAt = default) { }
         public SourceFlow.Transport.TransportTopology Topology() { }
+        public SourceFlow.Transport.TopologyDocument TopologyDocument() { }
         public string? TrySubjectOf(SourceFlow.ICommand command) { }
     }
     public sealed class StoragePorts : System.IEquatable<SourceFlow.Runtime.StoragePorts>
@@ -2454,6 +2461,10 @@ namespace SourceFlow.Transport
         public DestinationNotFoundException(string destination) { }
         public string Destination { get; }
     }
+    public interface ITopologyDescriber
+    {
+        SourceFlow.Transport.PhysicalTopology Describe(SourceFlow.Transport.TransportTopology topology);
+    }
     public interface ITransport
     {
         SourceFlow.Transport.TransportCapabilities Capabilities { get; }
@@ -2467,6 +2478,38 @@ namespace SourceFlow.Transport
     public interface ITransportReceiver : System.IAsyncDisposable
     {
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Transport.ReceivedMessage>> ReceiveAsync(int maxMessages, System.TimeSpan wait, System.Threading.CancellationToken cancellationToken);
+    }
+    public sealed class PhysicalResource : System.IEquatable<SourceFlow.Transport.PhysicalResource>
+    {
+        public PhysicalResource(SourceFlow.Transport.PhysicalResourceKind Kind, string Name, string Logical, bool Owned) { }
+        public SourceFlow.Transport.PhysicalResourceKind Kind { get; init; }
+        public string Logical { get; init; }
+        public string Name { get; init; }
+        public bool Owned { get; init; }
+        public System.Text.Json.Nodes.JsonObject Properties { get; init; }
+        public string Role { get; init; }
+    }
+    public enum PhysicalResourceKind
+    {
+        Queue = 0,
+        Topic = 1,
+        Subscription = 2,
+        Rule = 3,
+    }
+    public static class PhysicalRoles
+    {
+        public const string DeadLetter = "dead-letter";
+        public const string Endpoint = "endpoint";
+        public const string RemoteEndpoint = "remote-endpoint";
+        public const string Rule = "rule";
+        public const string Subscription = "subscription";
+        public const string Topic = "topic";
+    }
+    public sealed class PhysicalTopology : System.IEquatable<SourceFlow.Transport.PhysicalTopology>
+    {
+        public PhysicalTopology(string Transport, System.Collections.Generic.IReadOnlyList<SourceFlow.Transport.PhysicalResource> Resources) { }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Transport.PhysicalResource> Resources { get; init; }
+        public string Transport { get; init; }
     }
     public enum ProvisioningMode
     {
@@ -2499,6 +2542,23 @@ namespace SourceFlow.Transport
         public System.Exception Error { get; init; }
         public SourceFlow.MessageId MessageId { get; init; }
     }
+    public sealed class TopologyDocument : System.IEquatable<SourceFlow.Transport.TopologyDocument>
+    {
+        public TopologyDocument(string Service, SourceFlow.Transport.TransportTopology Topology) { }
+        public System.Collections.Generic.IReadOnlyList<string> OwnedCommands { get; init; }
+        public SourceFlow.Transport.PhysicalTopology? Physical { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<string>> PublishedMessages { get; init; }
+        public System.Collections.Generic.IReadOnlyDictionary<string, System.Collections.Generic.IReadOnlyList<string>> SentCommands { get; init; }
+        public string Service { get; init; }
+        public SourceFlow.Transport.TransportTopology Topology { get; init; }
+    }
+    public static class TopologyExport
+    {
+        public const int SchemaVersion = 1;
+        public static string KindName(SourceFlow.Transport.PhysicalResourceKind kind) { }
+        public static string ToJson(SourceFlow.Transport.TopologyDocument document) { }
+        public static System.Text.Json.Nodes.JsonObject ToJsonObject(SourceFlow.Transport.TopologyDocument document) { }
+    }
     public sealed class TopologyProblem : System.IEquatable<SourceFlow.Transport.TopologyProblem>
     {
         public TopologyProblem(SourceFlow.Transport.TopologyProblemKind Kind, string Resource, string Detail) { }
@@ -2515,6 +2575,14 @@ namespace SourceFlow.Transport
         MissingDeadLetter = 4,
         FilterDrift = 5,
         Misconfigured = 6,
+    }
+    public abstract class TopologyProvisioner
+    {
+        protected TopologyProvisioner() { }
+        protected abstract System.Threading.Tasks.ValueTask CreateAsync(SourceFlow.Transport.TransportTopology topology, System.Threading.CancellationToken cancellationToken);
+        public System.Threading.Tasks.ValueTask ProvisionAsync(SourceFlow.Transport.TransportTopology topology, SourceFlow.Transport.ProvisioningMode mode, System.Threading.CancellationToken cancellationToken) { }
+        protected abstract System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Transport.TopologyProblem>> ValidateAsync(SourceFlow.Transport.TransportTopology topology, System.Threading.CancellationToken cancellationToken);
+        public static void Check(SourceFlow.Transport.TransportTopology topology) { }
     }
     public sealed class TopologyValidationException : System.Exception
     {
@@ -2610,12 +2678,13 @@ namespace SourceFlow.Transport.InMemory
         public void ExpireCredentials() { }
         public void ThrottleNext(int count, System.TimeSpan retryAfter) { }
     }
-    public sealed class InMemoryTransport : SourceFlow.Transport.ITransport
+    public sealed class InMemoryTransport : SourceFlow.Transport.ITopologyDescriber, SourceFlow.Transport.ITransport
     {
         public SourceFlow.Transport.TransportCapabilities Capabilities { get; }
         public string SystemName { get; }
         public System.Threading.Tasks.ValueTask<SourceFlow.Transport.ITransportReceiver> CreateDeadLetterReceiverAsync(string endpoint, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Transport.ITransportReceiver> CreateReceiverAsync(SourceFlow.Transport.ReceiverOptions options, System.Threading.CancellationToken cancellationToken) { }
+        public SourceFlow.Transport.PhysicalTopology Describe(SourceFlow.Transport.TransportTopology topology) { }
         public System.Threading.Tasks.ValueTask ProvisionAsync(SourceFlow.Transport.TransportTopology topology, SourceFlow.Transport.ProvisioningMode mode, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask PublishAsync(string topic, System.Collections.Generic.IReadOnlyList<SourceFlow.Messaging.MessageEnvelope> messages, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask SendAsync(string endpoint, System.Collections.Generic.IReadOnlyList<SourceFlow.Messaging.MessageEnvelope> messages, System.Threading.CancellationToken cancellationToken) { }
