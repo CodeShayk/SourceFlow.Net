@@ -107,6 +107,15 @@ public sealed class SourceFlowOptions
     /// </summary>
     public TimeSpan DeadLetterIngestInterval { get; set; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// How often the monitor samples the outbox backlog, dead letters, subscription lag, the log horizon, process managers
+    /// and leases for the observable gauges and health checks (doc 08 §3.2, §5). Each sample is a few aggregate queries.
+    /// </summary>
+    public TimeSpan MonitorInterval { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>The health check thresholds (doc 08 §5).</summary>
+    public HealthThresholds Health { get; } = new();
+
     /// <summary>The in-process aggregate state cache (doc 05 §8.2); off by default.</summary>
     public AggregateCacheMode AggregateCache { get; set; } = AggregateCacheMode.Off;
 
@@ -164,6 +173,8 @@ public sealed class SourceFlowOptionsTimingValidator : IValidateOptions<SourceFl
         Between(options.RetainPreviousFor, TimeSpan.Zero, TimeSpan.FromDays(3650), nameof(options.RetainPreviousFor), failures);
         Between(options.ReceiveLockDuration, TimeSpan.FromSeconds(1), TimeSpan.FromHours(12), nameof(options.ReceiveLockDuration), failures);
         Between(options.DeadLetterIngestInterval, TimeSpan.FromMilliseconds(100), TimeSpan.FromHours(1), nameof(options.DeadLetterIngestInterval), failures);
+        Between(options.MonitorInterval, TimeSpan.FromMilliseconds(100), TimeSpan.FromHours(1), nameof(options.MonitorInterval), failures);
+        options.Health.Validate(failures);
         if (options.LeaseTtl <= options.PollInterval)
         {
             failures.Add($"{nameof(options.LeaseTtl)} ({options.LeaseTtl}) must be longer than {nameof(options.PollInterval)} ({options.PollInterval}) so leases are renewed in time.");
@@ -219,4 +230,62 @@ public enum SchemaRegistrationMode
 
     /// <summary>Don't register schemas.</summary>
     Off = 2,
+}
+
+/// <summary>
+/// The health check thresholds (doc 08 §5). Defaults follow the SLOs in doc 08 §6; each "degraded" threshold must be below
+/// its "unhealthy" one.
+/// </summary>
+public sealed class HealthThresholds
+{
+    /// <summary><c>sourceflow.store</c> is degraded when a probe takes longer.</summary>
+    public TimeSpan StoreLatencyDegraded { get; set; } = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>How long a <c>sourceflow.transport</c> result is reused before the broker is asked again.</summary>
+    public TimeSpan TransportCacheDuration { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary><c>sourceflow.outbox</c> is degraded when the oldest due message has waited this long.</summary>
+    public TimeSpan OutboxAgeDegraded { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary><c>sourceflow.outbox</c> is unhealthy when the oldest due message has waited this long.</summary>
+    public TimeSpan OutboxAgeUnhealthy { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary><c>sourceflow.subscriptions</c> is degraded when a partition's oldest unprocessed event is this old.</summary>
+    public TimeSpan LagTimeDegraded { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary><c>sourceflow.subscriptions</c> is degraded when a writing transaction has held the horizon this long.</summary>
+    public TimeSpan HorizonAgeDegraded { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary><c>sourceflow.subscriptions</c> is unhealthy when a partition has been stalled this long.</summary>
+    public TimeSpan StalledUnhealthy { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary><c>sourceflow.leases</c> is degraded after this many node heartbeat intervals under the fair share.</summary>
+    public int UnderShareIntervals { get; set; } = 2;
+
+    internal void Validate(List<string> failures)
+    {
+        void Positive(TimeSpan value, string name)
+        {
+            if (value <= TimeSpan.Zero)
+            {
+                failures.Add($"Health.{name} must be positive.");
+            }
+        }
+
+        Positive(StoreLatencyDegraded, nameof(StoreLatencyDegraded));
+        Positive(TransportCacheDuration, nameof(TransportCacheDuration));
+        Positive(OutboxAgeDegraded, nameof(OutboxAgeDegraded));
+        Positive(LagTimeDegraded, nameof(LagTimeDegraded));
+        Positive(HorizonAgeDegraded, nameof(HorizonAgeDegraded));
+        Positive(StalledUnhealthy, nameof(StalledUnhealthy));
+        if (OutboxAgeUnhealthy <= OutboxAgeDegraded)
+        {
+            failures.Add($"Health.{nameof(OutboxAgeUnhealthy)} must be longer than {nameof(OutboxAgeDegraded)}.");
+        }
+
+        if (UnderShareIntervals < 1)
+        {
+            failures.Add($"Health.{nameof(UnderShareIntervals)} must be at least 1.");
+        }
+    }
 }

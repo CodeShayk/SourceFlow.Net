@@ -94,6 +94,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<OutboxRelay>();
         services.AddSingleton<ReceiveEndpoint>();
         services.AddSingleton<SubscriptionEngine>();
+        services.AddSingleton<SourceFlowMonitor>();
         services.AddSingleton<IDeadLetterManager, DeadLetterManager>();
         services.AddSingleton<ISubscriptionAdmin, SubscriptionAdmin>();
         services.AddSingleton<PayloadRedaction>();
@@ -109,6 +110,7 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<ReceiveEndpoint>(),
             sp.GetRequiredService<SubscriptionEngine>(),
             sp.GetRequiredService<HostSettings>(),
+            sp.GetRequiredService<SourceFlowMonitor>(),
             sp.GetService<Query.IQueryService>() as Query.QueryService));
         services.AddHostedService(sp => sp.GetRequiredService<SourceFlowHost>());
         return services;
@@ -126,11 +128,28 @@ public static class ServiceCollectionExtensions
             : ProvisioningMode.Validate;
     }
 
-    /// <summary>Adds the SourceFlow readiness check (started, store and transport reachable).</summary>
-    public static IHealthChecksBuilder AddSourceFlow(this IHealthChecksBuilder builder, string name = "sourceflow")
+    /// <summary>
+    /// Adds the SourceFlow health checks (doc 08 §5) as <c>{prefix}.ready</c>, <c>.store</c>, <c>.transport</c>,
+    /// <c>.outbox</c>, <c>.subscriptions</c> and <c>.leases</c>. Ready, store and transport carry the <c>ready</c> tag;
+    /// every check carries <c>sourceflow</c>. Map liveness without them, so a dependency outage does not restart the service:
+    /// <c>app.MapHealthChecks("/health/live", new() { Predicate = _ =&gt; false })</c> and
+    /// <c>app.MapHealthChecks("/health/ready", new() { Predicate = c =&gt; c.Tags.Contains("ready") })</c>.
+    /// </summary>
+    public static IHealthChecksBuilder AddSourceFlow(this IHealthChecksBuilder builder, string prefix = "sourceflow")
     {
         ArgumentNullException.ThrowIfNull(builder);
-        return builder.Add(new HealthCheckRegistration(name, sp => sp.GetRequiredService<SourceFlowHost>(), HealthStatus.Unhealthy, ["ready"]));
+        ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
+        foreach (string check in SourceFlowHealthChecks.All)
+        {
+            string[] tags = check is SourceFlowHealthChecks.Ready or SourceFlowHealthChecks.Store or SourceFlowHealthChecks.Transport
+                ? [SourceFlowHealthChecks.Tag, SourceFlowHealthChecks.ReadyTag]
+                : [SourceFlowHealthChecks.Tag];
+            builder.Add(new HealthCheckRegistration($"{prefix}.{check}",
+                sp => new SourceFlowHealthCheck(check, sp.GetRequiredService<SourceFlowHost>(), sp.GetRequiredService<SourceFlowMonitor>()),
+                HealthStatus.Unhealthy, tags));
+        }
+
+        return builder;
     }
 }
 

@@ -13,5 +13,7 @@
     <ProjectReference Include="..\Bank.Accounts\Bank.Accounts.csproj" />
     <ProjectReference Include="..\Bank.Transfers\Bank.Transfers.csproj" />
     <ProjectReference Include="..\Bank.Notifications\Bank.Notifications.csproj" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
   </ItemGroup>
 </Project>

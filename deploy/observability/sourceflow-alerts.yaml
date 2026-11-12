@@ -1,0 +1,61 @@
+# Generated from SourceFlowTelemetry.Catalogue by `dotnet sourceflow observability export`; do not edit by hand.
+# The service-level objectives of doc 08 §6. Metric names follow the OpenTelemetry Prometheus conversion.
+groups:
+  - name: sourceflow
+    rules:
+      - alert: SourceFlowDeadLetterParked
+        expr: "sum by (job, consumer, reason) (increase(sourceflow_deadletter_parked_total[5m])) > 0"
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $labels.job }} parked a message from {{ $labels.consumer }} ({{ $labels.reason }}). Inspect it with `dotnet sourceflow dlq list`."
+          description: "Correctness: any parked message needs an operator (doc 08 §6)."
+      - alert: SourceFlowSubscriptionStalled
+        expr: "max by (job, sourceflow_subscription, sourceflow_partition) (sourceflow_subscription_stalled) > 0"
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $labels.job }}: subscription {{ $labels.sourceflow_subscription }} partition {{ $labels.sourceflow_partition }} is halted at a failing event."
+          description: "A Stop-policy projection is stuck on a poison event; fix it or skip the event (`dotnet sourceflow projection skip`)."
+      - alert: SourceFlowOutboxDelayed
+        expr: "max by (job) (sourceflow_outbox_age_seconds) > 60"
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $labels.job }}: the oldest due outbox message has waited {{ $value | humanizeDuration }}."
+          description: "Delivery durability SLO: max outbox age < 60 s. Check the relay and the broker."
+      - alert: SourceFlowReadModelsStale
+        expr: "max by (job) (sourceflow_subscription_lag_time_seconds) > 5"
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }}: read models are {{ $value | humanizeDuration }} behind."
+          description: "Read-model freshness SLO: lag time < 5 s."
+      - alert: SourceFlowWriteLatency
+        expr: "histogram_quantile(0.99, sum by (job, le) (rate(sourceflow_command_duration_seconds_bucket[5m]))) > 0.05"
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }}: p99 command latency is {{ $value | humanizeDuration }}."
+          description: "Write latency SLO: p99 < 50 ms."
+      - alert: SourceFlowWriteErrors
+        expr: "sum by (job) (rate(sourceflow_command_duration_seconds_count{sourceflow_outcome=\"failed\"}[30m])) / sum by (job) (rate(sourceflow_command_duration_seconds_count[30m])) > 0.001"
+        for: 30m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $labels.job }}: {{ $value | humanizePercentage }} of commands fail."
+          description: "Write availability SLO: 99.9 % of commands succeed (business rejections and conflicts count as successes)."
+      - alert: SourceFlowHorizonHeld
+        expr: "max by (job) (sourceflow_subscription_horizon_age_seconds) > 30"
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }}: a writing transaction has held the subscription horizon for {{ $value | humanizeDuration }}."
+          description: "A long transaction delays every subscription (doc 05 §5.4). Find it in pg_stat_activity."

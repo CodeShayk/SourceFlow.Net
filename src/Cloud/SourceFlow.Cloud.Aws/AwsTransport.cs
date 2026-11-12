@@ -15,7 +15,7 @@ namespace SourceFlow.Cloud.Aws;
 /// topic is an SNS topic, and a subscription is an SNS→SQS subscription with raw message delivery and, where the filter
 /// allows, an SNS filter policy. Each service has one endpoint and one receiver for commands and events alike (GAP-02).
 /// </summary>
-public sealed class AwsTransport : ITransport, ITopologyDescriber, IDisposable
+public sealed class AwsTransport : ITransport, ITopologyDescriber, ITransportProbe, IDisposable
 {
     /// <summary>The <c>messaging.system</c> of SQS (OpenTelemetry semantic conventions).</summary>
     public const string System = "aws_sqs";
@@ -186,6 +186,15 @@ public sealed class AwsTransport : ITransport, ITopologyDescriber, IDisposable
     public async Task<bool> IsReachableAsync(string endpoint, CancellationToken cancellationToken)
     {
         return await Resources.FindQueueAsync(endpoint, cancellationToken, fresh: true).ConfigureAwait(false) is not null;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask ProbeAsync(string endpoint, CancellationToken cancellationToken)
+    {
+        if (!await IsReachableAsync(endpoint, cancellationToken).ConfigureAwait(false))
+        {
+            throw new DestinationNotFoundException(endpoint);
+        }
     }
 
     /// <inheritdoc />

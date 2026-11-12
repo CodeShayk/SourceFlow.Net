@@ -142,6 +142,7 @@ jobs:
   iac:
     # deploy/topology (WP-3.5): the Terraform modules applied to LocalStack and the Pub/Sub emulator and checked with
     # ProvisioningMode.Validate, every module's `terraform test` suite, and the Bicep module built for every fixture.
+    # deploy/observability (WP-4.3): promtool checks the generated alert rules (the unit job checks they are up to date).
     needs: build
     runs-on: ubuntu-latest
     env:
@@ -177,6 +178,8 @@ jobs:
           done
           echo "emulators not healthy"; exit 1
       - run: terraform fmt -check -recursive deploy/topology/terraform
+      - name: Prometheus alert rules (deploy/observability)
+        run: docker run --rm --entrypoint promtool -v "$PWD/deploy/observability:/rules:ro" prom/prometheus:v3.13.4 check rules /rules/sourceflow-alerts.yaml
       - run: dotnet build SourceFlow.slnx -c Release
       - name: IaC modules against the topology fixtures
         run: >-

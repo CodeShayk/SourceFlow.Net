@@ -4,6 +4,8 @@
 #   docker compose up -d --build    # build the images from this checkout
 #
 # Studio demo console: http://localhost:5080    Bank service: http://localhost:8080    PostgreSQL: localhost:55432
+# Aspire dashboard (traces and SourceFlow metrics over OTLP): http://localhost:18888
+# Health: http://localhost:8080/health (liveness), /health/ready (readiness), /health/sourceflow (every SourceFlow check)
 # SOURCEFLOW_TAG selects the image tag (default v3-latest).
 name: sourceflow-demo
 
@@ -35,6 +37,8 @@ services:
       # Sample-only query endpoint used by the console (no authentication): never expose it publicly.
       Demo__QueryApi: "true"
       Demo__PersonalData: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "bank"
     ports:
       - "8080:8080"
     depends_on:
@@ -53,6 +57,15 @@ services:
       - "5080:8080"
     depends_on:
       - bank-api
+    restart: unless-stopped
+
+  # Sample only: the dashboard accepts anonymous browsers and OTLP clients. Never expose it publicly.
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:9.4
+    environment:
+      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+      - "18888:18888"
     restart: unless-stopped
 
 volumes:

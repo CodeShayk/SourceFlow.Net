@@ -70,6 +70,7 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
         root.Subcommands.Add(Topology());
         root.Subcommands.Add(QueryCommand());
         root.Subcommands.Add(Schema());
+        root.Subcommands.Add(ObservabilityCommand());
         return root;
     }
 
@@ -851,6 +852,28 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
         }
 
         return value.IndexOfAny([',', '"', '\r', '\n']) >= 0 ? "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"" : value;
+    }
+
+    // ================================================================ observability (global)
+
+    private Command ObservabilityCommand()
+    {
+        var output = new Option<DirectoryInfo>("--output") { Description = "The directory to write the dashboard and alert rules to.", Required = true };
+        var export = new Command("export", $"Write the Grafana dashboard ({Observability.DashboardFile}) and Prometheus alert rules ({Observability.AlertsFile}) generated from the instrument catalogue (doc 08 §3, §6).");
+        export.Options.Add(output);
+        export.SetAction((r, ct) => Guard(async () =>
+        {
+            foreach (string file in await Observability.WriteAsync(r.GetValue(output)!.FullName, ct))
+            {
+                await Out.WriteLineAsync($"Wrote {file}.");
+            }
+
+            return 0;
+        }));
+
+        var command = new Command("observability", "Dashboards and alert rules (doc 08).");
+        command.Subcommands.Add(export);
+        return command;
     }
 
     // ================================================================ schema (service)

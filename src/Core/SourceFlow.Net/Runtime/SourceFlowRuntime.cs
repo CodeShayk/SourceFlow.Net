@@ -63,6 +63,9 @@ public sealed record StoragePorts(
     /// <summary>Retention cleanup, when the adapter supports it (doc 05 §9).</summary>
     public IStoreRetention? Retention { get; init; }
 
+    /// <summary>Operational readings for health checks and gauges, when the adapter supports it (doc 08 §5).</summary>
+    public IStoreMonitor? Monitor { get; init; }
+
     /// <summary>Projection data administration, when the adapter supports it (doc 06 §6).</summary>
     public IDocumentAdmin? DocumentAdmin { get; init; }
 

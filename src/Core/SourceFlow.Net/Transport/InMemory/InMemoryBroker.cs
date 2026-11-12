@@ -821,7 +821,7 @@ public sealed class InMemoryBrokerFaults
 }
 
 /// <summary>The in-memory <see cref="ITransport"/>, bound to an <see cref="InMemoryBroker"/>.</summary>
-public sealed class InMemoryTransport : ITransport, ITopologyDescriber
+public sealed class InMemoryTransport : ITransport, ITopologyDescriber, ITransportProbe
 {
     private readonly InMemoryBroker _broker;
     private readonly Provisioner _provisioner;
@@ -871,6 +871,14 @@ public sealed class InMemoryTransport : ITransport, ITopologyDescriber
     public ValueTask ProvisionAsync(TransportTopology topology, ProvisioningMode mode, CancellationToken cancellationToken)
     {
         return _provisioner.ProvisionAsync(topology, mode, cancellationToken);
+    }
+
+    /// <summary>Raises the broker's injected faults (outage, throttling), as a real broker's describe call would.</summary>
+    public ValueTask ProbeAsync(string endpoint, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(endpoint);
+        _broker.Guard();
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>The in-memory resources: the endpoint queue with its dead letters, topics, and one subscription per subscribed topic.</summary>

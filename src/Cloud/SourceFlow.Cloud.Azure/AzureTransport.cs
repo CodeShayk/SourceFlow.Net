@@ -12,7 +12,7 @@ namespace SourceFlow.Cloud.Azure;
 /// forwards to its queue (<c>ForwardTo</c>), with correlation or SQL rules on the CloudEvents type. Each service has one
 /// queue and one receiver for commands and events alike.
 /// </summary>
-public sealed class AzureTransport : ITransport, ITopologyDescriber, IAsyncDisposable
+public sealed class AzureTransport : ITransport, ITopologyDescriber, ITransportProbe, IAsyncDisposable
 {
     /// <summary>The <c>messaging.system</c> of Service Bus (OpenTelemetry semantic conventions).</summary>
     public const string System = "servicebus";
@@ -162,6 +162,15 @@ public sealed class AzureTransport : ITransport, ITopologyDescriber, IAsyncDispo
         ArgumentException.ThrowIfNullOrEmpty(endpoint);
         return await AzureErrors.CallAsync(endpoint, async () =>
             (await Administration.QueueExistsAsync(AzureNaming.Queue(Prefix, endpoint), cancellationToken).ConfigureAwait(false)).Value).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask ProbeAsync(string endpoint, CancellationToken cancellationToken)
+    {
+        if (!await IsReachableAsync(endpoint, cancellationToken).ConfigureAwait(false))
+        {
+            throw new DestinationNotFoundException(endpoint);
+        }
     }
 
     /// <inheritdoc />

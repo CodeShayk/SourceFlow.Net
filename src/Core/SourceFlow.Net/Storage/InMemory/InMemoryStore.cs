@@ -23,7 +23,8 @@ public sealed class InMemoryStore :
     INodeRegistry,
     ISchemaStore,
     IDocumentAdmin,
-    ICollectionAliases
+    ICollectionAliases,
+    IStoreMonitor
 {
     private readonly Lock _gate = new();
     private readonly TimeProvider _time;
@@ -123,6 +124,77 @@ public sealed class InMemoryStore :
         }
 
         return ValueTask.CompletedTask;
+    }
+
+    // ------------------------------------------------------------------ IStoreMonitor
+
+    /// <inheritdoc />
+    public async ValueTask<StoreProbe> ProbeAsync(CancellationToken cancellationToken)
+    {
+        await Faults.RaiseOnProbeAsync(cancellationToken).ConfigureAwait(false);
+        return new StoreProbe(SchemaCurrent: true, "The in-memory store has no schema.");
+    }
+
+    /// <inheritdoc />
+    public ValueTask<IReadOnlyList<OutboxBacklog>> GetOutboxBacklogAsync(CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            DateTimeOffset now = _time.GetUtcNow();
+            IReadOnlyList<OutboxBacklog> backlog = [.. _outbox.Values
+                .GroupBy(r => r.Message.Partition)
+                .OrderBy(g => g.Key)
+                .Select(g => new OutboxBacklog(g.Key, g.Count(), g.Where(r => r.Message.DeliverAt <= now).Select(r => (DateTimeOffset?)(r.Message.DeliverAt > r.CreatedAt ? r.Message.DeliverAt : r.CreatedAt)).Min()))];
+            return ValueTask.FromResult(backlog);
+        }
+    }
+
+    /// <inheritdoc />
+    public ValueTask<IReadOnlyDictionary<string, int>> CountParkedDeadLettersAsync(CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            IReadOnlyDictionary<string, int> counts = _deadLetters.Values.Where(d => d.Status == DeadLetterStatus.Parked)
+                .GroupBy(d => d.Consumer, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+            return ValueTask.FromResult(counts);
+        }
+    }
+
+    /// <inheritdoc />
+    public ValueTask<long> CountEventsAfterAsync(GlobalPosition after, BucketRange buckets, long cap, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            long count = 0;
+            for (int i = FirstIndexAfter(after); i < _log.Count && count < cap; i++)
+            {
+                if (buckets.Contains(_log[i].Bucket))
+                {
+                    count++;
+                }
+            }
+
+            return ValueTask.FromResult(count);
+        }
+    }
+
+    /// <inheritdoc />
+    ValueTask<TimeSpan> IStoreMonitor.GetHorizonAgeAsync(CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(TimeSpan.Zero);   // commits are atomic: nothing holds the horizon back
+    }
+
+    /// <inheritdoc />
+    public ValueTask<IReadOnlyDictionary<string, int>> CountActiveProcessesAsync(CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            IReadOnlyDictionary<string, int> counts = _processes.Values.Where(p => !p.Completed)
+                .GroupBy(p => p.ProcessType, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+            return ValueTask.FromResult(counts);
+        }
     }
 
     // ------------------------------------------------------------------ IEventLogReader
@@ -1053,6 +1125,34 @@ public sealed class InMemoryFaults
         ArgumentNullException.ThrowIfNull(exception);
         Volatile.Write(ref _failure, exception);
         Volatile.Write(ref _failures, count);
+    }
+
+    private Exception? _probeFailure;
+    private TimeSpan _probeDelay;
+
+    /// <summary>Makes store health probes fail with <paramref name="exception"/> (null: succeed again).</summary>
+    public void FailProbes(Exception? exception)
+    {
+        Volatile.Write(ref _probeFailure, exception);
+    }
+
+    /// <summary>Makes store health probes take at least <paramref name="delay"/> (on the system clock).</summary>
+    public void DelayProbes(TimeSpan delay)
+    {
+        _probeDelay = delay;
+    }
+
+    internal async ValueTask RaiseOnProbeAsync(CancellationToken cancellationToken)
+    {
+        if (_probeDelay > TimeSpan.Zero)
+        {
+            await Task.Delay(_probeDelay, TimeProvider.System, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (Volatile.Read(ref _probeFailure) is { } failure)
+        {
+            throw failure;
+        }
     }
 
     internal void RaiseBeforeCommit()

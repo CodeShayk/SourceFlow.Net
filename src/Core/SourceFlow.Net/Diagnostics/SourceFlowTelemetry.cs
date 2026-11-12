@@ -60,9 +60,103 @@ public static class SourceFlowTelemetry
         public const string Stage = "stage";
         public const string RetryKind = "retry.kind";
         public const string SettleAction = "sourceflow.settle.action";
+        public const string ProcessType = "process.type";
+        public const string LeaseKind = "lease.kind";
+        public const string CacheResult = "result";
 #pragma warning restore CS1591
     }
+
+    /// <summary>Instrument names (doc 08 §3).</summary>
+    public static class Instruments
+    {
+#pragma warning disable CS1591
+        public const string CommandDuration = "sourceflow.command.duration";
+        public const string AppendDuration = "sourceflow.eventstore.append.duration";
+        public const string AppendEvents = "sourceflow.eventstore.append.events";
+        public const string ConcurrencyConflicts = "sourceflow.eventstore.concurrency_conflicts";
+        public const string LoadEvents = "sourceflow.aggregate.load.events";
+        public const string CacheHits = "sourceflow.aggregate.cache.hits";
+        public const string SnapshotsWritten = "sourceflow.snapshot.written";
+        public const string SnapshotsDropped = "sourceflow.snapshot.dropped";
+        public const string OutboxPending = "sourceflow.outbox.pending";
+        public const string OutboxAge = "sourceflow.outbox.age";
+        public const string OutboxDispatchDuration = "sourceflow.outbox.dispatch.duration";
+        public const string InboxDuplicates = "sourceflow.inbox.duplicates";
+        public const string RetryAttempts = "sourceflow.retry.attempts";
+        public const string DeadLetterParked = "sourceflow.deadletter.parked";
+        public const string DeadLetterReplayed = "sourceflow.deadletter.replayed";
+        public const string DeadLetterDiscarded = "sourceflow.deadletter.discarded";
+        public const string DeadLetterCount = "sourceflow.deadletter.count";
+        public const string SubscriptionLag = "sourceflow.subscription.lag";
+        public const string SubscriptionLagTime = "sourceflow.subscription.lag_time";
+        public const string HorizonAge = "sourceflow.subscription.horizon_age";
+        public const string SubscriptionStalled = "sourceflow.subscription.stalled";
+        public const string SubscriptionBatchDuration = "sourceflow.subscription.batch.duration";
+        public const string ProcessActive = "sourceflow.process.active";
+        public const string LeaseOwned = "sourceflow.lease.owned";
+        public const string SentMessages = "messaging.client.sent.messages";
+        public const string ConsumedMessages = "messaging.client.consumed.messages";
+        public const string ProcessDuration = "messaging.process.duration";
+#pragma warning restore CS1591
+    }
+
+    /// <summary>
+    /// Every instrument SourceFlow publishes on its meter (doc 08 §3): the catalogue the reference dashboards and alert
+    /// rules are generated from (<c>dotnet sourceflow observability export</c>, <c>deploy/observability</c>), so they cannot
+    /// drift from the code. A test checks it against the instruments a running host creates and the tags it records.
+    /// </summary>
+    public static IReadOnlyList<InstrumentInfo> Catalogue { get; } =
+    [
+        new(Instruments.CommandDuration, InstrumentKind.Histogram, "s", "Command processing duration.", [Tags.CommandType, Tags.Outcome]),
+        new(Instruments.AppendDuration, InstrumentKind.Histogram, "s", "Session commit duration.", []),
+        new(Instruments.AppendEvents, InstrumentKind.Histogram, "{event}", "Events per append.", [Tags.AggregateType]),
+        new(Instruments.ConcurrencyConflicts, InstrumentKind.Counter, "{conflict}", "Optimistic concurrency conflicts.", [Tags.AggregateType]),
+        new(Instruments.LoadEvents, InstrumentKind.Histogram, "{event}", "Events folded per aggregate load.", [Tags.AggregateType, Tags.LoadSource]),
+        new(Instruments.CacheHits, InstrumentKind.Counter, "{hit}", "Aggregate cache lookups by result (hit, miss, stale).", [Tags.AggregateType, Tags.CacheResult]),
+        new(Instruments.SnapshotsWritten, InstrumentKind.Counter, "{snapshot}", "Snapshots written in the background.", [Tags.AggregateType]),
+        new(Instruments.SnapshotsDropped, InstrumentKind.Counter, "{snapshot}", "Snapshots dropped because the queue was full or the write failed.", [Tags.AggregateType]),
+        new(Instruments.OutboxPending, InstrumentKind.Gauge, "{message}", "Undelivered outbox messages per partition.", [Tags.Partition]),
+        new(Instruments.OutboxAge, InstrumentKind.Gauge, "s", "How long the oldest due outbox message has waited (durability SLO).", [Tags.Partition]),
+        new(Instruments.OutboxDispatchDuration, InstrumentKind.Histogram, "s", "Outbox batch dispatch duration.", [Tags.MessagingSystem]),
+        new(Instruments.InboxDuplicates, InstrumentKind.Counter, "{message}", "Duplicates absorbed by the inbox.", [Tags.ConsumerGroup]),
+        new(Instruments.RetryAttempts, InstrumentKind.Counter, "{attempt}", "Retry attempts.", [Tags.Stage, Tags.RetryKind]),
+        new(Instruments.DeadLetterParked, InstrumentKind.Counter, "{message}", "Messages parked to dead letters.", [Tags.Consumer, Tags.Reason, Tags.MessageType]),
+        new(Instruments.DeadLetterReplayed, InstrumentKind.Counter, "{message}", "Dead letters replayed by an operator.", [Tags.Consumer]),
+        new(Instruments.DeadLetterDiscarded, InstrumentKind.Counter, "{message}", "Dead letters discarded by an operator.", [Tags.Consumer]),
+        new(Instruments.DeadLetterCount, InstrumentKind.Gauge, "{message}", "Parked dead letters per consumer.", [Tags.Consumer]),
+        new(Instruments.SubscriptionLag, InstrumentKind.Gauge, "{event}", "Events not yet processed per subscription partition.", [Tags.Subscription, Tags.Partition]),
+        new(Instruments.SubscriptionLagTime, InstrumentKind.Gauge, "s", "Age of the oldest unprocessed event per subscription partition (freshness SLO).", [Tags.Subscription, Tags.Partition]),
+        new(Instruments.HorizonAge, InstrumentKind.Gauge, "s", "How long the oldest writing transaction has held the subscription horizon back.", []),
+        new(Instruments.SubscriptionStalled, InstrumentKind.Gauge, "{partition}", "Subscription partitions halted at a failing event (Stop policy).", [Tags.Subscription, Tags.Partition]),
+        new(Instruments.SubscriptionBatchDuration, InstrumentKind.Histogram, "s", "Subscription batch duration.", [Tags.Subscription]),
+        new(Instruments.ProcessActive, InstrumentKind.Gauge, "{instance}", "Process-manager instances not completed, per process type.", [Tags.ProcessType]),
+        new(Instruments.LeaseOwned, InstrumentKind.Gauge, "{lease}", "Subscription partition leases this node owns.", [Tags.LeaseKind]),
+        new(Instruments.SentMessages, InstrumentKind.Counter, "{message}", "Messages sent to the broker.", [Tags.MessagingSystem, Tags.Destination, Tags.ErrorType]),
+        new(Instruments.ConsumedMessages, InstrumentKind.Counter, "{message}", "Messages received from the broker.", [Tags.MessagingSystem, Tags.Destination, Tags.ConsumerGroup]),
+        new(Instruments.ProcessDuration, InstrumentKind.Histogram, "s", "Received message processing duration.", [Tags.MessagingSystem, Tags.Destination, Tags.ConsumerGroup, Tags.ErrorType]),
+    ];
 }
+
+/// <summary>The kind of a SourceFlow instrument.</summary>
+public enum InstrumentKind
+{
+    /// <summary>A monotonic counter.</summary>
+    Counter,
+
+    /// <summary>A histogram.</summary>
+    Histogram,
+
+    /// <summary>An observable gauge (sampled by the monitor).</summary>
+    Gauge,
+}
+
+/// <summary>A SourceFlow instrument.</summary>
+/// <param name="Name">The instrument name.</param>
+/// <param name="Kind">Counter, histogram or gauge.</param>
+/// <param name="Unit">The UCUM unit.</param>
+/// <param name="Description">The description.</param>
+/// <param name="Tags">The tags it may carry (low-cardinality by design).</param>
+public sealed record InstrumentInfo(string Name, InstrumentKind Kind, string Unit, string Description, IReadOnlyList<string> Tags);
 
 /// <summary>
 /// The SourceFlow instruments of one host (doc 08 §3). Each host gets its own <see cref="Meter"/> instance named

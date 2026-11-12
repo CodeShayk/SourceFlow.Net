@@ -97,6 +97,11 @@ Units follow UCUM. Histogram buckets are set through `InstrumentAdvice`: duratio
 
 Each measurement is recorded exactly once, at one well-defined place, and the metric unit tests assert it. That rules out v2's double counting and never-recorded metrics (GAP-14).
 
+> **As built (WP-4.3).**
+> - **Catalogue.** `SourceFlowTelemetry.Catalogue` lists every instrument a host publishes, with its kind, unit, description and the tags it may carry. UT-HC-11 checks it against the instruments a running host creates and the tags it records. The dashboards and alerts are generated from it.
+> - **Observable gauges.** These come from one sampler (`SourceFlowMonitor`) that runs on every instance every `MonitorInterval` (15 s). A scrape never queries the store. The store-side readings come from an optional adapter port, `IStoreMonitor`, implemented by the in-memory and PostgreSQL stores; they cover the outbox backlog per partition, parked dead letters per consumer, events after a checkpoint, the horizon age and active process managers. `outbox.age` is measured from when a message became due, so scheduled messages do not count before their time.
+> - **Not built yet.** `messaging.client.operation.duration`, and the workflow instruments (the Studio track), are not built yet. `sourceflow.deadletter.replayed` and `.discarded` were added for operator actions. A command that throws records the outcome `failed`.
+
 ## 4. Logging
 
 - All log statements use **source-generated `[LoggerMessage]`** methods, so the hot path allocates nothing when the level is off. Event ids are grouped in ranges (1000–1999 commands, 2000–2999 store, 3000–3999 transport, 4000–4999 subscriptions, 5000–5999 security).
@@ -119,6 +124,13 @@ Each measurement is recorded exactly once, at one well-defined place, and the me
 
 Liveness should **not** include store or transport checks, so that a dependency outage doesn't cause restart loops.
 
+> **As built (WP-4.3).**
+> - **Registration.** `AddHealthChecks().AddSourceFlow(prefix = "sourceflow")` registers the six checks as `sourceflow.ready`, `.store`, `.transport`, `.outbox`, `.subscriptions` and `.leases`. Ready, store and transport carry the `ready` tag, and every check carries `sourceflow`. Thresholds are `SourceFlowOptions.Health` (`HealthThresholds`), validated at startup.
+> - **Store.** The store check probes `IStoreMonitor.ProbeAsync`: on PostgreSQL, `SELECT 1` plus a schema-version check. Without the port it reads the log horizon.
+> - **Transport.** The transport check calls `ITransportProbe.ProbeAsync(endpoint)`, which the AWS, Google Cloud, Azure and in-memory transports implement as a describe call on the service's endpoint. The result is cached for 30 s.
+> - **Outbox, subscriptions and leases.** These read the monitor's latest sample, and take a fresh one when it is older than two intervals. A stalled partition is unhealthy after five minutes; its `SubscriptionStall.StalledSince` is kept across retries.
+> - **Leases.** A node without the Subscriptions role is always healthy here.
+
 ## 6. SLOs and alerting (shipped as guidance plus dashboards)
 
 | SLO | Indicator | Starting objective |
@@ -130,3 +142,8 @@ Liveness should **not** include store or transport checks, so that a dependency 
 | Correctness | `sourceflow.deadletter.parked` increase | 0 (page on any) |
 
 Grafana dashboards (JSON) and Prometheus alert rules are published in `deploy/observability/`. They are generated from the instrument list above, so they can't drift from it. An Aspire dashboard works out of the box through OTLP.
+
+> **As built (WP-4.3).**
+> - **Generator.** `dotnet sourceflow observability export --output deploy/observability` writes `sourceflow-dashboard.json` and `sourceflow-alerts.yaml`. The dashboard has an SLO row and one panel per catalogue instrument. The alert rules cover the five SLOs above, stalled subscriptions and a held horizon. Both use the OpenTelemetry-to-Prometheus names (for example `sourceflow_command_duration_seconds_bucket`).
+> - **Drift checks.** A unit test fails when the committed files differ from the generator (UT-HC-15), and CI runs `promtool check rules`.
+> - **Bank demo.** The demo exports traces and metrics over OTLP to the Aspire dashboard in `docker-compose.yml` (<http://localhost:18888>) and maps `/health` (liveness), `/health/ready` and `/health/sourceflow`.

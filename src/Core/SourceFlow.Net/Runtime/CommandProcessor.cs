@@ -97,7 +97,7 @@ public sealed class CommandProcessor
         }
         finally
         {
-            string outcome = result.Status.ToString().ToLowerInvariant();
+            string outcome = result.Status == default ? "failed" : result.Status.ToString().ToLowerInvariant();   // default: an exception (the availability SLO counts these)
             _runtime.Metrics.CommandDuration.Record(
                 Stopwatch.GetElapsedTime(started).TotalSeconds,
                 new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.CommandType, commandType.Name),

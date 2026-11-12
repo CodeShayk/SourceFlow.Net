@@ -216,6 +216,15 @@ internal sealed class SqlText
             """);
         CountOutbox = R("SELECT count(*) FROM {s}.outbox");
         CountDueOutbox = R("SELECT count(*) FROM {s}.outbox WHERE deliver_at <= @now");
+        OutboxBacklog = R("SELECT partition, count(*), min(greatest(deliver_at, created_at)) FILTER (WHERE deliver_at <= now()) FROM {s}.outbox GROUP BY partition ORDER BY partition");
+        ParkedDeadLettersByConsumer = R("SELECT consumer, count(*) FROM {s}.dead_letters WHERE status = @status GROUP BY consumer");
+        ActiveProcessesByType = R("SELECT process_type, count(*) FROM {s}.process_instances WHERE NOT completed GROUP BY process_type");
+        CountEventsAfter = R("""
+            SELECT count(*) FROM (
+                SELECT 1 FROM {s}.events e
+                 WHERE (e.tx_id, e.seq) > (@tx, @seq) AND e.bucket BETWEEN @lo AND @hi
+                 LIMIT @cap) x
+            """);
 
         ParkDeadLetter = R($$"""
             INSERT INTO {s}.dead_letters ({{DeadLetterColumns}}, message_id, message_type)
@@ -337,6 +346,14 @@ internal sealed class SqlText
     public string RetryOutbox { get; }
 
     public string CountOutbox { get; }
+
+    public string OutboxBacklog { get; }
+
+    public string ParkedDeadLettersByConsumer { get; }
+
+    public string ActiveProcessesByType { get; }
+
+    public string CountEventsAfter { get; }
 
     public string CountDueOutbox { get; }
 

@@ -137,11 +137,10 @@ Every v2 test file gets exactly one disposition. The retirement work packages (W
 | `TestHelpers/*` (23 files) | **Retire** | — | Superseded by `SourceFlow.Testing` fixtures, the TCK fixture contract and the resource sweeper. Resource-naming and cleanup ideas are reused in the TCK fixture |
 
 > **Not yet satisfied (WP-3.R).** Some rows name v3 tests that belong to later work packages:
-> - UT-HC: health checks, WP-4.3.
 > - UT-SEC: KMS payload protection, WP-5.1.
 > - PERF-07, PERF-09 and CH-07: load and chaos, WP-4.7.
 >
-> `src/SourceFlow.Cloud.AWS` and `tests/SourceFlow.Cloud.AWS.Tests` therefore stay until those exist. They are not in the solution and do not build against v3.
+> UT-HC exists since WP-4.3. `src/SourceFlow.Cloud.AWS` and `tests/SourceFlow.Cloud.AWS.Tests` therefore stay until the others exist. They are not in the solution and do not build against v3.
 
 **Tally (AWS)**: Unit: Rewrite 15 · Kit 1 · Retire 3. Integration: Kit 15 · Rewrite 9 · Retire 7. Plus Security Retire 2 · Performance Rewrite 3 · Helpers Retire 23.
 

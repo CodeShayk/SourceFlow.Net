@@ -28,9 +28,11 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
 
     private readonly Query.QueryService? _queries;
     private DeadLetterIngestor? _ingestor;
+    private readonly SourceFlowMonitor _monitor;
 
-    internal SourceFlowHost(SourceFlowRuntime runtime, OutboxRelay relay, ReceiveEndpoint receiver, SubscriptionEngine subscriptions, HostSettings settings, Query.QueryService? queries = null)
+    internal SourceFlowHost(SourceFlowRuntime runtime, OutboxRelay relay, ReceiveEndpoint receiver, SubscriptionEngine subscriptions, HostSettings settings, SourceFlowMonitor monitor, Query.QueryService? queries = null)
     {
+        _monitor = monitor;
         _queries = queries;
         _runtime = runtime;
         _relay = relay;
@@ -98,6 +100,7 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
             _loops.Add(Task.Run(() => LoopAsync(ct => _subscriptions.RunOnceAsync(ct), stopping), CancellationToken.None));
         }
 
+        _loops.Add(Task.Run(() => _monitor.RunAsync(stopping), CancellationToken.None));
         _ready = true;
         Log.Started(_logger, _runtime.ServiceName, _runtime.Model.Modules.Count, _runtime.Model.Aggregates.Count, _subscriptions.Definitions.Count);
     }

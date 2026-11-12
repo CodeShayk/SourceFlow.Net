@@ -50,6 +50,9 @@ internal static partial class Log
     [LoggerMessage(1210, LogLevel.Warning, "Message {MessageId} was dead-lettered by the broker on {Endpoint} ({Reason}); parked for replay")]
     public static partial void BrokerDeadLetterIngested(ILogger logger, string messageId, string endpoint, string reason);
 
+    [LoggerMessage(1212, LogLevel.Warning, "The monitor could not read {Reading}; the gauges and health checks that use it keep the last sample")]
+    public static partial void MonitorReadingFailed(ILogger logger, Exception exception, string reading);
+
     [LoggerMessage(1211, LogLevel.Error, "Moving broker dead letters of {Endpoint} into the dead-letter store failed; retrying in {Delay}")]
     public static partial void BrokerDeadLetterIngestFailed(ILogger logger, Exception exception, string endpoint, TimeSpan delay);
 

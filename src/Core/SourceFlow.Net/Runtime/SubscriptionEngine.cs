@@ -48,7 +48,7 @@ internal sealed class SubscriptionEngine
         _static = BuildStaticDefinitions();
         _definitions = Compose();
         runtime.Metrics.Meter.CreateObservableGauge(
-            "sourceflow.subscription.stalled",
+            SourceFlowTelemetry.Instruments.SubscriptionStalled,
             () => _stalls.Values.Select(s => new System.Diagnostics.Metrics.Measurement<int>(1,
                 new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Subscription, s.Subscription),
                 new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Partition, s.Partition))),
@@ -475,8 +475,10 @@ internal sealed class SubscriptionEngine
         {
             // doc 06 §7: halt the partition at the event; retry with backoff (1 s doubling, capped at 5 min).
             SubscriptionStall stall = _stalls.AddOrUpdate((definition.Name, partition),
-                _ => Stall(definition.Name, partition, stored, last!, 1),
-                (_, previous) => Stall(definition.Name, partition, stored, last!, previous.Position == stored.Position ? previous.Attempts + 1 : 1));
+                _ => Stall(definition.Name, partition, stored, last!, 1, since: null),
+                (_, previous) => previous.Position == stored.Position
+                    ? Stall(definition.Name, partition, stored, last!, previous.Attempts + 1, previous.StalledSince)
+                    : Stall(definition.Name, partition, stored, last!, 1, since: null));
             Log.SubscriptionFailed(_logger, last!, definition.Name, partition, stored.EventId.ToString(), $"stopped (attempt {stall.Attempts}, retry at {stall.RetryAt:O})");
             return false;
         }
@@ -507,10 +509,14 @@ internal sealed class SubscriptionEngine
         return true;
     }
 
-    private SubscriptionStall Stall(string subscription, int partition, StoredEvent stored, Exception error, int attempts)
+    private SubscriptionStall Stall(string subscription, int partition, StoredEvent stored, Exception error, int attempts, DateTimeOffset? since)
     {
         TimeSpan backoff = TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2, Math.Min(attempts - 1, 9))));
-        return new SubscriptionStall(subscription, partition, stored.Position, stored.EventId, stored.Type, attempts, error.GetType().Name, error.Message, _runtime.Time.GetUtcNow() + backoff);
+        DateTimeOffset now = _runtime.Time.GetUtcNow();
+        return new SubscriptionStall(subscription, partition, stored.Position, stored.EventId, stored.Type, attempts, error.GetType().Name, error.Message, now + backoff)
+        {
+            StalledSince = since ?? now,
+        };
     }
 
     private static bool Relevant(SubscriptionDefinition definition, MessageTypeInfo type)
@@ -630,4 +636,8 @@ public sealed record SubscriptionStall(
     int Attempts,
     string ErrorType,
     string ErrorMessage,
-    DateTimeOffset RetryAt);
+    DateTimeOffset RetryAt)
+{
+    /// <summary>When the partition first stopped at this event (the <c>sourceflow.subscriptions</c> health check, doc 08 §5).</summary>
+    public DateTimeOffset StalledSince { get; init; }
+}

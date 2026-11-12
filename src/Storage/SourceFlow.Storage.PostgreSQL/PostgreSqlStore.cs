@@ -65,7 +65,7 @@ public sealed partial class PostgreSqlStore :
     /// <summary>Every port of this store.</summary>
     public Runtime.StoragePorts ToPorts()
     {
-        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this) { Retention = this, Nodes = this, Schemas = this, DocumentAdmin = this, Aliases = this };
+        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this) { Retention = this, Nodes = this, Schemas = this, DocumentAdmin = this, Aliases = this, Monitor = this };
     }
 
     // ------------------------------------------------------------------ IStorageSessionFactory

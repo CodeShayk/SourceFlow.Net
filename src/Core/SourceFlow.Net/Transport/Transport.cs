@@ -43,6 +43,18 @@ public interface ITransport
     ValueTask ProvisionAsync(TransportTopology topology, ProvisioningMode mode, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// A transport that can check the broker cheaply for the <c>sourceflow.transport</c> health check (doc 08 §5): a describe
+/// call on the service's endpoint. The core caches the result (<see cref="Runtime.HealthThresholds.TransportCacheDuration"/>).
+/// </summary>
+public interface ITransportProbe
+{
+    /// <summary>Returns when the broker answers and the endpoint exists.</summary>
+    /// <exception cref="TransportThrottledException">The broker throttled the call (degraded).</exception>
+    /// <exception cref="TransportException">The broker is unreachable, or the endpoint does not exist (unhealthy).</exception>
+    ValueTask ProbeAsync(string endpoint, CancellationToken cancellationToken);
+}
+
 /// <summary>Receives messages for one endpoint. Disposing stops receiving; unsettled messages are redelivered.</summary>
 public interface ITransportReceiver : IAsyncDisposable
 {
