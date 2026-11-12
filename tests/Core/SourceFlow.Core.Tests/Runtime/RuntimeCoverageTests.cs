@@ -48,6 +48,28 @@ public sealed class RuntimeCoverageTests
     }
 
     [Fact]
+    [Trait("Id", "UT-CMD-13")]
+    [Trait("Id", "UT-CMD-14")]
+    [Trait("Covers", "RT-R3")]
+    public async Task OnlyRoutedEvents_AreEnqueuedToTheOutbox_InTheCommandsCommit()
+    {
+        await using SourceFlowTestHost unrouted = await CountersAsync(sf => sf.Roles = SourceFlowRoles.Api);
+        await using SourceFlowTestHost routed = await CountersAsync(sf =>
+        {
+            sf.Roles = SourceFlowRoles.Api;   // no relay: the outbox row stays visible
+            sf.Routing(r => r.Publish<Incremented>().AsIs().To("counters.events"));
+        });
+
+        (await unrouted.SendAsync(new Increment(CounterId.New()), cancellationToken: Ct)).Status.ShouldBe(CommandStatus.Accepted);
+        (await routed.SendAsync(new Increment(CounterId.New()), cancellationToken: Ct)).Status.ShouldBe(CommandStatus.Accepted);
+
+        unrouted.Store.OutboxSnapshot().ShouldBeEmpty("no publication route, nothing to publish");
+        OutboxRecord record = routed.Store.OutboxSnapshot().ShouldHaveSingleItem();
+        record.Message.Destination.ShouldBe("counters.events");
+        record.Message.Envelope.Type.ShouldBe(routed.Runtime.Model.Registry.Get(typeof(Incremented)).Name);
+    }
+
+    [Fact]
     [Trait("Id", "UT-CMD-02")]
     [Trait("Covers", "doc 14 6")]
     public async Task Accepted_ReturnsTheNewVersion_AndAConsistencyTokenAtTheLastEvent()

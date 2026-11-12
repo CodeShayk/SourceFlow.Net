@@ -75,6 +75,13 @@ Every v2 test file gets exactly one disposition. The retirement work packages (W
 | `Unit/PubSubEventDispatcherTests` (2) | **Rewrite** | UT-GCP-13..15 |
 | `Integration/PubSubRoundTripTests` (4) | **Kit** | TCK-07, 10, 12, 35 (idempotent bootstrap) |
 
+> **Satisfied (WP-3.R).** Every row has its v3 tests, and they pass:
+> - UT-GCP-01..25 and the UT-HOST suite.
+> - UT-CMD-14, added for this check: an event without a publication route is not enqueued.
+> - TCK-07, 10, 12 and 35 on the Pub/Sub emulator.
+>
+> `src/SourceFlow.Cloud.GCP` and `tests/SourceFlow.Cloud.GCP.Tests` are deleted. The v2 `GCP-Build` workflow and `.github/gcp-emulator` stay for `master`, as plan 08 §1 says.
+
 ## 4. `tests/SourceFlow.Cloud.AWS.Tests` (xUnit, 264 facts + 22 properties + 4 benchmarks) → WP-3.R
 
 ### 4.1 Unit (19 files)
@@ -128,6 +135,13 @@ Every v2 test file gets exactly one disposition. The retirement work packages (W
 | `Security/IamRoleTests` (6), `IamSecurityPropertyTests` (5) | **Retire** | TCK-34 (credential refresh), TCK-36 (`Validate` with a describe-only role, real AWS nightly), UT-TOP (policy export) | Evaluating IAM policy is AWS's job, not the framework's. LocalStack IAM enforcement is partial |
 | `Performance/SqsPerformanceBenchmarks`, `SnsPerformanceBenchmarks`, `AwsScalabilityBenchmarks` | **Rewrite** | PERF-07, PERF-09 in `benchmarks/` | |
 | `TestHelpers/*` (23 files) | **Retire** | — | Superseded by `SourceFlow.Testing` fixtures, the TCK fixture contract and the resource sweeper. Resource-naming and cleanup ideas are reused in the TCK fixture |
+
+> **Not yet satisfied (WP-3.R).** Some rows name v3 tests that belong to later work packages:
+> - UT-HC: health checks, WP-4.3.
+> - UT-SEC: KMS payload protection, WP-5.1.
+> - PERF-07, PERF-09 and CH-07: load and chaos, WP-4.7.
+>
+> `src/SourceFlow.Cloud.AWS` and `tests/SourceFlow.Cloud.AWS.Tests` therefore stay until those exist. They are not in the solution and do not build against v3.
 
 **Tally (AWS)**: Unit: Rewrite 15 · Kit 1 · Retire 3. Integration: Kit 15 · Rewrite 9 · Retire 7. Plus Security Retire 2 · Performance Rewrite 3 · Helpers Retire 23.
 
