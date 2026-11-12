@@ -304,7 +304,7 @@ internal sealed class Interpreter(BoundQuery query, QueryEnvironment environment
                 break;
             }
 
-            state = aggregate.Evolve(state, (IEvent)decoder.Deserialize(stored, upcast: true));
+            state = aggregate.Evolve(state, (IEvent)decoder.Deserialize(await runtime.OpenAsync(stored, cancellationToken).ConfigureAwait(false), upcast: true));
             version = stored.StreamVersion.Value;
         }
 

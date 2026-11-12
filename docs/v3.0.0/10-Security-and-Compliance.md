@@ -96,6 +96,37 @@ public sealed record AccountOpened(
 
 The analyzer SF0011 makes sure every `[PersonalData]` member has a resolvable subject key. Aggregates whose *state* holds personal data serialise those members the same way in snapshots.
 
+**As built (WP-5.2).**
+
+- **Opt-in.** Encryption is enabled with `sf.Security(s => s.UseKeyProvider(…).EncryptPersonalData())`. Without it, `[PersonalData]` only classifies members for redaction and query policy, and events are stored as they were.
+- **Subject.** `[PersonalData(Subject = nameof(CustomerId))]` names the subject member. It is looked up in the member's own object first, then in the enclosing objects. Without `Subject`, the event's stream is the subject, so the aggregate's personal data can be erased by stream id.
+- **Write.**
+  - **Format.** After serialization, each member's JSON value is encrypted with AES-256-GCM under the subject's DEK. Associated data: `subject|path`. Marker: `{"$pd":"v1:{subject (base64url)}:{kind}:{nonce|tag|ciphertext}"}`.
+  - **Keys.** A subject's DEK is created on first use, wrapped by the key provider, and stored in `data_keys`.
+  - **Streams.** The streams holding the subject's data are recorded in `subject_streams` before the commit.
+  - **Snapshots.** Aggregate state is encrypted the same way.
+  - **Integration events.** An integration event mapped with `.As(…)` is a separate contract. `.AsIs()` publishes the domain event's plaintext, which SF0013 warns about.
+- **Read.** The aggregate store (events and snapshots), subscriptions, `IAggregateReader` and the SFQL aggregate fold decrypt markers before deserializing. Unwrapped keys are cached in pinned memory, and an `AesGcm` copy is made per operation.
+- **Erase.** `IPersonalDataEraser.EraseSubjectAsync(subject)` runs four steps:
+  1. Shreds the key: the wrapped key is destroyed and `shredded_at` is set.
+  2. Deletes the snapshots of the subject's streams and evicts them from the aggregate cache.
+  3. Scrubs the `[PersonalData]` members of document projections keyed by those streams' aggregates.
+  4. Appends `PersonalDataErased` (type `sourceflow.personal-data.erased`) on stream `personal-data-{subject}`. Type names cannot contain `$`.
+- **After erase.** Markers read as `"[erased]"` for strings, 0 for numbers, false for booleans, and null otherwise.
+  - New personal data written for an erased subject is stored as the erased value, and no key is made.
+  - A marker that was altered, or moved to another member, fails with `DecryptionFailedException`.
+- **Analyzers.**
+  - SF0011 (error): a `Subject` that names no member of the event.
+  - SF0013 (warning): `.AsIs()` on an event with `[PersonalData]`. Test projects suppress it.
+  - SF0017 (warning): `[Queryable]` together with `[PersonalData]`.
+- **Not decrypted: SFQL event fields.** SFQL `from events` returns personal data fields as stored, so they are ciphertext markers when encryption is on. Read models hold decrypted values and are scrubbed on erasure.
+- **Not decrypted: custom read models.** Custom (session) projections must handle `PersonalDataErased` themselves.
+- **Tests.**
+  - **Core:** UT-PII-01..18 and 24, in memory.
+  - **Storage contract:** UT-PII-19/20 on PostgreSQL and SQL Server (`PersonalDataKeyStoreConformance`).
+  - **Analyzers:** UT-PII-21..23.
+  - **End to end:** E2E-29..31 on PostgreSQL, plus the same scenario on SQL Server.
+
 ## 5. Redaction in logs and telemetry
 
 - `Microsoft.Extensions.Compliance.Redaction` is wired to a SourceFlow taxonomy (`SourceFlowTaxonomy.PersonalData`, `SourceFlowTaxonomy.Secret`). `[PersonalData]` implies the PersonalData classification.

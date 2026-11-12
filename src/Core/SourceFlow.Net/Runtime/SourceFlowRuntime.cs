@@ -66,6 +66,9 @@ public sealed record StoragePorts(
     /// <summary>Operational readings for health checks and gauges, when the adapter supports it (doc 08 §5).</summary>
     public IStoreMonitor? Monitor { get; init; }
 
+    /// <summary>Subjects' data keys and streams for crypto-shredding, when the adapter supports it (doc 10 §4).</summary>
+    public Security.IPersonalDataKeyStore? PersonalData { get; init; }
+
     /// <summary>Projection data administration, when the adapter supports it (doc 06 §6).</summary>
     public IDocumentAdmin? DocumentAdmin { get; init; }
 
@@ -211,6 +214,15 @@ public sealed class SourceFlowRuntime
 
     /// <summary>The actor accessor.</summary>
     public IActorAccessor Actor { get; }
+
+    /// <summary>Personal data encryption (doc 10 §4); null when not configured.</summary>
+    internal Security.PersonalDataProtector? PersonalData { get; set; }
+
+    /// <summary>Decrypts the personal data in a stored event (no-op when encryption is off).</summary>
+    internal ValueTask<StoredEvent> OpenAsync(StoredEvent stored, CancellationToken cancellationToken)
+    {
+        return PersonalData is { } personal ? personal.UnprotectAsync(stored, cancellationToken) : ValueTask.FromResult(stored);
+    }
 
     /// <summary>Payload protection (doc 10 §3); null when not configured.</summary>
     internal Security.PayloadProtector? Protector { get; set; }

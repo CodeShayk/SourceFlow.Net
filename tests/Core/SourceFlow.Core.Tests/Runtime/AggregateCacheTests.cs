@@ -231,6 +231,8 @@ public sealed class AggregateCacheTests
 
     private sealed class GatedSnapshots(ISnapshotStore inner) : ISnapshotStore
     {
+        public ValueTask DeleteAsync(string tenantId, StreamId stream, CancellationToken cancellationToken) => inner.DeleteAsync(tenantId, stream, cancellationToken);
+
         private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -262,6 +264,8 @@ public sealed class AggregateCacheTests
 
     private sealed class FailingSnapshots : ISnapshotStore
     {
+        public ValueTask DeleteAsync(string tenantId, StreamId stream, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
         public ValueTask<Snapshot?> GetAsync(string tenantId, StreamId stream, CancellationToken cancellationToken)
         {
             return ValueTask.FromResult<Snapshot?>(null);

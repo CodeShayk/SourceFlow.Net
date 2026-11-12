@@ -10,6 +10,7 @@ namespace SourceFlow.Storage.InMemory;
 /// </summary>
 public sealed class InMemoryStore :
     IEventStore,
+    Security.IPersonalDataKeyStore,
     IEventLogReader,
     IStorageSessionFactory,
     ICheckpointStore,
@@ -95,6 +96,72 @@ public sealed class InMemoryStore :
             return ValueTask.FromResult(_streams.TryGetValue((tenantId, stream.Value), out StreamState? state)
                 ? new StreamInfo(stream, state.Type, state.Version, state.Deleted, state.Archived)
                 : null);
+        }
+    }
+
+    // ------------------------------------------------------------------ IPersonalDataKeyStore
+
+    private readonly Dictionary<string, Security.SubjectKey> _subjectKeys = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string Tenant, string Subject), HashSet<string>> _subjectStreams = [];
+
+    /// <inheritdoc />
+    public ValueTask<Security.SubjectKey?> GetKeyAsync(string subjectId, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            return ValueTask.FromResult(_subjectKeys.GetValueOrDefault(subjectId));
+        }
+    }
+
+    /// <inheritdoc />
+    public ValueTask<Security.SubjectKey> AddKeyAsync(Security.SubjectKey key, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        lock (_gate)
+        {
+            return ValueTask.FromResult(_subjectKeys.TryAdd(key.SubjectId, key) ? key : _subjectKeys[key.SubjectId]);
+        }
+    }
+
+    /// <inheritdoc />
+    public ValueTask ShredKeyAsync(string subjectId, DateTimeOffset at, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            _subjectKeys[subjectId] = _subjectKeys.TryGetValue(subjectId, out Security.SubjectKey? key)
+                ? key with { WrappedKey = ReadOnlyMemory<byte>.Empty, ShreddedAt = key.ShreddedAt ?? at }
+                : new Security.SubjectKey(subjectId, string.Empty, ReadOnlyMemory<byte>.Empty, at, at);
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public ValueTask RecordSubjectStreamsAsync(string tenantId, string subjectId, IReadOnlyCollection<StreamId> streams, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(streams);
+        lock (_gate)
+        {
+            if (!_subjectStreams.TryGetValue((tenantId, subjectId), out HashSet<string>? set))
+            {
+                _subjectStreams[(tenantId, subjectId)] = set = new HashSet<string>(StringComparer.Ordinal);
+            }
+
+            set.UnionWith(streams.Select(s => s.Value));
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public ValueTask<IReadOnlyList<StreamId>> GetSubjectStreamsAsync(string tenantId, string subjectId, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<StreamId> streams = _subjectStreams.TryGetValue((tenantId, subjectId), out HashSet<string>? set)
+                ? [.. set.Order(StringComparer.Ordinal).Select(s => new StreamId(s))]
+                : [];
+            return ValueTask.FromResult(streams);
         }
     }
 
@@ -620,6 +687,17 @@ public sealed class InMemoryStore :
             {
                 _snapshots[(tenantId, snapshot.StreamId.Value)] = snapshot;
             }
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public ValueTask DeleteAsync(string tenantId, StreamId stream, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            _snapshots.Remove((tenantId, stream.Value));
         }
 
         return ValueTask.CompletedTask;

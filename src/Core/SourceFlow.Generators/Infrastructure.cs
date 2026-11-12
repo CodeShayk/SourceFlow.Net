@@ -99,6 +99,8 @@ namespace SourceFlow.Generators
         public const string ModuleAttribute = "SourceFlow.SourceFlowModuleAttribute";
         public const string StronglyTypedIdAttribute = "SourceFlow.StronglyTypedIdAttribute";
         public const string AggregateIdAttribute = "SourceFlow.AggregateIdAttribute";
+        public const string PersonalDataAttribute = "SourceFlow.PersonalDataAttribute";
+        public const string QueryableAttribute = "SourceFlow.QueryableAttribute";
         public const string Message = "SourceFlow.IMessage";
         public const string Command = "SourceFlow.ICommand";
         public const string CommandOf = "SourceFlow.ICommand`1";

@@ -195,6 +195,9 @@ public interface ISnapshotStore
 
     /// <summary>Saves a snapshot (replacing an older one).</summary>
     ValueTask SaveAsync(string tenantId, Snapshot snapshot, CancellationToken cancellationToken);
+
+    /// <summary>Deletes a stream's snapshot, if any (crypto-shredding deletes snapshots that hold a subject's data, doc 10 §4).</summary>
+    ValueTask DeleteAsync(string tenantId, StreamId stream, CancellationToken cancellationToken);
 }
 
 /// <summary>Batched retention cleanup (doc 05 §9): stores delete in bounded batches so cleanup never holds long locks.</summary>

@@ -76,7 +76,7 @@ internal sealed class AggregateReader(SourceFlowRuntime runtime) : IAggregateRea
                     return new AggregateSnapshot<TAggregate>(state, version);
                 }
 
-                state = state.Evolve((IEvent)_decoder.Deserialize(stored, upcast: true));
+                state = state.Evolve((IEvent)_decoder.Deserialize(await runtime.OpenAsync(stored, cancellationToken).ConfigureAwait(false), upcast: true));
                 version = stored.StreamVersion;
             }
 

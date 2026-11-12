@@ -372,6 +372,60 @@ public sealed class AnalyzerTests
     }
 
     [Fact]
+    [Trait("Id", "UT-PII-21")]
+    [Trait("Covers", "doc 10 4")]
+    public void SF0011_PersonalDataWithAnUnknownSubject_IsAnError()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + """
+            [MessageType("t.registered", 1)] public sealed record Registered(Aid A, string Customer,
+                [property: PersonalData(Subject = "Client")] string Name,
+                [property: PersonalData(Subject = nameof(Customer))] string Email,
+                [property: PersonalData] string Phone) : IEvent;
+            """);
+
+        Diagnostic error = diagnostics.Where(d => d.Id == "SF0011").ShouldHaveSingleItem();
+        error.Severity.ShouldBe(DiagnosticSeverity.Error);
+        error.GetMessage().ShouldContain("Registered.Name");
+    }
+
+    [Fact]
+    [Trait("Id", "UT-PII-22")]
+    [Trait("Covers", "doc 10 4")]
+    public void SF0013_AsIsPublicationOfPersonalData_IsAWarning()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + """
+            [MessageType("t.personal", 1)] public sealed record Personal(Aid A, [property: PersonalData] string Name) : IEvent;
+            [MessageType("t.plain", 1)] public sealed record Plain(Aid A) : IEvent;
+            public static class Routes
+            {
+                public static void Configure(SourceFlow.Runtime.RoutingBuilder r)
+                {
+                    r.Publish<Personal>().AsIs().To("people");
+                    r.Publish<Plain>().AsIs().To("plain");
+                }
+            }
+            """);
+
+        Diagnostic warning = diagnostics.Where(d => d.Id == "SF0013").ShouldHaveSingleItem();
+        warning.Severity.ShouldBe(DiagnosticSeverity.Warning);
+        warning.GetMessage().ShouldContain("Personal");
+    }
+
+    [Fact]
+    [Trait("Id", "UT-PII-23")]
+    [Trait("Covers", "doc 10 4")]
+    public void SF0017_QueryablePersonalData_IsAWarning()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + """
+            [MessageType("t.indexed", 1)] public sealed record Indexed(Aid A, [property: PersonalData, Queryable] string Email, [property: Queryable] string Country) : IEvent;
+            """);
+
+        Diagnostic warning = diagnostics.Where(d => d.Id == "SF0017").ShouldHaveSingleItem();
+        warning.Severity.ShouldBe(DiagnosticSeverity.Warning);
+        warning.GetMessage().ShouldContain("Indexed.Email");
+    }
+
+    [Fact]
     public void BankSample_HasNoDiagnostics()
     {
         Analyze(Id).ShouldBeEmpty();

@@ -7,7 +7,8 @@
     <OutputType>Exe</OutputType>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- CA1707: underscores in test names; CA2007: no ConfigureAwait in tests; xUnit1051: optional tokens on API calls under test. -->
-    <NoWarn>$(NoWarn);CA1707;CA2007;xUnit1051</NoWarn>
+    <!-- SF0013: tests publish domain events .AsIs() to exercise the outbox and transports, not as public contracts. -->
+    <NoWarn>$(NoWarn);CA1707;CA2007;xUnit1051;SF0013</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />

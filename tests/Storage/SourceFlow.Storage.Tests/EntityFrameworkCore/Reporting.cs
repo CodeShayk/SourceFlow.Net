@@ -117,5 +117,7 @@ public sealed partial class AccountActivityProjection : IEfProjection<ReportingD
 }
 
 /// <summary>The reporting module: registers the EF projection (generated).</summary>
-[SourceFlowModule]
+// The generator registers every annotated type of this assembly in each module: the clinic test domain (PersonalData/)
+// comes along, so this module carries its JSON metadata.
+[SourceFlowModule(typeof(SourceFlow.Storage.Tests.PersonalData.ClinicJsonContext))]
 public sealed partial class ReportingModule;

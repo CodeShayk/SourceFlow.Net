@@ -58,6 +58,11 @@ public sealed partial class CoreTestModule;
 [JsonSerializable(typeof(Dripped))]
 [JsonSerializable(typeof(Dripper))]
 [JsonSerializable(typeof(Drips))]
+[JsonSerializable(typeof(SourceFlow.Core.Tests.Security.RegisterPatient))]
+[JsonSerializable(typeof(SourceFlow.Core.Tests.Security.RenamePatient))]
+[JsonSerializable(typeof(SourceFlow.Core.Tests.Security.PatientRegistered))]
+[JsonSerializable(typeof(SourceFlow.Core.Tests.Security.PatientRenamed))]
+[JsonSerializable(typeof(SourceFlow.Core.Tests.Security.Patient))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 public sealed partial class CoreTestJsonContext : JsonSerializerContext;
 

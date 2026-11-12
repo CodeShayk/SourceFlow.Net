@@ -174,6 +174,27 @@ public sealed class CommandProcessor
             toAppend[i] = new EventToAppend(eventEnvelope.MessageId, eventEnvelope.Type, eventEnvelope.TypeVersion, eventEnvelope.Body, Metadata(eventEnvelope), context.Now, []);
         }
 
+        if (_runtime.PersonalData is { } personal && _runtime.Storage.PersonalData is { } subjectStore)
+        {
+            // Crypto-shredding (doc 10 §4): encrypt [PersonalData] members per subject; record where each subject's data lives
+            // before the commit (an extra row for a failed commit is harmless; a missing one would leave a snapshot behind).
+            var subjects = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < events.Length; i++)
+            {
+                if (personal.Protects(events[i].GetType()))
+                {
+                    (ReadOnlyMemory<byte> body, IReadOnlyCollection<string> used) = await personal.ProtectAsync(events[i].GetType(), stream.Value, toAppend[i].Data, cancellationToken).ConfigureAwait(false);
+                    toAppend[i] = toAppend[i] with { Data = body };
+                    subjects.UnionWith(used);
+                }
+            }
+
+            foreach (string subject in subjects)
+            {
+                await subjectStore.RecordSubjectStreamsAsync(envelope.TenantId, subject, [stream], cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         long appendStarted = Stopwatch.GetTimestamp();
         using Activity? append = SourceFlowTelemetry.ActivitySource.StartActivity("sourceflow.eventstore.append", ActivityKind.Client);
         append?.SetTag(SourceFlowTelemetry.Tags.DbOperationName, "append");

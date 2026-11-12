@@ -446,8 +446,9 @@ internal sealed class SubscriptionEngine
         }
 
         var relevant = new List<(IEvent Event, StoredEvent Stored)>(candidates.Count);
-        foreach (StoredEvent stored in candidates)
+        foreach (StoredEvent sealedEvent in candidates)
         {
+            StoredEvent stored = await _runtime.OpenAsync(sealedEvent, cancellationToken).ConfigureAwait(false);
             relevant.Add(((IEvent)_decoder.Deserialize(stored, upcast: true), stored));
         }
 

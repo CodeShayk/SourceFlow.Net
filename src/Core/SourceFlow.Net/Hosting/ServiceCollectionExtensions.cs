@@ -31,6 +31,11 @@ public static class ServiceCollectionExtensions
             throw new InvalidOperationException("SourceFlowBuilder.ServiceName is required.");
         }
 
+        if (builder.SecuritySettings?.PersonalDataEncryption == true)
+        {
+            builder.Model.AddModule<Security.PersonalDataModule>();   // the PersonalDataErased system event (doc 10 §4)
+        }
+
         RuntimeModel model = builder.Model.Build();
         RoutingTable routing = builder.RoutingRules.Build(builder.ServiceName, model);
         foreach (Type projection in builder.ProjectionModes.Keys)
@@ -70,13 +75,32 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMessageSerializer, SystemTextJsonMessageSerializer>();
         services.AddSingleton(new MessagePipeline(builder.Middleware));
         Func<IServiceProvider, StoragePorts> storage = builder.StorageFactory ?? throw new InvalidOperationException("No storage is configured. Call UseInMemoryStorage() or a storage package's Use* method.");
+        if (builder.SecuritySettings?.KeyProvider is { } keyFactory)
+        {
+            services.AddSingleton(keyFactory);   // one provider instance for payload protection and personal data
+        }
+
+        if (builder.SecuritySettings?.PersonalDataEncryption == true)
+        {
+            // Crypto-shredding (doc 10 §4): [PersonalData] members are encrypted per subject in the store.
+            _ = builder.SecuritySettings.KeyProvider
+                ?? throw new InvalidOperationException("Personal data encryption needs a key provider: call UseAwsKms, UseAzureKeyVault, UseGoogleKms or UseKeyProvider in sf.Security(...).");
+            services.AddSingleton(sp => new Security.PersonalDataProtector(
+                sp.GetRequiredService<Security.IKeyProvider>(),
+                sp.GetRequiredService<StoragePorts>().PersonalData ?? throw new InvalidOperationException("Personal data encryption needs a storage adapter that keeps data keys (IPersonalDataKeyStore)."),
+                sp.GetRequiredService<RuntimeModel>(),
+                sp.GetService<TimeProvider>()));
+            services.AddSingleton<Security.IPersonalDataEraser>(sp => new Security.PersonalDataEraser(
+                sp.GetRequiredService<SourceFlowRuntime>(), sp.GetRequiredService<Security.PersonalDataProtector>(), sp.GetRequiredService<StoragePorts>().PersonalData!));
+        }
+
         if (builder.SecuritySettings?.Protection is { } protection)
         {
             // Payload protection (doc 10 §3): outbox rows for protected destinations are encrypted at commit.
             protection.Validate();
-            Func<IServiceProvider, Security.IKeyProvider> keys = builder.SecuritySettings.KeyProvider
+            _ = builder.SecuritySettings.KeyProvider
                 ?? throw new InvalidOperationException("Payload protection needs a key provider: call UseAwsKms, UseAzureKeyVault, UseGoogleKms or UseKeyProvider in sf.Security(...).");
-            services.AddSingleton(sp => new Security.PayloadProtector(keys(sp), protection, sp.GetService<TimeProvider>()));
+            services.AddSingleton(sp => new Security.PayloadProtector(sp.GetRequiredService<Security.IKeyProvider>(), protection, sp.GetService<TimeProvider>()));
             Func<IServiceProvider, StoragePorts> unprotected = storage;
             storage = sp =>
             {
@@ -93,6 +117,7 @@ public static class ServiceCollectionExtensions
             var runtime = ActivatorUtilities.CreateInstance<SourceFlowRuntime>(sp);
             runtime.Faults = sp.GetService<IFaultInjector>();
             runtime.Protector = sp.GetService<Security.PayloadProtector>();
+            runtime.PersonalData = sp.GetService<Security.PersonalDataProtector>();
             runtime.InlineProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Inline)];
             runtime.AsyncProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Async)];
             runtime.ProjectionPolicies = builder.ProjectionPolicies.ToDictionary();

@@ -59,7 +59,7 @@ public sealed partial class SqlServerStore :
     /// <summary>Every port of this store.</summary>
     public Runtime.StoragePorts ToPorts()
     {
-        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this) { Retention = this, Nodes = this, Schemas = this, DocumentAdmin = this, Aliases = this, Monitor = this };
+        return new Runtime.StoragePorts(this, this, this, this, this, this, this, this, this, this) { Retention = this, Nodes = this, Schemas = this, DocumentAdmin = this, Aliases = this, Monitor = this, PersonalData = this };
     }
 
     internal async ValueTask<SqlConnection> OpenAsync(CancellationToken cancellationToken)

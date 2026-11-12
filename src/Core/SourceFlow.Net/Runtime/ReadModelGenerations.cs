@@ -121,6 +121,24 @@ internal sealed class ReadModelGenerations : IReadModelResolver
     /// and one being built (a version bump, a requested rebuild, or the first build before any alias exists). Both are
     /// null when a newer version already serves reads: this node's generation is retired.
     /// </summary>
+    /// <summary>Every collection a projection writes now: its configured one, and the serving and building generations.</summary>
+    internal IReadOnlyCollection<string> CollectionsOf(ProjectionDescriptor projection)
+    {
+        var collections = new HashSet<string>(StringComparer.Ordinal) { projection.Collection };
+        (ReadModelGeneration? serving, ReadModelGeneration? building) = Plan(projection);
+        if (serving is { } servingGeneration)
+        {
+            collections.Add(servingGeneration.Collection);
+        }
+
+        if (building is { } buildingGeneration)
+        {
+            collections.Add(buildingGeneration.Collection);
+        }
+
+        return collections;
+    }
+
     public (ReadModelGeneration? Serving, ReadModelGeneration? Building) Plan(ProjectionDescriptor projection)
     {
         ReadModelGeneration first = First(projection);

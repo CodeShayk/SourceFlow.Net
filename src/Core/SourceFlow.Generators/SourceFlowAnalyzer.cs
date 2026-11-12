@@ -29,7 +29,10 @@ namespace SourceFlow.Generators
             Diagnostics.OwnedAndRouted,
             Diagnostics.QueryInWriteModel,
             Diagnostics.QueryInCommandHandler,
-            Diagnostics.DomainQueryShape);
+            Diagnostics.DomainQueryShape,
+            Diagnostics.UnresolvableSubject,
+            Diagnostics.PersonalDataPublishedAsIs,
+            Diagnostics.QueryablePersonalData);
 
         /// <inheritdoc />
         public override void Initialize(AnalysisContext context)
@@ -49,6 +52,7 @@ namespace SourceFlow.Generators
                 start.RegisterOperationAction(AnalyzeWhenAssignment, OperationKind.SimpleAssignment, OperationKind.CompoundAssignment, OperationKind.Increment, OperationKind.Decrement);
                 start.RegisterOperationAction(AnalyzeDecidedEvent, OperationKind.ObjectCreation);
                 start.RegisterOperationAction(AnalyzeCommandRoute, OperationKind.Invocation);
+                start.RegisterOperationAction(AnalyzeAsIsPublication, OperationKind.Invocation);
                 start.RegisterOperationAction(AnalyzeQueryUse, OperationKind.Invocation, OperationKind.PropertyReference);
 
                 var inventory = new CompilationInventory();
@@ -119,6 +123,63 @@ namespace SourceFlow.Generators
             if (type.FindAttribute(KnownNames.DomainQueryAttribute) is { } domainQuery)
             {
                 AnalyzeDomainQuery(context, type, domainQuery, location);
+            }
+
+            AnalyzePersonalData(context, type);
+        }
+
+        // SF0011 / SF0017 (doc 10 §4): a [PersonalData] member's subject must be a member of the event; [Queryable] on it does nothing.
+        private static void AnalyzePersonalData(SymbolAnalysisContext context, INamedTypeSymbol type)
+        {
+            bool isEvent = type.FindInterface(KnownNames.Event) is not null;
+            foreach (ISymbol member in type.GetMembers().Where(m => m is IPropertySymbol or IFieldSymbol))
+            {
+                AttributeData? personal = member.FindAttribute(KnownNames.PersonalDataAttribute);
+                if (personal is null)
+                {
+                    continue;
+                }
+
+                Location location = member.Locations.FirstOrDefault() ?? Location.None;
+                if (member.FindAttribute(KnownNames.QueryableAttribute) is not null)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(Diagnostics.QueryablePersonalData, location, type.Name, member.Name));
+                }
+
+                if (isEvent && personal.NamedArguments.FirstOrDefault(a => a.Key == "Subject").Value.Value is string subject && !HasMember(type, subject))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(Diagnostics.UnresolvableSubject, location, subject, type.Name, member.Name));
+                }
+            }
+        }
+
+        private static bool HasMember(INamedTypeSymbol type, string name)
+        {
+            for (INamedTypeSymbol? current = type; current is not null; current = current.BaseType)
+            {
+                if (current.GetMembers(name).Any(m => m is IPropertySymbol or IFieldSymbol))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // SF0013 (doc 10 §4): routing.Publish<TEvent>().AsIs() for an event holding [PersonalData].
+        private static void AnalyzeAsIsPublication(OperationAnalysisContext context)
+        {
+            var invocation = (IInvocationOperation)context.Operation;
+            if (invocation.TargetMethod is not { Name: "AsIs" } asIs || !asIs.ContainingType.Is("SourceFlow.Runtime.PublicationBuilder`1")
+                || asIs.ContainingType.TypeArguments[0] is not INamedTypeSymbol published)
+            {
+                return;
+            }
+
+            ISymbol? personal = published.GetMembers().FirstOrDefault(m => m is IPropertySymbol && m.FindAttribute(KnownNames.PersonalDataAttribute) is not null);
+            if (personal is not null)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.PersonalDataPublishedAsIs, invocation.Syntax.GetLocation(), published.Name, personal.Name));
             }
         }
 

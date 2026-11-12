@@ -30,6 +30,19 @@ public sealed class SecurityBuilder
 
     internal PayloadProtectionOptions? Protection { get; private set; }
 
+    internal bool PersonalDataEncryption { get; private set; }
+
+    /// <summary>
+    /// Encrypts <c>[PersonalData]</c> members per subject in the event store and snapshots, and makes them erasable with
+    /// <see cref="IPersonalDataEraser"/> (crypto-shredding, doc 10 §4). Needs a key provider and a storage adapter that
+    /// keeps data keys.
+    /// </summary>
+    public SecurityBuilder EncryptPersonalData()
+    {
+        PersonalDataEncryption = true;
+        return this;
+    }
+
     /// <summary>Uses a key provider (the cloud packages add <c>UseAwsKms</c>, <c>UseAzureKeyVault</c> and <c>UseGoogleKms</c>).</summary>
     public SecurityBuilder UseKeyProvider(Func<IServiceProvider, IKeyProvider> factory)
     {

@@ -54,7 +54,10 @@ internal sealed class AggregateStore(SourceFlowRuntime runtime)
             && await runtime.Storage.Snapshots.GetAsync(tenant, stream, cancellationToken).ConfigureAwait(false) is { } snapshot
             && snapshot.SchemaHash == runtime.Snapshots.SchemaHash(aggregate))
         {
-            state = JsonSerializer.Deserialize(snapshot.Data.Span, runtime.Model.JsonTypeInfoFor(aggregate.StateType))!;
+            ReadOnlyMemory<byte> snapshotData = runtime.PersonalData is { } personal
+                ? await personal.UnprotectAsync(snapshot.Data, cancellationToken).ConfigureAwait(false)
+                : snapshot.Data;
+            state = JsonSerializer.Deserialize(snapshotData.Span, runtime.Model.JsonTypeInfoFor(aggregate.StateType))!;
             version = snapshot.Version;
             source = "snapshot";
         }
@@ -63,8 +66,9 @@ internal sealed class AggregateStore(SourceFlowRuntime runtime)
         while (true)
         {
             StreamSlice slice = await read(version + 1, PageSize, cancellationToken).ConfigureAwait(false);
-            foreach (StoredEvent stored in slice.Events)
+            foreach (StoredEvent sealedEvent in slice.Events)
             {
+                StoredEvent stored = await runtime.OpenAsync(sealedEvent, cancellationToken).ConfigureAwait(false);
                 state = aggregate.Evolve(state, (IEvent)Deserialize(stored, upcast: true));
                 version = stored.StreamVersion;
                 folded++;

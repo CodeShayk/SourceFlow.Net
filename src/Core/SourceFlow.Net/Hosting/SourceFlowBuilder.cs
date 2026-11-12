@@ -178,7 +178,7 @@ public sealed class SourceFlowBuilder
         return UseStorage(sp =>
         {
             InMemoryStore s = store ?? new InMemoryStore(sp.GetService<TimeProvider>());
-            return new StoragePorts(s, s, s, s, s, s, s, s, s, s) { Retention = s, Nodes = s, Schemas = s, DocumentAdmin = s, Aliases = s, Monitor = s };
+            return new StoragePorts(s, s, s, s, s, s, s, s, s, s) { Retention = s, Nodes = s, Schemas = s, DocumentAdmin = s, Aliases = s, Monitor = s, PersonalData = s };
         });
     }
 

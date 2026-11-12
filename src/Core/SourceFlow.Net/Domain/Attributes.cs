@@ -104,6 +104,12 @@ public sealed class PersonalDataAttribute : Microsoft.Extensions.Compliance.Clas
         : base(SourceFlowTaxonomy.PersonalData)
     {
     }
+
+    /// <summary>
+    /// The member holding the subject the data belongs to, for example <c>nameof(CustomerId)</c>: erasing that subject
+    /// erases this member everywhere (doc 10 §4). Without it, the event's stream (the aggregate) is the subject.
+    /// </summary>
+    public string? Subject { get; set; }
 }
 
 /// <summary>Marks a member as a secret (tokens, keys): always redacted in logs and telemetry (doc 10 §5).</summary>

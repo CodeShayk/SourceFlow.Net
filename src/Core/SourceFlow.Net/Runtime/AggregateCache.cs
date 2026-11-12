@@ -194,8 +194,14 @@ internal sealed class SnapshotWriter
         try
         {
             JsonTypeInfo typeInfo = _runtime.Model.JsonTypeInfoFor(work.Aggregate.StateType);
+            ReadOnlyMemory<byte> data = JsonSerializer.SerializeToUtf8Bytes(work.State, typeInfo);
+            if (_runtime.PersonalData is { } personal && personal.Protects(work.Aggregate.StateType))
+            {
+                data = (await personal.ProtectAsync(work.Aggregate.StateType, work.Stream.Value, data, cancellationToken).ConfigureAwait(false)).Body;   // doc 10 §4
+            }
+
             var snapshot = new Snapshot(work.Stream, work.Version, work.Aggregate.StateType.FullName ?? work.Aggregate.StateType.Name,
-                SchemaHash(work.Aggregate), JsonSerializer.SerializeToUtf8Bytes(work.State, typeInfo));
+                SchemaHash(work.Aggregate), data);
             await _runtime.Storage.Snapshots.SaveAsync(work.Tenant, snapshot, cancellationToken).ConfigureAwait(false);
             _runtime.Metrics.SnapshotsWritten.Add(1, new KeyValuePair<string, object?>(Diagnostics.SourceFlowTelemetry.Tags.AggregateType, work.Aggregate.Name));
         }

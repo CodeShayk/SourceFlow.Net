@@ -32,6 +32,21 @@ namespace SourceFlow.Generators
             "'{0}' produces '{1}' in Decide but has no 'When({1})'; the state ignores it",
             "SourceFlow.Shape", DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpBase);
 
+        public static readonly DiagnosticDescriptor UnresolvableSubject = new(
+            "SF0011", "Personal data has no resolvable subject",
+            "[PersonalData(Subject = \"{0}\")] on '{1}.{2}' names no member of '{1}'; the subject key must be a member of the event (doc 10 §4)",
+            "SourceFlow.Security", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpBase);
+
+        public static readonly DiagnosticDescriptor PersonalDataPublishedAsIs = new(
+            "SF0013", "AsIs() publishes personal data",
+            "'.AsIs()' publishes '{0}', which holds [PersonalData] ('{1}'); map it to an integration event without personal data (doc 10 §4)",
+            "SourceFlow.Security", DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpBase);
+
+        public static readonly DiagnosticDescriptor QueryablePersonalData = new(
+            "SF0017", "[Queryable] on personal data has no effect",
+            "'{0}.{1}' is both [Queryable] and [PersonalData]; ciphertext can't be indexed or filtered, so [Queryable] has no effect",
+            "SourceFlow.Security", DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpBase);
+
         public static readonly DiagnosticDescriptor OwnedAndRouted = new(
             "SF0014", "Command is both owned and routed",
             "Command '{0}' is handled in this service by '{1}' and also routed to an endpoint; a command is owned or routed, never both (ADR-007)",

@@ -333,4 +333,18 @@ public sealed class RuntimeModel
     {
         return Registry.Options.GetTypeInfo(type);
     }
+
+    /// <summary>The JSON metadata for a type, when a module resolver knows it.</summary>
+    public bool TryGetJsonTypeInfo(Type type, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out JsonTypeInfo? info)
+    {
+        try
+        {
+            return Registry.Options.TryGetTypeInfo(type, out info);
+        }
+        catch (NotSupportedException)
+        {
+            info = null;
+            return false;
+        }
+    }
 }

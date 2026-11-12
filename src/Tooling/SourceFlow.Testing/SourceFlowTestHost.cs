@@ -158,12 +158,16 @@ public sealed class SourceFlowTestHost : IAsyncDisposable
     public async Task<IReadOnlyList<IEvent>> EventsAsync(StreamId stream, string? tenant = null)
     {
         StreamSlice slice = await Store.ReadStreamAsync(tenant ?? Runtime.Options.DefaultTenant, stream, new StreamVersion(1), int.MaxValue, CancellationToken.None).ConfigureAwait(false);
-        return [.. slice.Events.Select(e =>
+        var events = new List<IEvent>(slice.Events.Count);
+        foreach (StoredEvent stored in slice.Events)
         {
+            StoredEvent e = await Runtime.OpenAsync(stored, CancellationToken.None).ConfigureAwait(false);   // personal data, doc 10 §4
             Messaging.MessageTypeInfo type = Runtime.Model.Registry.Get(e.Type, e.TypeVersion);
             object message = Messaging.MessageSerializerExtensions.Deserialize(Runtime.Serializer, e.Data, type);
-            return (IEvent)Runtime.Model.Registry.UpcastToLatest(message, type, out _);
-        })];
+            events.Add((IEvent)Runtime.Model.Registry.UpcastToLatest(message, type, out _));
+        }
+
+        return events;
     }
 
     /// <inheritdoc />
