@@ -1,10 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Scaffold (WP-0.2). Implemented in WP-4.4; packable once implemented. -->
   <PropertyGroup>
-    <Description>SourceFlow.Net v3: SQL Server implementation of the persistence SPI and the SFQL SQL Server compiler.</Description>
-    <IsPackable>false</IsPackable>
+    <Description>SourceFlow.Net v3: SQL Server implementation of the persistence SPI (event store, outbox, inbox, checkpoints, leases, documents) and the SFQL SQL Server compiler.</Description>
+    <PackageTags>sourceflow;event-sourcing;cqrs;sqlserver;azure-sql</PackageTags>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
+    <InternalsVisibleTo Include="SourceFlow.Storage.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Schema\*.sql" LogicalName="SourceFlow.Storage.SqlServer.Schema.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

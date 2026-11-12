@@ -25,12 +25,13 @@ jobs:
           - { db: "postgres:16", provider: PostgreSQL, image: "postgres:16-alpine" }
           - { db: "postgres:17", provider: PostgreSQL, image: "postgres:17-alpine" }
           - { db: "postgres:17-partitioned", provider: PostgreSQL, image: "postgres:17-alpine" }
-          - { db: "mssql:2022", provider: SqlServer, image: "" }
-          - { db: "mssql:2025", provider: SqlServer, image: "" }
+          - { db: "mssql:2022", provider: SqlServer, image: "", mssql: "mcr.microsoft.com/mssql/server:2022-latest" }
+          - { db: "mssql:2025", provider: SqlServer, image: "", mssql: "mcr.microsoft.com/mssql/server:2025-latest" }
     runs-on: ubuntu-latest
     env:
       SOURCEFLOW_TEST_DATABASE: ${{ matrix.db }}
       SOURCEFLOW_TEST_POSTGRES_IMAGE: ${{ matrix.image }}
+      SOURCEFLOW_TEST_SQLSERVER_IMAGE: ${{ matrix.mssql }}
     steps:
       - uses: actions/checkout@v4
         with:

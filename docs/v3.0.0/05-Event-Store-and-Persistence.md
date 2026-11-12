@@ -253,6 +253,25 @@ SELECT TOP (@max) … FROM sourceflow.Events
 
 `MIN_ACTIVE_ROWVERSION()` is the lowest rowversion that is still uncommitted, so every row below it is final. The append uses `UPDATE … WITH (ROWLOCK)` on `Streams`, then `INSERT … SELECT` from a table-valued parameter. A zero `@@ROWCOUNT` raises error 50001, which maps to `ConcurrencyException`. ES-R1 applies here too. `READ_COMMITTED_SNAPSHOT ON` is recommended for read concurrency.
 
+**As built (WP-4.4).** `SourceFlow.Storage.SqlServer` follows this design with these differences:
+
+- **Engine.** SQL Server 2022 or later, or Azure SQL Database. The SFQL compiler uses `DATE_BUCKET` for `bin()`, which needs 2022.
+- **Position.** `GlobalPosition` is `(CAST(rv AS bigint), seq)`. `seq` is the identity key, so rows that share a commit still have a total order. The horizon is `(MIN_ACTIVE_ROWVERSION() - 1, ulong.MaxValue)`.
+- **Append.** The rows travel as one JSON parameter read with `OPENJSON`, not as a table-valued parameter. A TVP needs a user-defined table type per schema, and that type cannot be changed while it is in use. A failed version check raises `THROW 50001`. Fenced writes raise `THROW 50002` with a check code.
+- **Batches.** A session's writes go as one command batch, split at 2,000 parameters. SQL Server allows at most 2,100.
+- **Upserts.** Upserts use `MERGE … WITH (HOLDLOCK)`. Leases use the database clock.
+- **Keys.** Key columns are `nvarchar(100/200/400)`. A primary key over 900 bytes is `NONCLUSTERED`.
+- **Notifications.** Notifications are in-process only. Other nodes find new events by polling at `PollInterval`, because SQL Server has no `LISTEN`.
+- **Tenancy.** Tenancy is `TenantIsolation.Runtime`: every query filters on `tenant_id`. Row-level security, as on PostgreSQL in WP-2.6, is not provided.
+- **Horizon age.** `GetHorizonAgeAsync` reads the oldest active transaction from DMVs, so the login needs `VIEW SERVER STATE`, or `VIEW DATABASE STATE` on Azure SQL. Without it the gauge reports zero.
+- **Migrations.** The migrator takes `sp_getapplock` and records checksums in `schema_history`. `Script()` emits the same migration as one transaction, for review or DBA-run deployments.
+- **SFQL.** Queries are compiled to one parameterised T-SQL statement on `QueryConnectionString`; for example, use `ApplicationIntent=ReadOnly` for a secondary. `QueryTimeout` is the command timeout.
+  - **Text.** Text compares with `COLLATE Latin1_General_BIN2`, ordinal like the interpreter.
+  - **Nulls.** `NULLS FIRST`/`LAST` becomes a `CASE` sort key.
+  - **Booleans.** A boolean value is a `bit` built from a predicate.
+  - **Fallback.** A construct SQL Server cannot express the same way falls back to the in-memory interpreter, which returns the same rows. Examples are the text of a decimal and arithmetic between two timestamps.
+  - **Not yet.** Index sync for `[Queryable]` fields (persisted computed columns plus filtered indexes) is not built yet.
+
 ## 6. Isolation and transactions
 
 - PostgreSQL uses **Read Committed**, the default. The conditional update provides the compare-and-set, so Serializable isn't needed.

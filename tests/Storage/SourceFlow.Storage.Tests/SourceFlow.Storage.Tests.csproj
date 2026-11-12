@@ -16,6 +16,7 @@
     <ProjectReference Include="..\..\..\samples\Bank\Bank.Accounts\Bank.Accounts.csproj" />
     <ProjectReference Include="..\..\..\samples\Bank\Bank.Transfers\Bank.Transfers.csproj" />
     <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.MsSql" />
     <PackageReference Include="CsCheck" />
     <Compile Include="..\..\Shared\StorageLinearizability.cs" Link="Shared\StorageLinearizability.cs" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
