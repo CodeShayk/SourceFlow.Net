@@ -222,7 +222,7 @@ jobs:
       - name: End-to-end scenarios
         run: >-
           dotnet test --project tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj
-          ${{ env.TEST_ARGS }} --filter-not-trait "Category=Chaos" --filter-not-trait "Requires=RealCloud"
+          ${{ env.TEST_ARGS }} --filter-not-trait "Category=Chaos" --filter-not-trait "Category=Performance" --filter-not-trait "Requires=RealCloud"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -1,0 +1,85 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SourceFlow per-service query API",
+    "version": "1.0.0",
+    "description": "The endpoints mapped by MapSourceFlowQueryApi and MapDomainQueries (doc 14 §9). The OWASP ZAP API scan of the nightly DAST job is driven by this document (plan 08). A unit test keeps its paths equal to the mapped routes."
+  },
+  "servers": [
+    { "url": "http://localhost:8080" }
+  ],
+  "paths": {
+    "/query": {
+      "post": {
+        "operationId": "SourceFlowQuery",
+        "summary": "Run an ad-hoc SFQL or SQL-syntax query.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/QueryRequest" }, "example": { "query": "from readmodel \"account-summary\" | where balance > @min | project balance, status | order by balance desc", "parameters": { "min": 10 }, "pageSize": 50 } } } },
+        "responses": {
+          "200": { "description": "Columns, rows, continuation and consistency.", "content": { "application/json": {}, "application/x-ndjson": {}, "text/csv": {} } },
+          "400": { "description": "A rejected query (SFQ codes).", "content": { "application/problem+json": {} } },
+          "413": { "description": "The request is too large." },
+          "415": { "description": "Not JSON." },
+          "429": { "description": "Rate limited (Retry-After)." }
+        }
+      }
+    },
+    "/query/validate": {
+      "post": {
+        "operationId": "SourceFlowQueryValidate",
+        "summary": "Parse, bind and policy-check a query without running it.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/QueryRequest" }, "example": { "query": "SELECT balance FROM readmodel.\"account-summary\" WHERE balance > 10", "language": "sql" } } } },
+        "responses": { "200": { "description": "Valid, with the result columns." }, "400": { "description": "Diagnostics." } }
+      }
+    },
+    "/query/explain": {
+      "post": {
+        "operationId": "SourceFlowQueryExplain",
+        "summary": "Show the bound plan and the parameterised statement.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/QueryRequest" }, "example": { "query": "from readmodel \"account-summary\" | where status = 1 | project balance" } } } },
+        "responses": { "200": { "description": "The engine and the statement with placeholders." }, "400": { "description": "Diagnostics." } }
+      }
+    },
+    "/query/schema": {
+      "get": {
+        "operationId": "SourceFlowQuerySchema",
+        "summary": "The service's queryable sources and fields.",
+        "responses": { "200": { "description": "Events, read models, aggregates and queries." } }
+      }
+    },
+    "/queries": {
+      "get": {
+        "operationId": "SourceFlowDomainQueries",
+        "summary": "The named domain queries.",
+        "responses": { "200": { "description": "The queries with their parameters and columns." } }
+      }
+    },
+    "/queries/{name}/v{version}": {
+      "get": {
+        "operationId": "SourceFlowDomainQuery",
+        "summary": "Run a named domain query.",
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" }, "example": "accounts-by-status" },
+          { "name": "version", "in": "path", "required": true, "schema": { "type": "integer" }, "example": 1 },
+          { "name": "pageSize", "in": "query", "required": false, "schema": { "type": "integer" } },
+          { "name": "continuation", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Rows." }, "400": { "description": "Diagnostics." }, "404": { "description": "Unknown query." } }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "QueryRequest": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": { "type": "string", "maxLength": 8000 },
+          "language": { "type": "string", "enum": ["sfql", "sql"] },
+          "parameters": { "type": "object", "additionalProperties": true },
+          "pageSize": { "type": "integer", "minimum": 1, "maximum": 1000 },
+          "continuation": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -6,7 +6,9 @@
     <UseSourceFlowGenerator>true</UseSourceFlowGenerator>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <!-- The query API end to end (QRY-53..59) runs the ASP.NET Core endpoints on a test server. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Testcontainers" />
     <PackageReference Include="Testcontainers.PostgreSql" />
@@ -23,6 +25,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
+    <ProjectReference Include="..\..\..\src\Hosting\SourceFlow.AspNetCore\SourceFlow.AspNetCore.csproj" />
     <ProjectReference Include="..\..\..\samples\Bank\Bank.Contracts\Bank.Contracts.csproj" />
     <ProjectReference Include="..\..\..\samples\Bank\Bank.Accounts\Bank.Accounts.csproj" />
     <ProjectReference Include="..\..\..\samples\Bank\Bank.Transfers\Bank.Transfers.csproj" />

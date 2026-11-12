@@ -76,7 +76,13 @@ internal sealed class CrossServiceSystem : IAsyncDisposable
     /// Starts the subscribers first (their subscriptions must exist before Accounts publishes), then Accounts. With
     /// <paramref name="duplicateAccountsMessages"/> every message Accounts sends or publishes reaches the broker twice.
     /// </summary>
-    public static async Task<CrossServiceSystem> StartAsync(Servers servers, Broker broker, bool duplicateAccountsMessages = false)
+    public static Task<CrossServiceSystem> StartAsync(Servers servers, Broker broker, bool duplicateAccountsMessages = false)
+    {
+        return StartAsync(servers, broker, duplicateAccountsMessages ? inner => new DuplicatingTransport(inner) : null);
+    }
+
+    /// <summary>As <see cref="StartAsync(Servers, Broker, bool)"/>, with Accounts' transport wrapped by <paramref name="accountsTransport"/>.</summary>
+    public static async Task<CrossServiceSystem> StartAsync(Servers servers, Broker broker, Func<ITransport, ITransport>? accountsTransport)
     {
         await servers.PostgreSql.EnsureStartedAsync();
         switch (RealCloud(broker) ? Broker.InMemory : broker)
@@ -113,7 +119,7 @@ internal sealed class CrossServiceSystem : IAsyncDisposable
                     r.Command<RequestStatement>().To("notifications");
 #pragma warning restore SF0014
                 });
-            }, duplicateAccountsMessages);
+            }, accountsTransport);
             return system;
         }
         catch
@@ -281,7 +287,7 @@ internal sealed class CrossServiceSystem : IAsyncDisposable
         }
     }
 
-    private async Task<IHost> StartServiceAsync(string service, string schema, Action<SourceFlowBuilder> configure, bool duplicate = false)
+    private async Task<IHost> StartServiceAsync(string service, string schema, Action<SourceFlowBuilder> configure, Func<ITransport, ITransport>? wrap = null)
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { EnvironmentName = Environments.Development, DisableDefaults = true });
         builder.Services.AddSingleton(TimeProvider.System);
@@ -295,7 +301,7 @@ internal sealed class CrossServiceSystem : IAsyncDisposable
                 o.DataSource = _servers.PostgreSql.DataSource;
                 o.Schema = schema;
             });
-            sf.UseTransport(_ => duplicate ? new DuplicatingTransport(CreateTransport()) : CreateTransport());
+            sf.UseTransport(_ => wrap is null ? CreateTransport() : wrap(CreateTransport()));
             sf.UseMiddleware(_ => new TallyMiddleware(Received, service), PipelineStage.Receive);
             sf.Configure(o =>
             {

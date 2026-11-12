@@ -77,6 +77,7 @@ public sealed class QueryApiTests : IAsyncLifetime
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Headers.GetValues("X-Content-Type-Options").ShouldBe(["nosniff"]);
+        response.Headers.GetValues("Cross-Origin-Resource-Policy").ShouldBe(["same-origin"]);
         response.Headers.GetValues("Content-Security-Policy").Single().ShouldContain("default-src 'none'");
         response.Headers.CacheControl!.NoStore.ShouldBeTrue();
         JsonElement body = await Json(response);
@@ -268,6 +269,30 @@ public sealed class QueryApiTests : IAsyncLifetime
         var request = new HttpRequestMessage(HttpMethod.Post, "/query") { Content = new StringContent(Body(Summary), Encoding.UTF8, "application/json") };
 
         (await _client.SendAsync(request, Ct)).StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    [Trait("Id", "UT-ASP-37")]
+    [Trait("Covers", "doc 14 9")]
+    public void DastOpenApiDocument_ListsExactlyTheMappedQueryEndpoints()
+    {
+        // deploy/dast/query-api.openapi.json drives the nightly OWASP ZAP scan: it must not miss an endpoint.
+        string? root = AppContext.BaseDirectory;
+        while (root is not null && !File.Exists(Path.Combine(root, "SourceFlow.slnx")))
+        {
+            root = Path.GetDirectoryName(root);
+        }
+
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(Path.Combine(root!, "deploy", "dast", "query-api.openapi.json")));
+        string[] documented = [.. document.RootElement.GetProperty("paths").EnumerateObject()
+            .SelectMany(p => p.Value.EnumerateObject().Select(m => m.Name.ToUpperInvariant() + " " + p.Name))
+            .Order(StringComparer.Ordinal)];
+        string[] mapped = [.. _app.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
+            .Where(e => e.Metadata.GetMetadata<SourceFlowQueryApiEndpointMetadata>() is not null)
+            .SelectMany(e => e.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Select(m => m + " " + System.Text.RegularExpressions.Regex.Replace(e.RoutePattern.RawText!, ":[a-z]+}", "}").TrimEnd('/')))
+            .Order(StringComparer.Ordinal)];
+
+        documented.ShouldBe(mapped);
     }
 
     // ================================================================ helpers

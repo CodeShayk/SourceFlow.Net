@@ -53,6 +53,16 @@ Beyond 1,000/s:
 - **Sizing.** Doc 09 §5 sizes the database for this rate at 16 vCPU on NVMe.
 - **Acceptance.** The PERF-09 acceptance run needs that database. The nightly job reports the trend on hosted runners.
 
+## PERF-07: outbox commit to broker acknowledgement (objective p95 ≤ 250 ms)
+
+Met on all three emulators: 100 publishes each, one at a time, on PostgreSQL (`RelayLatencyScenarios`, nightly).
+
+| Broker | p50 | p95 | max |
+|--------|-----|-----|-----|
+| AWS (LocalStack, SNS) | 61 ms | 138 ms | 216 ms |
+| Google Cloud (Pub/Sub emulator) | 38 ms | 85 ms | 341 ms |
+| Azure (Service Bus emulator) | 70 ms | 167 ms | 269 ms |
+
 ## Problems the load test found, and fixed
 
 1. **NOTIFY serialised every commit.** The PostgreSQL commit batch sent `pg_notify` inside the transaction. PostgreSQL holds a database-wide lock on the notification queue from the NOTIFY until the commit ends, including the WAL flush.

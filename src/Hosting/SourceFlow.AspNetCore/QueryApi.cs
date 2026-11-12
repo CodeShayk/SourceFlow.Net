@@ -526,6 +526,7 @@ internal static class QueryApi
         http.Response.Headers.XContentTypeOptions = "nosniff";
         http.Response.Headers.ContentSecurityPolicy = "default-src 'none'; frame-ancestors 'none'";
         http.Response.Headers.CacheControl = "no-store";
+        http.Response.Headers["Cross-Origin-Resource-Policy"] = "same-origin";   // no cross-origin embedding of results (DAST)
     }
 
     private static async Task WritePageAsync(HttpContext http, QueryPage page)

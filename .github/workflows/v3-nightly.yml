@@ -143,6 +143,64 @@ jobs:
           name: load-tier-m
           path: loadtest-summary.txt
 
+  relay-latency:
+    # PERF-07 (WP-4.7): outbox commit to broker acknowledgement, p95 <= 250 ms, on PostgreSQL with each emulator.
+    name: relay latency (emulators)
+    runs-on: ubuntu-latest
+    env:
+      MSSQL_SA_PASSWORD: ${{ secrets.EMULATOR_SA_PASSWORD || 'SourceFlow_Emulator_1' }}
+      AWS_ENDPOINT_URL: http://localhost:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: eu-west-1
+      PUBSUB_EMULATOR_HOST: localhost:8085
+      SERVICEBUS_EMULATOR_CONNECTION: "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+      SERVICEBUS_EMULATOR_ADMIN_CONNECTION: "Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: |
+          docker compose -f .github/emulators/localstack/docker-compose.yml up -d
+          docker compose -f .github/emulators/pubsub/docker-compose.yml up -d
+          docker compose -f .github/emulators/servicebus/docker-compose.yml up -d
+          for i in $(seq 1 90); do
+            curl -sf http://localhost:5300/health >/dev/null && exit 0
+            sleep 2
+          done
+          echo "Service Bus emulator not healthy"; exit 1
+      - run: dotnet build SourceFlow.slnx -c Release
+      - run: >-
+          dotnet test --project tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj
+          ${{ env.TEST_ARGS }} --filter-trait "Category=Performance" --output Detailed
+
+  dast:
+    # WP-4.7 (plan 08): OWASP ZAP API scan of the Bank sample's query API, driven by deploy/dast/query-api.openapi.json
+    # (a unit test keeps it equal to the mapped routes). Any medium or high finding fails the night. The injection corpus
+    # over HTTP (QRY-57..59) runs with the end-to-end tests.
+    name: dast (OWASP ZAP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - run: docker compose up -d --build --wait postgres bank-api
+      - name: ZAP API scan
+        run: |
+          mkdir -p zap && cp deploy/dast/* zap/ && chmod 777 zap
+          docker run --rm --network sourceflow-demo_default -v "$PWD/zap:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable             zap-api-scan.py -t /zap/wrk/query-api.openapi.json -f openapi -O http://bank-api:8080             -c zap-rules.tsv -J zap-report.json -r zap-report.html || true
+          high=$(jq '[.site[].alerts[] | select((.riskcode | tonumber) >= 2)] | length' zap/zap-report.json)
+          echo "medium or high findings: $high"
+          test "$high" -eq 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dast-report
+          path: zap/zap-report.*
+
   long-properties:
     runs-on: ubuntu-latest
     env:
