@@ -31,23 +31,27 @@ public sealed class CrossServiceScenarios(PostgreSqlServer postgreSql, LocalStac
 
     [Fact]
     [Trait("Id", "E2E-17")]
+    [Trait("Id", "UT-RX-13")]   // an integration event reaches each consumer's handler once (per-service inbox)
     [Trait("Covers", "RT-R4;GAP-13")]
     public Task IntegrationEvent_ReachesEveryService_InMemory() => IntegrationEventReachesEveryServiceAsync(Broker.InMemory);
 
     [Fact]
     [Trait("Id", "E2E-18")]
+    [Trait("Id", "UT-RX-13")]   // an integration event reaches each consumer's handler once (per-service inbox)
     [Trait("Cloud", "Aws")]
     [Trait("Requires", "LocalStack")]
     public Task IntegrationEvent_ReachesEveryService_Aws() => IntegrationEventReachesEveryServiceAsync(Broker.Aws);
 
     [Fact]
     [Trait("Id", "E2E-19")]
+    [Trait("Id", "UT-RX-13")]   // an integration event reaches each consumer's handler once (per-service inbox)
     [Trait("Cloud", "Gcp")]
     [Trait("Requires", "PubSubEmulator")]
     public Task IntegrationEvent_ReachesEveryService_Gcp() => IntegrationEventReachesEveryServiceAsync(Broker.Gcp);
 
     [Fact]
     [Trait("Id", "E2E-20")]
+    [Trait("Id", "UT-RX-13")]   // an integration event reaches each consumer's handler once (per-service inbox)
     [Trait("Cloud", "Azure")]
     [Trait("Requires", "ServiceBusEmulator")]
     public Task IntegrationEvent_ReachesEveryService_Azure() => IntegrationEventReachesEveryServiceAsync(Broker.Azure);

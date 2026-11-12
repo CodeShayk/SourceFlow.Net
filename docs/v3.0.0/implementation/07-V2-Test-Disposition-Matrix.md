@@ -136,11 +136,14 @@ Every v2 test file gets exactly one disposition. The retirement work packages (W
 | `Performance/SqsPerformanceBenchmarks`, `SnsPerformanceBenchmarks`, `AwsScalabilityBenchmarks` | **Rewrite** | PERF-07, PERF-09 in `benchmarks/` | |
 | `TestHelpers/*` (23 files) | **Retire** | — | Superseded by `SourceFlow.Testing` fixtures, the TCK fixture contract and the resource sweeper. Resource-naming and cleanup ideas are reused in the TCK fixture |
 
-> **Not yet satisfied (WP-3.R).** Some rows name v3 tests that belong to later work packages:
-> - UT-SEC: KMS payload protection, WP-5.1.
-> - PERF-07, PERF-09 and CH-07: load and chaos, WP-4.7.
+> **Satisfied (WP-3.R).** Every row has its v3 tests, and they pass:
+> - UT-SEC-01..26, including the KMS health check (WP-5.1).
+> - PERF-07 on the three emulators, and CH-07 (WP-4.7).
+> - The PERF-09 load scenario (WP-4.7). Its 5,000 commands/s acceptance run still needs a sized database (load-test-report.md).
+> - UT-CMD-12, UT-CMD-23 and UT-OUT-05..07, added as named tests for this check (`RetirementCoverageTests`).
+> - UT-RX-13, carried by the E2E-17..20 integration-event scenarios.
 >
-> UT-HC exists since WP-4.3. `src/SourceFlow.Cloud.AWS` and `tests/SourceFlow.Cloud.AWS.Tests` therefore stay until the others exist. They are not in the solution and do not build against v3.
+> `src/SourceFlow.Cloud.AWS` and `tests/SourceFlow.Cloud.AWS.Tests` are deleted. The v2 `Master-Build` and `Release-CI` workflows stay for `master`, as plan 08 §1 says.
 
 **Tally (AWS)**: Unit: Rewrite 15 · Kit 1 · Retire 3. Integration: Kit 15 · Rewrite 9 · Retire 7. Plus Security Retire 2 · Performance Rewrite 3 · Helpers Retire 23.
 

@@ -778,6 +778,7 @@ namespace SourceFlow.Hosting
     }
     public static class SourceFlowHealthChecks
     {
+        public const string Keys = "keys";
         public const string Leases = "leases";
         public const string Outbox = "outbox";
         public const string Ready = "ready";

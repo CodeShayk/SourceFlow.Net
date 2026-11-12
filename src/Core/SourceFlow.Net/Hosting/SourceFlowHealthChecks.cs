@@ -27,6 +27,9 @@ public static class SourceFlowHealthChecks
     /// <summary>The node owns its fair share of subscription leases.</summary>
     public const string Leases = "leases";
 
+    /// <summary>The key service issues data keys (cached); healthy when payload protection is off (doc 10 §3).</summary>
+    public const string Keys = "keys";
+
     /// <summary>The tag of the readiness checks (store and transport are dependencies: never use them for liveness).</summary>
     public const string ReadyTag = "ready";
 
@@ -34,7 +37,7 @@ public static class SourceFlowHealthChecks
     public const string Tag = "sourceflow";
 
     /// <summary>Every check suffix, in registration order.</summary>
-    public static IReadOnlyList<string> All { get; } = [Ready, Store, Transport, Outbox, Subscriptions, Leases];
+    public static IReadOnlyList<string> All { get; } = [Ready, Store, Transport, Outbox, Subscriptions, Leases, Keys];
 }
 
 /// <summary>One of the SourceFlow health checks (doc 08 §5); thresholds come from <see cref="SourceFlowOptions.Health"/>.</summary>
@@ -54,7 +57,25 @@ internal sealed class SourceFlowHealthCheck(string check, SourceFlowHost host, S
             SourceFlowHealthChecks.Outbox => OutboxAsync(cancellationToken),
             SourceFlowHealthChecks.Subscriptions => SubscriptionsAsync(cancellationToken),
             SourceFlowHealthChecks.Leases => LeasesAsync(cancellationToken),
+            SourceFlowHealthChecks.Keys => KeysAsync(cancellationToken),
             _ => throw new InvalidOperationException($"Unknown SourceFlow health check '{check}'."),
+        };
+    }
+
+    // A protected send needs a data key: a key service that refuses or is down fails those commands (doc 10 §3).
+    private async Task<HealthCheckResult> KeysAsync(CancellationToken ct)
+    {
+        if (Runtime.Protector is not { } protector)
+        {
+            return HealthCheckResult.Healthy("Payload protection is off.");
+        }
+
+        Exception? failure = await protector.ProbeAsync(Thresholds.TransportCacheDuration, ct).ConfigureAwait(false);
+        return failure switch
+        {
+            null => HealthCheckResult.Healthy("The key service issues data keys."),
+            Security.KeyProviderException { IsTransient: true } => HealthCheckResult.Unhealthy($"The key service is unavailable: {failure.Message}", failure),
+            _ => HealthCheckResult.Unhealthy($"The key service refuses to issue data keys: {failure.Message}", failure),
         };
     }
 

@@ -103,6 +103,7 @@ public sealed class PayloadProtector : IDisposable
     private readonly Dictionary<string, CachedKey> _unwrapped = new(StringComparer.Ordinal);
     private ActiveKey? _active;
     private ActiveKey? _retired;
+    private (DateTimeOffset At, Exception? Failure)? _probe;
 
     /// <summary>Creates the protector.</summary>
     public PayloadProtector(IKeyProvider provider, PayloadProtectionOptions options, TimeProvider? time = null)
@@ -196,6 +197,32 @@ public sealed class PayloadProtector : IDisposable
         }
 
         return envelope with { Body = plaintext, Protection = null };
+    }
+
+    /// <summary>
+    /// Asks the key service for a data key (discarded), at most once per <paramref name="cacheFor"/>; returns the failure,
+    /// or null when it answered. For the <c>sourceflow.keys</c> health check.
+    /// </summary>
+    internal async ValueTask<Exception?> ProbeAsync(TimeSpan cacheFor, CancellationToken cancellationToken)
+    {
+        (DateTimeOffset At, Exception? Failure)? last = _probe;
+        if (last is { } cached && _time.GetUtcNow() - cached.At < cacheFor)
+        {
+            return cached.Failure;
+        }
+
+        Exception? failure = null;
+        try
+        {
+            using DataKey key = await _provider.GenerateDataKeyAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is KeyProviderException or InvalidOperationException or ArgumentException)
+        {
+            failure = e;
+        }
+
+        _probe = (_time.GetUtcNow(), failure);
+        return failure;
     }
 
     /// <summary>Zeroes every cached key.</summary>

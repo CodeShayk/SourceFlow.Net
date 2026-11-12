@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Bank.Accounts;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Time.Testing;
 using SourceFlow.Hosting;
 using SourceFlow.Messaging;
@@ -402,6 +403,44 @@ public sealed class PayloadProtectionTests
             }, cancellationToken: Ct));
 
         e.Message.ShouldContain("key provider");
+    }
+
+    [Fact]
+    [Trait("Id", "UT-SEC-26")]
+    [Trait("Covers", "doc 10 3;doc 08 5")]
+    public async Task KeysHealthCheck_ReportsTheKeyService()
+    {
+        var time = new FakeTimeProvider(DateTimeOffset.UnixEpoch.AddYears(56));
+        using var keys = new LocalKeyProvider();
+        await using SourceFlowTestHost host = await SourceFlowTestHost.StartAsync(sf =>
+        {
+            sf.ServiceName = "accounts";
+            sf.AddModule<AccountsModule>();
+            sf.Security(s => s.UseKeyProvider(keys).Protect(p => p.ProtectAll()));
+        }, time, services: s => s.AddLogging().AddHealthChecks().AddSourceFlow(), cancellationToken: Ct);
+        await using SourceFlowTestHost plain = await SourceFlowTestHost.StartAsync(sf =>
+        {
+            sf.ServiceName = "accounts";
+            sf.AddModule<AccountsModule>();
+        }, services: s => s.AddLogging().AddHealthChecks().AddSourceFlow(), cancellationToken: Ct);
+
+        HealthReportEntry healthy = await KeysAsync(host);
+        keys.Failure = new KeyProviderException("KMS unavailable", isTransient: true);
+        HealthReportEntry cached = await KeysAsync(host);
+        time.Advance(TimeSpan.FromMinutes(1));
+        HealthReportEntry down = await KeysAsync(host);
+
+        healthy.Status.ShouldBe(HealthStatus.Healthy);
+        cached.Status.ShouldBe(HealthStatus.Healthy, "the probe is cached like the transport probe");
+        down.Status.ShouldBe(HealthStatus.Unhealthy);
+        down.Description!.ShouldContain("unavailable");
+        (await KeysAsync(plain)).Description.ShouldBe("Payload protection is off.");
+    }
+
+    private static async Task<HealthReportEntry> KeysAsync(SourceFlowTestHost host)
+    {
+        HealthReport report = await host.Services.GetRequiredService<HealthCheckService>().CheckHealthAsync(c => c.Name == "sourceflow.keys", Ct);
+        return report.Entries["sourceflow.keys"];
     }
 
     // ================================================================ helpers

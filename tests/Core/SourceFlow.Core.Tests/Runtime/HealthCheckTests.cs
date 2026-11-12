@@ -33,7 +33,7 @@ public sealed class HealthCheckTests
 
         HealthReport report = await Health(host).CheckHealthAsync(Ct);
 
-        report.Entries.Keys.ShouldBe(["sourceflow.ready", "sourceflow.store", "sourceflow.transport", "sourceflow.outbox", "sourceflow.subscriptions", "sourceflow.leases"], ignoreOrder: true);
+        report.Entries.Keys.ShouldBe(["sourceflow.ready", "sourceflow.store", "sourceflow.transport", "sourceflow.outbox", "sourceflow.subscriptions", "sourceflow.leases", "sourceflow.keys"], ignoreOrder: true);
         report.Status.ShouldBe(HealthStatus.Healthy, string.Join("; ", report.Entries.Select(e => $"{e.Key}: {e.Value.Description}")));
         report.Entries.Where(e => e.Value.Tags.Contains("ready")).Select(e => e.Key).ShouldBe(["sourceflow.ready", "sourceflow.store", "sourceflow.transport"], ignoreOrder: true);
         report.Entries.Values.ShouldAllBe(e => e.Tags.Contains("sourceflow"));
