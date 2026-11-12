@@ -224,7 +224,7 @@ public sealed class PermanentException : Exception
 }
 
 /// <summary>Built-in middleware 1: span, duration and outcome metrics (doc 08).</summary>
-internal sealed class TelemetryMiddleware(SourceFlowMetrics metrics, string consumer) : IMessageMiddleware
+internal sealed class TelemetryMiddleware(SourceFlowMetrics metrics, string consumer, bool parentBasedOnMessage = false) : IMessageMiddleware
 {
     public async ValueTask InvokeAsync(MessageContext context, MessageDelegate next)
     {
@@ -242,11 +242,11 @@ internal sealed class TelemetryMiddleware(SourceFlowMetrics metrics, string cons
 
         using Activity? activity = SourceFlowTelemetry.ActivitySource.StartActivity(
             ActivityKind.Consumer,
-            parentContext: default,
+            parentContext: parentBasedOnMessage ? parent : default,
             tags: null,
             links: parent == default ? null : [new ActivityLink(parent)],
             name: "process " + consumer);
-        activity?.SetTag(SourceFlowTelemetry.Tags.OperationType, "process");
+        SemanticConventions.SetOperationType(activity, "process");
         activity?.SetTag(SourceFlowTelemetry.Tags.ConsumerGroup, consumer);
         activity?.SetTag(SourceFlowTelemetry.Tags.MessageId, context.Envelope.MessageId.ToString());
         activity?.SetTag(SourceFlowTelemetry.Tags.MessageType, context.Envelope.Type);

@@ -116,6 +116,9 @@ public sealed class SourceFlowOptions
     /// <summary>The health check thresholds (doc 08 §5).</summary>
     public HealthThresholds Health { get; } = new();
 
+    /// <summary>Tracing options (doc 08 §2).</summary>
+    public TelemetryOptions Telemetry { get; } = new();
+
     /// <summary>The in-process aggregate state cache (doc 05 §8.2); off by default.</summary>
     public AggregateCacheMode AggregateCache { get; set; } = AggregateCacheMode.Off;
 
@@ -230,6 +233,18 @@ public enum SchemaRegistrationMode
 
     /// <summary>Don't register schemas.</summary>
     Off = 2,
+}
+
+/// <summary>Tracing options (doc 08 §2).</summary>
+public sealed class TelemetryOptions
+{
+    /// <summary>
+    /// Makes the <c>process</c> span of a received message a child of the message's <c>create</c> span (from its
+    /// <c>traceparent</c>), so one trace runs from the HTTP request in the sending service to the handler here. Off by
+    /// default: the process span starts a trace of its own and links to the create span, as the messaging conventions
+    /// recommend, so a broker redelivery or replay days later does not grow the original trace (doc 08 §2.1).
+    /// </summary>
+    public bool ParentBasedOnMessage { get; set; }
 }
 
 /// <summary>

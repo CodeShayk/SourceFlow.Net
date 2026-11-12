@@ -9,6 +9,8 @@
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="CsCheck" />
+    <PackageReference Include="OpenTelemetry" />
+    <PackageReference Include="OpenTelemetry.Exporter.InMemory" />
     <Compile Include="..\..\Shared\StorageLinearizability.cs" Link="Shared\StorageLinearizability.cs" />
   </ItemGroup>
   <ItemGroup>

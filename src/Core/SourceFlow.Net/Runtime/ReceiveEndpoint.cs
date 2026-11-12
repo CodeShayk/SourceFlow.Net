@@ -40,7 +40,7 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
             Channel.CreateBounded<ReceivedMessage>(new BoundedChannelOptions(runtime.Options.PrefetchPerWorker) { SingleReader = true, SingleWriter = true }))];
         _builtIns =
         [
-            new TelemetryMiddleware(runtime.Metrics, runtime.Routing.Endpoint),
+            new TelemetryMiddleware(runtime.Metrics, runtime.Routing.Endpoint, runtime.Options.Telemetry.ParentBasedOnMessage),
             new LoggingScopeMiddleware(_logger),
             new ErrorClassificationMiddleware(runtime.Classifier),
         ];

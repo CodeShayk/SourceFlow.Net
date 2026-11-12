@@ -24,7 +24,7 @@ public static class SourceFlowTelemetry
         .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "3.0.0";
 
     /// <summary>The shared ActivitySource. Spans cost one null check when nobody listens.</summary>
-    public static readonly ActivitySource ActivitySource = new(ActivitySourceName, Version);
+    public static readonly ActivitySource ActivitySource = new(new ActivitySourceOptions(ActivitySourceName) { Version = Version, TelemetrySchemaUrl = SemanticConventions.SchemaUrl });
 
     /// <summary>Duration buckets, 0.5 ms to 10 s (doc 08 §3).</summary>
     public static readonly IReadOnlyList<double> DurationBuckets = [0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
@@ -52,6 +52,8 @@ public static class SourceFlowTelemetry
         public const string Outcome = "sourceflow.outcome";
         public const string ConcurrencyRetries = "sourceflow.concurrency.retries";
         public const string LoadSource = "sourceflow.load.source";
+        public const string DbOperationName = "db.operation.name";
+        public const string EventsCount = "sourceflow.events.count";
         public const string Subscription = "sourceflow.subscription";
         public const string Partition = "sourceflow.partition";
         public const string ProcessId = "sourceflow.process.id";
@@ -167,7 +169,7 @@ public sealed class SourceFlowMetrics : IDisposable
     /// <summary>Creates the meter and every instrument.</summary>
     public SourceFlowMetrics()
     {
-        Meter = new Meter(new MeterOptions(SourceFlowTelemetry.MeterName) { Version = SourceFlowTelemetry.Version });
+        Meter = new Meter(new MeterOptions(SourceFlowTelemetry.MeterName) { Version = SourceFlowTelemetry.Version, TelemetrySchemaUrl = SemanticConventions.SchemaUrl });
         var duration = new InstrumentAdvice<double> { HistogramBucketBoundaries = SourceFlowTelemetry.DurationBuckets };
         var count = new InstrumentAdvice<long> { HistogramBucketBoundaries = SourceFlowTelemetry.CountBuckets };
 

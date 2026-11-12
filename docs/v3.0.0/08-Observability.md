@@ -52,6 +52,16 @@ Spans follow the OpenTelemetry **messaging** semantic conventions at a pinned se
 
 The library does not sample. The documentation recommends a parent-based sampler, with a tail-sampling collector that keeps every trace containing `sourceflow.outcome ∈ {conflict, failed}` or a dead-letter settle.
 
+**As built (WP-4.6).**
+
+- **Semantic conventions.** The pinned version is 1.27.0 (`SemanticConventions.PinnedVersion`), and it is the telemetry schema URL of the source and the meter.
+  - `OTEL_SEMCONV_STABILITY_OPT_IN=messaging` selects `SemanticConventions.LatestVersion`.
+  - `messaging/dup` also emits the deprecated pre-1.26 attribute `messaging.operation`.
+- **Parent or link.** `SourceFlowOptions.Telemetry.ParentBasedOnMessage` makes the `process` span a child of the `create` span. Otherwise the span is linked to it.
+- **Append span.** The `sourceflow.eventstore.append` span carries `db.operation.name` and `sourceflow.events.count`. `db.system.name` is not set, because the core does not know which store is behind the ports.
+- **Not built yet.** The `settle` span and the baggage propagation above (`PropagateBaggage`) are not built; they are follow-ups, and the sections above still describe them as designed.
+- **Wiring guide.** See [guides/opentelemetry.md](guides/opentelemetry.md).
+
 ## 3. Metrics
 
 Units follow UCUM. Histogram buckets are set through `InstrumentAdvice`: duration buckets from 0.0005 s to 10 s, and count buckets 1, 2, 5 … 1,000.

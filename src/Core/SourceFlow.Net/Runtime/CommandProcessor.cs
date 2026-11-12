@@ -175,6 +175,9 @@ public sealed class CommandProcessor
         }
 
         long appendStarted = Stopwatch.GetTimestamp();
+        using Activity? append = SourceFlowTelemetry.ActivitySource.StartActivity("sourceflow.eventstore.append", ActivityKind.Client);
+        append?.SetTag(SourceFlowTelemetry.Tags.DbOperationName, "append");
+        append?.SetTag(SourceFlowTelemetry.Tags.EventsCount, events.Length);
         session.Append(stream, aggregate.Name, ExpectedVersion.Exact(version), toAppend);
         EnqueuePublications(session, events, envelopes, stream);
         StreamVersion newVersion = version + events.Length;
@@ -191,6 +194,7 @@ public sealed class CommandProcessor
             commit = await session.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        append?.Dispose();   // the span covers the commit, as AppendDuration does
         _runtime.Metrics.AppendDuration.Record(Stopwatch.GetElapsedTime(appendStarted).TotalSeconds);
         _runtime.Metrics.AppendEvents.Record(events.Length, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name));
         await _aggregates.CommittedAsync(aggregate, stream, envelope.TenantId, state, version, events, cancellationToken).ConfigureAwait(false);

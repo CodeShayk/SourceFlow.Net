@@ -93,7 +93,7 @@ public sealed class OutboxRelay
         using Activity? activity = SourceFlowTelemetry.ActivitySource.StartActivity("send " + message.Destination, ActivityKind.Producer,
             ActivityContext.TryParse(message.Envelope.TraceParent, message.Envelope.TraceState, out ActivityContext parent) ? parent : default);
         activity?.SetTag(SourceFlowTelemetry.Tags.MessagingSystem, _runtime.Transport.SystemName);
-        activity?.SetTag(SourceFlowTelemetry.Tags.OperationType, "send");
+        SemanticConventions.SetOperationType(activity, "send");
         activity?.SetTag(SourceFlowTelemetry.Tags.Destination, message.Destination);
         activity?.SetTag(SourceFlowTelemetry.Tags.MessageId, message.Envelope.MessageId.ToString());
         long started = Stopwatch.GetTimestamp();

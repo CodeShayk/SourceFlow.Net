@@ -614,6 +614,24 @@ namespace SourceFlow.Diagnostics
         Histogram = 1,
         Gauge = 2,
     }
+    public static class SemanticConventions
+    {
+        public const string LatestVersion = "1.27.0";
+        public const string LegacyOperation = "messaging.operation";
+        public const string OptInVariable = "OTEL_SEMCONV_STABILITY_OPT_IN";
+        public const string PinnedVersion = "1.27.0";
+        public static SourceFlow.Diagnostics.SemanticConventionsMode Mode { get; }
+        public static string SchemaUrl { get; }
+        public static string Version { get; }
+        public static SourceFlow.Diagnostics.SemanticConventionsMode Parse(string? value) { }
+        public static void SetOperationType(System.Diagnostics.Activity? activity, string type) { }
+    }
+    public enum SemanticConventionsMode
+    {
+        Pinned = 0,
+        Latest = 1,
+        Duplicate = 2,
+    }
     public sealed class SourceFlowMetrics : System.IDisposable
     {
         public SourceFlowMetrics() { }
@@ -688,8 +706,10 @@ namespace SourceFlow.Diagnostics
             public const string Consumer = "consumer";
             public const string ConsumerGroup = "messaging.consumer.group.name";
             public const string ConversationId = "messaging.message.conversation_id";
+            public const string DbOperationName = "db.operation.name";
             public const string Destination = "messaging.destination.name";
             public const string ErrorType = "error.type";
+            public const string EventsCount = "sourceflow.events.count";
             public const string LeaseKind = "lease.kind";
             public const string LoadSource = "sourceflow.load.source";
             public const string MessageId = "messaging.message.id";
@@ -2010,6 +2030,7 @@ namespace SourceFlow.Runtime
         public int SubscriptionPartitions { get; set; }
         [System.ComponentModel.DataAnnotations.Range(0, 1000000)]
         public int SwitchLagThreshold { get; set; }
+        public SourceFlow.Runtime.TelemetryOptions Telemetry { get; }
     }
     public sealed class SourceFlowOptionsTimingValidator : Microsoft.Extensions.Options.IValidateOptions<SourceFlow.Runtime.SourceFlowOptions>
     {
@@ -2100,6 +2121,11 @@ namespace SourceFlow.Runtime
         public System.DateTimeOffset RetryAt { get; init; }
         public System.DateTimeOffset StalledSince { get; init; }
         public string Subscription { get; init; }
+    }
+    public sealed class TelemetryOptions
+    {
+        public TelemetryOptions() { }
+        public bool ParentBasedOnMessage { get; set; }
     }
 }
 namespace SourceFlow.Storage
