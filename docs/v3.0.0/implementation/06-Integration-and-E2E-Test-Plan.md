@@ -132,6 +132,12 @@ v2 suites **not** carried into the TCK: the LocalStack harness self-tests, the C
 | E2E-25..28 | CLI against PostgreSQL: `dlq replay`, `projection rebuild`, `topology validate`, `query --explain` | PostgreSQL × mem | doc 04 §9.3, doc 14 | new |
 | E2E-29..31 | Erasure: erase a customer → events read `[erased]`; the summary is scrubbed; a SFQL filter on a PII field is rejected | PostgreSQL × mem | doc 10 §4 | new |
 
+> **As built (WP-3.6).** E2E-17..24 are `CrossServiceScenarios` in `SourceFlow.EndToEnd.Tests`: E2E-17/21 run on the in-memory broker, E2E-18/22 on LocalStack, E2E-19/23 on the Pub/Sub emulator and E2E-20/24 on the Service Bus emulator, and every leg uses PostgreSQL. Each service (Accounts; Notifications as two competing instances sharing a schema; Loyalty, a second subscriber) has its own schema and its own transport client, and physical names carry a per-run prefix that is deleted afterwards.
+> - **E2E-17..20.** Every subscribing service welcomes every customer exactly once. Counted at the Receive stage, each service handles each event once across its instances.
+> - **E2E-21..24.** Every message Accounts sends or publishes reaches the broker twice. Notifications receives each `RequestStatement` twice, its inbox absorbs one of each, and each statement is decided once in Notifications' own stream, which it reads back from version 1. Accounts gets `Dispatched`.
+> - **Contracts module.** A sender registers the owner's commands through a contracts-only module (`NotificationsCommandsModule`). That module must also register the strongly-typed ids' JSON converters, or the owner parks the command as `DeserializationFailed`.
+> - **Nightly.** With `SOURCEFLOW_REAL_CLOUD` set, the leg for that cloud runs on the real broker instead of its emulator (`AWS_REGION`, `GOOGLE_CLOUD_PROJECT`, `AZURE_SERVICEBUS_NAMESPACE`).
+
 ## 5. Chaos (`SourceFlow.EndToEnd.Tests`, `Category=Chaos`, nightly)
 
 | ID | Fault | Expected |

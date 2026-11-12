@@ -189,14 +189,18 @@ jobs:
           path: "**/TestResults/**"
 
   e2e:
+    # E2E-17..24 run the Bank services on PostgreSQL (Testcontainers) over each emulator.
     needs: [ unit, storage, transports ]
     runs-on: ubuntu-latest
     env:
+      MSSQL_SA_PASSWORD: ${{ secrets.EMULATOR_SA_PASSWORD || 'SourceFlow_Emulator_1' }}
       AWS_ENDPOINT_URL: http://localhost:4566
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       AWS_REGION: eu-west-1
       PUBSUB_EMULATOR_HOST: localhost:8085
+      SERVICEBUS_EMULATOR_CONNECTION: "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+      SERVICEBUS_EMULATOR_ADMIN_CONNECTION: "Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -205,6 +209,12 @@ jobs:
       - run: |
           docker compose -f .github/emulators/localstack/docker-compose.yml up -d
           docker compose -f .github/emulators/pubsub/docker-compose.yml up -d
+          docker compose -f .github/emulators/servicebus/docker-compose.yml up -d
+          for i in $(seq 1 90); do
+            curl -sf http://localhost:5300/health >/dev/null && exit 0
+            sleep 2
+          done
+          echo "Service Bus emulator not healthy"; exit 1
       - run: dotnet build SourceFlow.slnx -c Release
       - name: End-to-end scenarios
         run: >-
