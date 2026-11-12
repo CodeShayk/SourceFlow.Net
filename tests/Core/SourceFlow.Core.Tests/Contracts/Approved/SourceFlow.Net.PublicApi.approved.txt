@@ -1093,6 +1093,7 @@ namespace SourceFlow.Query
         public bool AllTenants { get; init; }
         public bool AllowScan { get; init; }
         public SourceFlow.Query.QueryConsistency Consistency { get; init; }
+        public bool IncludeArchived { get; init; }
         public bool StaleOnTimeout { get; init; }
         public SourceFlow.Query.Expr? Timeout { get; init; }
         public SourceFlow.Query.Expr? Token { get; init; }
@@ -2250,6 +2251,7 @@ namespace SourceFlow.Storage
     {
         System.Threading.Tasks.ValueTask ArchiveStreamAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask DeleteStreamAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlySet<SourceFlow.StreamId>> GetArchivedStreamsAsync(string tenantId, System.Collections.Generic.IReadOnlyCollection<SourceFlow.StreamId> streams, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamInfo?> GetStreamInfoAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamSlice> ReadStreamAsync(string tenantId, SourceFlow.StreamId stream, SourceFlow.StreamVersion fromInclusive, int maxCount, System.Threading.CancellationToken cancellationToken);
     }
@@ -2519,6 +2521,7 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask DeleteStreamAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<int> DropCollectionAsync(string collection, System.Threading.CancellationToken cancellationToken) { }
         public int DueOutboxCount() { }
+        public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlySet<SourceFlow.StreamId>> GetArchivedStreamsAsync(string tenantId, System.Collections.Generic.IReadOnlyCollection<SourceFlow.StreamId> streams, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.DeadLetter?> GetAsync(System.Guid id, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetAsync(string subscription, int partition, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.OutboxBacklog>> GetOutboxBacklogAsync(System.Threading.CancellationToken cancellationToken) { }

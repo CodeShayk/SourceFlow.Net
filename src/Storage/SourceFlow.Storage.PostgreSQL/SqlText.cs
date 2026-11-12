@@ -39,6 +39,7 @@ internal sealed class SqlText
              ORDER BY e.stream_version
             """);
         StreamInfo = R("SELECT stream_type, version, is_deleted, is_archived FROM {s}.streams WHERE tenant_id = @tenant AND stream_id = @stream");
+        ArchivedStreams = R("SELECT stream_id FROM {s}.streams WHERE tenant_id = @tenant AND stream_id = ANY(@streams) AND is_archived");
         ArchiveStream = R("UPDATE {s}.streams SET is_archived = true, updated_at = now() WHERE tenant_id = @tenant AND stream_id = @stream");
         DeleteStream = R("UPDATE {s}.streams SET is_deleted = true, updated_at = now() WHERE tenant_id = @tenant AND stream_id = @stream");
 
@@ -272,6 +273,8 @@ internal sealed class SqlText
     public string StreamInfo { get; }
 
     public string ArchiveStream { get; }
+
+    public string ArchivedStreams { get; }
 
     public string DeleteStream { get; }
 

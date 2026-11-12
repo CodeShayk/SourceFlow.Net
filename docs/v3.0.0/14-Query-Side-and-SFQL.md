@@ -405,6 +405,7 @@ Results are ordered and keyset-paginated. The continuation token is opaque and c
 | Concern | Semantics |
 |---------|-----------|
 | **Tenancy** ([ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)) | The binder injects `tenant = <ambient tenant>` into every source. `options (tenants = 'all')` needs the `sourceflow.query.cross-tenant` permission. PostgreSQL RLS enforces it again at the database. |
+| **Archived streams** ([doc 05 §9](05-Event-Store-and-Persistence.md#9-retention-archiving-and-growth)) | `from events` leaves out events of archived streams. `options (include_archived = true)` includes them and needs no permission. `from stream` and `from aggregate` always read archived streams. |
 | **Personal data** (doc 10 §4) | `[PersonalData]` fields can't appear in `where`, `order by`, `summarize` or `lookup` keys (SFQ0301), because they are ciphertext. In `project` they are decrypted in process **only** with the `sourceflow.query.pii` permission. Otherwise they come back redacted. Erased subjects come back as `"[erased]"`. |
 | **Permissions** | `sourceflow.query.events`, `.readmodels`, `.aggregates`, `.schema`, `.pii`, `.scan`, `.cross-tenant`, `.adhoc` (ad-hoc API queries), `.validate`, `.explain` (reveals physical schema: operators only). They are evaluated through `IAuthorizationService` policies against the caller's `ClaimsPrincipal`, or the service identity for in-process calls. |
 | **Injection** (SQL and script) | Defended in layers, by construction: §9.3 rules I-1…I-8 and S-1…S-6. |

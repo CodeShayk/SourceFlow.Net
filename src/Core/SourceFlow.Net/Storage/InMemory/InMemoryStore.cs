@@ -99,6 +99,19 @@ public sealed class InMemoryStore :
     }
 
     /// <inheritdoc />
+    public ValueTask<IReadOnlySet<StreamId>> GetArchivedStreamsAsync(string tenantId, IReadOnlyCollection<StreamId> streams, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(streams);
+        lock (_gate)
+        {
+            IReadOnlySet<StreamId> archived = streams
+                .Where(s => _streams.TryGetValue((tenantId, s.Value), out StreamState? state) && state.Archived)
+                .ToHashSet();
+            return ValueTask.FromResult(archived);
+        }
+    }
+
+    /// <inheritdoc />
     public ValueTask ArchiveStreamAsync(string tenantId, StreamId stream, CancellationToken cancellationToken)
     {
         lock (_gate)

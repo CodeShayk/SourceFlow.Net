@@ -230,6 +230,12 @@ internal sealed class PostgreSqlQueryCompiler
                     yield return $"{alias}.tx_id < pg_snapshot_xmin(pg_current_snapshot())";
                 }
 
+                if (!scope.Query.Options.IncludeArchived)
+                {
+                    // doc 05 §9: archived streams are left out unless include_archived = true.
+                    yield return $"NOT EXISTS (SELECT 1 FROM {_schema}.streams {alias}a WHERE {alias}a.tenant_id = {alias}.tenant_id AND {alias}a.stream_id = {alias}.stream_id AND {alias}a.is_archived)";
+                }
+
                 break;
         }
     }

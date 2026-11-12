@@ -420,13 +420,30 @@ internal sealed class SubscriptionEngine
         await using AsyncServiceScope scope = _scopes.CreateAsyncScope();
         await using IStorageSession session = await _runtime.Storage.Sessions.BeginAsync(tenant, cancellationToken).ConfigureAwait(false);
         await using var projections = new ProjectionScope(_runtime, session, scope.ServiceProvider) { Generation = definition.Generation };
-        var relevant = new List<(IEvent Event, StoredEvent Stored)>(events.Count);
+        var candidates = new List<StoredEvent>(events.Count);
         foreach (StoredEvent stored in events)
         {
             if (_runtime.Model.Registry.TryGet(stored.Type, stored.TypeVersion, out MessageTypeInfo? type) && Relevant(definition, type))
             {
-                relevant.Add(((IEvent)_decoder.Deserialize(stored, upcast: true), stored));
+                candidates.Add(stored);
             }
+        }
+
+        // Read models leave archived streams out (doc 05 §9), so a rebuild gives the same result as the live projection.
+        if (definition.Generation is not null && candidates.Count > 0)
+        {
+            IReadOnlySet<StreamId> archived = await _runtime.Storage.Events.GetArchivedStreamsAsync(
+                tenant, [.. candidates.Select(e => e.StreamId).Distinct()], cancellationToken).ConfigureAwait(false);
+            if (archived.Count > 0)
+            {
+                candidates.RemoveAll(e => archived.Contains(e.StreamId));
+            }
+        }
+
+        var relevant = new List<(IEvent Event, StoredEvent Stored)>(candidates.Count);
+        foreach (StoredEvent stored in candidates)
+        {
+            relevant.Add(((IEvent)_decoder.Deserialize(stored, upcast: true), stored));
         }
 
         if (definition.Prefetch is { } prefetch && relevant.Count > 1)

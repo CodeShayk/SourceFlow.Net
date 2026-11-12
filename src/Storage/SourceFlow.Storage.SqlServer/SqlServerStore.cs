@@ -1,5 +1,6 @@
 using System.Data;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Data.SqlClient;
 
 namespace SourceFlow.Storage.SqlServer;
@@ -139,6 +140,28 @@ public sealed partial class SqlServerStore :
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
             ? new StreamInfo(stream, reader.GetString(0), new StreamVersion(reader.GetInt64(1)), reader.GetBoolean(2), reader.GetBoolean(3))
             : null;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlySet<StreamId>> GetArchivedStreamsAsync(string tenantId, IReadOnlyCollection<StreamId> streams, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(streams);
+        var archived = new HashSet<StreamId>();
+        if (streams.Count == 0)
+        {
+            return archived;
+        }
+
+        string json = JsonSerializer.Serialize([.. streams.Select(s => s.Value).Distinct(StringComparer.Ordinal)], SqlServerJsonContext.Default.StringArray);
+        await using SqlConnection connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using SqlCommand command = Command(Sql.ArchivedStreams, connection, null, Text("@tenant", tenantId), MaxText("@streams", json));
+        await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            archived.Add(new StreamId(reader.GetString(0)));
+        }
+
+        return archived;
     }
 
     /// <inheritdoc />

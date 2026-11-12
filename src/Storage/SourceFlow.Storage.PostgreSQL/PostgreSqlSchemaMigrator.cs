@@ -38,6 +38,7 @@ public sealed class PostgreSqlSchemaMigrator
     private readonly NpgsqlDataSource _dataSource;
     private readonly string _schema;
     private readonly TenantIsolation? _isolation;
+    private readonly bool _partitionEvents;
 
     /// <summary>Creates a migrator for the embedded scripts.</summary>
     /// <param name="dataSource">A connection with DDL rights (the schema owner).</param>
@@ -45,17 +46,22 @@ public sealed class PostgreSqlSchemaMigrator
     /// <param name="isolation">
     /// The row-level security state to apply to the tenant tables and to verify (ADR-022); null leaves it unchanged.
     /// </param>
-    public PostgreSqlSchemaMigrator(NpgsqlDataSource dataSource, string schema = "sourceflow", TenantIsolation? isolation = null)
-        : this(dataSource, schema, EmbeddedScripts, isolation)
+    /// <param name="partitionEvents">
+    /// Converts the events table to monthly partitions, once, keeping its rows (doc 05 §9), and verifies that it is
+    /// partitioned. An already partitioned table is accepted either way.
+    /// </param>
+    public PostgreSqlSchemaMigrator(NpgsqlDataSource dataSource, string schema = "sourceflow", TenantIsolation? isolation = null, bool partitionEvents = false)
+        : this(dataSource, schema, EmbeddedScripts, isolation, partitionEvents)
     {
     }
 
-    internal PostgreSqlSchemaMigrator(NpgsqlDataSource dataSource, string schema, IReadOnlyList<MigrationScript> scripts, TenantIsolation? isolation = null)
+    internal PostgreSqlSchemaMigrator(NpgsqlDataSource dataSource, string schema, IReadOnlyList<MigrationScript> scripts, TenantIsolation? isolation = null, bool partitionEvents = false)
     {
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         new PostgreSqlStorageOptions { ConnectionString = "-", Schema = schema }.Validate();
         _schema = schema;
         _isolation = isolation;
+        _partitionEvents = partitionEvents;
         Scripts = [.. scripts.OrderBy(s => s.Version)];
     }
 
@@ -102,6 +108,18 @@ public sealed class PostgreSqlSchemaMigrator
             done.Add(script.Version);
         }
 
+        if (_partitionEvents)
+        {
+            try
+            {
+                await ExecuteAsync(connection, transaction, PartitionSql(), cancellationToken).ConfigureAwait(false);
+            }
+            catch (PostgresException exception)
+            {
+                throw new SchemaMigrationException($"Partitioning the events table of schema '{_schema}' failed: {exception.MessageText}");
+            }
+        }
+
         if (IsolationSql() is { } isolation)
         {
             await ExecuteAsync(connection, transaction, isolation, cancellationToken).ConfigureAwait(false);
@@ -139,6 +157,16 @@ public sealed class PostgreSqlSchemaMigrator
         if (_isolation is { } isolation)
         {
             await VerifyIsolationAsync(connection, isolation == TenantIsolation.RowLevelSecurity, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (_partitionEvents)
+        {
+            await using var partitioned = new NpgsqlCommand(PostgreSqlPartitioning.IsPartitioned, connection);
+            partitioned.Parameters.Add(new NpgsqlParameter<string>("schema", _schema));
+            if (await partitioned.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not true)
+            {
+                throw new SchemaMigrationException($"PartitionEvents is set, but the events table of schema '{_schema}' is not partitioned. Run 'dotnet sourceflow db migrate' with PartitionEvents.");
+            }
         }
     }
 
@@ -202,6 +230,11 @@ public sealed class PostgreSqlSchemaMigrator
             sql.Append("\n-- tenant isolation (ADR-022)\n").Append(isolation);
         }
 
+        if (_partitionEvents)
+        {
+            sql.Append("\n-- partitioned events (doc 05 §9): converts once, then creates the partitions ahead\n").Append(PartitionSql());
+        }
+
         return sql.Append("COMMIT;\n").ToString();
     }
 
@@ -220,6 +253,12 @@ public sealed class PostgreSqlSchemaMigrator
     }
 
     private string Quoted => "\"" + _schema + "\"";
+
+    private string PartitionSql()
+    {
+        return Render(PostgreSqlPartitioning.Convert).TrimEnd() + "\n"
+            + $"SELECT {Quoted}.sf_ensure_event_partitions(now(), {PostgreSqlPartitioning.MigratorMonthsAhead});\n";
+    }
 
     private static IReadOnlyList<MigrationScript> LoadEmbedded()
     {

@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using SourceFlow.Hosting;
+using SourceFlow.Messaging;
 using SourceFlow.Query;
 using SourceFlow.Runtime;
 using SourceFlow.Storage.SqlServer;
@@ -181,6 +182,29 @@ public sealed class SqlServerQueryTests(SqlServerServer server) : SqlServerTest(
     }
 
     [Fact]
+    [Trait("Id", "SCK-69")]
+    [Trait("Covers", "doc 05 9;doc 14 12")]
+    public async Task ArchivedStreams_AreLeftOut_UnlessIncludeArchived_InBothEngines()
+    {
+        await _host.Services.GetRequiredService<SqlServerStore>().ArchiveStreamAsync(MessageEnvelope.DefaultTenant, StreamId.For(BankAccount.AggregateName, _accounts[2]), Ct);
+        string[] queries =
+        [
+            "from events of \"bank.account.opened\", \"bank.account.deposited\" | where time >= ago(1d) | summarize n = count() by type | order by type",
+            "from events of \"bank.account.opened\", \"bank.account.deposited\" | where time >= ago(1d) | summarize n = count() by type | order by type options (include_archived = true)",
+            "from readmodel \"account-summary\" as a | join events of \"bank.account.deposited\" as e on e.aggregatekey = a.id | project a.holder, e.data.amount | order by holder",
+        ];
+
+        foreach (string query in queries)
+        {
+            (await RowsAsync(Compiled, query)).ShouldBe(await RowsAsync(Interpreted, query), query);
+        }
+
+        (await RowsAsync(Compiled, queries[0])).ShouldBe(["bank.account.deposited | 4", "bank.account.opened | 6"]);
+        (await RowsAsync(Compiled, queries[1])).ShouldBe(["bank.account.deposited | 5", "bank.account.opened | 7"]);
+        (await RowsAsync(Compiled, queries[2])).ShouldNotContain(r => r.StartsWith("Linus", StringComparison.Ordinal));
+    }
+
+    [Fact]
     [Trait("Id", "QRY-41")]
     [Trait("Covers", "doc 14 8")]
     public async Task Tenancy()
@@ -201,8 +225,8 @@ public sealed class SqlServerQueryTests(SqlServerServer server) : SqlServerTest(
             new Dictionary<string, object?> { ["below"] = 0m });
 
         compiled.Sql.ShouldBe(
-            "SELECT * FROM (SELECT t0.id COLLATE Latin1_General_BIN2 AS o0, CAST(JSON_VALUE(t0.data, N'$.\"balance\"') AS decimal(38, 10)) AS o1, " +
-            "CAST(JSON_VALUE(t0.data, N'$.\"balance\"') AS decimal(38, 10)) AS k0, t0.id COLLATE Latin1_General_BIN2 AS k1 " +
+            "SELECT * FROM (SELECT t0.id COLLATE Latin1_General_100_BIN2 AS o0, CAST(JSON_VALUE(t0.data, N'$.\"balance\"') AS decimal(38, 10)) AS o1, " +
+            "CAST(JSON_VALUE(t0.data, N'$.\"balance\"') AS decimal(38, 10)) AS k0, t0.id COLLATE Latin1_General_100_BIN2 AS k1 " +
             "FROM [sf].documents t0 WHERE t0.tenant_id = @p1 AND t0.collection = @p2 " +
             "AND (((CAST(JSON_VALUE(t0.data, N'$.\"status\"') AS bigint)) = (@p3)) AND ((CAST(JSON_VALUE(t0.data, N'$.\"balance\"') AS decimal(38, 10))) < (@p4)))) q " +
             "ORDER BY CASE WHEN q.k0 IS NULL THEN 1 ELSE 0 END, q.k0 ASC, CASE WHEN q.k1 IS NULL THEN 1 ELSE 0 END, q.k1 ASC " +

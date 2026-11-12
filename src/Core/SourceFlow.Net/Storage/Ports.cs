@@ -11,8 +11,30 @@ public interface IEventStore
     /// <summary>Gets stream information, or null when the stream does not exist (GAP-15).</summary>
     ValueTask<StreamInfo?> GetStreamInfoAsync(string tenantId, StreamId stream, CancellationToken cancellationToken);
 
-    /// <summary>Marks a stream archived: appends are rejected, reads still work (doc 05 §9).</summary>
+    /// <summary>
+    /// Marks a stream archived (doc 05 §9): appends are rejected; loads and stream reads still work; projection
+    /// subscriptions and SFQL <c>from events</c> skip its events (unless <c>include_archived = true</c>).
+    /// </summary>
     ValueTask ArchiveStreamAsync(string tenantId, StreamId stream, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The streams among <paramref name="streams"/> that are archived, in one round trip (doc 05 §9). Archiving is
+    /// permanent, so a stream reported here stays archived. The default asks <see cref="GetStreamInfoAsync"/> per stream.
+    /// </summary>
+    async ValueTask<IReadOnlySet<StreamId>> GetArchivedStreamsAsync(string tenantId, IReadOnlyCollection<StreamId> streams, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(streams);
+        var archived = new HashSet<StreamId>();
+        foreach (StreamId stream in streams)
+        {
+            if (await GetStreamInfoAsync(tenantId, stream, cancellationToken).ConfigureAwait(false) is { IsArchived: true })
+            {
+                archived.Add(stream);
+            }
+        }
+
+        return archived;
+    }
 
     /// <summary>Soft-deletes a stream: appends are rejected (doc 05 §9).</summary>
     ValueTask DeleteStreamAsync(string tenantId, StreamId stream, CancellationToken cancellationToken);

@@ -613,7 +613,8 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             return null;
         }
 
-        return exception.ConstraintName == "uq_events_event_id"
+        // Partitioned events (doc 05 §9) report the partition's index: events_initial_event_id, events_2026_12_event_id_created_at_key.
+        return exception.ConstraintName?.Contains("event_id", StringComparison.Ordinal) == true
             ? new ConcurrencyException($"An event id appended to '{_append.Stream}' already exists (unique event id backstop).")
             : null;
     }
@@ -673,7 +674,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             return reported;
         }
 
-        if (failure.TableName == "events" || failure.ConstraintName?.StartsWith("uq_events_", StringComparison.Ordinal) == true)
+        if (failure.TableName?.StartsWith("events", StringComparison.Ordinal) == true || failure.ConstraintName?.StartsWith("uq_events_", StringComparison.Ordinal) == true)
         {
             return steps.FirstOrDefault(s => s.IsQuery);
         }

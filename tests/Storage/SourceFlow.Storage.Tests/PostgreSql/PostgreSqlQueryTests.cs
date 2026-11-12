@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using SourceFlow.Hosting;
+using SourceFlow.Messaging;
 using SourceFlow.Query;
 using SourceFlow.Runtime;
 using SourceFlow.Storage.PostgreSQL;
@@ -182,6 +183,29 @@ public sealed class PostgreSqlQueryTests(PostgreSqlServer server) : PostgreSqlTe
         const string streamQuery = "from stream @s | project version, type";
         (await RowsAsync(Compiled, streamQuery, stream)).ShouldBe(await RowsAsync(Interpreted, streamQuery, stream));
         (await RowsAsync(Compiled, streamQuery, stream)).Count.ShouldBe(4);
+    }
+
+    [Fact]
+    [Trait("Id", "SCK-69")]
+    [Trait("Covers", "doc 05 9;doc 14 12")]
+    public async Task ArchivedStreams_AreLeftOut_UnlessIncludeArchived_InBothEngines()
+    {
+        await _host.Services.GetRequiredService<PostgreSqlStore>().ArchiveStreamAsync(MessageEnvelope.DefaultTenant, StreamId.For(BankAccount.AggregateName, _accounts[2]), Ct);
+        string[] queries =
+        [
+            "from events of \"bank.account.opened\", \"bank.account.deposited\" | where time >= ago(1d) | summarize n = count() by type | order by type",
+            "from events of \"bank.account.opened\", \"bank.account.deposited\" | where time >= ago(1d) | summarize n = count() by type | order by type options (include_archived = true)",
+            "from readmodel \"account-summary\" as a | join events of \"bank.account.deposited\" as e on e.aggregatekey = a.id | project a.holder, e.data.amount | order by holder",
+        ];
+
+        foreach (string query in queries)
+        {
+            (await RowsAsync(Compiled, query)).ShouldBe(await RowsAsync(Interpreted, query), query);
+        }
+
+        (await RowsAsync(Compiled, queries[0])).ShouldBe(["bank.account.deposited | 4", "bank.account.opened | 6"]);
+        (await RowsAsync(Compiled, queries[1])).ShouldBe(["bank.account.deposited | 5", "bank.account.opened | 7"]);
+        (await RowsAsync(Compiled, queries[2])).ShouldNotContain(r => r.StartsWith("Linus", StringComparison.Ordinal));
     }
 
     [Fact]

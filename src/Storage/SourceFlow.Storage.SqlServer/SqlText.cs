@@ -33,6 +33,7 @@ internal sealed class SqlText
              ORDER BY e.stream_version
             """);
         StreamInfo = R("SELECT stream_type, version, is_deleted, is_archived FROM {s}.streams WHERE tenant_id = @tenant AND stream_id = @stream");
+        ArchivedStreams = R("SELECT s.stream_id FROM {s}.streams s JOIN OPENJSON(@streams) j ON s.stream_id = CAST(j.[value] AS nvarchar(200)) WHERE s.tenant_id = @tenant AND s.is_archived = 1");
         ArchiveStream = R("UPDATE {s}.streams SET is_archived = 1, updated_at = SYSDATETIMEOFFSET() WHERE tenant_id = @tenant AND stream_id = @stream");
         DeleteStream = R("UPDATE {s}.streams SET is_deleted = 1, updated_at = SYSDATETIMEOFFSET() WHERE tenant_id = @tenant AND stream_id = @stream");
 
@@ -66,7 +67,7 @@ internal sealed class SqlText
         AppendTail = R("""
             INSERT INTO {s}.events (tenant_id, bucket, stream_id, stream_version, event_id, event_type, type_version, tags, data, metadata, created_at)
             SELECT @tenant, @bucket, @stream, @base + r.ord, r.id, r.type, r.ver, r.tags, r.data, r.meta, r.at
-              FROM OPENJSON(@rows) WITH (ord bigint '$.o', id uniqueidentifier '$.i', type nvarchar(400) '$.t', ver int '$.v',
+              FROM OPENJSON(@rows) WITH (ord bigint '$.o', id uniqueidentifier '$.i', type nvarchar(400) COLLATE Latin1_General_100_BIN2 '$.t', ver int '$.v',
                                          tags nvarchar(max) '$.g', data nvarchar(max) '$.d', meta nvarchar(max) '$.m', at datetimeoffset(7) '$.a') r
              ORDER BY r.ord;
             SELECT TOP (1) @count, stream_version, CAST(rv AS bigint), seq FROM {s}.events
@@ -76,7 +77,7 @@ internal sealed class SqlText
         InsertOutbox = R("""
             INSERT INTO {s}.outbox (message_id, partition, partition_key, destination, kind, attributes, body, deliver_at)
             SELECT r.id, r.p, r.k, r.d, r.kind, r.a, CONVERT(varbinary(max), r.b, 2), r.at
-              FROM OPENJSON(@rows) WITH (ord int '$.o', id uniqueidentifier '$.i', p smallint '$.p', k nvarchar(400) '$.k', d nvarchar(400) '$.d',
+              FROM OPENJSON(@rows) WITH (ord int '$.o', id uniqueidentifier '$.i', p smallint '$.p', k nvarchar(400) COLLATE Latin1_General_100_BIN2 '$.k', d nvarchar(400) COLLATE Latin1_General_100_BIN2 '$.d',
                                          kind smallint '$.n', a nvarchar(max) '$.a', b varchar(max) '$.b', at datetimeoffset(7) '$.t') r
              ORDER BY r.ord;
             """);
@@ -107,7 +108,7 @@ internal sealed class SqlText
             """);
 
         GetDocument = R("SELECT version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = @id");
-        GetDocuments = R("SELECT d.id, d.version, d.data FROM {s}.documents d JOIN OPENJSON(@ids) WITH (id nvarchar(200) '$') i ON d.id = i.id WHERE d.tenant_id = @tenant AND d.collection = @collection");
+        GetDocuments = R("SELECT d.id, d.version, d.data FROM {s}.documents d JOIN OPENJSON(@ids) WITH (id nvarchar(200) COLLATE Latin1_General_100_BIN2 '$') i ON d.id = i.id WHERE d.tenant_id = @tenant AND d.collection = @collection");
         ListDocuments = R("SELECT TOP (@max) id, version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection ORDER BY id COLLATE Latin1_General_BIN2");
         UpsertDocument = R("""
             UPDATE {s}.documents SET version = @version, data = @data, updated_at = SYSDATETIMEOFFSET()
@@ -117,14 +118,14 @@ internal sealed class SqlText
             """);
         UpsertDocuments = R("""
             MERGE {s}.documents WITH (HOLDLOCK) AS d
-            USING (SELECT c, i, v, j FROM OPENJSON(@rows) WITH (c nvarchar(200) '$.c', i nvarchar(200) '$.i', v bigint '$.v', j nvarchar(max) '$.j')) AS u
+            USING (SELECT c, i, v, j FROM OPENJSON(@rows) WITH (c nvarchar(200) COLLATE Latin1_General_100_BIN2 '$.c', i nvarchar(200) COLLATE Latin1_General_100_BIN2 '$.i', v bigint '$.v', j nvarchar(max) '$.j')) AS u
                ON d.tenant_id = @tenant AND d.collection = u.c AND d.id = u.i
              WHEN MATCHED AND d.version <= u.v THEN UPDATE SET version = u.v, data = u.j, updated_at = SYSDATETIMEOFFSET()
              WHEN NOT MATCHED THEN INSERT (tenant_id, collection, id, version, data) VALUES (@tenant, u.c, u.i, u.v, u.j);
             """);
         DeleteDocuments = R("""
             DELETE d FROM {s}.documents d
-              JOIN OPENJSON(@rows) WITH (c nvarchar(200) '$.c', i nvarchar(200) '$.i') u ON d.collection = u.c AND d.id = u.i
+              JOIN OPENJSON(@rows) WITH (c nvarchar(200) COLLATE Latin1_General_100_BIN2 '$.c', i nvarchar(200) COLLATE Latin1_General_100_BIN2 '$.i') u ON d.collection = u.c AND d.id = u.i
              WHERE d.tenant_id = @tenant;
             """);
         DeleteDocument = R("DELETE FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = @id;");
@@ -163,8 +164,8 @@ internal sealed class SqlText
         NodeLeave = R("DELETE FROM {s}.nodes WHERE node_id = @node");
 
         RegisterSchemas = R("""
-            DECLARE @input TABLE (t nvarchar(200), v int, k nvarchar(50), j nvarchar(max), f nvarchar(200));
-            INSERT INTO @input SELECT t, v, k, j, f FROM OPENJSON(@rows) WITH (t nvarchar(200) '$.t', v int '$.v', k nvarchar(50) '$.k', j nvarchar(max) '$.j', f nvarchar(200) '$.f');
+            DECLARE @input TABLE (t nvarchar(200) COLLATE Latin1_General_100_BIN2, v int, k nvarchar(50) COLLATE Latin1_General_100_BIN2, j nvarchar(max), f nvarchar(200) COLLATE Latin1_General_100_BIN2);
+            INSERT INTO @input SELECT t, v, k, j, f FROM OPENJSON(@rows) WITH (t nvarchar(200) COLLATE Latin1_General_100_BIN2 '$.t', v int '$.v', k nvarchar(50) COLLATE Latin1_General_100_BIN2 '$.k', j nvarchar(max) '$.j', f nvarchar(200) COLLATE Latin1_General_100_BIN2 '$.f');
             INSERT INTO {s}.schemas (message_type, type_version, kind, service, json_schema, fingerprint)
             SELECT i.t, i.v, i.k, @service, i.j, i.f FROM @input i
              WHERE NOT EXISTS (SELECT 1 FROM {s}.schemas x WITH (UPDLOCK, HOLDLOCK) WHERE x.tenant_id = N'-' AND x.message_type = i.t AND x.type_version = i.v);
@@ -287,6 +288,8 @@ internal sealed class SqlText
     public string StreamInfo { get; }
 
     public string ArchiveStream { get; }
+
+    public string ArchivedStreams { get; }
 
     public string DeleteStream { get; }
 

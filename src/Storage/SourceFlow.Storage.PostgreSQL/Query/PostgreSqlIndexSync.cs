@@ -76,15 +76,20 @@ public static class PostgreSqlIndexSync
     {
         QueryIndexPlan plan = await PlanAsync(dataSource, catalog, schema, cancellationToken).ConfigureAwait(false);
         await using NpgsqlConnection connection = await dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        // PostgreSQL builds indexes of a partitioned table (PartitionEvents, doc 05 §9) only without CONCURRENTLY.
+        HashSet<string> partitioned = await PartitionedAsync(connection, schema, cancellationToken).ConfigureAwait(false);
         foreach (string name in plan.Drop)
         {
-            await using var drop = new NpgsqlCommand($"DROP INDEX {(concurrently ? "CONCURRENTLY " : string.Empty)}IF EXISTS {schema}.{name}", connection);
+            bool online = concurrently && !partitioned.Contains(name);
+            await using var drop = new NpgsqlCommand($"DROP INDEX {(online ? "CONCURRENTLY " : string.Empty)}IF EXISTS {schema}.{name}", connection);
             await drop.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
         foreach (QueryIndex index in plan.Create)
         {
-            string sql = concurrently ? index.Sql.Replace("CREATE INDEX ", "CREATE INDEX CONCURRENTLY ", StringComparison.Ordinal) : index.Sql;
+            bool online = concurrently && !partitioned.Contains(index.Table);
+            string sql = online ? index.Sql.Replace("CREATE INDEX ", "CREATE INDEX CONCURRENTLY ", StringComparison.Ordinal) : index.Sql;
             await using var create = new NpgsqlCommand(sql, connection);
             await create.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -114,6 +119,22 @@ public static class PostgreSqlIndexSync
                 yield return nested;
             }
         }
+    }
+
+    // Partitioned tables and partitioned indexes of the schema.
+    private static async ValueTask<HashSet<string>> PartitionedAsync(NpgsqlConnection connection, string schema, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = @schema AND c.relkind IN ('p', 'I')", connection);
+        command.Parameters.Add(new NpgsqlParameter<string>("schema", schema));
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            names.Add(reader.GetString(0));
+        }
+
+        return names;
     }
 
     private static async ValueTask<HashSet<string>> ExistingAsync(NpgsqlDataSource dataSource, string schema, CancellationToken cancellationToken)

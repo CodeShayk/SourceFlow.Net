@@ -239,7 +239,7 @@ internal sealed class Interpreter(BoundQuery query, QueryEnvironment environment
                     after = batch.Events[^1].Position;
                 }
 
-                return rows;
+                return query.Options.IncludeArchived ? rows : await WithoutArchivedAsync(rows, storage, cancellationToken).ConfigureAwait(false);
             }
 
             case SourceKind.Stream:
@@ -260,6 +260,20 @@ internal sealed class Interpreter(BoundQuery query, QueryEnvironment environment
             default:
                 return SchemaRows(source);
         }
+    }
+
+    // doc 05 §9: events of archived streams are left out unless the query says include_archived = true.
+    private static async Task<List<SourceRow>> WithoutArchivedAsync(List<SourceRow> rows, StoragePorts storage, CancellationToken cancellationToken)
+    {
+        var archived = new HashSet<(string Tenant, StreamId Stream)>();
+        foreach (IGrouping<string, StoredEvent> tenant in rows.Select(r => ((EventRow)r).Event).GroupBy(e => e.TenantId, StringComparer.Ordinal))
+        {
+            IReadOnlySet<StreamId> streams = await storage.Events.GetArchivedStreamsAsync(
+                tenant.Key, [.. tenant.Select(e => e.StreamId).Distinct()], cancellationToken).ConfigureAwait(false);
+            archived.UnionWith(streams.Select(s => (tenant.Key, s)));
+        }
+
+        return archived.Count == 0 ? rows : [.. rows.Where(r => !archived.Contains((((EventRow)r).Event.TenantId, ((EventRow)r).Event.StreamId)))];
     }
 
     // doc 14 §5.6: the aggregate's state folded with its generated Evolve, up to a version or time (strong consistency).

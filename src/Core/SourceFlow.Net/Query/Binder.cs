@@ -1070,6 +1070,9 @@ internal sealed class Binder(QueryCatalog catalog, DiagnosticBag diagnostics)
                 case "tenants":
                     bound = bound with { AllTenants = option.Value is LiteralExpr { Value: "all" } };
                     break;
+                case "include_archived":
+                    bound = bound with { IncludeArchived = option.Value is LiteralExpr { Value: true } };
+                    break;
                 default:
                     Fail(QueryCodes.UnknownName, $"Unknown option {DiagnosticBag.Token(option.Name)}.", option.Span);
                     break;

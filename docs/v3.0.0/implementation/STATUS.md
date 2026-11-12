@@ -4,7 +4,7 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 
 ## Progress summary
 
-Updated 2026-11-12. **42 of 63 work packages are done (67%)**, 1 in progress and 20 not started. By estimated effort, 90.5 of 138.5 engineer-weeks are done (65%).
+Updated 2026-11-12. **43 of 63 work packages are done (68%)**, 1 in progress and 19 not started. By estimated effort, 92 of 138.5 engineer-weeks are done (66%).
 
 | Milestone | Done | In progress | Todo | Effort done (ew) |
 |-----------|------|-------------|------|------------------|
@@ -12,7 +12,7 @@ Updated 2026-11-12. **42 of 63 work packages are done (67%)**, 1 in progress and
 | M1 Core | 15 | 0 | 0 | 37 of 37 |
 | M2 PostgreSQL | 11 | 0 | 0 | 19 of 19 |
 | M3 Cloud transports | 6 | 1 | 0 | 18.5 of 19 |
-| M4 Tooling and operations | 4 | 0 | 3 | 11.5 of 16.5 |
+| M4 Tooling and operations | 5 | 0 | 2 | 13 of 16.5 |
 | M5 Security and migration | 1 | 0 | 4 | 0.5 of 11 |
 | Track S: Workflow DSL and Studio | 0 | 0 | 13 | 0 of 32 |
 
@@ -37,10 +37,11 @@ Completed in this round:
 - WP-3.6: cross-service end-to-end scenarios (E2E-17..24) on PostgreSQL over all four transports.
 - WP-4.3: the doc 08 health checks, observable gauges from one monitor, the instrument catalogue, and a generated Grafana dashboard and Prometheus alerts.
 - WP-4.4: the SQL Server storage adapter, which passes the storage conformance kit, the Bank end-to-end scenarios and the migrator tests, and the SFQL T-SQL compiler, which returns the same rows as the interpreter.
+- WP-4.5: partitioned PostgreSQL events (convert in place, maintenance job, detach) and the archive rules for read models and SFQL.
 
-WP-3.R is in progress. M2 (PostgreSQL) is complete; M3 is under way: WP-3.1, all three cloud transports (WP-3.2..3.4), provisioning, export and IaC (WP-3.5) and the cross-service E2E per transport (WP-3.6) are done; retiring the v2 cloud providers (WP-3.R) is in progress: Google Cloud is retired, and AWS waits on tests from WP-4.7 and WP-5.1. M4 is under way: WP-4.1, 4.2, 4.3 and 4.4 are done.
+WP-3.R is in progress. M2 (PostgreSQL) is complete; M3 is under way: WP-3.1, all three cloud transports (WP-3.2..3.4), provisioning, export and IaC (WP-3.5) and the cross-service E2E per transport (WP-3.6) are done; retiring the v2 cloud providers (WP-3.R) is in progress: Google Cloud is retired, and AWS waits on tests from WP-4.7 and WP-5.1. M4 is under way: WP-4.1 to 4.5 are done.
 
-Not started: event partitioning, chaos and load testing, payload protection, crypto-shredding (redaction is done), the v2 migration tool, and the whole Studio track.
+Not started: chaos and load testing, payload protection, crypto-shredding (redaction is done), the v2 migration tool, and the whole Studio track.
 
 | WP | Title | Estimate (ew) | Status | Notes |
 |----|-------|---------------|--------|-------|
@@ -86,7 +87,7 @@ Not started: event partitioning, chaos and load testing, payload protection, cry
 | WP-4.2 | `SourceFlow.AspNetCore` (incl. the per-service query API) | 2.5 | done | MapCommand (Idempotency-Key, If-Match, ETag, consistency token, ProblemDetails); `AddSourceFlowQueryApi` + `MapSourceFlowQueryApi` (`/query`, `/validate`, `/explain`, `/schema`) and `MapDomainQueries` (`/queries`, `/queries/{name}/v{n}`): fail-closed without an authorization decision (SFQ0504, checked when the pipeline is built), transport guard (64 KB, JSON only, depth 16 → 413/415/400), per-principal rate and concurrency limits and a service limit (SFQ0502/0503, Retry-After), permissions and tenant from claims, problem+json without input echo, security headers, NDJSON with trailer, CSV with formula neutralisation, OpenAPI metadata. UT-ASP-01..06, 21..36. The Bank demo now uses it (anonymous only by explicit opt-in). QRY-53..56 (API end to end on PostgreSQL) and the nightly DAST scan remain with WP-4.7 |
 | WP-4.3 | Health checks, dashboards and alerts | 2 | done | Every check in doc 08 §5 (`AddHealthChecks().AddSourceFlow()`: ready, store, transport, outbox, subscriptions, leases; `ready` tag on the first three; thresholds in `SourceFlowOptions.Health`); `SourceFlowMonitor` samples on `MonitorInterval` for the observable gauges and checks (outbox pending and age, dead-letter count, subscription lag and lag time, horizon age, active process managers, owned leases); new ports `IStoreMonitor` (in-memory, PostgreSQL) and `ITransportProbe` (in-memory, AWS, Google Cloud, Azure, cached 30 s); `SubscriptionStall.StalledSince`; the instrument catalogue `SourceFlowTelemetry.Catalogue`, checked against a live host; `dotnet sourceflow observability export` generates `deploy/observability` (Grafana dashboard, Prometheus alerts for the doc 08 §6 SLOs), with a drift test and `promtool` in CI; failing commands record outcome `failed`; the Bank demo exports OTLP to an Aspire dashboard and maps `/health`, `/health/ready` and `/health/sourceflow`. UT-HC-01..15 |
 | WP-4.4 | `SourceFlow.Storage.SqlServer` + SFQL SQL Server compiler | 4 | done | V001 schema (rowversion `rv` + identity `seq`, position `(rv, seq)` below `MIN_ACTIVE_ROWVERSION()`); embedded migrator with `sp_getapplock`, checksummed `schema_history` and `Script()`; write-behind session as one command batch (OPENJSON rows instead of TVPs, split at 2,000 parameters, `THROW 50001/50002` mapped to concurrency and fencing errors); fenced outbox, checkpoints and leases on the database clock, `MERGE … HOLDLOCK` upserts, in-process notifications with polling across nodes, `IStoreMonitor` readings; `UseSqlServer` with migrate-or-verify at startup. SFQL T-SQL compiler and engine (`QueryConnectionString`, command timeout, BIN2 ordinal text, CASE-emulated null ordering, keyset paging, interpreter fallback for unsupported constructs). Tests: SCK 54 of 57 (3 need clock control; leases use the database clock), SCK-L01, SCK-M01..05, UT-HC-10, Bank E2E-01/03/04/06/13, QRY-01..20, 36, 40..44, 60. Verified locally on Azure SQL Edge; CI runs SQL Server 2022 (PR) and 2022/2025 (nightly). Row-level security and `[Queryable]` index sync for SQL Server are not included (doc 05 §5.5 as built) |
-| WP-4.5 | `PartitionEvents` + stream archiving | 1.5 | todo | |
+| WP-4.5 | `PartitionEvents` + stream archiving | 1.5 | done | `PostgreSqlStorageOptions.PartitionEvents`: the migrator converts `events` in place (the old table becomes `events_initial`, no copy; `(seq, created_at)` key, `events_seq` sequence, per-partition unique backstops), `sf_ensure_event_partitions` plus a hosted maintenance job (`PartitionMonthsAhead`, `PartitionMaintenanceInterval`), `event_partitions` bookkeeping, `DetachEventPartitionAsync` (ended range, archived or deleted streams only), index sync without CONCURRENTLY on partitioned tables, CLI `db migrate --partition-events` and `db partitions list|ensure|detach`. Archive rules: `IEventStore.GetArchivedStreamsAsync` (in-memory, PostgreSQL, SQL Server); projection subscriptions skip archived streams; SFQL `from events` leaves them out unless `include_archived = true` (interpreter and both compilers). SQL Server key columns are now binary-collated, so ids are ordinal whatever the database collation. Tests: SCK-65..68, 72 (PostgreSQL partitioned), SCK-69..71 (in-memory, PostgreSQL, SQL Server), SCK-16 extended (archived lookup, case-sensitive ids); the whole PostgreSQL suite passes on the partitioned variant (nightly leg) |
 | WP-4.6 | OpenTelemetry integration (no package) | 1 | todo | |
 | WP-4.7 | Chaos suite + tier-M load test | 2.5 | todo | |
 | WP-5.1 | Payload protection + KMS key providers | 3 | todo | |

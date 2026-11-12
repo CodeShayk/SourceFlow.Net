@@ -189,6 +189,32 @@ public sealed class PostgreSqlCliTests(PostgreSqlServer server) : PostgreSqlTest
         throw new TimeoutException("The account summary didn't appear.");
     }
 
+    [Fact]
+    [Trait("Id", "SCK-67")]
+    [Trait("Covers", "doc 05 9")]
+    public async Task GlobalTool_PartitionsTheEventsTable_AndManagesPartitions()
+    {
+        string schema = PostgreSqlServer.NewSchema("cli");
+        string[] target = ["--connection", Server.ConnectionString, "--schema", schema];
+
+        (int migrated, _, _) = await RunAsync(null, ["db", "migrate", "--partition-events", .. target]);
+        (int listed, string list, _) = await RunAsync(null, ["db", "partitions", "list", .. target]);
+        (int ensured, string ensure, _) = await RunAsync(null, ["db", "partitions", "ensure", .. target]);
+        (int refused, _, string error) = await RunAsync(null, ["db", "partitions", "detach", "events_initial", .. target]);
+        (int scripted, string script, _) = await RunAsync(null, "db", "script", "--schema", "sales", "--partition-events");
+
+        migrated.ShouldBe(0);
+        listed.ShouldBe(0);
+        list.ShouldContain("events_initial   (start)");
+        list.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length.ShouldBe(1 + PostgreSqlPartitioning.MigratorMonthsAhead);
+        ensured.ShouldBe(0);
+        ensure.ShouldContain("Created 0 partition(s).");
+        refused.ShouldBe(1);
+        error.ShouldContain("not in the past");
+        scripted.ShouldBe(0);
+        script.ShouldContain("PARTITION BY RANGE (created_at)");
+    }
+
     private static async Task<(int Code, string Output, string Error)> RunAsync(IServiceProvider? services, params string[] args)
     {
         using var output = new StringWriter();

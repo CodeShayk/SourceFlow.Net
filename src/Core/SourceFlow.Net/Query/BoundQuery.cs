@@ -130,6 +130,12 @@ public sealed record BoundOptions
 
     /// <summary>True for <c>tenants = 'all'</c> (needs <c>sourceflow.query.cross-tenant</c>).</summary>
     public bool AllTenants { get; init; }
+
+    /// <summary>
+    /// True for <c>include_archived = true</c>: <c>from events</c> also returns events of archived streams, which it
+    /// leaves out by default (doc 05 §9). <c>from stream</c> and <c>from aggregate</c> always read archived streams.
+    /// </summary>
+    public bool IncludeArchived { get; init; }
 }
 
 /// <summary>

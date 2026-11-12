@@ -56,6 +56,20 @@ public sealed partial class PostgreSqlStorageOptions
     /// <summary>The statement timeout for SFQL queries (doc 14 §9.4: default 5 s, at most 30 s).</summary>
     public TimeSpan QueryTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// Partitions the events table by month of <c>created_at</c> (doc 05 §9; recommended from capacity tier M). The
+    /// migrator converts an existing table once, keeping its rows; a maintenance job creates partitions ahead of time;
+    /// old partitions that hold only archived or deleted streams can be detached with
+    /// <see cref="PostgreSqlStore.DetachEventPartitionAsync"/>.
+    /// </summary>
+    public bool PartitionEvents { get; set; }
+
+    /// <summary>How many months after the current one the maintenance job keeps partitions for (1 to 24, default 3).</summary>
+    public int PartitionMonthsAhead { get; set; } = 3;
+
+    /// <summary>How often the maintenance job checks the partitions ahead (default one hour).</summary>
+    public TimeSpan PartitionMaintenanceInterval { get; set; } = TimeSpan.FromHours(1);
+
     internal string Channel => NotificationChannel ?? Schema;
 
     internal bool RowLevelSecurity => TenantIsolation == TenantIsolation.RowLevelSecurity;
@@ -85,6 +99,16 @@ public sealed partial class PostgreSqlStorageOptions
         if (QueryTimeout <= TimeSpan.Zero || QueryTimeout > TimeSpan.FromSeconds(30))
         {
             throw new InvalidOperationException("QueryTimeout must be positive and at most 30 seconds.");
+        }
+
+        if (PartitionMonthsAhead is < 1 or > 24)
+        {
+            throw new InvalidOperationException("PartitionMonthsAhead must be between 1 and 24.");
+        }
+
+        if (PartitionMaintenanceInterval <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException("PartitionMaintenanceInterval must be positive.");
         }
 
         if (RowLevelSecurity && SystemDataSource is null && string.IsNullOrWhiteSpace(SystemConnectionString))

@@ -79,7 +79,8 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
     private Command Db()
     {
         var rls = new Option<bool>("--rls") { Description = "Install row-level security tenant isolation (ADR-022)." };
-        var migrate = Store(new Command("migrate", "Apply pending schema migrations."), rls);
+        var partitionEvents = new Option<bool>("--partition-events") { Description = "Partition the events table by month, keeping its rows (PartitionEvents, doc 05 §9)." };
+        var migrate = Store(new Command("migrate", "Apply pending schema migrations."), rls, partitionEvents);
         migrate.SetAction((r, ct) => Guard(async () =>
         {
             PostgreSqlSchemaMigrator migrator = await MigratorAsync(r, ct);
@@ -92,11 +93,12 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
         var script = new Command("script", "Print the migration SQL (for DBA review).");
         script.Options.Add(_schema);
         script.Options.Add(rls);
+        script.Options.Add(partitionEvents);
         script.Options.Add(from);
         script.SetAction((r, _) => Guard(async () =>
         {
             var migrator = new PostgreSqlSchemaMigrator(Npgsql.NpgsqlDataSource.Create("Host=localhost"), r.GetValue(_schema)!,
-                r.GetValue(rls) ? TenantIsolation.RowLevelSecurity : TenantIsolation.Runtime);
+                r.GetValue(rls) ? TenantIsolation.RowLevelSecurity : TenantIsolation.Runtime, r.GetValue(partitionEvents));
             await Out.WriteLineAsync(migrator.Script(r.GetValue(from)));
             return 0;
         }));
@@ -128,11 +130,81 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
         }));
         index.Subcommands.Add(sync);
 
-        var db = new Command("db", "Database schema and indexes.");
+        var db = new Command("db", "Database schema, indexes and partitions.");
         db.Subcommands.Add(migrate);
         db.Subcommands.Add(script);
         db.Subcommands.Add(index);
+        db.Subcommands.Add(Partitions());
         return db;
+    }
+
+    // Monthly events partitions (PartitionEvents, doc 05 §9).
+    private Command Partitions()
+    {
+        var list = Store(new Command("list", "List the events partitions, oldest first."));
+        list.SetAction((r, ct) => Guard(async () =>
+        {
+            await using PartitionStore store = PartitionStoreFor(r);
+            foreach (EventPartition partition in await store.Store.ListEventPartitionsAsync(ct))
+            {
+                string from = partition.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(start)";
+                string state = partition.DetachedAt is { } at ? "detached " + at.ToString("O", CultureInfo.InvariantCulture) : "attached";
+                await Out.WriteLineAsync($"{partition.Name,-16} {from,-10} .. {partition.To.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),-10}  {state}");
+            }
+
+            return 0;
+        }));
+
+        var ensure = Store(new Command("ensure", "Create the monthly partitions ahead now (the service's maintenance job also does this)."));
+        ensure.SetAction((r, ct) => Guard(async () =>
+        {
+            await using PartitionStore store = PartitionStoreFor(r);
+            int created = await store.Store.EnsureEventPartitionsAsync(ct);
+            await Out.WriteLineAsync($"Created {created} partition(s).");
+            return 0;
+        }));
+
+        var name = new Argument<string>("name") { Description = "The partition, for example events_2026_01 or events_initial." };
+        var detach = Store(new Command("detach", "Detach an old partition whose streams are all archived or deleted; the table keeps its rows for archiving."));
+        detach.Arguments.Add(name);
+        detach.SetAction((r, ct) => Guard(async () =>
+        {
+            await using PartitionStore store = PartitionStoreFor(r);
+            string partition = r.GetValue(name)!;
+            await store.Store.DetachEventPartitionAsync(partition, ct);
+            await Out.WriteLineAsync($"Detached {partition}; archive it (for example with pg_dump -t) and drop it when ready.");
+            return 0;
+        }));
+
+        var partitions = new Command("partitions", "Monthly events partitions (PartitionEvents, doc 05 §9).");
+        partitions.Subcommands.Add(list);
+        partitions.Subcommands.Add(ensure);
+        partitions.Subcommands.Add(detach);
+        return partitions;
+    }
+
+    private PartitionStore PartitionStoreFor(ParseResult r)
+    {
+        if (services?.GetService<PostgreSqlStore>() is { } running)
+        {
+            return running.Options.PartitionEvents
+                ? new PartitionStore(running, owned: false)
+                : throw new CliException("The service's events table is not partitioned: set PostgreSqlStorageOptions.PartitionEvents and run 'db migrate'.");
+        }
+
+        string connection = r.GetValue(_connection) ?? Environment.GetEnvironmentVariable("SOURCEFLOW_CONNECTION")
+            ?? throw new CliException("Pass --connection or set SOURCEFLOW_CONNECTION (or run inside the service).");
+        return new PartitionStore(new PostgreSqlStore(new PostgreSqlStorageOptions { ConnectionString = connection, Schema = r.GetValue(_schema)!, PartitionEvents = true }), owned: true);
+    }
+
+    private sealed class PartitionStore(PostgreSqlStore store, bool owned) : IAsyncDisposable
+    {
+        public PostgreSqlStore Store { get; } = store;
+
+        public ValueTask DisposeAsync()
+        {
+            return owned ? Store.DisposeAsync() : ValueTask.CompletedTask;
+        }
     }
 
     // ================================================================ dlq
@@ -969,14 +1041,15 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
     {
         await Task.CompletedTask;
         TenantIsolation isolation = r.GetValue<bool>("--rls") ? TenantIsolation.RowLevelSecurity : TenantIsolation.Runtime;
+        bool partition = r.GetValue<bool>("--partition-events");
         if (services?.GetService<PostgreSqlStore>() is { } store)
         {
-            return new PostgreSqlSchemaMigrator(store.DataSource, store.Options.Schema, isolation);
+            return new PostgreSqlSchemaMigrator(store.DataSource, store.Options.Schema, isolation, partition || store.Options.PartitionEvents);
         }
 
         string connection = r.GetValue(_connection) ?? Environment.GetEnvironmentVariable("SOURCEFLOW_CONNECTION")
             ?? throw new CliException("Pass --connection or set SOURCEFLOW_CONNECTION.");
-        return new PostgreSqlSchemaMigrator(Npgsql.NpgsqlDataSource.Create(connection), r.GetValue(_schema)!, isolation);
+        return new PostgreSqlSchemaMigrator(Npgsql.NpgsqlDataSource.Create(connection), r.GetValue(_schema)!, isolation, partition);
     }
 
     private async Task<Ports> PortsAsync(ParseResult r, CancellationToken ct)
@@ -1011,7 +1084,7 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
             await Err.WriteLineAsync(e.Message);
             return 1;
         }
-        catch (Exception e) when (e is InvalidOperationException or NotSupportedException or KeyNotFoundException or Npgsql.NpgsqlException)
+        catch (Exception e) when (e is InvalidOperationException or NotSupportedException or KeyNotFoundException or Npgsql.NpgsqlException or EventPartitionException)
         {
             await Err.WriteLineAsync($"{e.GetType().Name}: {e.Message}");
             return 1;

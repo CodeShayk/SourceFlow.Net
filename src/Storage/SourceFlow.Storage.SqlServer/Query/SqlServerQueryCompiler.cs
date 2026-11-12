@@ -23,7 +23,7 @@ internal sealed record CompiledQuery(string Sql, IReadOnlyList<SqlParameter> Par
 /// </summary>
 /// <remarks>
 /// The semantics match the in-memory interpreter: three-valued logic (conditions and <c>bit</c> values are compiled
-/// separately, T-SQL has no boolean scalar), ordinal text (every text value is <c>COLLATE Latin1_General_BIN2</c>, so
+/// separately, T-SQL has no boolean scalar), ordinal text (every text value is <c>COLLATE Latin1_General_100_BIN2</c>, so
 /// equality, <c>LIKE</c>, grouping and ordering are case- and accent-sensitive), nulls last ascending and first descending,
 /// decimal division with <c>NULLIF</c> for zero divisors (six decimal places, SQL Server's decimal rules). A construct
 /// SQL Server cannot express the same way is <see cref="QueryCodes.Unsupported"/>: <see cref="CanCompile"/> then sends the
@@ -31,7 +31,7 @@ internal sealed record CompiledQuery(string Sql, IReadOnlyList<SqlParameter> Par
 /// </remarks>
 internal sealed class SqlServerQueryCompiler
 {
-    private const string Bin2 = " COLLATE Latin1_General_BIN2";
+    private const string Bin2 = " COLLATE Latin1_General_100_BIN2";
     private const string Decimal = "decimal(38, 10)";
 
     private readonly QueryExecution _execution;
@@ -249,6 +249,12 @@ internal sealed class SqlServerQueryCompiler
                 if (scope.Query.Options.Consistency != QueryConsistency.Latest)
                 {
                     yield return $"{alias}.rv < MIN_ACTIVE_ROWVERSION()";
+                }
+
+                if (!scope.Query.Options.IncludeArchived)
+                {
+                    // doc 05 §9: archived streams are left out unless include_archived = true.
+                    yield return $"NOT EXISTS (SELECT 1 FROM {_schema}.streams {alias}a WHERE {alias}a.tenant_id = {alias}.tenant_id AND {alias}a.stream_id = {alias}.stream_id AND {alias}a.is_archived = 1)";
                 }
 
                 break;

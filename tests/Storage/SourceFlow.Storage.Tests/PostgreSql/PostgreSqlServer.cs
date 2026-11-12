@@ -78,10 +78,17 @@ public sealed class PostgreSqlServer : IAsyncLifetime
         return prefix + "_" + Guid.CreateVersion7().ToString("N");
     }
 
+    /// <summary>
+    /// True for the partitioned-events leg of the nightly matrix (<c>SOURCEFLOW_TEST_DATABASE=postgres:17-partitioned</c>):
+    /// every store this fixture creates then partitions its events table (doc 05 §9).
+    /// </summary>
+    public static bool PartitionedVariant { get; } =
+        Environment.GetEnvironmentVariable("SOURCEFLOW_TEST_DATABASE")?.EndsWith("-partitioned", StringComparison.Ordinal) == true;
+
     /// <summary>A store on a fresh, migrated schema.</summary>
     public async Task<PostgreSqlStore> CreateStoreAsync(TimeProvider? time = null, Action<PostgreSqlStorageOptions>? configure = null)
     {
-        var options = new PostgreSqlStorageOptions { DataSource = DataSource, Schema = NewSchema() };
+        var options = new PostgreSqlStorageOptions { DataSource = DataSource, Schema = NewSchema(), PartitionEvents = PartitionedVariant };
         configure?.Invoke(options);
         var store = new PostgreSqlStore(options, time);
         await store.CreateMigrator().MigrateAsync(TestContext.Current.CancellationToken);
@@ -111,7 +118,7 @@ public sealed class PostgreSqlServer : IAsyncLifetime
     public async Task<PostgreSqlStore> CreateRowLevelSecurityStoreAsync(TimeProvider? time = null, string? schema = null)
     {
         schema ??= NewSchema("rls");
-        await new PostgreSqlSchemaMigrator(DataSource, schema, TenantIsolation.RowLevelSecurity).MigrateAsync(TestContext.Current.CancellationToken);
+        await new PostgreSqlSchemaMigrator(DataSource, schema, TenantIsolation.RowLevelSecurity, PartitionedVariant).MigrateAsync(TestContext.Current.CancellationToken);
         await GrantAsync(schema);
         return new PostgreSqlStore(RowLevelSecurityOptions(schema), time);
     }
@@ -125,6 +132,7 @@ public sealed class PostgreSqlServer : IAsyncLifetime
             SystemConnectionString = ConnectionStringFor(SystemRole),
             Schema = schema,
             TenantIsolation = TenantIsolation.RowLevelSecurity,
+            PartitionEvents = PartitionedVariant,
         };
     }
 
@@ -149,6 +157,7 @@ public sealed class PostgreSqlServer : IAsyncLifetime
         await ExecuteAsync($"""
             GRANT USAGE ON SCHEMA "{schema}" TO "{AppRole}", "{SystemRole}";
             GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "{schema}" TO "{AppRole}", "{SystemRole}";
+            GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{AppRole}", "{SystemRole}";
             """);
     }
 

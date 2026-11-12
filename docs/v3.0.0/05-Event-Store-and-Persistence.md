@@ -260,7 +260,7 @@ SELECT TOP (@max) … FROM sourceflow.Events
 - **Append.** The rows travel as one JSON parameter read with `OPENJSON`, not as a table-valued parameter. A TVP needs a user-defined table type per schema, and that type cannot be changed while it is in use. A failed version check raises `THROW 50001`. Fenced writes raise `THROW 50002` with a check code.
 - **Batches.** A session's writes go as one command batch, split at 2,000 parameters. SQL Server allows at most 2,100.
 - **Upserts.** Upserts use `MERGE … WITH (HOLDLOCK)`. Leases use the database clock.
-- **Keys.** Key columns are `nvarchar(100/200/400)`. A primary key over 900 bytes is `NONCLUSTERED`.
+- **Keys.** Key columns are `nvarchar(100/200/400)` with `COLLATE Latin1_General_100_BIN2`, so ids compare ordinally, as on PostgreSQL, whatever the database collation. A primary key over 900 bytes is `NONCLUSTERED`.
 - **Notifications.** Notifications are in-process only. Other nodes find new events by polling at `PollInterval`, because SQL Server has no `LISTEN`.
 - **Tenancy.** Tenancy is `TenantIsolation.Runtime`: every query filters on `tenant_id`. Row-level security, as on PostgreSQL in WP-2.6, is not provided.
 - **Horizon age.** `GetHorizonAgeAsync` reads the oldest active transaction from DMVs, so the login needs `VIEW SERVER STATE`, or `VIEW DATABASE STATE` on Azure SQL. Without it the gauge reports zero.
@@ -442,6 +442,29 @@ CREATE TABLE sourceflow.data_keys (                                         -- c
 | Table growth | Default: one table, with autovacuum tuning guidance. **Opt-in `PartitionEvents`** (in 3.0): monthly `RANGE (created_at)` partitions created ahead of time by a maintenance job. Version uniqueness stays enforced by the `streams` compare-and-set, so `uq_events_stream_version` and `uq_events_event_id` become per-partition backstops (they must include the partition key). Each partition has its own `(tx_id, seq)` index, and the safe-horizon read probes them all. Recommended from capacity tier M ([doc 09 §5](09-Performance-and-Scalability.md#5-capacity-model)). | More than about 100 partitions per table: switch to quarterly ranges, or detach and archive |
 | Cold streams | **3.0**: `IEventStore.ArchiveStreamAsync(stream)` sets `streams.is_archived`. Archived streams reject appends, are excluded from rebuilds and SFQL by default (`options (include_archived = true)` includes them), and stay loadable. With `PartitionEvents`, old partitions holding only archived streams can be detached. **3.1**: compaction appends a genesis "snapshot event", then archives the prefix (competitive analysis C3). | 3.x: transparent reads from object storage |
 | Inbox, outbox, dead letters | Batched background cleanup with configurable retention. Adapters implement `IStoreRetention`, and the relay role runs it every `RetentionInterval` (1 h). Processed inbox rows older than `InboxRetention` (7 days) are deleted; redeliveries older than that are no longer detected. Replayed or discarded dead letters older than `DeadLetterRetention` (30 days) are deleted; parked ones are never deleted. Deletes run in batches of `RetentionBatchSize` (5,000) rows per statement. Outbox rows are deleted on delivery. | — |
+
+**As built (WP-4.5).** The table above is implemented with these specifics.
+
+- **Archived streams.** Archived streams are left out of read models by every projection subscription, not only by rebuilds. That way a rebuild produces the same documents as the live projection.
+  - **Lookup.** The subscription asks `IEventStore.GetArchivedStreamsAsync` once per batch and tenant. It is one query, and only for events that some projection handles.
+  - **SFQL.** `from events` applies the same rule, in the interpreter and in both SQL compilers (a `NOT EXISTS` on `streams`). `options (include_archived = true)` lifts it. `from stream` and `from aggregate` always read archived streams, as loads do.
+  - **Permanence.** Archiving is permanent.
+- **Converting the events table.** `PostgreSqlStorageOptions.PartitionEvents` converts the events table when the migrator runs, inside its transaction. The conversion is not a numbered script, and running it again does nothing.
+  - **No copy.** No rows are copied. The old table becomes the partition `events_initial`, from MINVALUE to the start of the month after both its newest row and now. Monthly partitions `events_yyyy_MM` follow.
+  - **Keys.** The primary key is `(seq, created_at)`. `seq` comes from the sequence `events_seq`, because PostgreSQL 15 and 16 reject identity columns on partitioned tables. An application role therefore needs `USAGE` on the sequence.
+  - **Bookkeeping.** `event_partitions` records each range and when it was detached.
+- **Maintenance.** `sf_ensure_event_partitions` creates partitions ahead of time under an advisory lock.
+  - The migrator creates 3 months ahead.
+  - A hosted job does the rest: `PartitionMonthsAhead` (default 3) every `PartitionMaintenanceInterval` (default 1 hour), on every node.
+  - `created_at` comes from the runtime clock. A row past the last partition fails to insert, so the job logs an error (event 2302) when it cannot create partitions.
+- **Detaching.** `PostgreSqlStore.DetachEventPartitionAsync`, or `dotnet sourceflow db partitions detach`, detaches a partition that meets both conditions:
+  - its range has ended;
+  - every stream with events in it is archived or deleted.
+
+  The detached table keeps its rows for archiving, for example with `pg_dump -t`, and the operator drops it afterwards. Its events then leave stream reads, the global log and queries.
+- **Query indexes.** Query-index sync builds the indexes of a partitioned table without `CONCURRENTLY`, because PostgreSQL does not support that on partitioned tables.
+- **Commands.** `dotnet sourceflow db migrate --partition-events` converts an existing table. `db partitions list | ensure | detach` manages the partitions.
+- **Tests.** SCK-65..68 and SCK-72 cover the partitioned variant, and the whole PostgreSQL suite also runs on it when `SOURCEFLOW_TEST_DATABASE` ends in `-partitioned` (nightly). SCK-69..71 cover the archive rules on every store.
 
 ## 10. Read-model stores
 

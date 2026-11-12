@@ -59,7 +59,7 @@ public sealed partial class PostgreSqlStore :
     /// <summary>A migrator for this store's schema.</summary>
     public PostgreSqlSchemaMigrator CreateMigrator()
     {
-        return new PostgreSqlSchemaMigrator(DataSource, Options.Schema, Options.TenantIsolation);
+        return new PostgreSqlSchemaMigrator(DataSource, Options.Schema, Options.TenantIsolation, Options.PartitionEvents);
     }
 
     /// <summary>Every port of this store.</summary>
@@ -147,6 +147,27 @@ public sealed partial class PostgreSqlStore :
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
             ? new StreamInfo(stream, reader.GetString(0), new StreamVersion(reader.GetInt64(1)), reader.GetBoolean(2), reader.GetBoolean(3))
             : null;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlySet<StreamId>> GetArchivedStreamsAsync(string tenantId, IReadOnlyCollection<StreamId> streams, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(streams);
+        var archived = new HashSet<StreamId>();
+        if (streams.Count == 0)
+        {
+            return archived;
+        }
+
+        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using TenantReader scope = await ReadTenantAsync(connection, null, tenantId, setTenant: true, Sql.ArchivedStreams,
+            [new NpgsqlParameter<string>("tenant", tenantId), new NpgsqlParameter<string[]>("streams", [.. streams.Select(s => s.Value).Distinct(StringComparer.Ordinal)])], cancellationToken).ConfigureAwait(false);
+        while (await scope.Reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            archived.Add(new StreamId(scope.Reader.GetString(0)));
+        }
+
+        return archived;
     }
 
     /// <inheritdoc />

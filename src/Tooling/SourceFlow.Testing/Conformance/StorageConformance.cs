@@ -81,7 +81,7 @@ public static class StorageConformance
         new("SCK-13", "Tags round trip", TagsRoundTrip),
         new("SCK-14", "Decision time is stored as the event time", DecisionTime),
         new("SCK-15", "A deleted stream rejects appends", DeletedStream),
-        new("SCK-16", "An archived stream rejects appends and stays readable", ArchivedStream),
+        new("SCK-16", "An archived stream rejects appends, stays readable and is reported archived", ArchivedStream),
         new("SCK-17", "Not-found semantics: empty slice and null stream info", NotFound),
         new("SCK-18", "A 1 MB payload round trips", LargePayload),
         new("SCK-19", "Unicode data and metadata round trip", Unicode),
@@ -372,6 +372,14 @@ public static class StorageConformance
         await Check.ThrowsAsync<StreamClosedException>(() => AppendAsync(f, StreamA, ExpectedVersion.Any, Events(1), ct), "append to archived").ConfigureAwait(false);
         StreamSlice slice = await f.Events.ReadStreamAsync(Tenant, StreamA, new StreamVersion(1), 10, ct).ConfigureAwait(false);
         Check.Equal(2, slice.Events.Count, "still readable");
+
+        // Stream ids are ordinal: a stream whose id differs only in case is another, open stream.
+        var upper = new StreamId(StreamA.Value.ToUpperInvariant());
+        await AppendAsync(f, upper, ExpectedVersion.NoStream, Events(1), ct).ConfigureAwait(false);
+        IReadOnlySet<StreamId> archived = await f.Events.GetArchivedStreamsAsync(Tenant, [StreamA, StreamB, upper], ct).ConfigureAwait(false);
+        Check.Equal(1, archived.Count, "one archived stream");
+        Check.True(archived.Contains(StreamA), "the archived stream is reported");
+        Check.Equal(0, (await f.Events.GetArchivedStreamsAsync("other-tenant", [StreamA], ct).ConfigureAwait(false)).Count, "archiving is per tenant");
     }
 
     private static async Task NotFound(IStorageFixture f, CancellationToken ct)
