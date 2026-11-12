@@ -177,8 +177,12 @@ public sealed class ErrorClassifier
         Treat<ArgumentException>(HandlingOutcome.Permanent);
         Treat<InvalidCastException>(HandlingOutcome.Permanent);
         Treat<PermanentException>(HandlingOutcome.Permanent);
+        Treat<Security.DecryptionFailedException>(HandlingOutcome.Permanent);
+        Treat<Security.ProtectionRequiredException>(HandlingOutcome.Permanent);
 
         // Broker errors say whether they are transient (outage, throttling) or not (missing destination, oversized body).
+        _rules.Insert(0, (e => e is Security.KeyProviderException { IsTransient: false }, HandlingOutcome.Permanent));
+        _rules.Insert(0, (e => e is Security.KeyProviderException { IsTransient: true }, HandlingOutcome.Transient));
         _rules.Insert(0, (e => e is Transport.TransportException { IsTransient: false }, HandlingOutcome.Permanent));
         _rules.Insert(0, (e => e is Transport.TransportException { IsTransient: true }, HandlingOutcome.Transient));
     }

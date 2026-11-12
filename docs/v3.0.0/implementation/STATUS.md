@@ -4,7 +4,7 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 
 ## Progress summary
 
-Updated 2026-11-12. **45 of 63 work packages are done (71%)**, 1 in progress and 17 not started. By estimated effort, 95.5 of 138.5 engineer-weeks are done (69%).
+Updated 2026-11-12. **46 of 63 work packages are done (73%)**, 1 in progress and 16 not started. By estimated effort, 98.5 of 138.5 engineer-weeks are done (71%).
 
 | Milestone | Done | In progress | Todo | Effort done (ew) |
 |-----------|------|-------------|------|------------------|
@@ -13,7 +13,7 @@ Updated 2026-11-12. **45 of 63 work packages are done (71%)**, 1 in progress and
 | M2 PostgreSQL | 11 | 0 | 0 | 19 of 19 |
 | M3 Cloud transports | 6 | 1 | 0 | 18.5 of 19 |
 | M4 Tooling and operations | 7 | 0 | 0 | 16.5 of 16.5 |
-| M5 Security and migration | 1 | 0 | 4 | 0.5 of 11 |
+| M5 Security and migration | 2 | 0 | 3 | 3.5 of 11 |
 | Track S: Workflow DSL and Studio | 0 | 0 | 13 | 0 of 32 |
 
 Completed in this round:
@@ -40,10 +40,11 @@ Completed in this round:
 - WP-4.5: partitioned PostgreSQL events (convert in place, maintenance job, detach) and the archive rules for read models and SFQL.
 - WP-4.6: OpenTelemetry through the SDK the application already uses: pinned semantic conventions with the standard opt-in, the append span, parent-or-link for received messages, and a wiring guide.
 - WP-4.7: the chaos suite (CH-01..10), the tier-M load test meeting every SLO, PERF-07 on the three emulators, the query API end to end (QRY-53..59) and the nightly DAST scan with no findings.
+- WP-5.1: payload protection (AES-256-GCM envelope encryption in the outbox and on the wire) with AWS KMS, Azure Key Vault and Google Cloud KMS key providers.
 
 WP-3.R is in progress. M2 (PostgreSQL) is complete; M3 is under way: WP-3.1, all three cloud transports (WP-3.2..3.4), provisioning, export and IaC (WP-3.5) and the cross-service E2E per transport (WP-3.6) are done; retiring the v2 cloud providers (WP-3.R) is in progress: Google Cloud is retired, and AWS waits on UT-SEC (WP-5.1). M4 (operations, SQL Server, scale) is complete.
 
-Not started: payload protection, crypto-shredding (redaction is done), the v2 migration tool, and the whole Studio track.
+Not started: crypto-shredding (redaction is done), the v2 migration tool, and the whole Studio track.
 
 | WP | Title | Estimate (ew) | Status | Notes |
 |----|-------|---------------|--------|-------|
@@ -92,7 +93,7 @@ Not started: payload protection, crypto-shredding (redaction is done), the v2 mi
 | WP-4.5 | `PartitionEvents` + stream archiving | 1.5 | done | `PostgreSqlStorageOptions.PartitionEvents`: the migrator converts `events` in place (the old table becomes `events_initial`, no copy; `(seq, created_at)` key, `events_seq` sequence, per-partition unique backstops), `sf_ensure_event_partitions` plus a hosted maintenance job (`PartitionMonthsAhead`, `PartitionMaintenanceInterval`), `event_partitions` bookkeeping, `DetachEventPartitionAsync` (ended range, archived or deleted streams only), index sync without CONCURRENTLY on partitioned tables, CLI `db migrate --partition-events` and `db partitions list|ensure|detach`. Archive rules: `IEventStore.GetArchivedStreamsAsync` (in-memory, PostgreSQL, SQL Server); projection subscriptions skip archived streams; SFQL `from events` leaves them out unless `include_archived = true` (interpreter and both compilers). SQL Server key columns are now binary-collated, so ids are ordinal whatever the database collation. Tests: SCK-65..68, 72 (PostgreSQL partitioned), SCK-69..71 (in-memory, PostgreSQL, SQL Server), SCK-16 extended (archived lookup, case-sensitive ids); the whole PostgreSQL suite passes on the partitioned variant (nightly leg) |
 | WP-4.6 | OpenTelemetry integration (no package) | 1 | done | `SourceFlowTelemetry` names and `InstrumentAdvice` buckets (from WP-1.7) checked through the real SDK; `SemanticConventions`: pinned 1.27.0, `OTEL_SEMCONV_STABILITY_OPT_IN` (`messaging`, `messaging/dup` with the deprecated `messaging.operation`), schema URL on the source and meter; `sourceflow.eventstore.append` span; `SourceFlowOptions.Telemetry.ParentBasedOnMessage` (child of the create span instead of a link); wiring guide `docs/v3.0.0/guides/opentelemetry.md`; the Bank API exports OTLP (WP-4.3). UT-OTEL-01..08 use the OpenTelemetry SDK and in-memory exporter as test-only dependencies. Not built yet: the `settle` span and baggage propagation (doc 08 §2.1, §2.2) |
 | WP-4.7 | Chaos suite + tier-M load test | 2.5 | done | `IFaultInjector` with six `FaultPoints` in the runtime (a null check when unused) and `ChaosInjector` in SourceFlow.Testing (crash = the node writes nothing more; freeze = SIGSTOP); CH-01..10 green on PostgreSQL with Accounts and Notifications (crash at each fault point, broker outage, database restart, node stalled past the lease TTL, held write transaction; durations scaled to seconds), nightly `chaos` job; the tier-M k6 scenario (`loadtest/`, nightly `load test (tier M)` job) meets every doc 08 §6 SLO at 1,000 commands/s: p99 37.7 ms, 0 failures, freshness p99 247 ms (`implementation/load-test-report.md`). Fixed on the way: NOTIFY moved out of the commit (it serialised every commit, about 270/s), outbox age kept across retries (`first_due_at`, V005), the migrator alters only tenant tables whose RLS differs. k6 replaces NBomber (commercial licence). PERF-07 met on the three emulators (p95 138 / 85 / 167 ms, nightly `relay latency`). QRY-53..59 on PostgreSQL over HTTP (`QueryApiScenarios`: both syntaxes, validate without execution, explain with placeholders only, read-your-writes token, injection corpus with no database errors and no writes). DAST: OWASP ZAP API scan driven by `deploy/dast/query-api.openapi.json` (UT-ASP-37 keeps it equal to the mapped routes), nightly, failing on medium or high: 119 rules pass, no findings after adding `Cross-Origin-Resource-Policy`. Open: the PERF-09 acceptance run (≥ 5,000 commands/s per 4 vCPU) needs a database sized per doc 09 §5; on the shared dev machine PostgreSQL saturates at about 2,700/s with the API at half its CPUs (load-test-report.md) |
-| WP-5.1 | Payload protection + KMS key providers | 3 | todo | |
+| WP-5.1 | Payload protection + KMS key providers | 3 | done | `SourceFlow.Security` in the core: `IKeyProvider`, `PayloadProtector` (AES-256-GCM, 96-bit random nonce, associated data `id|type|source`, DEK reuse limits `MaxMessagesPerKey`/`MaxKeyAge`, pinned keys zeroed on replacement, unwrapped-key cache), `sf.Security(s => s.Use…().Protect(…))`, a session decorator that encrypts outbox rows at commit (outbox at rest; size re-checked), the Receive-stage decrypt middleware (`DecryptionFailed` permanent, key service outages transient, optional `RequireOnReceive` → `ProtectionRequired`), `LocalKeyProvider`. Key providers: `UseAwsKms` (GenerateDataKey/Decrypt), `UseAzureKeyVault` (wrapKey/unwrapKey, versioned key ids), `UseGoogleKms` (Encrypt/Decrypt), each mapping errors by transience. Tests: UT-SEC-01..20 (core), UT-SEC-21..25 (AWS KMS on LocalStack; Key Vault and Cloud KMS through SDK fakes), real-KMS nightly (`RealKmsTests`, `SOURCEFLOW_KMS_*`), protected integration events end to end in memory and on LocalStack with KMS (TCK-41/43 with protection on) |
 | WP-5.2 | Crypto-shredding | 3 | todo | |
 | WP-5.3 | Redaction wiring | 0.5 | done | SourceFlow taxonomy (`SourceFlowTaxonomy.PersonalData`/`Secret`); `[PersonalData]` and `[Secret]` are `DataClassificationAttribute`s; `UseRedaction(...)` with Erasing as the default and HMAC as an option; `LogPayloads` (off by default) logs parked payloads with classified members redacted. UT-RED-01..06 |
 | WP-5.4 | v2 migration tool + v2 wire bridge | 3 | todo | |

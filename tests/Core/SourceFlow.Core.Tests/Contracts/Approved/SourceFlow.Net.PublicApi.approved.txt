@@ -768,6 +768,7 @@ namespace SourceFlow.Hosting
         public SourceFlow.Hosting.SourceFlowBuilder Errors(System.Action<SourceFlow.Pipeline.ErrorClassifier> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder Projections(System.Action<SourceFlow.Hosting.ProjectionsBuilder> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder Routing(System.Action<SourceFlow.Runtime.RoutingBuilder> configure) { }
+        public SourceFlow.Hosting.SourceFlowBuilder Security(System.Action<SourceFlow.Security.SecurityBuilder> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder UseInMemoryStorage(SourceFlow.Storage.InMemory.InMemoryStore? store = null) { }
         public SourceFlow.Hosting.SourceFlowBuilder UseInMemoryTransport(SourceFlow.Transport.InMemory.InMemoryBroker? broker = null) { }
         public SourceFlow.Hosting.SourceFlowBuilder UseMiddleware(System.Func<System.IServiceProvider, SourceFlow.Pipeline.IMessageMiddleware> factory, SourceFlow.Pipeline.PipelineStage stages = 31, System.Func<SourceFlow.Pipeline.MessageContext, bool>? filter = null) { }
@@ -2140,6 +2141,77 @@ namespace SourceFlow.Runtime
     {
         public TelemetryOptions() { }
         public bool ParentBasedOnMessage { get; set; }
+    }
+}
+namespace SourceFlow.Security
+{
+    public sealed class DataKey : System.IDisposable
+    {
+        public DataKey(byte[] plaintext, byte[] wrapped, string keyReference) { }
+        public string KeyReference { get; }
+        public byte[] Plaintext { get; }
+        public byte[] Wrapped { get; }
+        public void Dispose() { }
+    }
+    public sealed class DecryptionFailedException : System.Exception
+    {
+        public DecryptionFailedException(string message, System.Exception? inner = null) { }
+    }
+    public interface IKeyProvider
+    {
+        string Name { get; }
+        System.Threading.Tasks.ValueTask<SourceFlow.Security.DataKey> GenerateDataKeyAsync(System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<byte[]> UnwrapDataKeyAsync(string keyReference, System.ReadOnlyMemory<byte> wrapped, System.Threading.CancellationToken cancellationToken);
+    }
+    public sealed class KeyProviderException : System.Exception
+    {
+        public KeyProviderException(string message, bool isTransient, System.Exception? inner = null) { }
+        public bool IsTransient { get; }
+    }
+    public sealed class LocalKeyProvider : SourceFlow.Security.IKeyProvider, System.IDisposable
+    {
+        public LocalKeyProvider(string keyName = "local-master") { }
+        public SourceFlow.Security.KeyProviderException? Failure { get; set; }
+        public int Generated { get; }
+        public string Name { get; }
+        public int Unwrapped { get; }
+        public void Dispose() { }
+        public System.Threading.Tasks.ValueTask<SourceFlow.Security.DataKey> GenerateDataKeyAsync(System.Threading.CancellationToken cancellationToken) { }
+        public int Rotate() { }
+        public System.Threading.Tasks.ValueTask<byte[]> UnwrapDataKeyAsync(string keyReference, System.ReadOnlyMemory<byte> wrapped, System.Threading.CancellationToken cancellationToken) { }
+    }
+    public sealed class PayloadProtectionOptions
+    {
+        public PayloadProtectionOptions() { }
+        public bool AllDestinations { get; }
+        public System.Collections.Generic.IReadOnlySet<string> Destinations { get; }
+        public System.TimeSpan MaxKeyAge { get; set; }
+        public int MaxMessagesPerKey { get; set; }
+        public bool RequireOnReceive { get; set; }
+        public int UnwrappedKeyCacheSize { get; set; }
+        public SourceFlow.Security.PayloadProtectionOptions Protect(params string[] destinations) { }
+        public SourceFlow.Security.PayloadProtectionOptions ProtectAll() { }
+    }
+    public sealed class PayloadProtector : System.IDisposable
+    {
+        public const string Scheme = "sf-aes256gcm-v1";
+        public PayloadProtector(SourceFlow.Security.IKeyProvider provider, SourceFlow.Security.PayloadProtectionOptions options, System.TimeProvider? time = null) { }
+        public SourceFlow.Security.PayloadProtectionOptions Options { get; }
+        public void Dispose() { }
+        public System.Threading.Tasks.ValueTask<SourceFlow.Messaging.MessageEnvelope> ProtectAsync(SourceFlow.Messaging.MessageEnvelope envelope, System.Threading.CancellationToken cancellationToken) { }
+        public bool Protects(string destination) { }
+        public System.Threading.Tasks.ValueTask<SourceFlow.Messaging.MessageEnvelope> UnprotectAsync(SourceFlow.Messaging.MessageEnvelope envelope, System.Threading.CancellationToken cancellationToken) { }
+    }
+    public sealed class ProtectionRequiredException : System.Exception
+    {
+        public ProtectionRequiredException(string message) { }
+    }
+    public sealed class SecurityBuilder
+    {
+        public Microsoft.Extensions.DependencyInjection.IServiceCollection Services { get; }
+        public SourceFlow.Security.SecurityBuilder Protect(System.Action<SourceFlow.Security.PayloadProtectionOptions> configure) { }
+        public SourceFlow.Security.SecurityBuilder UseKeyProvider(SourceFlow.Security.IKeyProvider provider) { }
+        public SourceFlow.Security.SecurityBuilder UseKeyProvider(System.Func<System.IServiceProvider, SourceFlow.Security.IKeyProvider> factory) { }
     }
 }
 namespace SourceFlow.Storage

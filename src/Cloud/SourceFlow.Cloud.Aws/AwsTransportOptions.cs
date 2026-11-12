@@ -138,7 +138,8 @@ public sealed class AwsTransportOptions
             : throw new ArgumentException($"The AWS profile '{Profile}' was not found in the shared credentials or config files.", nameof(Profile));
     }
 
-    private T Apply<T>(T config)
+    /// <summary>Applies the endpoint, region, retries and timeout to another AWS client configuration (KMS).</summary>
+    internal T Apply<T>(T config)
         where T : ClientConfig
     {
         config.MaxErrorRetry = MaxSdkRetries;

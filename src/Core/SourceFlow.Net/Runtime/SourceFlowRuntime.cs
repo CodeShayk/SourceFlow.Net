@@ -212,6 +212,9 @@ public sealed class SourceFlowRuntime
     /// <summary>The actor accessor.</summary>
     public IActorAccessor Actor { get; }
 
+    /// <summary>Payload protection (doc 10 §3); null when not configured.</summary>
+    internal Security.PayloadProtector? Protector { get; set; }
+
     /// <summary>The fault injector of a chaos test (plan 06 CH-01..06); null otherwise.</summary>
     internal IFaultInjector? Faults { get; set; }
 

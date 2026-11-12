@@ -40,6 +40,37 @@ sf.Security(s =>
 - **Key rotation** is transparent: the wrapped DEK names its key version, and the KMS handles it.
 - **Outbox at rest.** The outbox stores the *protected* body, so pending messages aren't plaintext in the database either.
 
+**As built (WP-5.1).**
+
+- **API.** `sf.Security(s => s.UseAwsKms(…) | UseAzureKeyVault(…) | UseGoogleKms(…) | UseKeyProvider(…).Protect(p => p.Protect("accounts.events") | p.ProtectAll()))`. Protection without a key provider fails at startup.
+- **Wire format.**
+  - Body: `version(1) | wrapped DEK length(2) | wrapped DEK | nonce(12) | tag(16) | ciphertext`.
+  - Header: `sfenc` = `sf-aes256gcm-v1;{provider};{key reference}`.
+  - Associated data: `id|type|source`.
+- **Outbox at rest.** A session decorator holds outbox rows for protected destinations until flush or commit. It then encrypts them and checks the size again, because the wrapped key adds bytes, and writes them in the same transaction. If the key service fails at that point, the command fails and nothing is committed.
+- **Receive.** A built-in Receive-stage middleware decrypts the message.
+  - **Permanent.** A tampered body, a tampered id, type or source, a foreign provider or a refused wrapped key fails with `DecryptionFailedException`. The message is parked as `DecryptionFailed` after one attempt.
+  - **Transient.** A key service outage (`KeyProviderException` with `IsTransient`) is retried like any transient failure.
+  - **Required protection.** `RequireOnReceive` parks unprotected messages on protected endpoints as `ProtectionRequired`, so a sender cannot downgrade to plaintext. It is off by default, so protection can be rolled out sender first.
+- **Keys in memory.** DEKs live in pinned arrays.
+  - A replaced DEK is zeroed after the next rotation, and every operation copies the key into its own `AesGcm` instance, so zeroing never races an operation in flight.
+  - Unwrapped DEKs are cached, `UnwrappedKeyCacheSize` (256), so a receiver makes one key service call per DEK.
+- **Providers.**
+
+  | Provider | Generates the DEK | Key reference | Unwraps with |
+  |----------|-------------------|---------------|--------------|
+  | AWS KMS | `GenerateDataKey` (AES-256) | the key ARN | `Decrypt` |
+  | Azure Key Vault | locally, then `wrapKey` (RSA-OAEP-256 by default) | the versioned key id, so DEKs wrapped before a rotation still unwrap | `unwrapKey` |
+  | Google Cloud KMS | locally, then `Encrypt` | the crypto key; the ciphertext names the version | `Decrypt` |
+
+  Each provider maps throttling and outages as transient, and refusals as permanent.
+- **`LocalKeyProvider`.** Holds in-memory master keys with rotation, for tests and development.
+- **Tests.**
+  - **Unit:** UT-SEC-01..20.
+  - **Providers:** UT-SEC-21..25. AWS KMS runs on LocalStack; Key Vault and Cloud KMS run through fakes of their SDK clients, since neither has an emulator.
+  - **Real services:** the nightly `real-cloud` job runs `RealKmsTests` when `SOURCEFLOW_KMS_*` is set.
+  - **End to end:** Accounts to Notifications and Loyalty, protected, in memory and on LocalStack with KMS (TCK-41 and TCK-43 with protection on).
+
 ## 4. Personal data in an immutable log (crypto-shredding)
 
 An event log can't be edited, yet regulations such as GDPR Art. 17 require erasure. The standard answer is to encrypt personal data with a per-subject key and delete the key to erase it.

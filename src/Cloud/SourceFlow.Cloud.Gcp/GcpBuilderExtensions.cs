@@ -64,3 +64,19 @@ public sealed class GcpTransportHealthCheck : IHealthCheck
         }
     }
 }
+
+/// <summary>Registers Google Cloud KMS as the key provider for payload protection (doc 10 §3).</summary>
+public static class GoogleKmsSecurityExtensions
+{
+    /// <summary>Uses Cloud KMS: <c>s.UseGoogleKms(k =&gt; k.KeyName = "projects/p/locations/l/keyRings/r/cryptoKeys/messages")</c>.</summary>
+    public static Security.SecurityBuilder UseGoogleKms(this Security.SecurityBuilder security, Action<GoogleKmsOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(security);
+        ArgumentNullException.ThrowIfNull(configure);
+        var options = new GoogleKmsOptions();
+        configure(options);
+        var provider = new GoogleKmsKeyProvider(options);   // validated now: a malformed key name fails at startup
+        security.Services.AddSingleton(provider);
+        return security.UseKeyProvider(sp => sp.GetRequiredService<GoogleKmsKeyProvider>());
+    }
+}

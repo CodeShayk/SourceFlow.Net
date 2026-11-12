@@ -84,6 +84,20 @@ public sealed class SourceFlowBuilder
         return this;
     }
 
+    /// <summary>
+    /// Configures security (doc 10): the key provider and payload protection. Protected messages are encrypted in the
+    /// outbox and on the wire, and decrypted on receive.
+    /// </summary>
+    public SourceFlowBuilder Security(Action<Security.SecurityBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        SecuritySettings ??= new Security.SecurityBuilder(Services);
+        configure(SecuritySettings);
+        return this;
+    }
+
+    internal Security.SecurityBuilder? SecuritySettings { get; private set; }
+
     internal Dictionary<Type, SubscriptionFailurePolicy> ProjectionPolicies { get; } = [];
 
     internal List<MiddlewareRegistration> Middleware { get; } = [];

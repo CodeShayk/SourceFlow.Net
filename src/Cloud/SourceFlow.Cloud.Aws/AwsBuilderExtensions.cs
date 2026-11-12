@@ -63,3 +63,19 @@ public sealed class AwsTransportHealthCheck : IHealthCheck
         }
     }
 }
+
+/// <summary>Registers AWS KMS as the key provider for payload protection (doc 10 §3).</summary>
+public static class AwsKmsSecurityExtensions
+{
+    /// <summary>Uses AWS KMS: <c>s.UseAwsKms(k =&gt; k.KeyId = "alias/accounts-messages")</c>.</summary>
+    public static Security.SecurityBuilder UseAwsKms(this Security.SecurityBuilder security, Action<AwsKmsOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(security);
+        ArgumentNullException.ThrowIfNull(configure);
+        var options = new AwsKmsOptions();
+        configure(options);
+        var provider = new AwsKmsKeyProvider(options);   // validated now: a bad key id or region fails at startup
+        security.Services.AddSingleton(provider);
+        return security.UseKeyProvider(sp => sp.GetRequiredService<AwsKmsKeyProvider>());
+    }
+}

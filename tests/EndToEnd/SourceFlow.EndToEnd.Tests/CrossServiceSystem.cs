@@ -56,6 +56,8 @@ internal sealed class CrossServiceSystem : IAsyncDisposable
     private readonly InMemoryBroker? _memory;
     private readonly string _prefix = "e2e" + Guid.CreateVersion7().ToString("N")[^8..] + "-";
 
+    private Action<SourceFlowBuilder>? _everyService;
+
     private CrossServiceSystem(Servers servers, Broker broker)
     {
         _servers = servers;
@@ -82,7 +84,7 @@ internal sealed class CrossServiceSystem : IAsyncDisposable
     }
 
     /// <summary>As <see cref="StartAsync(Servers, Broker, bool)"/>, with Accounts' transport wrapped by <paramref name="accountsTransport"/>.</summary>
-    public static async Task<CrossServiceSystem> StartAsync(Servers servers, Broker broker, Func<ITransport, ITransport>? accountsTransport)
+    public static async Task<CrossServiceSystem> StartAsync(Servers servers, Broker broker, Func<ITransport, ITransport>? accountsTransport, Action<SourceFlowBuilder>? everyService = null)
     {
         await servers.PostgreSql.EnsureStartedAsync();
         switch (RealCloud(broker) ? Broker.InMemory : broker)
@@ -98,7 +100,7 @@ internal sealed class CrossServiceSystem : IAsyncDisposable
                 break;
         }
 
-        var system = new CrossServiceSystem(servers, broker);
+        var system = new CrossServiceSystem(servers, broker) { _everyService = everyService };
         try
         {
             string notifications = PostgreSqlServer.NewSchema("notifications");
@@ -296,6 +298,7 @@ internal sealed class CrossServiceSystem : IAsyncDisposable
             sf.ServiceName = service;
             sf.AddModule<ContractsModule>();
             configure(sf);
+            _everyService?.Invoke(sf);
             sf.UsePostgreSql(o =>
             {
                 o.DataSource = _servers.PostgreSql.DataSource;

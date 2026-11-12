@@ -43,6 +43,7 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
             new TelemetryMiddleware(runtime.Metrics, runtime.Routing.Endpoint, runtime.Options.Telemetry.ParentBasedOnMessage),
             new LoggingScopeMiddleware(_logger),
             new ErrorClassificationMiddleware(runtime.Classifier),
+            .. runtime.Protector is { } protector ? [new Security.PayloadProtectionMiddleware(protector, runtime.Routing.Endpoint)] : Array.Empty<IMessageMiddleware>(),
         ];
     }
 
@@ -315,6 +316,8 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
             Messaging.UnknownMessageTypeException => "UnknownMessageType",
             System.Text.Json.JsonException => "DeserializationFailed",
             NoRouteException => "NoRoute",
+            Security.DecryptionFailedException => "DecryptionFailed",
+            Security.ProtectionRequiredException => "ProtectionRequired",
             null => "Permanent",
             _ => "PermanentFailure",
         };

@@ -69,12 +69,30 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<SourceFlowMetrics>();
         services.AddSingleton<IMessageSerializer, SystemTextJsonMessageSerializer>();
         services.AddSingleton(new MessagePipeline(builder.Middleware));
-        services.AddSingleton(builder.StorageFactory ?? throw new InvalidOperationException("No storage is configured. Call UseInMemoryStorage() or a storage package's Use* method."));
+        Func<IServiceProvider, StoragePorts> storage = builder.StorageFactory ?? throw new InvalidOperationException("No storage is configured. Call UseInMemoryStorage() or a storage package's Use* method.");
+        if (builder.SecuritySettings?.Protection is { } protection)
+        {
+            // Payload protection (doc 10 §3): outbox rows for protected destinations are encrypted at commit.
+            protection.Validate();
+            Func<IServiceProvider, Security.IKeyProvider> keys = builder.SecuritySettings.KeyProvider
+                ?? throw new InvalidOperationException("Payload protection needs a key provider: call UseAwsKms, UseAzureKeyVault, UseGoogleKms or UseKeyProvider in sf.Security(...).");
+            services.AddSingleton(sp => new Security.PayloadProtector(keys(sp), protection, sp.GetService<TimeProvider>()));
+            Func<IServiceProvider, StoragePorts> unprotected = storage;
+            storage = sp =>
+            {
+                StoragePorts ports = unprotected(sp);
+                ITransport transport = sp.GetRequiredService<ITransport>();
+                return ports with { Sessions = new Security.ProtectingSessionFactory(ports.Sessions, sp.GetRequiredService<Security.PayloadProtector>(), () => transport.Capabilities.MaxBodyBytes) };
+            };
+        }
+
+        services.AddSingleton(storage);
         services.AddSingleton(builder.TransportFactory ?? (sp => new Transport.InMemory.InMemoryBroker(sp.GetService<TimeProvider>()).CreateTransport()));
         services.AddSingleton(sp =>
         {
             var runtime = ActivatorUtilities.CreateInstance<SourceFlowRuntime>(sp);
             runtime.Faults = sp.GetService<IFaultInjector>();
+            runtime.Protector = sp.GetService<Security.PayloadProtector>();
             runtime.InlineProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Inline)];
             runtime.AsyncProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Async)];
             runtime.ProjectionPolicies = builder.ProjectionPolicies.ToDictionary();

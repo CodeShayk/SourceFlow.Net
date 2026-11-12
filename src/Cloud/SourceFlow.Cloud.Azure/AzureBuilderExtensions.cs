@@ -77,3 +77,19 @@ public sealed class AzureTransportHealthCheck : IHealthCheck
         }
     }
 }
+
+/// <summary>Registers Azure Key Vault as the key provider for payload protection (doc 10 §3).</summary>
+public static class AzureKeyVaultSecurityExtensions
+{
+    /// <summary>Uses Azure Key Vault: <c>s.UseAzureKeyVault(k =&gt; k.KeyId = new Uri("https://my-vault.vault.azure.net/keys/messages"))</c>.</summary>
+    public static Security.SecurityBuilder UseAzureKeyVault(this Security.SecurityBuilder security, Action<AzureKeyVaultOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(security);
+        ArgumentNullException.ThrowIfNull(configure);
+        var options = new AzureKeyVaultOptions();
+        configure(options);
+        var provider = new AzureKeyVaultKeyProvider(options);   // validated now: a malformed key id fails at startup
+        security.Services.AddSingleton(provider);
+        return security.UseKeyProvider(sp => sp.GetRequiredService<AzureKeyVaultKeyProvider>());
+    }
+}

@@ -102,6 +102,9 @@ jobs:
         env:
           SOURCEFLOW_REAL_CLOUD: ${{ matrix.cloud }}
           AZURE_SERVICEBUS_NAMESPACE: ${{ vars.AZURE_SERVICEBUS_NAMESPACE }}
+          SOURCEFLOW_KMS_AWS_KEY: ${{ vars.SOURCEFLOW_KMS_AWS_KEY }}
+          SOURCEFLOW_KMS_AZURE_KEY: ${{ vars.SOURCEFLOW_KMS_AZURE_KEY }}
+          SOURCEFLOW_KMS_GCP_KEY: ${{ vars.SOURCEFLOW_KMS_GCP_KEY }}
         run: |
           dotnet test --project tests/Cloud/SourceFlow.Cloud.Tests/SourceFlow.Cloud.Tests.csproj ${{ env.TEST_ARGS }} --filter-trait "Cloud=${{ matrix.trait }}"
           dotnet test --project tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj ${{ env.TEST_ARGS }} --filter-trait "Cloud=${{ matrix.trait }}"
