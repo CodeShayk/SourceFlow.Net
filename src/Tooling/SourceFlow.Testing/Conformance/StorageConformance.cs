@@ -93,7 +93,7 @@ public static class StorageConformance
         new("SCK-27", "Notifications are raised after commit", Notifications),
         new("SCK-29", "Outbox rows commit atomically with the append", OutboxAtomic),
         new("SCK-30", "Outbox claim returns only the head row per key", OutboxHeadOfKey),
-        new("SCK-31", "A failed head blocks its key, not other keys; retry reschedules", OutboxFailureBlocksKey),
+        new("SCK-31", "A failed head blocks its key, not other keys; retry reschedules and keeps the first due time", OutboxFailureBlocksKey),
         new("SCK-32", "Outbox operations need the partition lease", OutboxNeedsLease),
         new("SCK-33", "Rows due in the future are not claimed", OutboxDeliverAt, RequiresClockControl: true),
         new("SCK-34", "The inbox records the result", InboxRecords),
@@ -609,6 +609,15 @@ public static class StorageConformance
         IReadOnlyList<OutboxRecord> after = await f.Outbox.ClaimAsync(0, lease, 10, ct).ConfigureAwait(false);
 
         Check.SequenceEqual(["b"], after.Select(r => r.Message.Envelope.PartitionKey!), "a is blocked by its failed head, b is not");
+
+        // The retried head stays late from when it first became due, so the outbox age grows through an outage (doc 08 §6).
+        if (f.Outbox is IStoreMonitor monitor)
+        {
+            await f.Outbox.CompleteAsync(lease, [.. after.Select(r => r.Sequence)], ct).ConfigureAwait(false);
+            await f.Outbox.RetryAsync(lease, claimed[0].Sequence, f.Now.AddHours(2), "still down", ct).ConfigureAwait(false);
+            OutboxBacklog backlog = (await monitor.GetOutboxBacklogAsync(ct).ConfigureAwait(false)).Single(b => b.Partition == 0);
+            Check.True(backlog.OldestDueAt is { } due && due <= f.Now.AddSeconds(5), "a retried message counts from its first due time");
+        }
     }
 
     private static async Task OutboxNeedsLease(IStorageFixture f, CancellationToken ct)

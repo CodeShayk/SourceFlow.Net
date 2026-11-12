@@ -215,14 +215,16 @@ internal sealed class SqlText
             """);
         RetryOutbox = R($$"""
             DECLARE @ok bit = CASE WHEN {{LeaseFence}} THEN 1 ELSE 0 END;
-            IF @ok = 1 UPDATE {s}.outbox SET attempts = attempts + 1, last_error = @error, deliver_at = @at WHERE seq = @seq;
+            IF @ok = 1 UPDATE {s}.outbox SET attempts = attempts + 1, last_error = @error, deliver_at = @at,
+                first_due_at = COALESCE(first_due_at, CASE WHEN deliver_at > created_at THEN deliver_at ELSE created_at END) WHERE seq = @seq;
             SELECT @ok;
             """);
         CountOutbox = R("SELECT COUNT_BIG(*) FROM {s}.outbox");
         CountDueOutbox = R("SELECT COUNT_BIG(*) FROM {s}.outbox WHERE deliver_at <= @now");
         OutboxBacklog = R("""
             SELECT partition, COUNT_BIG(*),
-                   MIN(CASE WHEN deliver_at <= SYSDATETIMEOFFSET() THEN CASE WHEN deliver_at > created_at THEN deliver_at ELSE created_at END END)
+                   MIN(CASE WHEN first_due_at IS NOT NULL THEN first_due_at
+                            WHEN deliver_at <= SYSDATETIMEOFFSET() THEN CASE WHEN deliver_at > created_at THEN deliver_at ELSE created_at END END)
               FROM {s}.outbox GROUP BY partition ORDER BY partition
             """);
         ParkedDeadLettersByConsumer = R("SELECT consumer, COUNT_BIG(*) FROM {s}.dead_letters WHERE status = @status GROUP BY consumer");

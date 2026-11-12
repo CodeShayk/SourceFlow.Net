@@ -157,7 +157,10 @@ public sealed class InMemoryStore :
             IReadOnlyList<OutboxBacklog> backlog = [.. _outbox.Values
                 .GroupBy(r => r.Message.Partition)
                 .OrderBy(g => g.Key)
-                .Select(g => new OutboxBacklog(g.Key, g.Count(), g.Where(r => r.Message.DeliverAt <= now).Select(r => (DateTimeOffset?)(r.Message.DeliverAt > r.CreatedAt ? r.Message.DeliverAt : r.CreatedAt)).Min()))];
+                .Select(g => new OutboxBacklog(g.Key, g.Count(), g
+                    .Where(r => r.Message.DeliverAt <= now || r.FirstDueAt is not null)
+                    .Select(r => r.FirstDueAt ?? (r.Message.DeliverAt > r.CreatedAt ? r.Message.DeliverAt : r.CreatedAt))
+                    .Min(t => (DateTimeOffset?)t)))];
             return ValueTask.FromResult(backlog);
         }
     }
@@ -500,6 +503,7 @@ public sealed class InMemoryStore :
                     Attempts = record.Attempts + 1,
                     LastError = error,
                     Message = record.Message with { DeliverAt = deliverAt },
+                    FirstDueAt = record.FirstDueAt ?? (record.Message.DeliverAt > record.CreatedAt ? record.Message.DeliverAt : record.CreatedAt),
                 };
             }
         }

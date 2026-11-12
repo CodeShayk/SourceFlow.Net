@@ -74,6 +74,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(sp =>
         {
             var runtime = ActivatorUtilities.CreateInstance<SourceFlowRuntime>(sp);
+            runtime.Faults = sp.GetService<IFaultInjector>();
             runtime.InlineProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Inline)];
             runtime.AsyncProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Async)];
             runtime.ProjectionPolicies = builder.ProjectionPolicies.ToDictionary();

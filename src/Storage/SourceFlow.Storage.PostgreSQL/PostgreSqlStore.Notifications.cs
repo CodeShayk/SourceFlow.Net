@@ -4,10 +4,16 @@ namespace SourceFlow.Storage.PostgreSQL;
 
 /// <content>Commit notifications (doc 06 §2): in-process callbacks after each local commit, plus a dedicated LISTEN
 /// connection that relays commits made by other processes. The LISTEN connection reconnects after failures; meanwhile
-/// subscribers fall back to their polling interval, so a lost notification only delays work.</content>
+/// subscribers fall back to their polling interval, so a lost notification only delays work.
+/// <para>Other processes are told by a NOTIFY sent after the commit, outside its transaction, and coalesced: one NOTIFY
+/// covers every commit made while the previous one was being sent. A NOTIFY inside the commit takes PostgreSQL's
+/// database-wide notification lock until the commit ends, so every appending transaction, including its WAL flush, ran
+/// one at a time (found by the WP-4.7 load test: about 270 commits/s). A NOTIFY lost in a crash only delays the other
+/// processes until their next poll.</para></content>
 public sealed partial class PostgreSqlStore
 {
     private readonly Notifier _notifications;
+    private readonly Announcer _announcer;
 
     /// <summary>Identifies this store instance in NOTIFY payloads, so it ignores its own commits on the LISTEN connection.</summary>
     internal string Origin { get; } = Guid.CreateVersion7().ToString("N");
@@ -22,6 +28,96 @@ public sealed partial class PostgreSqlStore
     internal void RaiseCommitted()
     {
         _notifications.Raise();
+    }
+
+    // Tells other processes, after the commit and coalesced (see the class remarks).
+    internal void AnnounceCommitted()
+    {
+        _announcer.Signal();
+    }
+
+    private sealed class Announcer : IAsyncDisposable
+    {
+        private readonly PostgreSqlStore _store;
+        private readonly SemaphoreSlim _pending = new(0, 1);
+        private readonly CancellationTokenSource _stop = new();
+        private readonly Lock _gate = new();
+        private Task? _loop;
+
+        public Announcer(PostgreSqlStore store)
+        {
+            _store = store;
+        }
+
+        public void Signal()
+        {
+            lock (_gate)
+            {
+                if (_stop.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                _loop ??= Task.Run(() => RunAsync(_stop.Token));
+            }
+
+            if (_pending.CurrentCount == 0)
+            {
+                try
+                {
+                    _pending.Release();
+                }
+                catch (SemaphoreFullException)
+                {
+                    // already signalled: this commit rides on the pending NOTIFY
+                }
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            Task? loop;
+            lock (_gate)
+            {
+                _stop.Cancel();
+                loop = _loop;
+            }
+
+            if (loop is not null)
+            {
+                try
+                {
+                    await loop.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+            }
+
+            _stop.Dispose();
+            _pending.Dispose();
+        }
+
+        private async Task RunAsync(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await _pending.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await using NpgsqlConnection connection = await _store.DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+                    await using var command = new NpgsqlCommand(_store.Sql.Notify, connection);
+                    command.Parameters.Add(new NpgsqlParameter<string>("channel", _store.Options.Channel));
+                    command.Parameters.Add(new NpgsqlParameter<string>("origin", _store.Origin));
+                    await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception exception) when (exception is NpgsqlException or System.Net.Sockets.SocketException or IOException or InvalidOperationException or TimeoutException)
+                {
+                    // Best effort: the other processes poll. Wait a moment so an outage does not spin.
+                    await Task.Delay(TimeSpan.FromMilliseconds(500), TimeProvider.System, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
     }
 
     private sealed class Notifier : IAsyncDisposable

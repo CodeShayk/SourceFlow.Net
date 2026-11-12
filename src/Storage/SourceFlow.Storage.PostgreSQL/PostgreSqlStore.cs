@@ -44,6 +44,7 @@ public sealed partial class PostgreSqlStore :
             ?? (options.SystemConnectionString is { } system ? NpgsqlDataSource.Create(system) : DataSource);
         Sql = new SqlText(options.Schema);
         _notifications = new Notifier(this);
+        _announcer = new Announcer(this);
     }
 
     /// <summary>The data source.</summary>
@@ -711,6 +712,7 @@ public sealed partial class PostgreSqlStore :
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        await _announcer.DisposeAsync().ConfigureAwait(false);
         await _notifications.DisposeAsync().ConfigureAwait(false);
         if (_ownsSystemDataSource)
         {

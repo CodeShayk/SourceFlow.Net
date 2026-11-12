@@ -120,6 +120,29 @@ jobs:
           dotnet test --project tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj
           ${{ env.TEST_ARGS }} --filter-trait "Category=Chaos"
 
+  load-tier-m:
+    # WP-4.7: the tier-M load test (doc 09 §5, PERF-09) against the Bank API image built from this checkout, with k6 on the
+    # same Docker network. The hosted runner shares 4 vCPUs between the service, PostgreSQL and k6, so it reports rather
+    # than gates; the milestone acceptance run is on a dedicated 4-vCPU service instance (loadtest/README.md).
+    name: load test (tier M)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - run: docker compose up -d --build --wait postgres bank-api
+      - name: k6 at 1,000 commands/s
+        run: >-
+          docker run --rm -i --network sourceflow-demo_default
+          -e BASE_URL=http://bank-api:8080 -e RATE=1000 -e DURATION=5m
+          grafana/k6:2.3.0 run - < loadtest/k6/bank-tier-m.js | tee loadtest-summary.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-tier-m
+          path: loadtest-summary.txt
+
   long-properties:
     runs-on: ubuntu-latest
     env:

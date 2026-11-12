@@ -273,6 +273,7 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
                 await message.CompleteAsync(cancellationToken).ConfigureAwait(false);
                 return;
             default:
+                await _runtime.FaultAsync(FaultPoints.ReceiverBeforeComplete, cancellationToken).ConfigureAwait(false);
                 await message.CompleteAsync(cancellationToken).ConfigureAwait(false);
                 return;
         }

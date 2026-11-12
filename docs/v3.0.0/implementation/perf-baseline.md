@@ -18,7 +18,7 @@ This report records the first component baseline against the doc 09 §7.1 target
 | PERF-06 | Global log read | ≥ 50,000 events/s | 6.7 µs/event ≈ 148,000 events/s | Met |
 | PERF-07 | Outbox commit → broker acknowledgement | p95 ≤ 250 ms | — | Needs the cloud emulators: M3 (WP-3.x) |
 | PERF-08 | Event → async projection latency (LISTEN/NOTIFY) | p95 ≤ 100 ms | p95 14.8 ms, p50 9.3 ms (includes the command) | Met |
-| PERF-09 | Commands/s per 4-vCPU instance | ≥ 5,000/s | — | NBomber load test: WP-4.7 |
+| PERF-09 | Commands/s per 4-vCPU instance | ≥ 5,000/s | 1,000/s sustained (SLOs met); about 2,700/s peak, limited by the shared PostgreSQL, with the API at about 2 of 4 cores | Not yet demonstrated: needs a database sized per doc 09 §5 (load-test-report.md) |
 | PERF-10 | Startup to ready (JIT / AOT) | ≤ 150 ms / ≤ 50 ms | JIT first start 99 ms in the recorded run (99–180 ms across runs on this workstation); warm ≈ 1–2 ms | **Borderline**. AOT waits for Bank.Api (WP-4.2) |
 
 ## Changes made by this work package

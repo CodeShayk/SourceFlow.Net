@@ -212,6 +212,15 @@ public sealed class SourceFlowRuntime
     /// <summary>The actor accessor.</summary>
     public IActorAccessor Actor { get; }
 
+    /// <summary>The fault injector of a chaos test (plan 06 CH-01..06); null otherwise.</summary>
+    internal IFaultInjector? Faults { get; set; }
+
+    /// <summary>Asks the fault injector, if any, for a fault at <paramref name="point"/>.</summary>
+    internal ValueTask FaultAsync(string point, CancellationToken cancellationToken)
+    {
+        return Faults is { } faults ? faults.InjectAsync(point, cancellationToken) : ValueTask.CompletedTask;
+    }
+
     /// <summary>The tenant resolver.</summary>
     public ITenantResolver Tenants { get; }
 

@@ -158,7 +158,11 @@ public enum OutboxKind
 public sealed record OutboxMessage(MessageEnvelope Envelope, string Destination, OutboxKind Kind, DateTimeOffset DeliverAt, int Partition);
 
 /// <summary>A claimed outbox row.</summary>
-public sealed record OutboxRecord(long Sequence, OutboxMessage Message, int Attempts, string? LastError, DateTimeOffset CreatedAt);
+public sealed record OutboxRecord(long Sequence, OutboxMessage Message, int Attempts, string? LastError, DateTimeOffset CreatedAt)
+{
+    /// <summary>When the message first became due, kept from its first retry on: the outbox age counts from here (doc 08 §6).</summary>
+    public DateTimeOffset? FirstDueAt { get; init; }
+}
 
 /// <summary>Persisted process-manager state.</summary>
 public sealed record ProcessState(string ProcessType, string ProcessId, long Version, ReadOnlyMemory<byte> State, bool Completed, DateTimeOffset UpdatedAt);

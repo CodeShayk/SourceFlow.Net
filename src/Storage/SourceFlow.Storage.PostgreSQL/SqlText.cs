@@ -212,12 +212,13 @@ internal sealed class SqlText
             """);
         RetryOutbox = R($$"""
             WITH f AS (SELECT EXISTS ({{LeaseFence}}) AS ok),
-                 u AS (UPDATE {s}.outbox SET attempts = attempts + 1, last_error = @error, deliver_at = @at WHERE seq = @seq AND (SELECT ok FROM f))
+                 u AS (UPDATE {s}.outbox SET attempts = attempts + 1, last_error = @error, deliver_at = @at, first_due_at = COALESCE(first_due_at, greatest(deliver_at, created_at)) WHERE seq = @seq AND (SELECT ok FROM f))
             SELECT ok FROM f
             """);
         CountOutbox = R("SELECT count(*) FROM {s}.outbox");
         CountDueOutbox = R("SELECT count(*) FROM {s}.outbox WHERE deliver_at <= @now");
-        OutboxBacklog = R("SELECT partition, count(*), min(greatest(deliver_at, created_at)) FILTER (WHERE deliver_at <= now()) FROM {s}.outbox GROUP BY partition ORDER BY partition");
+        // A message is late from when it first became due; a retry moves deliver_at but not first_due_at.
+        OutboxBacklog = R("SELECT partition, count(*), min(COALESCE(first_due_at, greatest(deliver_at, created_at))) FILTER (WHERE deliver_at <= now() OR first_due_at IS NOT NULL) FROM {s}.outbox GROUP BY partition ORDER BY partition");
         ParkedDeadLettersByConsumer = R("SELECT consumer, count(*) FROM {s}.dead_letters WHERE status = @status GROUP BY consumer");
         ActiveProcessesByType = R("SELECT process_type, count(*) FROM {s}.process_instances WHERE NOT completed GROUP BY process_type");
         CountEventsAfter = R("""

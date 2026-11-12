@@ -72,6 +72,7 @@ public sealed class OutboxRelay
 
                 if (delivered.Count > 0)
                 {
+                    await _runtime.FaultAsync(FaultPoints.RelayAfterPublishBeforeDelete, cancellationToken).ConfigureAwait(false);
                     await _runtime.Storage.Outbox.CompleteAsync(lease, delivered, cancellationToken).ConfigureAwait(false);
                 }
 

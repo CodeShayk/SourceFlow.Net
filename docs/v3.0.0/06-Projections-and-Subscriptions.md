@@ -41,7 +41,7 @@ while lease held:
    on poison event: apply poison policy (§7)
 ```
 
-- **Wake-ups.** The PostgreSQL adapter `LISTEN`s on `sourceflow`, and commits `pg_notify` once per transaction. The SQL Server adapter has no `NOTIFY`, so it polls adaptively. In both, an in-process signal fires after local commits for the lowest latency. Target: event to async projection p95 ≤ 100 ms on PostgreSQL ([doc 09](09-Performance-and-Scalability.md)).
+- **Wake-ups.** The PostgreSQL adapter `LISTEN`s on `sourceflow`. After a commit, outside the transaction, it sends one `pg_notify` that covers every commit since the previous one (WP-4.7: a NOTIFY inside the commit serialises every commit on PostgreSQL's notification lock). The SQL Server adapter has no `NOTIFY`, so it polls adaptively. In both, an in-process signal fires after local commits for the lowest latency. Target: event to async projection p95 ≤ 100 ms on PostgreSQL ([doc 09](09-Performance-and-Scalability.md)).
 - **Batch size** is adaptive: it starts at 100, grows to `MaxBatchSize` (default 1,000) while catching up, and shrinks when caught up.
 
 ## 3. Partitioning

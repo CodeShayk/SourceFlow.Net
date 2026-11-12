@@ -230,7 +230,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         ThrowIfCompleted();
         cancellationToken.ThrowIfCancellationRequested();
         _completed = true;
-        if (!await SendAsync(includeNotify: _notify, commit: true, cancellationToken).ConfigureAwait(false))
+        if (!await SendAsync(includeNotify: false, commit: true, cancellationToken).ConfigureAwait(false))
         {
             _transactionEnded = true;
             await _transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -239,6 +239,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         if (_notify)
         {
             _store.RaiseCommitted();
+            _store.AnnounceCommitted();
         }
 
         return _appendResult;

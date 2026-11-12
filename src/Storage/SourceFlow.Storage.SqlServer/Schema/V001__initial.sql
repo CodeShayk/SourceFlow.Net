@@ -58,6 +58,7 @@ CREATE TABLE {schema}.outbox (
     attempts      int               NOT NULL CONSTRAINT df_outbox_attempts DEFAULT 0,
     last_error    nvarchar(max)     NULL,
     created_at    datetimeoffset(7) NOT NULL CONSTRAINT df_outbox_created DEFAULT SYSDATETIMEOFFSET(),
+    first_due_at  datetimeoffset(7) NULL,   -- set by the first retry: the outbox age counts from here (doc 08 §6)
     CONSTRAINT pk_outbox PRIMARY KEY CLUSTERED (seq)
 );
 CREATE INDEX ix_outbox_ready ON {schema}.outbox (partition, deliver_at, seq);

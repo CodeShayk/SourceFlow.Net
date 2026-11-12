@@ -1792,6 +1792,16 @@ namespace SourceFlow.Runtime
         public abstract System.Threading.Tasks.ValueTask HandleAsync(System.IServiceProvider scope, SourceFlow.IMessage message, SourceFlow.EventContext context, System.Threading.CancellationToken cancellationToken);
         public abstract void RegisterServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services);
     }
+    public static class FaultPoints
+    {
+        public const string LeaseBeforeRenew = "lease.beforeRenew";
+        public const string ReceiverBeforeComplete = "receiver.beforeComplete";
+        public const string RelayAfterPublishBeforeDelete = "relay.afterPublishBeforeDelete";
+        public const string SessionAfterCommitBeforeAck = "session.afterCommitBeforeAck";
+        public const string SessionBeforeCommit = "session.beforeCommit";
+        public const string SubscriptionAfterApplyBeforeCommit = "subscription.afterApplyBeforeCommit";
+        public static System.Collections.Generic.IReadOnlyList<string> All { get; }
+    }
     public sealed class HealthThresholds
     {
         public HealthThresholds() { }
@@ -1815,6 +1825,10 @@ namespace SourceFlow.Runtime
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.DeadLetter>> ListAsync(SourceFlow.Storage.DeadLetterQuery query, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask<int> PurgeAsync(System.DateTimeOffset resolvedBefore, System.Threading.CancellationToken cancellationToken = default);
         System.Threading.Tasks.ValueTask ReplayAsync(System.Guid id, string? note = null, System.Threading.CancellationToken cancellationToken = default);
+    }
+    public interface IFaultInjector
+    {
+        System.Threading.Tasks.ValueTask InjectAsync(string point, System.Threading.CancellationToken cancellationToken);
     }
     public interface IReadModelResolver
     {
@@ -2423,6 +2437,7 @@ namespace SourceFlow.Storage
         public OutboxRecord(long Sequence, SourceFlow.Storage.OutboxMessage Message, int Attempts, string? LastError, System.DateTimeOffset CreatedAt) { }
         public int Attempts { get; init; }
         public System.DateTimeOffset CreatedAt { get; init; }
+        public System.DateTimeOffset? FirstDueAt { get; init; }
         public string? LastError { get; init; }
         public SourceFlow.Storage.OutboxMessage Message { get; init; }
         public long Sequence { get; init; }

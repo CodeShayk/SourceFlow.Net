@@ -344,6 +344,11 @@ internal sealed class SubscriptionEngine
 
     private async ValueTask<int> RunPartitionAsync(SubscriptionDefinition definition, int partition, int partitions, CancellationToken cancellationToken)
     {
+        if (_owned.ContainsKey((definition.Name, partition)))
+        {
+            await _runtime.FaultAsync(FaultPoints.LeaseBeforeRenew, cancellationToken).ConfigureAwait(false);
+        }
+
         LeaseToken? lease = await _runtime.Storage.Leases.TryAcquireAsync($"sub:{definition.Name}:{partition}", _runtime.Options.NodeId, _runtime.Options.LeaseTtl, cancellationToken).ConfigureAwait(false);
         if (lease is null)
         {
@@ -459,6 +464,7 @@ internal sealed class SubscriptionEngine
         // Session projections (EF Core) save before the fenced checkpoint, in the same transaction (doc 05 §10).
         await projections.CompleteAsync(cancellationToken).ConfigureAwait(false);
         session.SaveCheckpoint(definition.Name, partition, events[^1].Position, lease);
+        await _runtime.FaultAsync(FaultPoints.SubscriptionAfterApplyBeforeCommit, cancellationToken).ConfigureAwait(false);
         await session.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 

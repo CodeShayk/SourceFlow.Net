@@ -191,6 +191,7 @@ public sealed class CommandProcessor
         {
             await ApplyInlineProjectionsAsync(projections, events, envelopes, stream, cancellationToken).ConfigureAwait(false);
             await projections.CompleteAsync(cancellationToken).ConfigureAwait(false);
+            await _runtime.FaultAsync(FaultPoints.SessionBeforeCommit, cancellationToken).ConfigureAwait(false);
             commit = await session.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -198,6 +199,7 @@ public sealed class CommandProcessor
         _runtime.Metrics.AppendDuration.Record(Stopwatch.GetElapsedTime(appendStarted).TotalSeconds);
         _runtime.Metrics.AppendEvents.Record(events.Length, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name));
         await _aggregates.CommittedAsync(aggregate, stream, envelope.TenantId, state, version, events, cancellationToken).ConfigureAwait(false);
+        await _runtime.FaultAsync(FaultPoints.SessionAfterCommitBeforeAck, cancellationToken).ConfigureAwait(false);
         return new CommandResult(CommandStatus.Accepted, commit.StreamVersion ?? newVersion, null, Token(commit.LastPosition, envelope.TenantId));
     }
 
