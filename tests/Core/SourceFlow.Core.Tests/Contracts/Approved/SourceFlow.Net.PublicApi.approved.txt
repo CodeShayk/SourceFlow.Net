@@ -408,6 +408,7 @@ namespace SourceFlow
     }
     public sealed class Reaction
     {
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.MessageId?> CommandIds { get; }
         public System.Collections.Generic.IReadOnlyList<SourceFlow.ICommand> Commands { get; }
         public bool Completes { get; }
         public bool IsIgnored { get; }
@@ -417,10 +418,12 @@ namespace SourceFlow
         public SourceFlow.Reaction AndBecome(object newState) { }
         public SourceFlow.Reaction AndComplete() { }
         public SourceFlow.Reaction AndSend(SourceFlow.ICommand command) { }
+        public SourceFlow.Reaction AndSend(SourceFlow.ICommand command, SourceFlow.MessageId messageId) { }
         public SourceFlow.Reaction Schedule(SourceFlow.IMessage message, System.DateTimeOffset deliverAt) { }
         public static SourceFlow.Reaction Become(object newState) { }
         public static SourceFlow.Reaction Complete() { }
         public static SourceFlow.Reaction Send(SourceFlow.ICommand command) { }
+        public static SourceFlow.Reaction Send(SourceFlow.ICommand command, SourceFlow.MessageId messageId) { }
     }
     public readonly struct ReactionContext<TId> : System.IEquatable<SourceFlow.ReactionContext<TId>>
         where TId :  struct, SourceFlow.IStronglyTypedId<TId>
@@ -430,6 +433,7 @@ namespace SourceFlow
         public bool IsNew { get; init; }
         public SourceFlow.MessageId MessageId { get; init; }
         public System.DateTimeOffset Now { get; init; }
+        public System.Text.Json.JsonSerializerOptions? Serializer { get; init; }
     }
     [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=true, Inherited=false)]
     public sealed class RejectsAttribute : System.Attribute
@@ -2105,7 +2109,7 @@ namespace SourceFlow.Runtime
         public abstract object Initial { get; }
         public abstract string Name { get; }
         public abstract System.Type StateType { get; }
-        public abstract SourceFlow.Reaction React(object state, SourceFlow.IMessage message, string instanceId, System.DateTimeOffset now, SourceFlow.MessageId messageId, bool isNew);
+        public abstract SourceFlow.Reaction React(object state, SourceFlow.IMessage message, string instanceId, System.DateTimeOffset now, SourceFlow.MessageId messageId, bool isNew, System.Text.Json.JsonSerializerOptions? serializer = null);
         public abstract bool TryCorrelate(SourceFlow.IMessage message, SourceFlow.CorrelationId envelopeCorrelation, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? instanceId);
     }
     public abstract class ProjectionDescriptor
@@ -2319,7 +2323,7 @@ namespace SourceFlow.Runtime
         public System.TimeProvider Time { get; }
         public SourceFlow.Transport.ITransport Transport { get; }
         public SourceFlow.Messaging.MessageEnvelope CreateEnvelope(object message, SourceFlow.Messaging.MessageEnvelope? cause = null, SourceFlow.MessageId? messageId = default, SourceFlow.CorrelationId? correlation = default, string? subject = null, string? partitionKey = null, string? tenant = null, System.Collections.Generic.IReadOnlyDictionary<string, string>? headers = null) { }
-        public void EnqueueCommand(SourceFlow.Storage.IStorageSession session, SourceFlow.ICommand command, SourceFlow.Messaging.MessageEnvelope? cause, SourceFlow.CorrelationId? correlation, bool replyOnReject = false) { }
+        public void EnqueueCommand(SourceFlow.Storage.IStorageSession session, SourceFlow.ICommand command, SourceFlow.Messaging.MessageEnvelope? cause, SourceFlow.CorrelationId? correlation, bool replyOnReject = false, SourceFlow.MessageId? messageId = default) { }
         public void EnqueueScheduled(SourceFlow.Storage.IStorageSession session, SourceFlow.IMessage message, System.DateTimeOffset deliverAt, SourceFlow.Messaging.MessageEnvelope? cause, SourceFlow.CorrelationId? correlation) { }
         public Microsoft.Extensions.Logging.ILogger Logger<T>() { }
         public System.ReadOnlyMemory<byte> Serialize(object message, SourceFlow.Messaging.MessageTypeInfo type) { }
@@ -3215,5 +3219,80 @@ namespace SourceFlow.Transport.InMemory
         public System.Threading.Tasks.ValueTask ProvisionAsync(SourceFlow.Transport.TransportTopology topology, SourceFlow.Transport.ProvisioningMode mode, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask PublishAsync(string topic, System.Collections.Generic.IReadOnlyList<SourceFlow.Messaging.MessageEnvelope> messages, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask SendAsync(string endpoint, System.Collections.Generic.IReadOnlyList<SourceFlow.Messaging.MessageEnvelope> messages, System.Threading.CancellationToken cancellationToken) { }
+    }
+}
+namespace SourceFlow.Workflows
+{
+    public sealed class CompensationEntry : System.IEquatable<SourceFlow.Workflows.CompensationEntry>
+    {
+        public CompensationEntry(string Step) { }
+        public string Step { get; init; }
+    }
+    public interface IWorkflowHooks { }
+    public interface IWorkflowState<TSelf>
+        where TSelf :  class, SourceFlow.Workflows.IWorkflowState<TSelf>
+    {
+        string? State { get; }
+        TSelf FromState(string? state);
+    }
+    [SourceFlow.MessageType("sourceflow.workflow.control", 1)]
+    public sealed class WorkflowControl : SourceFlow.IMessage, SourceFlow.ITimeout, System.IEquatable<SourceFlow.Workflows.WorkflowControl>
+    {
+        public const string AbortAction = "abort";
+        public const string ResumeAction = "resume";
+        public const string RetryStepAction = "retry-step";
+        public const string TypeName = "sourceflow.workflow.control";
+        public WorkflowControl(string Workflow, string Instance, string Action, string? Step = null, string? Reason = null, bool Compensate = false) { }
+        public string Action { get; init; }
+        public bool Compensate { get; init; }
+        public string Instance { get; init; }
+        public string? Reason { get; init; }
+        public string? Step { get; init; }
+        public string Workflow { get; init; }
+    }
+    public sealed class WorkflowFailure : System.IEquatable<SourceFlow.Workflows.WorkflowFailure>
+    {
+        public WorkflowFailure(string Code, string Message, string Step) { }
+        public string Code { get; init; }
+        public string Message { get; init; }
+        public string Step { get; init; }
+    }
+    public readonly struct WorkflowInstanceId : SourceFlow.IStronglyTypedId, SourceFlow.IStronglyTypedId<SourceFlow.Workflows.WorkflowInstanceId>, System.IEquatable<SourceFlow.Workflows.WorkflowInstanceId>
+    {
+        public WorkflowInstanceId(string value) { }
+        public bool IsDefault { get; }
+        public string Value { get; }
+        public string ToStreamSegment() { }
+        public override string ToString() { }
+        public static SourceFlow.Workflows.WorkflowInstanceId From(string value) { }
+        public static SourceFlow.Workflows.WorkflowInstanceId Parse(string value) { }
+        public static bool TryParse(string? value, out SourceFlow.Workflows.WorkflowInstanceId id) { }
+    }
+    public static class WorkflowRuntime
+    {
+        public static string CorrelationValue(object? value) { }
+        public static void RegisterMessages(SourceFlow.ISourceFlowModuleBuilder builder) { }
+        public static System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver StateResolver<TState>()
+            where TState :  class, SourceFlow.Workflows.IWorkflowState<TState> { }
+    }
+    public enum WorkflowStatus
+    {
+        Running = 0,
+        Completed = 1,
+        Compensating = 2,
+        Compensated = 3,
+        ManualIntervention = 4,
+        Aborted = 5,
+    }
+    [SourceFlow.MessageType("sourceflow.workflow.timer", 1)]
+    public sealed class WorkflowTimer : SourceFlow.IMessage, SourceFlow.ITimeout, System.IEquatable<SourceFlow.Workflows.WorkflowTimer>
+    {
+        public const string TypeName = "sourceflow.workflow.timer";
+        public WorkflowTimer(string Workflow, string Instance, string Kind, string Step, int Attempt) { }
+        public int Attempt { get; init; }
+        public string Instance { get; init; }
+        public string Kind { get; init; }
+        public string Step { get; init; }
+        public string Workflow { get; init; }
     }
 }

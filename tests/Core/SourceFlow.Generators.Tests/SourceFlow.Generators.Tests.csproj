@@ -3,6 +3,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <!-- The generator's DSL reader dependency, loaded beside it as in the package's analyzers folder (GEN-64). -->
+    <PackageReference Include="YamlDotNet" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Core\SourceFlow.Generators\SourceFlow.Generators.csproj" />

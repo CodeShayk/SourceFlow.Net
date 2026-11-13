@@ -303,7 +303,7 @@ namespace SourceFlow.Generators
         }
 
         // System.Text.Json's camel-case policy, so the names match the wire.
-        private static string CamelCase(string name)
+        internal static string CamelCase(string name)
         {
             if (name.Length == 0 || !char.IsUpper(name[0]))
             {
@@ -349,7 +349,8 @@ namespace SourceFlow.Generators
             ImmutableArray<ManifestAggregate> aggregates,
             ImmutableArray<ManifestHandler> handlers,
             ImmutableArray<ManifestProcess> processes,
-            ImmutableArray<ManifestProjection> projections)
+            ImmutableArray<ManifestProjection> projections,
+            ImmutableArray<WorkflowManifestEntry> workflows = default)
         {
             var json = new StringBuilder();
             json.Append("{\"manifestVersion\":1,\"assembly\":").Append(Str(assembly.Name))
@@ -440,7 +441,17 @@ namespace SourceFlow.Generators
                 b.Append('}');
             });
 
-            return json.Append("]}").ToString();
+            json.Append(']');
+            if (!workflows.IsDefaultOrEmpty)
+            {
+                json.Append(",\"workflows\":[");
+                Join(json, workflows.OrderBy(w => w.Name, StringComparer.Ordinal).ThenBy(w => w.Version), (b, w) =>
+                    b.Append("{\"name\":").Append(Str(w.Name)).Append(",\"version\":").Append(w.Version.ToString(CultureInfo.InvariantCulture))
+                        .Append(",\"file\":").Append(Str(w.File)).Append(",\"fingerprint\":").Append(Str(w.Fingerprint)).Append('}'));
+                json.Append(']');
+            }
+
+            return json.Append('}').ToString();
         }
 
         public static string Source(string json)

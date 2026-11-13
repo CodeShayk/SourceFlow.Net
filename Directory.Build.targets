@@ -6,5 +6,9 @@
   <ItemGroup Condition="'$(UseSourceFlowGenerator)' == 'true'">
     <ProjectReference Include="$(MSBuildThisFileDirectory)src\Core\SourceFlow.Generators\SourceFlow.Generators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- The generator's YamlDotNet (workflow DSL), as the package bundles it in analyzers/dotnet/cs (WP-S.5). -->
+    <Analyzer Include="$(NuGetPackageRoot)yamldotnet/$(YamlDotNetVersion)/lib/netstandard2.0/YamlDotNet.dll" Condition="'$(NuGetPackageRoot)' != ''" />
   </ItemGroup>
+  <!-- *.sfflow.yaml as AdditionalFiles and the build properties the generator reads, as the package's build props add them. -->
+  <Import Project="$(MSBuildThisFileDirectory)src/Core/SourceFlow.Net/build/SourceFlow.Net.props" Condition="'$(UseSourceFlowGenerator)' == 'true'" />
 </Project>

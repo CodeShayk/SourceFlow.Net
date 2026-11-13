@@ -549,8 +549,9 @@ namespace SourceFlow.Generators
 
             bool aggregate = m.ContainingType.FindAttribute(KnownNames.AggregateAttribute) is not null && (m.Name == "Decide" || m.Name == "When");
             bool process = m.ContainingType.FindAttribute(KnownNames.ProcessManagerAttribute) is not null && (m.Name == "React" || m.Name == "CorrelateBy");
+            bool hook = m.IsStatic && m.ContainingType.Implements("SourceFlow.Workflows.IWorkflowHooks");   // workflow $hook methods (doc 15 §5.2)
             method = m.Name;
-            return aggregate || process;
+            return aggregate || process || hook;
         }
     }
 }

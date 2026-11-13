@@ -313,8 +313,9 @@ public sealed class SourceFlowRuntime
     /// Queues a command for its owner through the outbox: the local endpoint when owned here, else the routed endpoint.
     /// With <paramref name="replyOnReject"/>, the owner replies <see cref="CommandRejected{TCommand}"/> to this
     /// service's endpoint when it rejects the command: always for local owners, and for routes with <c>ReplyOnReject()</c>.
+    /// A <paramref name="messageId"/> makes the send deterministic (workflow re-sends, doc 15 §5.3); null gets a new id.
     /// </summary>
-    public void EnqueueCommand(IStorageSession session, ICommand command, MessageEnvelope? cause, CorrelationId? correlation, bool replyOnReject = false)
+    public void EnqueueCommand(IStorageSession session, ICommand command, MessageEnvelope? cause, CorrelationId? correlation, bool replyOnReject = false, MessageId? messageId = null)
     {
         bool local = Model.CommandOwners.ContainsKey(command.GetType());
         CommandRoute? route = null;
@@ -330,7 +331,7 @@ public sealed class SourceFlowRuntime
             headers = new Dictionary<string, string>(Inherited(cause?.Headers), StringComparer.Ordinal) { [CommandReplies.ReplyToHeader] = Routing.Endpoint };
         }
 
-        MessageEnvelope envelope = CreateEnvelope(command, cause, correlation: correlation, subject: subject, tenant: session.TenantId, headers: headers);
+        MessageEnvelope envelope = CreateEnvelope(command, cause, messageId: messageId, correlation: correlation, subject: subject, tenant: session.TenantId, headers: headers);
         session.EnqueueOutbox(ToOutbox(envelope, destination, OutboxKind.Send));
     }
 

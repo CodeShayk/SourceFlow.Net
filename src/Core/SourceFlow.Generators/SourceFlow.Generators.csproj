@@ -19,7 +19,22 @@
     -->
     <NoWarn>$(NoWarn);RS1038</NoWarn>
   </PropertyGroup>
+  <!--
+    One DSL implementation (ADR-027 §6): the portable SourceFlow.Studio/Dsl sources are compiled into the generator to
+    read and validate *.sfflow.yaml (SF0020). The engine sources (model, guards, simulator, state JSON) are embedded and
+    injected, as internal types, into services that own workflows; services without workflows get none of it.
+    YamlDotNet is bundled next to the generator in the analyzers folder (IR-14).
+  -->
+  <PropertyGroup>
+    <DslRoot>..\..\Workflows\SourceFlow.Studio\Dsl\</DslRoot>
+  </PropertyGroup>
   <ItemGroup>
+    <Compile Include="$(DslRoot)Json\*.cs;$(DslRoot)Manifests\*.cs;$(DslRoot)Model\*.cs;$(DslRoot)Expressions\*.cs;$(DslRoot)Diagnostics\*.cs;$(DslRoot)Reading\*.cs;$(DslRoot)Validation\*.cs;$(DslRoot)WorkflowAnalysis.cs" Link="Dsl\%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(DslRoot)Json\JsonLite.cs;$(DslRoot)Model\WorkflowModel.cs;$(DslRoot)Model\IsoDuration.cs;$(DslRoot)Model\WorkflowJson.cs;$(DslRoot)Expressions\Guard.cs;$(DslRoot)Simulation\WorkflowSimulator.cs;$(DslRoot)Simulation\WorkflowIds.cs;$(DslRoot)Simulation\SimulationStateJson.cs" LogicalName="Engine/%(Filename)%(Extension)" Link="Engine\%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Workflows\WorkflowBridge.txt" LogicalName="Engine/WorkflowBridge.cs" WithCulture="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" PrivateAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />

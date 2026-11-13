@@ -107,6 +107,7 @@ namespace Bank.Accounts
         public static void Register(global::SourceFlow.ISourceFlowModuleBuilder builder)
         {
             global::System.ArgumentNullException.ThrowIfNull(builder);
+            RegisterWorkflows(builder);
             builder.AddJsonTypeInfoResolver(global::Bank.Accounts.AccountsJsonContext.Default);
             builder.AddJsonConverter(new global::Bank.Accounts.AccountId.SourceFlowJsonConverter());
             builder.AddMessage<global::Bank.Accounts.CloseAccount>("bank.account.close", 1);
@@ -121,6 +122,9 @@ namespace Bank.Accounts
             builder.AddDomainQuery<global::Bank.Accounts.LowBalanceAccounts, global::Bank.Accounts.LowBalanceAccount>();
             builder.AddProjection<global::Bank.Accounts.AccountSummaryProjection, global::Bank.Accounts.AccountSummary, global::Bank.Accounts.AccountId>();
         }
+
+        /// <summary>Registers the DSL workflows of this assembly (generated from *.sfflow.yaml, WP-S.5).</summary>
+        static partial void RegisterWorkflows(global::SourceFlow.ISourceFlowModuleBuilder builder);
     }
 }
 

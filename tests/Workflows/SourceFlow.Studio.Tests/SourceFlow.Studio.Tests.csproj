@@ -1,11 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Workflow DSL, manifests, golden and differential suites, WASM facade (plan 10 §3). -->
+  <!--
+    Workflow DSL, manifests, golden and differential suites, WASM facade (plan 10 §3). The generator compiles the
+    fixture workflow (Fixture/*.sfflow.yaml) into a process manager here (WP-S.5).
+  -->
+  <PropertyGroup>
+    <UseSourceFlowGenerator>true</UseSourceFlowGenerator>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="JsonSchema.Net" />
     <PackageReference Include="CsCheck" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Workflows\SourceFlow.Studio\SourceFlow.Studio.csproj" />
+    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
   </ItemGroup>
 </Project>

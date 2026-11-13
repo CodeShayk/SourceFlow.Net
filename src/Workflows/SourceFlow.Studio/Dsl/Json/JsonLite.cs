@@ -20,8 +20,17 @@ namespace SourceFlow.Studio.Dsl.Json
         /// <summary>The value as a number, or null when it is not a number.</summary>
         public virtual double? AsNumber => null;
 
+        /// <summary>The value as an exact decimal (from its text), or null when it is not a number or out of range.</summary>
+        public virtual decimal? AsDecimal => null;
+
         /// <summary>The value as a boolean, or null when it is not a boolean.</summary>
         public virtual bool? AsBoolean => null;
+
+        /// <summary>Whether the value is an object.</summary>
+        public virtual bool IsObject => false;
+
+        /// <summary>Whether the value is an array.</summary>
+        public virtual bool IsArray => false;
 
         /// <summary>The items of an array (empty for anything else).</summary>
         public virtual IReadOnlyList<JsonValue> Items => Array.Empty<JsonValue>();
@@ -308,7 +317,7 @@ namespace SourceFlow.Studio.Dsl.Json
                 }
 
                 long? whole = integral && long.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out long l) ? l : (long?)null;
-                return new JsonNumber(value, whole);
+                return new JsonNumber(value, whole, text);
             }
 
             private bool Digits()
@@ -365,6 +374,8 @@ namespace SourceFlow.Studio.Dsl.Json
 
             public override JsonValue? this[string name] => _byName.TryGetValue(name, out JsonValue? value) ? value : null;
 
+            public override bool IsObject => true;
+
             public override IReadOnlyList<KeyValuePair<string, JsonValue>> Members => _members;
         }
 
@@ -378,6 +389,8 @@ namespace SourceFlow.Studio.Dsl.Json
             }
 
             public override IReadOnlyList<JsonValue> Items => _items;
+
+            public override bool IsArray => true;
         }
 
         private sealed class JsonString : JsonValue
@@ -396,14 +409,18 @@ namespace SourceFlow.Studio.Dsl.Json
         {
             private readonly double _value;
             private readonly long? _whole;
+            private readonly string _text;
 
-            public JsonNumber(double value, long? whole)
+            public JsonNumber(double value, long? whole, string text)
             {
                 _value = value;
                 _whole = whole;
+                _text = text;
             }
 
             public override double? AsNumber => _value;
+
+            public override decimal? AsDecimal => decimal.TryParse(_text, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal d) ? d : (decimal?)null;
 
             public override long? AsInteger => _whole;
         }

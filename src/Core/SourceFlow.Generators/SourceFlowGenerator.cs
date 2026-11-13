@@ -117,12 +117,12 @@ namespace SourceFlow.Generators
                 }
             });
 
-            RegisterManifest(context);
+            RegisterManifest(context, modules);
         }
 
         // The static service manifest (doc 15 §3, WP-S.1). Its own models, so the dispatch outputs above stay cached
         // when only a Decide body changes.
-        private static void RegisterManifest(IncrementalGeneratorInitializationContext context)
+        private static void RegisterManifest(IncrementalGeneratorInitializationContext context, IncrementalValuesProvider<ModuleModel> modules)
         {
             IncrementalValuesProvider<ManifestMessage> messages = context.SyntaxProvider
                 .ForAttributeWithMetadataName(KnownNames.MessageTypeAttribute, static (node, _) => node is TypeDeclarationSyntax, ManifestBuilder.Message)
@@ -164,8 +164,82 @@ namespace SourceFlow.Generators
                 .Combine(processes.Collect())
                 .Combine(projections.Collect());
 
-            context.RegisterSourceOutput(manifest, static (spc, all) =>
+            // The static manifest without workflows: what the workflows are validated against.
+            IncrementalValueProvider<string?> staticManifest = manifest.Select(static (all, _) =>
             {
+                ImmutableArray<ManifestProjection> projectionModels = all.Right;
+                ImmutableArray<ManifestProcess> processModels = all.Left.Right;
+                ImmutableArray<ManifestHandler> handlerModels = all.Left.Left.Right.Distinct().ToImmutableArray();
+                ImmutableArray<ManifestAggregate> aggregateModels = all.Left.Left.Left.Right;
+                ImmutableArray<ManifestMessage> messageModels = all.Left.Left.Left.Left.Right;
+                ManifestAssembly target = all.Left.Left.Left.Left.Left;
+                return target.CanEmit && ManifestEmitter.HasContent(messageModels, aggregateModels, handlerModels, processModels, projectionModels)
+                    ? ManifestEmitter.Json(target, messageModels, aggregateModels, handlerModels, processModels, projectionModels)
+                    : null;
+            }).WithTrackingName("ManifestJson");
+
+            IncrementalValuesProvider<WorkflowFile> files = context.AdditionalTextsProvider
+                .Where(static t => t.Path.EndsWith(WorkflowPipeline.Suffix, System.StringComparison.OrdinalIgnoreCase))
+                .Select(static (t, ct) => new WorkflowFile(t.Path, t.GetText(ct)?.ToString() ?? string.Empty))
+                .WithTrackingName("WorkflowFiles");
+            IncrementalValueProvider<ImmutableArray<WorkflowFile>> allFiles = files.Collect();
+            IncrementalValueProvider<WorkflowContext> workflowContext = context.CompilationProvider
+                .Combine(allFiles)
+                .Select(static (pair, ct) => WorkflowPipeline.Context(pair.Left, pair.Right.Length > 0, ct))
+                .WithTrackingName("WorkflowContext");
+            IncrementalValueProvider<WorkflowOptions> options = context.AnalyzerConfigOptionsProvider.Select(WorkflowPipeline.Options);
+            IncrementalValueProvider<ImmutableArray<ModuleModel>> moduleModels = modules.Collect();
+
+            IncrementalValuesProvider<WorkflowOutput> workflows = files
+                .Combine(allFiles)
+                .Combine(workflowContext)
+                .Combine(staticManifest)
+                .Combine(moduleModels)
+                .Combine(options)
+                .Select(static (all, ct) => WorkflowPipeline.Build(
+                    all.Left.Left.Left.Left.Left,
+                    all.Left.Left.Left.Left.Right,
+                    all.Left.Left.Left.Right,
+                    all.Left.Left.Right,
+                    all.Left.Right,
+                    all.Right,
+                    ct))
+                .WithTrackingName("Workflows");
+
+            context.RegisterSourceOutput(workflows, static (spc, output) =>
+            {
+                foreach (WorkflowDiagnostic d in output.Diagnostics)
+                {
+                    DiagnosticDescriptor descriptor = d.Id == "SF0021" ? Diagnostics.WorkflowHookMissing : Diagnostics.WorkflowInvalid;
+                    spc.ReportDiagnostic(Diagnostic.Create(descriptor, WorkflowPipeline.Location(d, null), d.IsError ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning, null, null, d.Message));
+                }
+
+                if (output.HintName is not null && output.Source is not null)
+                {
+                    spc.AddSource(output.HintName, output.Source);
+                }
+            });
+
+            IncrementalValueProvider<ImmutableArray<WorkflowOutput>> allWorkflows = workflows.Collect();
+            context.RegisterSourceOutput(allWorkflows.Combine(moduleModels), static (spc, pair) =>
+            {
+                WorkflowRegistration[] registrations = pair.Left.Select(o => o.Registration).Where(r => r is not null).Select(r => r!).ToArray();
+                ModuleModel? module = pair.Right.OrderBy(m => m.FullName, System.StringComparer.Ordinal).FirstOrDefault();
+                if (registrations.Length == 0 || module is null)
+                {
+                    return;
+                }
+
+                spc.AddSource(Literal.HintName(module.FullName, "Workflows"), WorkflowPipeline.Registration(module, registrations));
+                foreach ((string hint, string source) in WorkflowPipeline.Engine())
+                {
+                    spc.AddSource(hint, source);
+                }
+            });
+
+            context.RegisterSourceOutput(manifest.Combine(allWorkflows), static (spc, pair) =>
+            {
+                var all = pair.Left;
                 ImmutableArray<ManifestProjection> projectionModels = all.Right;
                 ImmutableArray<ManifestProcess> processModels = all.Left.Right;
                 ImmutableArray<ManifestHandler> handlerModels = all.Left.Left.Right.Distinct().ToImmutableArray();
@@ -177,7 +251,8 @@ namespace SourceFlow.Generators
                     return;
                 }
 
-                string json = ManifestEmitter.Json(target, messageModels, aggregateModels, handlerModels, processModels, projectionModels);
+                ImmutableArray<WorkflowManifestEntry> entries = pair.Right.Select(o => o.Manifest).Where(m => m is not null).Select(m => m!).ToImmutableArray();
+                string json = ManifestEmitter.Json(target, messageModels, aggregateModels, handlerModels, processModels, projectionModels, entries);
                 spc.AddSource("SourceFlowManifest.g.cs", ManifestEmitter.Source(json));
             });
         }

@@ -20,3 +20,5 @@ SF0016 | SourceFlow.Query | Warning | A command handler reads through the query 
 SF0017 | SourceFlow.Security | Warning | [Queryable] on personal data has no effect
 SF0018 | SourceFlow.Query | Error | Domain query is not valid
 SF0019 | SourceFlow.Manifest | Warning | Decide outcome can't be determined
+SF0020 | SourceFlow.Workflows | Error | Workflow DSL validation failure
+SF0021 | SourceFlow.Workflows | Error | Workflow hook has no implementation

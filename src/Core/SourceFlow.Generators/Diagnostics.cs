@@ -72,6 +72,16 @@ namespace SourceFlow.Generators
             "'{0}' for '{1}' {2}, so the service manifest can't list it (doc 15 §3.2)",
             "SourceFlow.Manifest", DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpBase);
 
+        public static readonly DiagnosticDescriptor WorkflowInvalid = new(
+            "SF0020", "Workflow DSL validation failure",
+            "{0}",
+            "SourceFlow.Workflows", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: "https://github.com/CodeShayk/SourceFlow.Net/blob/v3.0.0/docs/v3.0.0/15-Workflow-DSL-and-Studio.md#54-validation-rules-wfd-28");
+
+        public static readonly DiagnosticDescriptor WorkflowHookMissing = new(
+            "SF0021", "Workflow hook has no implementation",
+            "{0}",
+            "SourceFlow.Workflows", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: "https://github.com/CodeShayk/SourceFlow.Net/blob/v3.0.0/docs/v3.0.0/15-Workflow-DSL-and-Studio.md#55-code-generation-wfd-29");
+
         public static readonly DiagnosticDescriptor NoOwner = new(
             "SF0006", "Command has no Decide or handler",
             "Command '{0}' targets '{1}' but has no Decide method and no ICommandHandler in this compilation; add one or route it (startup fails otherwise)",

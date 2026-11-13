@@ -217,8 +217,8 @@ namespace SourceFlow.Studio.Dsl.Simulation
         /// <summary>Forces a step's guard (or <c>start.when</c>, key <see cref="StartGuard"/>): true runs it, false skips it, null evaluates the guard.</summary>
         public Func<string, bool?>? Guard { get; set; }
 
-        /// <summary>The value of a <c>$hook</c>; null gives the placeholder <c>&lt;hook:Name&gt;</c>.</summary>
-        public Func<string, object?>? Hook { get; set; }
+        /// <summary>The value of a <c>$hook</c> from its name and the instance data; null gives the placeholder <c>&lt;hook:Name&gt;</c>.</summary>
+        public Func<string, IReadOnlyDictionary<string, object?>, object?>? Hook { get; set; }
     }
 
     /// <summary>An input to the simulator: an outcome, a timer firing, or an operator command.</summary>
@@ -242,6 +242,18 @@ namespace SourceFlow.Studio.Dsl.Simulation
 
         /// <summary>A specific timer message arrives (stale ones are ignored).</summary>
         public static SimulationInput Timer(string kind, string step, int attempt) => new TimerInput(kind, step, attempt);
+
+        /// <summary>
+        /// A message of type <paramref name="type"/> arrives (the runtime): the success or a failure event of what the
+        /// instance waits for now, or ignored.
+        /// </summary>
+        public static SimulationInput Receive(string type, IReadOnlyDictionary<string, object?>? data = null) => new Received(type, data ?? new Dictionary<string, object?>());
+
+        /// <summary>
+        /// <paramref name="command"/> was rejected with <paramref name="code"/> (the runtime): a failure when it is the
+        /// command the instance waits on, otherwise ignored (a reply to an older step).
+        /// </summary>
+        public static SimulationInput RejectedFor(string command, string code, string? message = null) => new Rejection(command, code, message);
 
         /// <summary>Operator: <c>ResumeWorkflow</c>.</summary>
         public static SimulationInput Resume(string? fromStep = null) => new Operator("resume", fromStep, false);
@@ -272,6 +284,39 @@ namespace SourceFlow.Studio.Dsl.Simulation
             public override string ToString() => Kind == "success" ? "success" : Kind + " " + Value;
         }
 
+        internal sealed class Received : SimulationInput
+        {
+            public Received(string type, IReadOnlyDictionary<string, object?> data)
+            {
+                Type = type;
+                Data = data;
+            }
+
+            public string Type { get; }
+
+            public IReadOnlyDictionary<string, object?> Data { get; }
+
+            public override string ToString() => "receive " + Type;
+        }
+
+        internal sealed class Rejection : SimulationInput
+        {
+            public Rejection(string command, string code, string? message)
+            {
+                Command = command;
+                Code = code;
+                Message = message;
+            }
+
+            public string Command { get; }
+
+            public string Code { get; }
+
+            public string? Message { get; }
+
+            public override string ToString() => "rejected " + Command + " " + Code;
+        }
+
         internal sealed class TimerInput : SimulationInput
         {
             public TimerInput(string? kind, string? step, int? attempt)
@@ -288,6 +333,18 @@ namespace SourceFlow.Studio.Dsl.Simulation
             public int? Attempt { get; }
 
             public override string ToString() => Kind is null ? "timer" : Kind + " " + Step + "#" + Attempt;
+        }
+
+        internal sealed class Ignore : SimulationInput
+        {
+            public Ignore(string why)
+            {
+                Why = why;
+            }
+
+            public string Why { get; }
+
+            public override string ToString() => "ignore";
         }
 
         internal sealed class Operator : SimulationInput
@@ -461,6 +518,15 @@ namespace SourceFlow.Studio.Dsl.Simulation
 
                 switch (input)
                 {
+                    case SimulationInput.Received received:
+                        Apply(Classify(received) ?? (SimulationInput)new SimulationInput.Ignore(received + ": not awaited now"));
+                        return;
+                    case SimulationInput.Rejection rejection:
+                        Apply(Classify(rejection) ?? (SimulationInput)new SimulationInput.Ignore(rejection + ": not the command awaited now"));
+                        return;
+                    case SimulationInput.Ignore ignore:
+                        Effect(SimulationEffect.Ignored, ignore.Why);
+                        return;
                     case SimulationInput.Operator op:
                         Operator(op);
                         return;
@@ -477,6 +543,46 @@ namespace SourceFlow.Studio.Dsl.Simulation
                         Effect(SimulationEffect.Ignored, input + " while " + State.Status + (State.Status == WorkflowStatus.Running ? " (" + State.Phase + ")" : string.Empty));
                         return;
                 }
+            }
+
+            // A received message as the outcome it is now: the current step's success or failure event, or the compensation's success.
+            private SimulationInput? Classify(SimulationInput.Received received)
+            {
+                if (State.Phase != WorkflowPhase.Awaiting || State.Step is null)
+                {
+                    return null;
+                }
+
+                WorkflowStep step = Current;
+                if (State.Status == WorkflowStatus.Compensating)
+                {
+                    return step.Compensate?.Await?.Success.On == received.Type ? SimulationInput.Succeed(received.Data) : null;
+                }
+
+                if (State.Status != WorkflowStatus.Running || step.Await is null)
+                {
+                    return null;
+                }
+
+                if (step.Await.Success.On == received.Type)
+                {
+                    return SimulationInput.Succeed(received.Data);
+                }
+
+                return step.Await.Failures.Any(f => f.On == received.Type) ? SimulationInput.FailWith(received.Type, received.Data) : null;
+            }
+
+            private SimulationInput? Classify(SimulationInput.Rejection rejection)
+            {
+                if (State.Phase != WorkflowPhase.Awaiting || State.Step is null)
+                {
+                    return null;
+                }
+
+                WorkflowStep step = Current;
+                string? awaited = State.Status == WorkflowStatus.Compensating ? step.Compensate?.Send?.Command
+                    : State.Status == WorkflowStatus.Running ? step.Send?.Command : null;
+                return awaited == rejection.Command ? SimulationInput.Reject(rejection.Code, rejection.Message) : null;
             }
 
             // ------------------------------------------------------------ steps
@@ -961,7 +1067,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                     case MapValueKind.Literal:
                         return Literal(value.Literal!);
                     case MapValueKind.Hook:
-                        return State.Options.Hook?.Invoke(value.Text!) ?? "<hook:" + value.Text + ">";
+                        return State.Options.Hook?.Invoke(value.Text!, State.Data) ?? "<hook:" + value.Text + ">";
                 }
 
                 string path = value.Text!;

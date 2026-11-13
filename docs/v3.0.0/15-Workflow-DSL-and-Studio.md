@@ -376,6 +376,37 @@ Diagnostics map **WF-V01…V16** to **SF0020** (with the rule id in the message)
 
 Commands of other services are referenced by **logical name**. The owner must reference those services' **contract packages** (commands and integration events), so the generator can resolve CLR types. Otherwise it reports SF0020/WF-V01 with a hint.
 
+**As built (WP-S.5).** The generator (`SourceFlowGenerator`) takes every `*.sfflow.yaml` from `AdditionalFiles`; the package's `build/SourceFlow.Net.props` adds them, and in the repository `UseSourceFlowGenerator` imports the same file.
+
+- **One semantics.** The generator does not translate the transition table into C#. It embeds the shared engine, the Studio simulator itself (WFD-NFR-2):
+  - **Validation** uses the portable `SourceFlow.Studio/Dsl` sources (reader, validator, manifests), compiled into the `netstandard2.0` generator.
+  - **Injection.** The engine sources (model, guards, simulator, model and state JSON) are injected into the owning service as internal types in `SourceFlow.Workflows.Engine`, with a small bridge.
+  - **Services without workflows** get none of it.
+  - **YamlDotNet** ships next to the generator in `analyzers/dotnet/cs` (IR-14).
+- **Validation at compile time.** Workflows are validated in partial mode against the compilation's static manifest (§3.2), the static manifests of referenced assemblies, and the owner's other workflows. `SourceFlowServiceName`, when set, is the compiling service. Results:
+  - every WF diagnostic is **SF0020** at the YAML line and column (warnings stay warnings);
+  - a missing `$hook` implementation is **SF0021**;
+  - a message reference without a CLR type in the compilation is SF0020/WF-V01, with the contract-package hint.
+- **Generated per workflow:** `[ProcessManager("name@v")] public sealed partial record {Name}WorkflowV{v}`, implementing `IProcessManagerRuntime<…, WorkflowInstanceId>` and `IWorkflowState<…>`.
+  - **State** is the engine state as JSON (`{ "state": … }`), through `WorkflowRuntime.StateResolver`.
+  - **Correlation.** The start message, and awaited events that carry the instance key, correlate through their members; timers and controls through their instance; replies through the envelope correlation.
+  - **React** passes each message to the engine, which ignores what the instance isn't waiting for: a late event, or a reply to an earlier step.
+  - **Commands** are built from the engine's values through the service's JSON metadata (`ReactionContext.Serializer`). Each is sent with its deterministic id (`Reaction.AndSend(command, MessageId)`), which the runner passes to `EnqueueCommand`.
+  - **Timers** are `Reaction.Schedule(WorkflowTimer)`.
+  - **Terminal statuses** complete the process.
+- **Hooks** are `private static partial object? {Name}(IReadOnlyDictionary<string, object?> data)` on the workflow's partial record; the purity analyzers treat `IWorkflowHooks` methods like `React`.
+- **Registration.** The module gets a `RegisterWorkflows` part:
+  - the shared `WorkflowTimer`/`WorkflowControl` messages;
+  - each workflow's state metadata;
+  - `CommandRejected<T>` for commands with `rejected:` failures (the module's JSON context must list them, DC-1);
+  - the process manager.
+- **Manifest.** The static manifest gets `workflows[]` entries with `name`, `version`, `file` (relative to the project) and `fingerprint` (WF-V15).
+- **Deviations from §5.5.**
+  - **Timers.** One shared timer message, `WorkflowTimer(workflow, instance, kind, step, attempt)`, instead of one per workflow.
+  - **Operator commands.** One shared `WorkflowControl(workflow, instance, action, step?, reason?, compensate)` replaces `ResumeWorkflow`, `AbortWorkflow` and `RetryWorkflowStep`. It is delivered through the scheduler, because process managers react to messages, not commands. The actions are `resume`, `retry-step` and `abort`.
+  - **Instance data** is JSON in the state rather than typed fields. `personal: true` data is therefore not crypto-shredded in workflow state yet (WF-V14 still warns; follow-up).
+- **Testing.** `SourceFlow.Testing.WorkflowSpec.For<TWorkflow, TModule>()` is the API the generated specs (WP-S.4) use: `Start`, `Succeed`, `Fail`, `Reject`, `FireTimer`, `Control`, `ThenSends`, `ThenStatus`.
+
 ### 5.6 Versioning of running instances
 
 - The name includes the version (`order-fulfilment@1`). Publishing a structural change requires `version: 2` (WF-V15).
@@ -439,6 +470,15 @@ The runtime adds no new execution model. The small runtime types used by generat
 | `sourceflow.workflow.manual_intervention` (counter) | **Alert on any increase** (added to the generated alert rules, doc 08 §6) |
 | Span `workflow {name} {step}` | Child of the process-manager `react` span. Attributes: step, attempt, transition kind |
 | CLI | `dotnet sourceflow workflow list|show|resume|abort|retry-step` (sends the generated operator commands to the owner) |
+
+**As built (WP-S.5): the runtime types in `SourceFlow.Workflows`.**
+
+- `WorkflowStatus` and `WorkflowInstanceId`. The instance id's stream segment is `wf_` and the UTF-8 hex of the correlation value, so any value is valid.
+- The messages `WorkflowTimer` and `WorkflowControl`.
+- `WorkflowFailure`, `CompensationEntry`, and the markers `IWorkflowHooks` and `IWorkflowState<TSelf>`.
+- `WorkflowRuntime`: message registration, state JSON metadata, and correlation values.
+
+The core also gains deterministic send ids (`Reaction.Send(command, MessageId)`, `CommandIds`) and `ReactionContext.Serializer`.
 
 ## 8. Packages
 

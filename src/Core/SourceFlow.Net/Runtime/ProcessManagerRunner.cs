@@ -45,7 +45,7 @@ internal sealed class ProcessManagerRunner(SourceFlowRuntime runtime)
         }
 
         object state = stored is null ? process.Initial : JsonSerializer.Deserialize(stored.State.Span, typeInfo)!;
-        Reaction reaction = process.React(state, message, instanceId, runtime.Time.GetUtcNow(), envelope.MessageId, isNew: stored is null);
+        Reaction reaction = process.React(state, message, instanceId, runtime.Time.GetUtcNow(), envelope.MessageId, isNew: stored is null, runtime.Model.Registry.Options);
         if (reaction.IsIgnored)
         {
             return true;
@@ -59,9 +59,9 @@ internal sealed class ProcessManagerRunner(SourceFlowRuntime runtime)
         }
 
         session.SaveProcessState(process.Name, instanceId, stored?.Version ?? 0, JsonSerializer.SerializeToUtf8Bytes(next, typeInfo), reaction.Completes);
-        foreach (ICommand command in reaction.Commands)
+        for (int i = 0; i < reaction.Commands.Count; i++)
         {
-            runtime.EnqueueCommand(session, command, envelope, correlation, replyOnReject: true);
+            runtime.EnqueueCommand(session, reaction.Commands[i], envelope, correlation, replyOnReject: true, messageId: reaction.CommandIds[i]);
         }
 
         foreach (ScheduledMessage scheduled in reaction.Scheduled)

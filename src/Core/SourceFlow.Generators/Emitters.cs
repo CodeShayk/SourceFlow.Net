@@ -354,6 +354,7 @@ namespace SourceFlow.Generators
             w.Line("/// <summary>Registers everything found in this assembly at compile time (no scanning, GAP-16).</summary>");
             w.Open($"public static void Register({Sf}ISourceFlowModuleBuilder builder)");
             w.Line("global::System.ArgumentNullException.ThrowIfNull(builder);");
+            w.Line("RegisterWorkflows(builder);");
             if (module.JsonContext is not null)
             {
                 w.Line($"builder.AddJsonTypeInfoResolver({module.JsonContext}.Default);");
@@ -415,6 +416,9 @@ namespace SourceFlow.Generators
             }
 
             w.Close();
+            w.Line();
+            w.Line("/// <summary>Registers the DSL workflows of this assembly (generated from *.sfflow.yaml, WP-S.5).</summary>");
+            w.Line($"static partial void RegisterWorkflows({Sf}ISourceFlowModuleBuilder builder);");
             w.Close();
             w.CloseNamespace(module.Namespace);
             return w.ToString();

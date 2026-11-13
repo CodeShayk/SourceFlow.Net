@@ -31,6 +31,8 @@
   <ItemGroup>
     <ProjectReference Include="..\SourceFlow.Generators\SourceFlow.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
     <None Include="..\SourceFlow.Generators\bin\$(Configuration)\netstandard2.0\SourceFlow.Generators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="$(NuGetPackageRoot)yamldotnet/$(YamlDotNetVersion)/lib/netstandard2.0/YamlDotNet.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" Condition="'$(NuGetPackageRoot)' != ''" />
+    <None Include="build\SourceFlow.Net.props" Pack="true" PackagePath="build/SourceFlow.Net.props" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="SourceFlow.Testing" />

@@ -40,8 +40,9 @@ namespace SourceFlow.Generators
                 _modules.Add(type);
             }
 
-            if (type.FindAttribute(KnownNames.ProcessManagerAttribute) is not null)
+            if (type.FindAttribute(KnownNames.ProcessManagerAttribute) is not null && type.FindInterface("SourceFlow.Workflows.IWorkflowState`1") is null)
             {
+                // Generated DSL workflows bring their own JSON metadata (WorkflowRuntime.StateResolver).
                 _stateTypes.Add(type);
                 foreach (IMethodSymbol react in type.GetMembers("React").OfType<IMethodSymbol>())
                 {
