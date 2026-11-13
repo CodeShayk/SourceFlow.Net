@@ -62,8 +62,10 @@ public sealed class EfGenerationTests(PostgreSqlServer server) : PostgreSqlTest(
         (await ActivityAsync(host, ada)).ShouldNotBeNull().Balance.ShouldBe(15m);   // read through the resolver: the rebuilt schema
 
         // RetainPreviousFor is zero here: the retired generation's schema is dropped at the next retention check.
-        await EventuallyAsync(async () => !await SchemaExistsAsync(first), "the retired schema to be dropped");
-        (await store.ListAliasesAsync(Ct)).Single(a => a.Alias == "account-activity").Previous.ShouldBeNull();
+        // Retention drops the schema, then forgets the previous generation: wait for both, not for the first alone.
+        await EventuallyAsync(
+            async () => !await SchemaExistsAsync(first) && (await store.ListAliasesAsync(Ct)).Single(a => a.Alias == "account-activity").Previous is null,
+            "the retired schema to be dropped and forgotten");
     }
 
     private async Task<IHost> StartAsync(EfGenerationOptions generations)

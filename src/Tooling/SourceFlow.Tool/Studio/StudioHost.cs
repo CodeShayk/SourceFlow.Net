@@ -337,7 +337,10 @@ internal sealed class StudioHost : IAsyncDisposable
     /// </summary>
     internal static string? Resolve(DomainWorkspace workspace, string? relative, bool forWrite)
     {
-        if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative) || relative.Contains('\0', StringComparison.Ordinal))
+        // A workspace path never holds a colon: refusing it rejects drive letters ("C:/…") and alternate data streams on every
+        // platform alike (on Linux "C:/…" is not rooted and would otherwise resolve inside the workspace).
+        if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative) || relative.Contains('\0', StringComparison.Ordinal)
+            || relative.Contains(':', StringComparison.Ordinal))
         {
             return null;
         }

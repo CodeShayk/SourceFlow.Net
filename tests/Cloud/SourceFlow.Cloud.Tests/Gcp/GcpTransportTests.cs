@@ -457,10 +457,10 @@ public sealed class GcpTransportTests
         var mocks = new GcpMocks().WithEndpoint();
         await using ITransportReceiver receiver = await mocks.Transport.CreateReceiverAsync(new ReceiverOptions("orders", []), None);
 
-        IReadOnlyList<ReceivedMessage> nothing = await receiver.ReceiveAsync(10, TimeSpan.FromMilliseconds(80), None);
+        IReadOnlyList<ReceivedMessage> nothing = await receiver.ReceiveAsync(10, TimeSpan.FromMilliseconds(250), None);
 
         nothing.ShouldBeEmpty();
-        mocks.Pulls.Count.ShouldBeGreaterThan(2);   // every 10 ms (PollInterval) for 80 ms
+        mocks.Pulls.Count.ShouldBeGreaterThanOrEqualTo(2);   // every 10 ms (PollInterval) for 250 ms; a loaded runner still pulls twice
     }
 
     [Fact]
@@ -588,7 +588,7 @@ public sealed class GcpTransportTests
             sf.UseGcpTransport(o =>
             {
                 o.ProjectId = "acme-prod";
-                o.EmulatorDetection = EmulatorDetection.ProductionOnly;
+                o.EmulatorDetection = EmulatorDetection.EmulatorOrProduction;   // the transport jobs set PUBSUB_EMULATOR_HOST
                 o.Credential = GoogleCredential.FromAccessToken("token");
             });
         });

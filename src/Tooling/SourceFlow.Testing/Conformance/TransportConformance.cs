@@ -530,6 +530,7 @@ public static class TransportConformance
 
         var positions = sent.Select((s, i) => (s.MessageId, i)).ToDictionary(x => x.MessageId, x => x.i);
         var lastByKey = new System.Collections.Concurrent.ConcurrentDictionary<string, int>(StringComparer.Ordinal);
+        var seen = new System.Collections.Concurrent.ConcurrentDictionary<MessageId, bool>();
         int received = 0;
         string? violation = null;
         DateTimeOffset deadline = TimeProvider.System.GetUtcNow() + (f.ReceiveTimeout * 20);
@@ -541,6 +542,14 @@ public static class TransportConformance
             {
                 foreach (ReceivedMessage message in await receiver.ReceiveAsync(10, TimeSpan.FromMilliseconds(50), ct).ConfigureAwait(false))
                 {
+                    // Delivery is at least once: a message whose lock lapsed under load may come again after later ones of
+                    // its key were handled. The inbox absorbs such a duplicate, so order is checked on first deliveries.
+                    if (!seen.TryAdd(message.Envelope.MessageId, true))
+                    {
+                        await message.CompleteAsync(ct).ConfigureAwait(false);
+                        continue;
+                    }
+
                     string key = message.Envelope.PartitionKey!;
                     int position = positions[message.Envelope.MessageId];
                     int previous = lastByKey.GetValueOrDefault(key, -1);
