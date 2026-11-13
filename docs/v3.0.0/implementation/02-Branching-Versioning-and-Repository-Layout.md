@@ -29,7 +29,7 @@ gitGraph
 | **`v3.0.0`** | Integration branch for all v3 work, cut from `master` at M0 start | Protected. Changes arrive by PR only. Required checks: `v3-pr` (plan 08). Squash-merge. No direct pushes |
 | `v3/<wp-id>-<slug>` | One branch per work package, for example `v3/wp-1.6-command-processor` | Branched from and merged back into `v3.0.0`. Deleted after merge |
 | `v2.x` | Created from `master` immediately **before** the GA cutover | Receives v2 security and critical fixes for 12 months (design doc 12 §1) |
-| `origin/azure-cloud` | Source of Azure scenarios for WP-3.4 | Read-only reference. Archived (`archive/azure-cloud`) at M3 exit |
+| `origin/azure-cloud` | Source of Azure scenarios for WP-3.4 | Read-only reference. Archived (`archive/azure-cloud`) at M3 exit. **As built (WP-3.R):** `archive/azure-cloud` points at `1209821`; the old branch name is removed by the maintainer |
 
 ## 2. Versioning (GitVersion)
 
