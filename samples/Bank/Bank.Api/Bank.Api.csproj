@@ -4,17 +4,21 @@
     <UseSourceFlowGenerator>false</UseSourceFlowGenerator>
     <InvariantGlobalization>true</InvariantGlobalization>
     <UserSecretsId>sourceflow-bank-api</UserSecretsId>
-    <!-- The AOT check (ARCH-06): dotnet publish -p:SourceFlowAotCheck=true. PublishAot is set here, not on the command
-         line, because a global property also reaches the netstandard2.0 source generator, which cannot be AOT-compiled
-         (NETSDK1207). -->
-    <PublishAot Condition="'$(SourceFlowAotCheck)' == 'true'">true</PublishAot>
-    <!-- SourceFlow.Tool is referenced as a library (the in-service CLI, ADR-031), not run as a separate executable. -->
-    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+  </PropertyGroup>
+  <!--
+    The AOT check (ARCH-06): dotnet publish -p:SourceFlowAotCheck=true. It covers the AOT-marked packages (core, storage,
+    hosting). PublishAot is set here, not on the command line, because a global property also reaches the netstandard2.0
+    source generator, which cannot be AOT-compiled (NETSDK1207). The CLI is not AOT-marked (plan 09 IR-08: System.CommandLine
+    handlers, the Studio host's minimal APIs, SqlClient for v2 migration), so the check builds the service without it.
+  -->
+  <PropertyGroup Condition="'$(SourceFlowAotCheck)' == 'true'">
+    <PublishAot>true</PublishAot>
+    <DefineConstants>$(DefineConstants);SOURCEFLOW_AOT_CHECK</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Hosting\SourceFlow.AspNetCore\SourceFlow.AspNetCore.csproj" />
     <ProjectReference Include="..\..\..\src\Storage\SourceFlow.Storage.PostgreSQL\SourceFlow.Storage.PostgreSQL.csproj" />
-    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Tool\SourceFlow.Tool.csproj" />
+    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Tool\SourceFlow.Tool.csproj" Condition="'$(SourceFlowAotCheck)' != 'true'" />
     <ProjectReference Include="..\Bank.Contracts\Bank.Contracts.csproj" />
     <ProjectReference Include="..\Bank.Accounts\Bank.Accounts.csproj" />
     <ProjectReference Include="..\Bank.Transfers\Bank.Transfers.csproj" />

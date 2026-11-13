@@ -65,11 +65,13 @@ if (demoQueries)
 
 WebApplication app = builder.Build();
 
+#if !SOURCEFLOW_AOT_CHECK   // the CLI is not AOT-marked; the AOT check (ARCH-06) builds the service without it
 // `dotnet run -- sourceflow <command>` runs the SourceFlow CLI with this service's model and storage (ADR-031).
 if (await SourceFlow.Tool.SourceFlowCli.TryRunAsync(args, app.Services) is { } exitCode)
 {
     return exitCode;
 }
+#endif
 
 app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false });                               // liveness
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains(SourceFlowHealthChecks.ReadyTag) });
