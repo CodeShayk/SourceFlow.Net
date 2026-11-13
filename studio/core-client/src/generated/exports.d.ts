@@ -20,6 +20,10 @@ export interface StudioExports {
   ToBpmn(request: string): string;
   /** WorkflowSpec tests for the paths. */
   GenerateSpecs(request: string): string;
+  /** The statechart: nodes and kinded edges. */
+  Graph(request: string): string;
+  /** The swimlane sequence of one path. */
+  Sequence(request: string): string;
 }
 
 /** The name of an export. */

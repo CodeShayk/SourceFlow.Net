@@ -6,7 +6,8 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [react()],
   worker: { format: 'es' },
-  build: { outDir: 'dist', emptyOutDir: true, sourcemap: false, target: 'es2022' },
+  // React Flow makes the app ~520 kB (170 kB gzip); ELK's 1.6 MB worker loads only when a diagram is laid out.
+  build: { outDir: 'dist', emptyOutDir: true, sourcemap: false, target: 'es2022', chunkSizeWarningLimit: 700 },
   server: {
     port: 5173,
     proxy: {

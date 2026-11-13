@@ -42,4 +42,12 @@ public static partial class Exports
     /// <summary>WorkflowSpec tests for the paths.</summary>
     [JSExport]
     public static string GenerateSpecs(string request) => StudioApi.GenerateSpecs(request);
+
+    /// <summary>The statechart: nodes and kinded edges.</summary>
+    [JSExport]
+    public static string Graph(string request) => StudioApi.Graph(request);
+
+    /// <summary>The swimlane sequence of one path.</summary>
+    [JSExport]
+    public static string Sequence(string request) => StudioApi.Sequence(request);
 }

@@ -49,6 +49,31 @@ describe('WASM-04 exports', () => {
   });
 });
 
+describe('WASM-04 statechart graph', () => {
+  it.each(cases())('%s', async (name) => {
+    if (!valid.has(name)) {
+      return;
+    }
+
+    const graph = await client.graph({ yaml: workflow(name) });
+    expect(JSON.stringify(graph, null, 2) + '\n').toBe(expected(name, 'expected.graph.json'));
+  });
+});
+
+describe('WASM-06 swimlane sequence', () => {
+  it('places every message of a path between the workflow and its services', async () => {
+    const yaml = workflow('01-order-fulfilment');
+    const paths = await client.enumeratePaths({ yaml });
+    const happy = paths.paths.find((p) => p.end === 'Completed' && p.moves.every((m) => m.outcome === 'success'))!;
+    const sequence = await client.sequence({ yaml, manifests: domain, path: happy.id });
+    const lanes = sequence.lanes.map((l) => l.id);
+    expect(lanes[0]).toBe('workflow');
+    expect(sequence.messages.every((m) => lanes.includes(m.from) && lanes.includes(m.to))).toBe(true);
+    expect(sequence.messages.find((m) => m.kind === 'command')).toMatchObject({ from: 'workflow', to: 'inventory', type: 'inventory.reserve-stock.v1' });
+    await expect(client.sequence({ yaml, manifests: domain, path: 'P999' })).rejects.toThrow("No path 'P999'");
+  });
+});
+
 describe('WASM-05 specs', () => {
   it('generates the golden WorkflowSpec tests for the minimal path cover', async () => {
     const specs = await client.generateSpecs({

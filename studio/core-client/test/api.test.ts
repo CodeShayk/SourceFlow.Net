@@ -43,7 +43,7 @@ describe('WASM-01 parse and validate', () => {
 
   it('maps every operation to its export', async () => {
     const exports = await sharedExports();
-    const operations: Operation[] = ['version', 'parse', 'validate', 'simulateStep', 'enumeratePaths', 'toMermaid', 'toBpmn', 'generateSpecs'];
+    const operations: Operation[] = ['version', 'parse', 'validate', 'simulateStep', 'enumeratePaths', 'toMermaid', 'toBpmn', 'generateSpecs', 'graph', 'sequence'];
     for (const op of operations) {
       expect(typeof exports[exportName(op)]).toBe('function');
     }

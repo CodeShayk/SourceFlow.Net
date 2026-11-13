@@ -440,6 +440,39 @@ Commands of other services are referenced by **logical name**. The owner must re
 
 Visual encodings never rely on colour alone. Each path type has a distinct line style, icon and text label (WFD-NFR-4).
 
+**As built (WP-S.9).**
+
+- **The statechart is computed by the core.** `StudioApi.Graph` (`WorkflowGraph`) returns nodes and edges with the same transitions as the Mermaid export, so the browser draws what the generator runs:
+  - **Node kinds:** start, step, pivot, compensation (numbered in undo order, inside Compensating), terminal and manual. Each node lists what it sends and awaits, its guard and timeout, and whether it is compensated.
+  - **Edge kinds:** start, success, failure, retry, timeout, compensation, manual and skip. Each edge has a label starting with its symbol and a sentence for assistive technology.
+  - Each valid golden case has an `expected.graph.json`, checked by both the .NET and the WebAssembly suites.
+- **The swimlane sequence is computed by the core too.** `StudioApi.Sequence` (`WorkflowSequence`) replays one path through the simulator, then places each message between lanes:
+  - commands go to their owner (from the manifests);
+  - events come from the service that publishes or emits them;
+  - rejections, timers, compensations, status changes and alerts are included;
+  - anything no manifest accounts for goes to an `external` lane.
+- **Encodings** (`studio/app/src/graph/encodings.ts`): every edge kind has its own dash pattern, symbol and name, and a test checks they are distinct. Colour is a redundant cue, set as theme tokens, and labels use the text colour.
+  - success: solid ✓
+  - failure: dashed ✕
+  - retry: dotted loop ↻
+  - timeout: dash-dot ⏱
+  - compensation: dotted ⟲
+  - manual intervention: long dash-dot ✋
+  - skip: long dash ⤼
+
+  Nodes are shaped by kind: a pivot is a diamond-marked box (◆), manual intervention a dashed octagon (✋), the ends double-bordered pills, and the compensations sit in a dotted group.
+- **Layout.** ELK (layered) runs in its own worker (`elk-worker.min.js`), and the app passes React Flow explicit node sizes and handles, so it draws without measuring the DOM first.
+  - **Statecharts:** ELK lays out the main flow (start, steps, Completed) and, separately, the compensations inside their group. The exit states (Compensating, Compensated, Manual intervention) form a column beside the flow.
+  - **Why the exits are kept out of ELK:** every failing step points at them, and as long edges through every layer they made a 200-step layout take seconds; it now takes about 100 ms.
+- **The domain map** is aggregated in the app from the manifests:
+  - services contain their aggregates;
+  - `→` commands go from a sender (command routes, process-manager sends) to the owning aggregate;
+  - `⇢` publications go to topics, and `⇠` subscriptions come from them, with their `only` filters.
+  - Hovering or selecting a node (a click, or Enter on a focused node) highlights its downstream choreography chain and dims the rest.
+- **The workflow view** has Statechart, Swimlane and Source tabs (the WAI-ARIA tabs pattern). Selecting a diagnostic opens Source at its line. The swimlane's path picker starts on the minimal cover.
+- **Accessibility.** States and transitions are focusable and named: the kind, the step and the details. Axe finds no serious violations in the light or the dark theme, and nothing animates under reduced motion. React Flow's attribution stays, restyled for contrast.
+- **Performance.** A 200-step workflow (238 states, 356 transitions) lays out and renders in about 0.7 s. A workspace of 20 services and 50 workflows opens in about 1.4 s.
+
 ### 6.2 Editing model
 
 - **The DSL text is the model.** Visual edits are translated into minimal YAML edits through a CST-preserving writer, so comments, ordering and formatting survive a round trip (lossless).

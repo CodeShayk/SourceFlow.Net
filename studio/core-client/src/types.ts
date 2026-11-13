@@ -152,6 +152,70 @@ export interface SpecsRequest {
   pathIds?: readonly string[];
 }
 
+export type NodeKind = 'start' | 'step' | 'pivot' | 'compensation' | 'compensating' | 'terminal' | 'manual';
+
+export type EdgeKind = 'start' | 'success' | 'failure' | 'retry' | 'timeout' | 'compensation' | 'manual' | 'skip';
+
+/** A statechart node (doc 15 §6.1). */
+export interface GraphNode {
+  id: string;
+  kind: NodeKind;
+  label: string;
+  sends?: string;
+  awaits?: string;
+  when?: string;
+  timeout?: string;
+  compensable: boolean;
+  /** A compensation's place in the undo order (1 runs first). */
+  order?: number;
+  parent?: string;
+}
+
+/** A statechart edge: its kind, a label starting with the kind's symbol, and a sentence for assistive technology. */
+export interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  kind: EdgeKind;
+  label: string;
+  description: string;
+}
+
+export interface GraphResult {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface SequenceRequest extends PathsRequest {
+  manifests: Manifests;
+  /** The path id, for example `P03`. */
+  path: string;
+}
+
+export type MessageKind = 'start' | 'command' | 'event' | 'rejection' | 'failure' | 'timer' | 'compensation' | 'status' | 'manual';
+
+export interface SequenceLane {
+  id: string;
+  kind: 'workflow' | 'service' | 'external';
+  label: string;
+}
+
+export interface SequenceMessage {
+  from: string;
+  to: string;
+  kind: MessageKind;
+  label: string;
+  step?: string;
+  type?: string;
+  attempt?: number;
+}
+
+export interface SequenceResult {
+  path: { id: string; text: string; end: string };
+  lanes: SequenceLane[];
+  messages: SequenceMessage[];
+}
+
 /** The requests and results of each operation. */
 export interface Operations {
   version: [Record<string, never>, VersionResult];
@@ -162,6 +226,8 @@ export interface Operations {
   toMermaid: [ExportRequest, TextResult];
   toBpmn: [ExportRequest, TextResult];
   generateSpecs: [SpecsRequest, TextResult];
+  graph: [ExportRequest, GraphResult];
+  sequence: [SequenceRequest, SequenceResult];
 }
 
 export type Operation = keyof Operations;

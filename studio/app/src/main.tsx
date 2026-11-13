@@ -1,4 +1,8 @@
 import { createBrowserClient } from '@sourceflow/core-client';
+import '@xyflow/react/dist/style.css';
+import ELK from 'elkjs/lib/elk-api.js';
+import elkWorker from 'elkjs/lib/elk-worker.min.js?url';
+import { elkEngine } from './graph/layout.ts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -9,7 +13,12 @@ import { ServicesProvider } from './services.tsx';
 import './styles.css';
 
 // The WebAssembly core loads in its worker on the first validation; the local host serves it at /_framework/.
-const services = { api: hostApi(), core: createBrowserClient(new URL('/_framework/', window.location.href).href) };
+// ELK lays out in its own worker, so a large statechart never blocks the page.
+const services = {
+  api: hostApi(),
+  core: createBrowserClient(new URL('/_framework/', window.location.href).href),
+  layout: elkEngine(new ELK({ workerUrl: elkWorker })),
+};
 const queries = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 5_000 } } });
 
 createRoot(document.getElementById('root')!).render(

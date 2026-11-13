@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SourceFlow.Studio.Dsl;
 using SourceFlow.Studio.Dsl.Api;
 using SourceFlow.Studio.Dsl.Export;
+using SourceFlow.Studio.Dsl.Model;
 using SourceFlow.Studio.Dsl.Reading;
 using SourceFlow.Studio.Dsl.Simulation;
 using SourceFlow.Studio.Dsl.Specs;
@@ -38,7 +39,7 @@ public sealed class StudioApiTests
 
         exports.Select(e => e.Name).ShouldBe(api, "one [JSExport] per StudioApi method, in the same order");
         exports.ShouldAllBe(e => e.Delegates, "each export only calls StudioApi's method of the same name");
-        api.ShouldBe(["Version", "Parse", "Validate", "SimulateStep", "EnumeratePaths", "ToMermaid", "ToBpmn", "GenerateSpecs"]);
+        api.ShouldBe(["Version", "Parse", "Validate", "SimulateStep", "EnumeratePaths", "ToMermaid", "ToBpmn", "GenerateSpecs", "Graph", "Sequence"]);
 
         string generated = TypeScript(exports);
         string? committed = File.Exists(Declaration) ? File.ReadAllText(Declaration).Replace("\r\n", "\n", StringComparison.Ordinal) : null;
@@ -176,6 +177,91 @@ public sealed class StudioApiTests
         Ok(StudioApi.Version(string.Empty))["api"]!.GetValue<int>().ShouldBe(StudioApi.ApiVersion);
         Ok(StudioApi.Parse(Request(new JsonObject { ["yaml"] = "- not a mapping" })))["workflow"].ShouldBeNull();
         Ok(StudioApi.Parse(Request(new JsonObject { ["yaml"] = Golden.Workflow("02-minimal") })))["workflow"]!["name"]!.GetValue<string>().ShouldNotBeNullOrEmpty();
+    }
+
+    [Theory]
+    [Trait("Id", "UT-WASM-06")]
+    [Trait("Covers", "WFD-30;WFD-NFR-4")]
+    [MemberData(nameof(Cases))]
+    public void Graph_MatchesTheGoldenFile(string @case)
+    {
+        WorkflowAnalysisResult analysis = WorkflowAnalysis.Analyze(Golden.Workflow(@case), Golden.Environment);
+        if (analysis.HasErrors)
+        {
+            return;   // diagrams are for valid workflows
+        }
+
+        JsonNode graph = Ok(StudioApi.Graph(Request(new JsonObject { ["yaml"] = Golden.Workflow(@case) })));
+        string[] nodes = [.. graph["nodes"]!.AsArray().Select(n => n!["id"]!.GetValue<string>())];
+        graph["edges"]!.AsArray().ShouldAllBe(e => nodes.Contains(e!["source"]!.GetValue<string>()) && nodes.Contains(e["target"]!.GetValue<string>()), "edges join nodes");
+        graph["edges"]!.AsArray().Select(e => e!["id"]!.GetValue<string>()).ShouldBeUnique();
+        Golden.AssertMatches(@case, "expected.graph.json", graph.ToJsonString(new JsonSerializerOptions { WriteIndented = true, NewLine = "\n", Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }) + "\n");
+    }
+
+    [Fact]
+    [Trait("Id", "UT-WASM-07")]
+    [Trait("Covers", "WFD-30;WFD-NFR-4")]
+    public void Graph_EncodesEveryPathKind()
+    {
+        JsonNode graph = Ok(StudioApi.Graph(Request(new JsonObject { ["yaml"] = Golden.Workflow("01-order-fulfilment") })));
+        JsonNode Node(string id) => graph["nodes"]!.AsArray().Single(n => n!["id"]!.GetValue<string>() == id)!;
+        JsonNode[] Edges(string kind) => [.. graph["edges"]!.AsArray().Where(e => e!["kind"]!.GetValue<string>() == kind).Select(e => e!)];
+
+        Node("create-shipment")["kind"]!.GetValue<string>().ShouldBe("pivot");
+        Node("review-large-order")["when"]!.GetValue<string>().ShouldBe("$data.amount > 5000");
+        Node("reserve-stock")["compensable"]!.GetValue<bool>().ShouldBeTrue();
+        Node("undo:charge-payment")["order"]!.GetValue<int>().ShouldBe(1, "the most recent completed step is undone first");
+        Node("undo:reserve-stock")["parent"]!.GetValue<string>().ShouldBe("Compensating");
+        foreach (string kind in new[] { "start", "success", "failure", "retry", "timeout", "compensation", "manual", "skip" })
+        {
+            JsonNode[] edges = Edges(kind);
+            edges.ShouldNotBeEmpty(kind);
+            edges.ShouldAllBe(e => e["label"]!.GetValue<string>().StartsWith(Symbol(kind), StringComparison.Ordinal), kind + " edges carry their symbol");
+        }
+
+        Edges("retry").ShouldContain(e => e["source"]!.GetValue<string>() == "charge-payment" && e["label"]!.GetValue<string>() == "↻ 3× every PT10M on payments.declined");
+        Edges("failure").ShouldContain(e => e["source"]!.GetValue<string>() == "create-shipment" && e["target"]!.GetValue<string>() == "await-address-fix");
+        Edges("timeout").ShouldContain(e => e["source"]!.GetValue<string>() == "review-large-order" && e["target"]!.GetValue<string>() == "ManualIntervention");
+        Edges("success").ShouldContain(e => e["description"]!.GetValue<string>() == "Success: shipping.shipment-created.v1 moves from create-shipment to Completed");
+        Error(StudioApi.Graph(Request(new JsonObject { ["yaml"] = Golden.Workflow("03-s01-invalid-yaml") }))).ShouldContain("errors");
+    }
+
+    [Fact]
+    [Trait("Id", "UT-WASM-08")]
+    [Trait("Covers", "WFD-31")]
+    public void Sequence_PlacesEachMessageBetweenItsServices()
+    {
+        string yaml = Golden.Workflow("01-order-fulfilment");
+        WorkflowDefinition workflow = WorkflowReader.Read(yaml).Workflow!;
+        PathSet paths = PathEnumerator.Enumerate(workflow);
+        string happy = paths.Paths.First(p => p.End == WorkflowStatus.Completed && p.Moves.All(m => m.Outcome == "success")).Id;
+        string compensated = paths.Paths.First(p => p.End == WorkflowStatus.Compensated && p.Moves.Any(m => m.Outcome == "compensated")).Id;
+
+        JsonNode sequence = Ok(StudioApi.Sequence(Request(new JsonObject { ["yaml"] = yaml, ["manifests"] = Manifests(), ["path"] = happy })));
+        sequence["lanes"]![0]!["id"]!.GetValue<string>().ShouldBe("workflow");
+        string[] lanes = [.. sequence["lanes"]!.AsArray().Select(l => l!["id"]!.GetValue<string>())];
+        lanes.ShouldContain("inventory");
+        lanes.ShouldContain("payments");
+        lanes.ShouldContain("shipping");
+        JsonArray messages = sequence["messages"]!.AsArray();
+        messages[0]!["kind"]!.GetValue<string>().ShouldBe("start");
+        messages.ShouldContain(m => m!["kind"]!.GetValue<string>() == "command" && m["to"]!.GetValue<string>() == "inventory" && m["type"]!.GetValue<string>() == "inventory.reserve-stock.v1");
+        messages.ShouldContain(m => m!["kind"]!.GetValue<string>() == "event" && m["from"]!.GetValue<string>() == "payments" && m["to"]!.GetValue<string>() == "workflow");
+        messages.ShouldAllBe(m => lanes.Contains(m!["from"]!.GetValue<string>()) && lanes.Contains(m["to"]!.GetValue<string>()));
+        messages[^1]!["label"]!.GetValue<string>().ShouldBe("→ orders.mark-fulfilled.v1", "on.completed");
+
+        JsonArray undo = Ok(StudioApi.Sequence(Request(new JsonObject { ["yaml"] = yaml, ["manifests"] = Manifests(), ["path"] = compensated })))["messages"]!.AsArray();
+        undo.ShouldContain(m => m!["kind"]!.GetValue<string>() == "compensation" && m["label"]!.GetValue<string>().StartsWith("⟲ ", StringComparison.Ordinal));
+        undo.ShouldContain(m => m!["kind"]!.GetValue<string>() == "status" && m["label"]!.GetValue<string>().StartsWith("Compensating", StringComparison.Ordinal));
+        Error(StudioApi.Sequence(Request(new JsonObject { ["yaml"] = yaml, ["manifests"] = Manifests(), ["path"] = "P999" }))).ShouldStartWith("No path 'P999'");
+    }
+
+    private static string Symbol(string kind)
+    {
+        return kind switch
+        {
+            "success" => "✓", "failure" => "✕", "retry" => "↻", "timeout" => "⏱", "compensation" => "⟲", "manual" => "✋", "skip" => "⤼", _ => "▶",
+        };
     }
 
     // ================================================================ helpers

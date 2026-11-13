@@ -1,16 +1,16 @@
 import { defineConfig } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
-// STU-E2E-01..03 (plan 10 §3.3): the built app in a browser, served by `dotnet sourceflow studio` (a writable host and a
+// STU-E2E-01..06, STU-A11Y-01..03 and STU-PERF-01..02 (plan 10 §3.3): the built app in a browser, served by `dotnet sourceflow studio` (a writable host and a
 // read-only one) with the published WebAssembly core. Build first: npm run build:wasm && npm run build, and
 // dotnet build src/Tooling/SourceFlow.Tool. Locally, PW_CHANNEL=chrome (or msedge) uses an installed browser.
 const app = fileURLToPath(new URL('..', import.meta.url));
 const framework = '../../artifacts/studio-wasm/wwwroot/_framework';
 const tool = '../../src/Tooling/SourceFlow.Tool';
 
-function host(port: number, readOnly: boolean) {
+function host(port: number, readOnly: boolean, workspace = 'e2e/workspace', before = '') {
   return {
-    command: `dotnet run --project ${tool} --no-build -- studio --workspace e2e/workspace --port ${port} --assets dist --framework ${framework}${readOnly ? ' --read-only' : ''}`,
+    command: `${before}dotnet run --project ${tool} --no-build -- studio --workspace ${workspace} --port ${port} --assets dist --framework ${framework}${readOnly ? ' --read-only' : ''}`,
     cwd: app,
     url: `http://127.0.0.1:${port}/api/workspace`,
     reuseExistingServer: false,
@@ -31,6 +31,14 @@ export default defineConfig({
     ...(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {}),
     trace: 'retain-on-failure',
   },
-  projects: [{ name: 'chromium', use: { browserName: 'chromium' } }],
-  webServer: [host(5199, false), host(5198, true)],
+  projects: [
+    { name: 'chromium', use: { browserName: 'chromium' }, testIgnore: 'perf.spec.ts' },
+    { name: 'perf', use: { browserName: 'chromium' }, testMatch: 'perf.spec.ts', dependencies: ['chromium'] },
+  ],
+  webServer: [
+    host(5199, false),
+    host(5198, true),
+    // STU-PERF-02: a generated workspace of 20 services and 50 workflows.
+    host(5197, true, '../../artifacts/studio-e2e/large', 'node e2e/generate.mjs large-workspace ../../artifacts/studio-e2e/large && '),
+  ],
 });

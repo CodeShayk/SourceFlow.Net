@@ -1,14 +1,16 @@
 import { Link } from 'react-router';
 import type { WorkspaceDto } from '../api.ts';
+import { DomainMapView } from '../views/DomainMapView.tsx';
 import { explorerTree } from '../workspace.ts';
 
-/** The domain overview: its services, what they own, and where the domain map goes (WP-S.9). */
+/** The domain overview: the domain map (WP-S.9) and its services with what they own. */
 export function Overview({ workspace }: { workspace: WorkspaceDto }) {
   const services = explorerTree(workspace);
   return (
     <article className="view" aria-labelledby="overview-title">
       <h1 id="overview-title">{workspace.domain}</h1>
       {workspace.description !== undefined ? <p className="lead">{workspace.description}</p> : null}
+      <DomainMapView workspace={workspace} />
       <table className="services">
         <caption>Services in {workspace.file}</caption>
         <thead>

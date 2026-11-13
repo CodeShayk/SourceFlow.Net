@@ -106,7 +106,7 @@ export function App() {
             element={path === undefined || !data.services.some((s) => s.workflowFiles.includes(path)) ? (
               <NotFound what="workflow" />
             ) : (
-              <WorkflowView ref={editor} path={path} owner={ownerOf(data, path)} text={text.data} selected={sorted?.[selectedIndex]}
+              <WorkflowView ref={editor} path={path} owner={ownerOf(data, path)} workspace={data} text={text.data} selected={sorted?.[selectedIndex]}
                 {...(text.isError ? { error: (text.error as Error).message } : {})} />
             )}
           />

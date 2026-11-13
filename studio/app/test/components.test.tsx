@@ -53,16 +53,18 @@ describe('STU-CT-03 shell and routing', () => {
     const { core } = renderApp('/');
     expect(await screen.findByRole('heading', { level: 1, name: 'commerce' })).toBeTruthy();
     expect(screen.getByRole('table', { name: 'Services in sourceflow.domain.yaml' })).toBeTruthy();
-    expect(screen.getByRole('status').textContent).toBe('Open a workflow to see its diagnostics.');
+    expect(within(screen.getByRole('region', { name: 'Diagnostics' })).getByRole('status').textContent).toBe('Open a workflow to see its diagnostics.');
 
     await userEvent.click(screen.getByRole('link', { name: 'Workflow order-fulfilment' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'order-fulfilment.sfflow.yaml' })).toBeTruthy();
-    const source = await screen.findByRole('list', { name: 'Source of order-fulfilment.sfflow.yaml' });
-    expect(within(source).getAllByRole('listitem')).toHaveLength(7);
+    expect(screen.getByRole('tab', { name: 'Statechart' }).getAttribute('aria-selected')).toBe('true');
     await screen.findByText(/1 error, 1 warning/);
     expect(core.validate).toHaveBeenCalledWith(expect.objectContaining({ yaml: expect.stringContaining('order-fulfilment'), manifests: expect.any(Array) }));
 
     await userEvent.click(screen.getAllByRole('button', { name: /Error WF-V01/ })[0]!);
+    expect(screen.getByRole('tab', { name: 'Source' }).getAttribute('aria-selected')).toBe('true');
+    const source = await screen.findByRole('list', { name: 'Source of order-fulfilment.sfflow.yaml' });
+    expect(within(source).getAllByRole('listitem')).toHaveLength(7);
     expect(within(source).getAllByRole('listitem')[3]?.getAttribute('aria-current')).toBe('location');
   });
 

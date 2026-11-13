@@ -197,6 +197,68 @@ namespace SourceFlow.Studio.Dsl.Api
             });
         }
 
+        /// <summary>
+        /// The statechart of a workflow (doc 15 §6.1): <c>{yaml}</c> → <c>{nodes, edges}</c>, with each edge's kind (success,
+        /// failure, retry, timeout, compensation, manual, skip, start), symbol label and description.
+        /// </summary>
+        public static string Graph(string request)
+        {
+            return Run(request, r =>
+            {
+                WorkflowGraph graph = WorkflowGraph.Build(Workflow(r));
+                return Ok(w =>
+                {
+                    w.Begin().Key("nodes").Array(graph.Nodes, (a, n) =>
+                    {
+                        a.Begin().Prop("id", n.Id).Prop("kind", n.Kind).Prop("label", n.Label).Prop("sends", n.Sends).Prop("awaits", n.Awaits)
+                            .Prop("when", n.When).Prop("timeout", n.Timeout).Prop("parent", n.Parent);
+                        a.Key("compensable").Raw(n.Compensable ? "true" : "false");
+                        if (n.Order is { } order)
+                        {
+                            a.Prop("order", order);
+                        }
+
+                        a.End();
+                    });
+                    w.Key("edges").Array(graph.Edges, (a, e) => a.Begin().Prop("id", e.Id).Prop("source", e.Source).Prop("target", e.Target).Prop("kind", e.Kind)
+                        .Prop("label", e.Label).Prop("description", e.Description).End());
+                    w.End();
+                });
+            });
+        }
+
+        /// <summary>
+        /// The swimlane sequence of one path (WFD-31): <c>{yaml, manifests, path: "P03", maxStepEntries?, maxPaths?, maxMoves?}</c>
+        /// → <c>{path, lanes, messages}</c>.
+        /// </summary>
+        public static string Sequence(string request)
+        {
+            return Run(request, r =>
+            {
+                WorkflowDefinition workflow = Workflow(r);
+                string id = Text(r, "path");
+                PathSet paths = PathEnumerator.Enumerate(workflow, PathOptions(r));
+                WorkflowPath path = paths.Paths.FirstOrDefault(p => p.Id == id) ?? throw new ApiException("No path '" + id + "' (the workflow has " + paths.Paths.Count.ToString(CultureInfo.InvariantCulture) + ").");
+                WorkflowSequence sequence = WorkflowSequence.Build(workflow, path, Environment(r));
+                return Ok(w =>
+                {
+                    w.Begin().Key("path").Begin().Prop("id", path.Id).Prop("text", path.ToString()).Prop("end", path.End.ToString()).End();
+                    w.Key("lanes").Array(sequence.Lanes, (a, l) => a.Begin().Prop("id", l.Id).Prop("kind", l.Kind).Prop("label", l.Label).End());
+                    w.Key("messages").Array(sequence.Messages, (a, m) =>
+                    {
+                        a.Begin().Prop("from", m.From).Prop("to", m.To).Prop("kind", m.Kind).Prop("label", m.Label).Prop("step", m.Step).Prop("type", m.Type);
+                        if (m.Attempt is { } attempt)
+                        {
+                            a.Prop("attempt", attempt);
+                        }
+
+                        a.End();
+                    });
+                    w.End();
+                });
+            });
+        }
+
         // ------------------------------------------------------------------ requests
 
         private static string Run(string request, Func<JsonValue, string> handle)

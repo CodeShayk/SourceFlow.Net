@@ -1,16 +1,19 @@
-// What the app talks to: the local host's API and the WebAssembly core. Injected so tests can replace both.
+// What the app talks to: the local host's API, the WebAssembly core and the ELK layout engine. Injected so tests can
+// replace them.
 import { useQuery } from '@tanstack/react-query';
 import type { StudioCoreClient, ValidateResult } from '@sourceflow/core-client';
 import { createContext, useContext, type ReactNode } from 'react';
 import type { WorkspaceApi, WorkspaceDto } from './api.ts';
+import type { LayoutEngine } from './graph/layout.ts';
 import { manifests } from './workspace.ts';
 
-/** The part of the core client the shell uses (the views of WP-S.9 onwards use more). */
-export type StudioCore = Pick<StudioCoreClient, 'validate'>;
+/** The part of the core client the app uses. */
+export type StudioCore = Pick<StudioCoreClient, 'validate' | 'graph' | 'enumeratePaths' | 'sequence'>;
 
 export interface StudioServices {
   api: WorkspaceApi;
   core: StudioCore;
+  layout: LayoutEngine;
 }
 
 const ServicesContext = createContext<StudioServices | undefined>(undefined);
@@ -46,5 +49,27 @@ export function useValidation(text: string | undefined, workspace: WorkspaceDto 
     queryKey: ['validate', text, domain],
     queryFn: () => core.validate({ yaml: text!, manifests: domain }),
     enabled: text !== undefined && workspace !== undefined,
+  });
+}
+
+/** The workflow's statechart from the core. */
+export function useGraph(text: string | undefined) {
+  const { core } = useServices();
+  return useQuery({ queryKey: ['graph', text], queryFn: () => core.graph({ yaml: text! }), enabled: text !== undefined, retry: false });
+}
+
+export function usePaths(text: string | undefined) {
+  const { core } = useServices();
+  return useQuery({ queryKey: ['paths', text], queryFn: () => core.enumeratePaths({ yaml: text! }), enabled: text !== undefined, retry: false });
+}
+
+export function useSequence(text: string | undefined, workspace: WorkspaceDto | undefined, path: string | undefined) {
+  const { core } = useServices();
+  const domain = workspace === undefined ? [] : manifests(workspace);
+  return useQuery({
+    queryKey: ['sequence', text, domain, path],
+    queryFn: () => core.sequence({ yaml: text!, manifests: domain, path: path! }),
+    enabled: text !== undefined && workspace !== undefined && path !== undefined,
+    retry: false,
   });
 }

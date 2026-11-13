@@ -100,6 +100,16 @@ export class StudioCoreClient {
     return this.call('generateSpecs', request, options);
   }
 
+  /** The statechart: nodes and kinded edges (doc 15 §6.1). */
+  graph(request: Operations['graph'][0], options?: CallOptions) {
+    return this.call('graph', request, options);
+  }
+
+  /** The swimlane sequence of one path (WFD-31). */
+  sequence(request: Operations['sequence'][0], options?: CallOptions) {
+    return this.call('sequence', request, options);
+  }
+
   /** Stops the worker; pending calls reject. */
   dispose(): void {
     this.disposed = true;
