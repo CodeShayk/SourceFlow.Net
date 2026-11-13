@@ -10,8 +10,7 @@
     <OutputType>Exe</OutputType>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>sourceflow</ToolCommandName>
-    <Description>The dotnet sourceflow command-line tool.</Description>
-    <IsPackable>false</IsPackable>
+    <Description>SourceFlow.Net v3: the sourceflow command-line tool (schema, projections, dead letters, manifests, workflows, SFQL queries, v2 migration and the SourceFlow Studio local host).</Description>
     <StudioAppDist>$(MSBuildThisFileDirectory)..\..\..\studio\app\dist\</StudioAppDist>
     <StudioFramework>$(MSBuildThisFileDirectory)..\..\..\artifacts\studio-wasm\wwwroot\_framework\</StudioFramework>
   </PropertyGroup>

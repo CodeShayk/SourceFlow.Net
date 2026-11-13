@@ -71,6 +71,7 @@ public sealed class SqlServerStorageConformanceTests(SqlServerServer server) : S
 
     [Fact]
     [Trait("Id", "SCK-L01")]
+    [Trait("Category", "Property")]
     [Trait("Covers", "ADR-006;ADR-008")]
     public void AppendsAndOutbox_AreLinearizable()
     {

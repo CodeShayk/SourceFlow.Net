@@ -1,0 +1,7 @@
+# Text files are stored and checked out with LF on every platform, so tests that read source files, embedded scripts and
+# golden files see the same bytes on Windows as in CI (core.autocrlf would otherwise check them out with CRLF).
+* text=auto eol=lf
+
+# Windows scripts keep CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf

@@ -183,7 +183,7 @@ public sealed class CommandProcessor
             {
                 if (personal.Protects(events[i].GetType()))
                 {
-                    (ReadOnlyMemory<byte> body, IReadOnlyCollection<string> used) = await personal.ProtectAsync(events[i].GetType(), stream.Value, toAppend[i].Data, cancellationToken).ConfigureAwait(false);
+                    (ReadOnlyMemory<byte> body, IReadOnlyCollection<string> used) = await personal.ProtectAsync(events[i].GetType(), envelope.TenantId, stream.Value, toAppend[i].Data, cancellationToken).ConfigureAwait(false);
                     toAppend[i] = toAppend[i] with { Data = body };
                     subjects.UnionWith(used);
                 }

@@ -4,20 +4,22 @@ using SourceFlow.Security;
 
 namespace SourceFlow.Storage.SqlServer;
 
-/// <content>Crypto-shredding storage (doc 10 §4, WP-5.2): <c>data_keys</c> (global) and <c>subject_streams</c> (per tenant).</content>
+/// <content>Crypto-shredding storage (doc 10 §4, WP-5.2): <c>data_keys</c> and <c>subject_streams</c>, both per tenant.</content>
 public sealed partial class SqlServerStore : IPersonalDataKeyStore
 {
     private string Keys => $"[{Options.Schema}].data_keys";
 
     /// <inheritdoc />
-    public async ValueTask<SubjectKey?> GetKeyAsync(string subjectId, CancellationToken cancellationToken)
+    public async ValueTask<SubjectKey?> GetKeyAsync(string tenantId, string subjectId, CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrEmpty(tenantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
         await using SqlConnection connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using SqlCommand command = Command($"SELECT key_ref, wrapped_key, created_at, shredded_at FROM {Keys} WHERE subject_id = @subject", connection, null, Text("@subject", subjectId));
+        await using SqlCommand command = Command($"SELECT key_ref, wrapped_key, created_at, shredded_at FROM {Keys} WHERE tenant_id = @tenant AND subject_id = @subject",
+            connection, null, Text("@tenant", tenantId), Text("@subject", subjectId));
         await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-            ? new SubjectKey(subjectId, reader.GetString(0), (byte[])reader.GetValue(1), reader.GetDateTimeOffset(2), reader.IsDBNull(3) ? null : reader.GetDateTimeOffset(3))
+            ? new SubjectKey(tenantId, subjectId, reader.GetString(0), (byte[])reader.GetValue(1), reader.GetDateTimeOffset(2), reader.IsDBNull(3) ? null : reader.GetDateTimeOffset(3))
             : null;
     }
 
@@ -26,22 +28,23 @@ public sealed partial class SqlServerStore : IPersonalDataKeyStore
     {
         ArgumentNullException.ThrowIfNull(key);
         await ExecuteAsync(
-            $"INSERT INTO {Keys} (subject_id, key_ref, wrapped_key, created_at) SELECT @subject, @ref, @wrapped, @at WHERE NOT EXISTS (SELECT 1 FROM {Keys} WITH (UPDLOCK, HOLDLOCK) WHERE subject_id = @subject)",
-            cancellationToken, Text("@subject", key.SubjectId), Text("@ref", key.KeyReference), Binary("@wrapped", key.WrappedKey.ToArray()), At("@at", key.CreatedAt)).ConfigureAwait(false);
-        return await GetKeyAsync(key.SubjectId, cancellationToken).ConfigureAwait(false) ?? key;
+            $"INSERT INTO {Keys} (tenant_id, subject_id, key_ref, wrapped_key, created_at) SELECT @tenant, @subject, @ref, @wrapped, @at WHERE NOT EXISTS (SELECT 1 FROM {Keys} WITH (UPDLOCK, HOLDLOCK) WHERE tenant_id = @tenant AND subject_id = @subject)",
+            cancellationToken, Text("@tenant", key.TenantId), Text("@subject", key.SubjectId), Text("@ref", key.KeyReference), Binary("@wrapped", key.WrappedKey.ToArray()), At("@at", key.CreatedAt)).ConfigureAwait(false);
+        return await GetKeyAsync(key.TenantId, key.SubjectId, cancellationToken).ConfigureAwait(false) ?? key;
     }
 
     /// <inheritdoc />
-    public ValueTask ShredKeyAsync(string subjectId, DateTimeOffset at, CancellationToken cancellationToken)
+    public ValueTask ShredKeyAsync(string tenantId, string subjectId, DateTimeOffset at, CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrEmpty(tenantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
         return ExecuteAsync(
             $"""
-            MERGE {Keys} WITH (HOLDLOCK) AS k USING (SELECT @subject AS subject_id) AS s ON k.subject_id = s.subject_id
+            MERGE {Keys} WITH (HOLDLOCK) AS k USING (SELECT @tenant AS tenant_id, @subject AS subject_id) AS s ON k.tenant_id = s.tenant_id AND k.subject_id = s.subject_id
             WHEN MATCHED THEN UPDATE SET wrapped_key = 0x, shredded_at = COALESCE(k.shredded_at, @at)
-            WHEN NOT MATCHED THEN INSERT (subject_id, key_ref, wrapped_key, created_at, shredded_at) VALUES (@subject, N'', 0x, @at, @at);
+            WHEN NOT MATCHED THEN INSERT (tenant_id, subject_id, key_ref, wrapped_key, created_at, shredded_at) VALUES (@tenant, @subject, N'', 0x, @at, @at);
             """,
-            cancellationToken, Text("@subject", subjectId), At("@at", at));
+            cancellationToken, Text("@tenant", tenantId), Text("@subject", subjectId), At("@at", at));
     }
 
     /// <inheritdoc />

@@ -102,6 +102,7 @@ public sealed class WorkflowRuntimeTests
 
     [Fact]
     [Trait("Id", "WF-DIFF-02")]
+    [Trait("Category", "Property")]
     [Trait("Covers", "WFD-NFR-2")]
     public void RandomOutcomeSequences_MatchTheSimulator()
     {

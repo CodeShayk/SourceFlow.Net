@@ -99,7 +99,10 @@ Everything else behaves the same: ES-R1 and ES-R2, the exceptions (`ConcurrencyE
 
 ## Schema management
 
-The schema is one embedded script, `V001__initial` ([`Schema/V001__initial.sql`](../../../src/Storage/SourceFlow.Storage.SqlServer/Schema/V001__initial.sql)). It already contains what PostgreSQL added in later migrations (`collection_aliases.previous` and `building`, `outbox.first_due_at`).
+The schema is two embedded scripts:
+
+- `V001__initial` ([`Schema/V001__initial.sql`](../../../src/Storage/SourceFlow.Storage.SqlServer/Schema/V001__initial.sql)): every table and index. It already contains what PostgreSQL added in its V002 to V005 (`collection_aliases.previous` and `building`, `outbox.first_due_at`).
+- `V002__data_keys_per_tenant` ([`Schema/V002__data_keys_per_tenant.sql`](../../../src/Storage/SourceFlow.Storage.SqlServer/Schema/V002__data_keys_per_tenant.sql)): `data_keys.tenant_id`, keyed by `(tenant_id, subject_id)`, as PostgreSQL's V006. Existing keys move to the default tenant `-`.
 
 `SqlServerSchemaMigrator` ([source](../../../src/Storage/SourceFlow.Storage.SqlServer/SqlServerSchemaMigrator.cs)):
 
@@ -136,7 +139,8 @@ The tables match the PostgreSQL adapter's, with SQL Server types:
 | `events` | Clustered on `seq` (identity). `rv rowversion` gives the commit order; `ix_events_commit_order` is a unique index on `rv` that includes `bucket`. `ix_events_type_time (tenant_id, event_type, created_at)` serves SFQL. `tags`, `data` and `metadata` are `nvarchar(max)` JSON. `events` is the only table with a `rowversion`, so only in-progress appends hold the horizon. |
 | `outbox` | Clustered on `seq`; `ix_outbox_ready` and the filtered `ix_outbox_key` support the head-of-key claim. `first_due_at` keeps the original due time across retries. |
 | `inbox` | Clustered key `(consumer, message_id)`; `ix_inbox_processed_at` for retention. |
-| `checkpoints`, `leases`, `dead_letters`, `nodes`, `collection_aliases`, `schemas`, `data_keys` | As on PostgreSQL. |
+| `checkpoints`, `leases`, `dead_letters`, `nodes`, `collection_aliases`, `schemas` | As on PostgreSQL. |
+| `data_keys` | Clustered key `(tenant_id, subject_id)` (V002). |
 | `process_instances`, `documents`, `subject_streams` | Their primary keys are `NONCLUSTERED`, because the key can exceed the 900-byte clustered key limit. |
 | `snapshots` | Clustered key `(tenant_id, stream_id)`. |
 | `schema_history` | Applied migrations and checksums (created by the migrator). |

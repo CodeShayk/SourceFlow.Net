@@ -11,13 +11,17 @@ using SourceFlow.Storage;
 
 namespace SourceFlow.Security;
 
-/// <summary>A subject's data key (doc 10 §4): wrapped by the key provider; destroyed when the subject is erased.</summary>
+/// <summary>
+/// A subject's data key (doc 10 §4): wrapped by the key provider; destroyed when the subject is erased. Keys belong to a
+/// tenant: the same subject id in two tenants has two keys, and erasing it in one tenant leaves the other untouched.
+/// </summary>
+/// <param name="TenantId">The tenant (ADR-022); <see cref="Messaging.MessageEnvelope.DefaultTenant"/> when single-tenant.</param>
 /// <param name="SubjectId">The subject, for example a customer id.</param>
 /// <param name="KeyReference">The master key that wrapped the DEK.</param>
 /// <param name="WrappedKey">The wrapped DEK; empty once shredded.</param>
 /// <param name="CreatedAt">When the key was created.</param>
 /// <param name="ShreddedAt">When the subject was erased; null while the key exists.</param>
-public sealed record SubjectKey(string SubjectId, string KeyReference, ReadOnlyMemory<byte> WrappedKey, DateTimeOffset CreatedAt, DateTimeOffset? ShreddedAt)
+public sealed record SubjectKey(string TenantId, string SubjectId, string KeyReference, ReadOnlyMemory<byte> WrappedKey, DateTimeOffset CreatedAt, DateTimeOffset? ShreddedAt)
 {
     /// <summary>True once the subject was erased: its personal data can never be decrypted again.</summary>
     public bool IsShredded => ShreddedAt is not null;
@@ -29,14 +33,17 @@ public sealed record SubjectKey(string SubjectId, string KeyReference, ReadOnlyM
 /// </summary>
 public interface IPersonalDataKeyStore
 {
-    /// <summary>The subject's key, shredded or not; null when the subject has none.</summary>
-    ValueTask<SubjectKey?> GetKeyAsync(string subjectId, CancellationToken cancellationToken);
+    /// <summary>The tenant's key for the subject, shredded or not; null when the subject has none in that tenant.</summary>
+    ValueTask<SubjectKey?> GetKeyAsync(string tenantId, string subjectId, CancellationToken cancellationToken);
 
-    /// <summary>Stores a new key unless the subject already has one; returns the stored key (the first writer wins).</summary>
+    /// <summary>Stores a new key unless the subject already has one in its tenant; returns the stored key (the first writer wins).</summary>
     ValueTask<SubjectKey> AddKeyAsync(SubjectKey key, CancellationToken cancellationToken);
 
-    /// <summary>Destroys the wrapped key and marks the subject erased; a subject without a key gets a shredded record.</summary>
-    ValueTask ShredKeyAsync(string subjectId, DateTimeOffset at, CancellationToken cancellationToken);
+    /// <summary>
+    /// Destroys the tenant's wrapped key for the subject and marks the subject erased in that tenant; a subject without a
+    /// key gets a shredded record. Other tenants' keys for the same subject id are untouched.
+    /// </summary>
+    ValueTask ShredKeyAsync(string tenantId, string subjectId, DateTimeOffset at, CancellationToken cancellationToken);
 
     /// <summary>Records that <paramref name="streams"/> hold personal data of the subject (idempotent).</summary>
     ValueTask RecordSubjectStreamsAsync(string tenantId, string subjectId, IReadOnlyCollection<StreamId> streams, CancellationToken cancellationToken);
@@ -100,8 +107,9 @@ internal sealed record PersonalDataMember(IReadOnlyList<string> Path, IReadOnlyL
 
 /// <summary>
 /// Crypto-shredding of <c>[PersonalData]</c> members (doc 10 §4, WP-5.2). On write, each member's JSON value is encrypted
-/// with its subject's DEK (AES-256-GCM, associated data <c>subject|path</c>) and replaced by
-/// <c>{"$pd":"v1:{subject}:{kind}:{nonce|tag|ciphertext}"}</c>; on read, markers are decrypted again. Once the subject is
+/// with its tenant's DEK for its subject (AES-256-GCM, associated data <c>tenant|subject|path</c>) and replaced by
+/// <c>{"$pd":"v2:{tenant}:{subject}:{kind}:{nonce|tag|ciphertext}"}</c>; on read, markers are decrypted again. Markers of
+/// the earlier <c>v1</c> format (no tenant, associated data <c>subject|path</c>) read with the default tenant's key. Once the subject is
 /// erased its key is gone, and each marker reads as erased: <c>"[erased]"</c> for strings, 0, false or null otherwise.
 /// </summary>
 /// <remarks>
@@ -124,7 +132,7 @@ public sealed class PersonalDataProtector : IDisposable
     private readonly TimeProvider _time;
     private readonly ConcurrentDictionary<Type, PersonalDataPlan> _plans = new();
     private readonly Lock _gate = new();
-    private readonly Dictionary<string, CachedKey> _keys = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string Tenant, string Subject), CachedKey> _keys = [];
 
     /// <summary>Creates the protector.</summary>
     public PersonalDataProtector(IKeyProvider provider, IPersonalDataKeyStore store, RuntimeModel model, TimeProvider? time = null)
@@ -142,12 +150,13 @@ public sealed class PersonalDataProtector : IDisposable
     }
 
     /// <summary>
-    /// Encrypts the <c>[PersonalData]</c> members of a serialized <paramref name="type"/>; returns the body and the subjects
-    /// it holds personal data of. A type without such members is returned unchanged.
+    /// Encrypts the <c>[PersonalData]</c> members of a serialized <paramref name="type"/> with <paramref name="tenantId"/>'s
+    /// keys; returns the body and the subjects it holds personal data of. A type without such members is returned unchanged.
     /// </summary>
-    public async ValueTask<(ReadOnlyMemory<byte> Body, IReadOnlyCollection<string> Subjects)> ProtectAsync(Type type, string stream, ReadOnlyMemory<byte> json, CancellationToken cancellationToken)
+    public async ValueTask<(ReadOnlyMemory<byte> Body, IReadOnlyCollection<string> Subjects)> ProtectAsync(Type type, string tenantId, string stream, ReadOnlyMemory<byte> json, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(type);
+        ArgumentException.ThrowIfNullOrEmpty(tenantId);
         PersonalDataPlan plan = Plan(type);
         if (plan.IsEmpty)
         {
@@ -171,7 +180,7 @@ public sealed class PersonalDataProtector : IDisposable
 
             string subject = member.SubjectPath is { } subjectPath && Read(document, subjectPath) is { Length: > 0 } named ? named : stream;
             subjects.Add(subject);
-            KeyState key = await KeyAsync(subject, create: true, cancellationToken).ConfigureAwait(false);
+            KeyState key = await KeyAsync(tenantId, subject, create: true, cancellationToken).ConfigureAwait(false);
             char kind = KindOf(value);
             if (key.Shredded)
             {
@@ -184,11 +193,11 @@ public sealed class PersonalDataProtector : IDisposable
             RandomNumberGenerator.Fill(payload.AsSpan(0, 12));
             using (AesGcm aes = key.Aes!)
             {
-                aes.Encrypt(payload.AsSpan(0, 12), plaintext, payload.AsSpan(28), payload.AsSpan(12, 16), AssociatedData(subject, member.Path));
+                aes.Encrypt(payload.AsSpan(0, 12), plaintext, payload.AsSpan(28), payload.AsSpan(12, 16), AssociatedData(tenantId, subject, member.Path));
             }
 
             CryptographicOperations.ZeroMemory(plaintext);
-            parent[name] = new JsonObject { [Marker] = $"v1:{Encode(subject)}:{kind}:{Convert.ToBase64String(payload)}" };
+            parent[name] = new JsonObject { [Marker] = $"v2:{Encode(tenantId)}:{Encode(subject)}:{kind}:{Convert.ToBase64String(payload)}" };
         }
 
         return (Encoding.UTF8.GetBytes(document.ToJsonString()), subjects);
@@ -257,12 +266,12 @@ public sealed class PersonalDataProtector : IDisposable
         return Encoding.UTF8.GetBytes(document.ToJsonString());
     }
 
-    /// <summary>Forgets a subject's cached key (after erasure).</summary>
-    public void Evict(string subjectId)
+    /// <summary>Forgets the tenant's cached key for a subject (after erasure).</summary>
+    public void Evict(string tenantId, string subjectId)
     {
         lock (_gate)
         {
-            if (_keys.Remove(subjectId, out CachedKey? key) && key.Key is { } bytes)
+            if (_keys.Remove((tenantId, subjectId), out CachedKey? key) && key.Key is { } bytes)
             {
                 CryptographicOperations.ZeroMemory(bytes);
             }
@@ -389,15 +398,19 @@ public sealed class PersonalDataProtector : IDisposable
 
     private async ValueTask<JsonNode?> DecryptAsync(string marker, IReadOnlyList<string> path, CancellationToken cancellationToken)
     {
+        // v2:{tenant}:{subject}:{kind}:{payload}; v1:{subject}:{kind}:{payload} (before keys were per tenant: the default tenant's).
         string[] parts = marker.Split(':');
-        if (parts.Length != 4 || parts[0] != "v1" || parts[2].Length != 1)
+        bool v2 = parts.Length == 5 && parts[0] == "v2";
+        int offset = v2 ? 1 : 0;
+        if ((!v2 && (parts.Length != 4 || parts[0] != "v1")) || parts[2 + offset].Length != 1)
         {
             throw new DecryptionFailedException("A personal data marker is malformed.");
         }
 
-        string subject = Decode(parts[1]);
-        char kind = parts[2][0];
-        KeyState key = await KeyAsync(subject, create: false, cancellationToken).ConfigureAwait(false);
+        string tenant = v2 ? Decode(parts[1]) : Messaging.MessageEnvelope.DefaultTenant;
+        string subject = Decode(parts[1 + offset]);
+        char kind = parts[2 + offset][0];
+        KeyState key = await KeyAsync(tenant, subject, create: false, cancellationToken).ConfigureAwait(false);
         if (key.Shredded)
         {
             return ErasedValue(kind);
@@ -406,7 +419,7 @@ public sealed class PersonalDataProtector : IDisposable
         byte[] payload;
         try
         {
-            payload = Convert.FromBase64String(parts[3]);
+            payload = Convert.FromBase64String(parts[3 + offset]);
         }
         catch (FormatException e)
         {
@@ -422,7 +435,7 @@ public sealed class PersonalDataProtector : IDisposable
         try
         {
             using AesGcm aes = key.Aes!;
-            aes.Decrypt(payload.AsSpan(0, 12), payload.AsSpan(28), payload.AsSpan(12, 16), plaintext, AssociatedData(subject, path));
+            aes.Decrypt(payload.AsSpan(0, 12), payload.AsSpan(28), payload.AsSpan(12, 16), plaintext, v2 ? AssociatedData(tenant, subject, path) : AssociatedData(subject, path));
             return JsonNode.Parse(plaintext);
         }
         catch (CryptographicException e)
@@ -435,18 +448,18 @@ public sealed class PersonalDataProtector : IDisposable
         }
     }
 
-    // The subject's key as an AesGcm instance of its own (so eviction never races an operation), or Shredded.
-    private async ValueTask<KeyState> KeyAsync(string subject, bool create, CancellationToken cancellationToken)
+    // The tenant's key for the subject as an AesGcm instance of its own (so eviction never races an operation), or Shredded.
+    private async ValueTask<KeyState> KeyAsync(string tenant, string subject, bool create, CancellationToken cancellationToken)
     {
         lock (_gate)
         {
-            if (_keys.TryGetValue(subject, out CachedKey? cached))
+            if (_keys.TryGetValue((tenant, subject), out CachedKey? cached))
             {
                 return cached.Key is { } bytes ? new KeyState(new AesGcm(bytes, 16), false) : new KeyState(null, true);
             }
         }
 
-        SubjectKey? stored = await _store.GetKeyAsync(subject, cancellationToken).ConfigureAwait(false);
+        SubjectKey? stored = await _store.GetKeyAsync(tenant, subject, cancellationToken).ConfigureAwait(false);
         if (stored is null && !create)
         {
             return new KeyState(null, true);   // no key ever made for this subject: nothing can be decrypted
@@ -455,7 +468,7 @@ public sealed class PersonalDataProtector : IDisposable
         if (stored is null)
         {
             using DataKey fresh = await _provider.GenerateDataKeyAsync(cancellationToken).ConfigureAwait(false);
-            stored = await _store.AddKeyAsync(new SubjectKey(subject, fresh.KeyReference, fresh.Wrapped, _time.GetUtcNow(), null), cancellationToken).ConfigureAwait(false);
+            stored = await _store.AddKeyAsync(new SubjectKey(tenant, subject, fresh.KeyReference, fresh.Wrapped, _time.GetUtcNow(), null), cancellationToken).ConfigureAwait(false);
         }
 
         byte[]? key = null;
@@ -471,11 +484,11 @@ public sealed class PersonalDataProtector : IDisposable
         {
             while (_keys.Count >= CacheSize)
             {
-                string oldest = _keys.MinBy(k => k.Value.CachedAt).Key;
-                Evict(oldest);
+                (string oldestTenant, string oldestSubject) = _keys.MinBy(k => k.Value.CachedAt).Key;
+                Evict(oldestTenant, oldestSubject);
             }
 
-            _keys[subject] = new CachedKey(key, _time.GetUtcNow());
+            _keys[(tenant, subject)] = new CachedKey(key, _time.GetUtcNow());
             return key is null ? new KeyState(null, true) : new KeyState(new AesGcm(key, 16), false);
         }
     }
@@ -531,6 +544,12 @@ public sealed class PersonalDataProtector : IDisposable
         };
     }
 
+    private static byte[] AssociatedData(string tenant, string subject, IReadOnlyList<string> path)
+    {
+        return Encoding.UTF8.GetBytes(tenant + "|" + subject + "|" + string.Join('.', path));
+    }
+
+    // The associated data of the v1 format, which had no tenant.
     private static byte[] AssociatedData(string subject, IReadOnlyList<string> path)
     {
         return Encoding.UTF8.GetBytes(subject + "|" + string.Join('.', path));

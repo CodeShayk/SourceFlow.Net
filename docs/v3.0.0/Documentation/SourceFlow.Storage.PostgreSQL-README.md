@@ -141,6 +141,7 @@ The schema is defined by versioned SQL scripts embedded in the package ([`Schema
 | `V003__commit_assertions` | The `sf_assert(ok, code)` function used by the one-round-trip commit. A failed check raises SQLSTATE `SF001`. |
 | `V004__read_model_generations` | `previous` and `building` columns on `collection_aliases` (blue/green rebuilds, ADR-032). |
 | `V005__outbox_first_due` | `outbox.first_due_at`, so the outbox age keeps growing while a broker is down. |
+| `V006__data_keys_per_tenant` | `data_keys.tenant_id`, keyed by `(tenant_id, subject_id)`: erasing a subject in one tenant leaves the same subject id in another tenant intact. Existing keys move to the default tenant `-`. |
 
 `PostgreSqlSchemaMigrator` ([source](../../../src/Storage/SourceFlow.Storage.PostgreSQL/PostgreSqlSchemaMigrator.cs)) applies them:
 
@@ -160,7 +161,7 @@ The schema is defined by versioned SQL scripts embedded in the package ([`Schema
 | Inside the service | `dotnet run --project <service> -- sourceflow db migrate` when the host calls `SourceFlowCli.TryRunAsync` (the Bank sample does). It uses the service's data source and schema. |
 | From code | `await store.CreateMigrator().MigrateAsync()` on a resolved `PostgreSqlStore`, or `new PostgreSqlSchemaMigrator(dataSource, schema, isolation, partitionEvents)`. |
 
-The global tool reads the connection from `--connection` or the `SOURCEFLOW_CONNECTION` environment variable. Pass the same `--rls` and `--partition-events` choices that the service configures: the migrator applies the isolation you ask for, and the service's startup verification fails if they differ.
+The global tool reads the connection from `--connection` or the `SOURCEFLOW_CONNECTION` environment variable. With the global tool, pass the same `--rls` and `--partition-events` choices that the service configures: the migrator applies the isolation you ask for, and the service's startup verification fails if they differ. Inside the service, `db migrate` uses the service's own `TenantIsolation` and `PartitionEvents`, so `--rls` is not needed there; passing `--rls` to a service configured for `Runtime` isolation is refused.
 
 ### Least-privilege grants
 
@@ -192,7 +193,7 @@ Every table lives in the configured schema. `tenant_id` defaults to `'-'`, the s
 | `collection_aliases` | Which read-model generation serves reads (`target`), the retired one (`previous`) and the one being built (`building`). | `alias` |
 | `subject_streams` | Which streams hold a data subject's personal data (crypto-shredding). | `(tenant_id, subject_id, stream_id)` |
 | `schemas` | The schema registry: JSON Schema and fingerprint per message type and version. | `(tenant_id, message_type, type_version)` |
-| `data_keys` | Wrapped per-subject data keys and their shredding time. | `subject_id` |
+| `data_keys` | Wrapped data keys per tenant and subject, and their shredding time. | `(tenant_id, subject_id)` |
 | `schema_history` | Applied migrations and their checksums (created by the migrator). | `version` |
 
 Indexes on `events`: `ix_events_commit_order (tx_id, seq) INCLUDE (bucket)` for the global log, `ix_events_type_time (tenant_id, event_type, created_at)` for SFQL, and expression indexes on `metadata->>'correlationId'` and `metadata->>'causationId'` for tracing a conversation. `db index sync` adds partial expression indexes named `sfq_…` for `[Queryable]` fields.

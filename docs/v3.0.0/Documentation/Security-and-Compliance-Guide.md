@@ -201,20 +201,22 @@ stored as they are.
 ### 4.2 What is stored
 
 After the event is serialised, each `[PersonalData]` member's JSON value is encrypted with AES-256-GCM under the
-subject's data key, with `subject|path` as associated data, and replaced by a marker:
+tenant's data key for the subject, with `tenant|subject|path` as associated data, and replaced by a marker
+(`v2:{tenant}:{subject}:{kind}:{payload}`, tenant and subject base64url-encoded; `LQ` is the default tenant `-`):
 
 ```json
 {
   "patientId": "0193…",
   "customer": "cust-1",
-  "name": { "$pd": "v1:Y3VzdC0x:s:…base64 nonce|tag|ciphertext…" },
-  "age":  { "$pd": "v1:Y3VzdC0x:n:…" },
-  "home": { "street": { "$pd": "v1:Y3VzdC0x:s:…" }, "city": "London" }
+  "name": { "$pd": "v2:LQ:Y3VzdC0x:s:…base64 nonce|tag|ciphertext…" },
+  "age":  { "$pd": "v2:LQ:Y3VzdC0x:n:…" },
+  "home": { "street": { "$pd": "v2:LQ:Y3VzdC0x:s:…" }, "city": "London" }
 }
 ```
 
-- **Keys.** A subject's data key is created on first use, wrapped by the key provider, and stored in `data_keys`. One
-  key service call is made per new subject; unwrapped keys are cached in pinned memory.
+- **Keys.** A subject's data key belongs to its tenant: it is created on first use, wrapped by the key provider, and
+  stored in `data_keys` under (tenant, subject). One key service call is made per new subject and tenant; unwrapped keys
+  are cached in pinned memory. Markers of the earlier `v1` format (no tenant) still read, with the default tenant's key.
 - **Where the subject's data lives.** The streams that hold a subject's data are recorded in `subject_streams` before the
   commit.
 - **Snapshots.** Aggregate state that holds `[PersonalData]` members is encrypted the same way in snapshots.
@@ -285,8 +287,9 @@ raises SF0013.
 
 - **Key loss is data loss.** If the master key in your KMS is deleted, every subject's data becomes unreadable. Use the
   KMS's deletion protection and backups.
-- **Subject ids are global.** Data keys are stored per subject id, not per tenant, and erasure destroys the key for that
-  id. In a multi-tenant service, use subject ids that are unique across tenants (for example UUIDs). See
+- **Erasure is per tenant.** Data keys are stored per tenant and subject id, so `EraseSubjectAsync(subject, tenantId)`
+  erases the subject in that tenant only; the same subject id in another tenant keeps its own key. To erase a person
+  everywhere, erase them in each tenant that holds their data. See
   [Architecture 10 §3.5](Architecture/10-Security-and-Multi-Tenancy.md#35-crypto-shredding-and-tenants).
 - **Workflow state is not shredded.** Generated workflows keep their data as JSON; personal data fields in workflow state
   are not encrypted per subject in 3.0.

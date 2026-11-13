@@ -23,7 +23,8 @@
     <PackageProjectUrl>https://github.com/CodeShayk/SourceFlow.Net</PackageProjectUrl>
     <RepositoryUrl>https://github.com/CodeShayk/SourceFlow.Net</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <!-- Version is computed by GitVersion in CI; this is the local fallback. -->
+    <!-- v3-release.yml passes -p:Version: 3.0.0-alpha.<run number> on a push to v3.0.0, the tag on a v3.* tag (GitVersion.yml
+         versions the v2 builds on master only). This is the local fallback. -->
     <Version Condition="'$(Version)' == ''">3.0.0-alpha.0</Version>
     <!-- Generated sources are written to obj/ so reviewers can read them. -->
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>

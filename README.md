@@ -138,7 +138,7 @@ Every package targets **.NET 10** (`net10.0`).
 | `SourceFlow.Cloud.Gcp` | Pub/Sub transport, provisioner, Google Cloud KMS keys. | [README](docs/v3.0.0/Documentation/SourceFlow.Cloud.Gcp-README.md) |
 | `SourceFlow.AspNetCore` | Command endpoints, domain query endpoints, the query API, health checks. | [README](docs/v3.0.0/Documentation/SourceFlow.AspNetCore-README.md) |
 | `SourceFlow.Testing` | Given/When/Then specs, workflow specs, in-memory test host, storage and transport conformance kits. | [README](docs/v3.0.0/Documentation/SourceFlow.Testing-README.md) |
-| `SourceFlow.Tool` | The `sourceflow` command-line tool (run from the repository or inside a service; not packaged as a .NET tool yet). | [README](docs/v3.0.0/Documentation/SourceFlow.Tool-README.md) |
+| `SourceFlow.Tool` | The `sourceflow` command-line .NET tool (`dotnet sourceflow`), which also runs inside a service; it embeds SourceFlow Studio. | [README](docs/v3.0.0/Documentation/SourceFlow.Tool-README.md) |
 | `SourceFlow.Studio` | Service manifests, domain workspace, workflow DSL, validator, simulator, exporters; the Studio web app (`studio/app`) and the `workflow-diff` GitHub Action (`studio/action`), which are to be published as `@sourceflow/studio` and `sourceflow/workflow-diff`. | [README](docs/v3.0.0/Documentation/SourceFlow.Studio-README.md) |
 
 ### Roadmap
@@ -158,8 +158,9 @@ dotnet add package SourceFlow.AspNetCore             # HTTP command endpoints an
 dotnet add package SourceFlow.Cloud.Aws              # or .Azure / .Gcp, when services talk over a broker
 ```
 
-The `sourceflow` CLI runs inside your service (`dotnet run -- sourceflow …`, after `SourceFlowCli.TryRunAsync` in
-`Program.cs`) or from this repository (`dotnet run --project src/Tooling/SourceFlow.Tool -- …`); see the
+The `sourceflow` CLI is a .NET tool (`dotnet tool install --global SourceFlow.Tool`, once 3.0 packages are published),
+runs inside your service (`dotnet run -- sourceflow …`, after `SourceFlowCli.TryRunAsync` in `Program.cs`), or from
+this repository (`dotnet run --project src/Tooling/SourceFlow.Tool -- …`); see the
 [CLI README](docs/v3.0.0/Documentation/SourceFlow.Tool-README.md).
 
 Start the demo: PostgreSQL, the [Bank sample](samples/Bank) service on http://localhost:8080, a query console for it on

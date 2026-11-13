@@ -1,12 +1,16 @@
 using System.Diagnostics.Metrics;
 using Bank.Accounts;
+using Bank.Contracts;
 using Bank.Notifications;
 using Bank.Transfers;
 using SourceFlow.Diagnostics;
 using SourceFlow.Messaging;
 using SourceFlow.Query;
 using SourceFlow.Storage;
+using SourceFlow.Testing;
+using SourceFlow.Transport.InMemory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 
 namespace SourceFlow.EndToEnd.Tests;
 
@@ -257,6 +261,37 @@ public sealed class BankScenarios
         IReadOnlyList<IEvent> inbox = await bank.Notifications!.EventsAsync(StreamId.For(CustomerInbox.AggregateName, customer));
         inbox.Count.ShouldBe(1);
         inbox[0].ShouldBeOfType<WelcomeSent>();
+    }
+
+    [Fact]
+    [Trait("Id", "E2E-17")]
+    [Trait("Covers", "RT-R4")]
+    public async Task OneService_ReceivesItsOwnPublication_ThroughItsOwnSubscription()
+    {
+        // Bank.Api's composition: every module in one service, which publishes AccountOpenedV1 and subscribes to it.
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 1, 31, 12, 0, 0, TimeSpan.Zero));
+        var broker = new InMemoryBroker(time);
+        await using SourceFlowTestHost bank = await SourceFlowTestHost.StartAsync(sf =>
+        {
+            sf.ServiceName = "bank";
+            sf.AddModule<ContractsModule>();
+            sf.AddModule<AccountsModule>();
+            sf.AddModule<TransfersModule>();
+            sf.AddModule<NotificationsModule>();
+            sf.Routing(r =>
+            {
+                r.Publish<AccountOpened>().As(AccountContracts.ToV1).To("accounts.events");
+                r.Subscribe("accounts.events");
+            });
+        }, time, broker);
+        broker.Faults.DuplicateNext(1);
+
+        var id = AccountId.New(time);
+        (await bank.SendAsync(new OpenAccount(id, "Ada", 100m))).Status.ShouldBe(CommandStatus.Accepted);
+        await SourceFlowTestHost.WaitForIdleAsync([bank]);
+
+        IReadOnlyList<IEvent> inbox = await bank.EventsAsync(StreamId.For(CustomerInbox.AggregateName, new CustomerId(id.Value)));
+        inbox.ShouldHaveSingleItem().ShouldBeOfType<WelcomeSent>();
     }
 
     [Fact]

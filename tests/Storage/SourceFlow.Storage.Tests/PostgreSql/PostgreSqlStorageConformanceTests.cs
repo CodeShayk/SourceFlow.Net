@@ -71,6 +71,7 @@ public sealed class PostgreSqlStorageConformanceTests(PostgreSqlServer server) :
 
     [Fact]
     [Trait("Id", "SCK-L01")]
+    [Trait("Category", "Property")]
     [Trait("Covers", "ADR-006;ADR-008")]
     public void AppendsAndOutbox_AreLinearizable()
     {
@@ -80,6 +81,7 @@ public sealed class PostgreSqlStorageConformanceTests(PostgreSqlServer server) :
 
     [Fact]
     [Trait("Id", "SCK-L01")]
+    [Trait("Category", "Property")]
     [Trait("Covers", "ADR-022")]
     public void AppendsAndOutbox_AreLinearizable_UnderRowLevelSecurity()
     {

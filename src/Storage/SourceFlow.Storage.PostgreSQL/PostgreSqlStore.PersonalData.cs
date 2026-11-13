@@ -4,19 +4,21 @@ using SourceFlow.Security;
 
 namespace SourceFlow.Storage.PostgreSQL;
 
-/// <content>Crypto-shredding storage (doc 10 §4, WP-5.2): <c>data_keys</c> (global) and <c>subject_streams</c> (per tenant).</content>
+/// <content>Crypto-shredding storage (doc 10 §4, WP-5.2): <c>data_keys</c> and <c>subject_streams</c>, both per tenant.</content>
 public sealed partial class PostgreSqlStore : IPersonalDataKeyStore
 {
     /// <inheritdoc />
-    public async ValueTask<SubjectKey?> GetKeyAsync(string subjectId, CancellationToken cancellationToken)
+    public async ValueTask<SubjectKey?> GetKeyAsync(string tenantId, string subjectId, CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrEmpty(tenantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
         await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new NpgsqlCommand($"SELECT key_ref, wrapped_key, created_at, shredded_at FROM {Quoted}.data_keys WHERE subject_id = @subject", connection);
+        await using var command = new NpgsqlCommand($"SELECT key_ref, wrapped_key, created_at, shredded_at FROM {Quoted}.data_keys WHERE tenant_id = @tenant AND subject_id = @subject", connection);
+        command.Parameters.Add(new NpgsqlParameter<string>("tenant", tenantId));
         command.Parameters.Add(new NpgsqlParameter<string>("subject", subjectId));
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-            ? new SubjectKey(subjectId, reader.GetString(0), reader.GetFieldValue<byte[]>(1), reader.GetFieldValue<DateTimeOffset>(2), reader.IsDBNull(3) ? null : reader.GetFieldValue<DateTimeOffset>(3))
+            ? new SubjectKey(tenantId, subjectId, reader.GetString(0), reader.GetFieldValue<byte[]>(1), reader.GetFieldValue<DateTimeOffset>(2), reader.IsDBNull(3) ? null : reader.GetFieldValue<DateTimeOffset>(3))
             : null;
     }
 
@@ -26,8 +28,9 @@ public sealed partial class PostgreSqlStore : IPersonalDataKeyStore
         ArgumentNullException.ThrowIfNull(key);
         await using (NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false))
         await using (var command = new NpgsqlCommand(
-            $"INSERT INTO {Quoted}.data_keys (subject_id, key_ref, wrapped_key, created_at) VALUES (@subject, @ref, @wrapped, @at) ON CONFLICT (subject_id) DO NOTHING", connection))
+            $"INSERT INTO {Quoted}.data_keys (tenant_id, subject_id, key_ref, wrapped_key, created_at) VALUES (@tenant, @subject, @ref, @wrapped, @at) ON CONFLICT (tenant_id, subject_id) DO NOTHING", connection))
         {
+            command.Parameters.Add(new NpgsqlParameter<string>("tenant", key.TenantId));
             command.Parameters.Add(new NpgsqlParameter<string>("subject", key.SubjectId));
             command.Parameters.Add(new NpgsqlParameter<string>("ref", key.KeyReference));
             command.Parameters.Add(new NpgsqlParameter<byte[]>("wrapped", key.WrappedKey.ToArray()));
@@ -35,19 +38,21 @@ public sealed partial class PostgreSqlStore : IPersonalDataKeyStore
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        return await GetKeyAsync(key.SubjectId, cancellationToken).ConfigureAwait(false) ?? key;
+        return await GetKeyAsync(key.TenantId, key.SubjectId, cancellationToken).ConfigureAwait(false) ?? key;
     }
 
     /// <inheritdoc />
-    public async ValueTask ShredKeyAsync(string subjectId, DateTimeOffset at, CancellationToken cancellationToken)
+    public async ValueTask ShredKeyAsync(string tenantId, string subjectId, DateTimeOffset at, CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrEmpty(tenantId);
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
         await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new NpgsqlCommand(
             $"""
-            INSERT INTO {Quoted}.data_keys (subject_id, key_ref, wrapped_key, created_at, shredded_at) VALUES (@subject, '', '\x', @at, @at)
-            ON CONFLICT (subject_id) DO UPDATE SET wrapped_key = '\x', shredded_at = COALESCE({Quoted}.data_keys.shredded_at, @at)
+            INSERT INTO {Quoted}.data_keys (tenant_id, subject_id, key_ref, wrapped_key, created_at, shredded_at) VALUES (@tenant, @subject, '', '\x', @at, @at)
+            ON CONFLICT (tenant_id, subject_id) DO UPDATE SET wrapped_key = '\x', shredded_at = COALESCE({Quoted}.data_keys.shredded_at, @at)
             """, connection);
+        command.Parameters.Add(new NpgsqlParameter<string>("tenant", tenantId));
         command.Parameters.Add(new NpgsqlParameter<string>("subject", subjectId));
         command.Parameters.Add(new NpgsqlParameter<DateTimeOffset>("at", at));
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);

@@ -2440,10 +2440,10 @@ namespace SourceFlow.Security
     public interface IPersonalDataKeyStore
     {
         System.Threading.Tasks.ValueTask<SourceFlow.Security.SubjectKey> AddKeyAsync(SourceFlow.Security.SubjectKey key, System.Threading.CancellationToken cancellationToken);
-        System.Threading.Tasks.ValueTask<SourceFlow.Security.SubjectKey?> GetKeyAsync(string subjectId, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<SourceFlow.Security.SubjectKey?> GetKeyAsync(string tenantId, string subjectId, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.StreamId>> GetSubjectStreamsAsync(string tenantId, string subjectId, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask RecordSubjectStreamsAsync(string tenantId, string subjectId, System.Collections.Generic.IReadOnlyCollection<SourceFlow.StreamId> streams, System.Threading.CancellationToken cancellationToken);
-        System.Threading.Tasks.ValueTask ShredKeyAsync(string subjectId, System.DateTimeOffset at, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask ShredKeyAsync(string tenantId, string subjectId, System.DateTimeOffset at, System.Threading.CancellationToken cancellationToken);
     }
     public sealed class KeyProviderException : System.Exception
     {
@@ -2495,11 +2495,11 @@ namespace SourceFlow.Security
         public const string Erased = "[erased]";
         public PersonalDataProtector(SourceFlow.Security.IKeyProvider provider, SourceFlow.Security.IPersonalDataKeyStore store, SourceFlow.Runtime.RuntimeModel model, System.TimeProvider? time = null) { }
         public void Dispose() { }
-        public void Evict(string subjectId) { }
+        public void Evict(string tenantId, string subjectId) { }
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
                 "Body",
                 "Subjects"})]
-        public System.Threading.Tasks.ValueTask<System.ValueTuple<System.ReadOnlyMemory<byte>, System.Collections.Generic.IReadOnlyCollection<string>>> ProtectAsync(System.Type type, string stream, System.ReadOnlyMemory<byte> json, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<System.ValueTuple<System.ReadOnlyMemory<byte>, System.Collections.Generic.IReadOnlyCollection<string>>> ProtectAsync(System.Type type, string tenantId, string stream, System.ReadOnlyMemory<byte> json, System.Threading.CancellationToken cancellationToken) { }
         public bool Protects(System.Type type) { }
         public System.ReadOnlyMemory<byte> Scrub(System.Type type, System.ReadOnlyMemory<byte> json) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.StoredEvent> UnprotectAsync(SourceFlow.Storage.StoredEvent stored, System.Threading.CancellationToken cancellationToken) { }
@@ -2519,12 +2519,13 @@ namespace SourceFlow.Security
     }
     public sealed class SubjectKey : System.IEquatable<SourceFlow.Security.SubjectKey>
     {
-        public SubjectKey(string SubjectId, string KeyReference, System.ReadOnlyMemory<byte> WrappedKey, System.DateTimeOffset CreatedAt, System.DateTimeOffset? ShreddedAt) { }
+        public SubjectKey(string TenantId, string SubjectId, string KeyReference, System.ReadOnlyMemory<byte> WrappedKey, System.DateTimeOffset CreatedAt, System.DateTimeOffset? ShreddedAt) { }
         public System.DateTimeOffset CreatedAt { get; init; }
         public bool IsShredded { get; }
         public string KeyReference { get; init; }
         public System.DateTimeOffset? ShreddedAt { get; init; }
         public string SubjectId { get; init; }
+        public string TenantId { get; init; }
         public System.ReadOnlyMemory<byte> WrappedKey { get; init; }
     }
 }
@@ -2956,7 +2957,7 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlySet<SourceFlow.StreamId>> GetArchivedStreamsAsync(string tenantId, System.Collections.Generic.IReadOnlyCollection<SourceFlow.StreamId> streams, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.DeadLetter?> GetAsync(System.Guid id, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetAsync(string subscription, int partition, System.Threading.CancellationToken cancellationToken) { }
-        public System.Threading.Tasks.ValueTask<SourceFlow.Security.SubjectKey?> GetKeyAsync(string subjectId, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<SourceFlow.Security.SubjectKey?> GetKeyAsync(string tenantId, string subjectId, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.OutboxBacklog>> GetOutboxBacklogAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetSafeHorizonAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamInfo?> GetStreamInfoAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken) { }
@@ -2980,7 +2981,7 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask RetryAsync(SourceFlow.Storage.LeaseToken lease, long sequence, System.DateTimeOffset deliverAt, string error, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask SaveAsync(string tenantId, SourceFlow.Storage.Snapshot snapshot, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask SetStatusAsync(System.Guid id, SourceFlow.Storage.DeadLetterStatus status, string? note, System.Threading.CancellationToken cancellationToken) { }
-        public System.Threading.Tasks.ValueTask ShredKeyAsync(string subjectId, System.DateTimeOffset at, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask ShredKeyAsync(string tenantId, string subjectId, System.DateTimeOffset at, System.Threading.CancellationToken cancellationToken) { }
         public System.IDisposable Subscribe(System.Action onCommit) { }
         public System.Threading.Tasks.ValueTask<bool> SwitchAsync(string alias, string? expectedTarget, string target, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.LeaseToken?> TryAcquireAsync(string name, string owner, System.TimeSpan ttl, System.Threading.CancellationToken cancellationToken) { }

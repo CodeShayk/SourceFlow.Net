@@ -101,15 +101,15 @@ public sealed class InMemoryStore :
 
     // ------------------------------------------------------------------ IPersonalDataKeyStore
 
-    private readonly Dictionary<string, Security.SubjectKey> _subjectKeys = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string Tenant, string Subject), Security.SubjectKey> _subjectKeys = [];
     private readonly Dictionary<(string Tenant, string Subject), HashSet<string>> _subjectStreams = [];
 
     /// <inheritdoc />
-    public ValueTask<Security.SubjectKey?> GetKeyAsync(string subjectId, CancellationToken cancellationToken)
+    public ValueTask<Security.SubjectKey?> GetKeyAsync(string tenantId, string subjectId, CancellationToken cancellationToken)
     {
         lock (_gate)
         {
-            return ValueTask.FromResult(_subjectKeys.GetValueOrDefault(subjectId));
+            return ValueTask.FromResult(_subjectKeys.GetValueOrDefault((tenantId, subjectId)));
         }
     }
 
@@ -119,18 +119,18 @@ public sealed class InMemoryStore :
         ArgumentNullException.ThrowIfNull(key);
         lock (_gate)
         {
-            return ValueTask.FromResult(_subjectKeys.TryAdd(key.SubjectId, key) ? key : _subjectKeys[key.SubjectId]);
+            return ValueTask.FromResult(_subjectKeys.TryAdd((key.TenantId, key.SubjectId), key) ? key : _subjectKeys[(key.TenantId, key.SubjectId)]);
         }
     }
 
     /// <inheritdoc />
-    public ValueTask ShredKeyAsync(string subjectId, DateTimeOffset at, CancellationToken cancellationToken)
+    public ValueTask ShredKeyAsync(string tenantId, string subjectId, DateTimeOffset at, CancellationToken cancellationToken)
     {
         lock (_gate)
         {
-            _subjectKeys[subjectId] = _subjectKeys.TryGetValue(subjectId, out Security.SubjectKey? key)
+            _subjectKeys[(tenantId, subjectId)] = _subjectKeys.TryGetValue((tenantId, subjectId), out Security.SubjectKey? key)
                 ? key with { WrappedKey = ReadOnlyMemory<byte>.Empty, ShreddedAt = key.ShreddedAt ?? at }
-                : new Security.SubjectKey(subjectId, string.Empty, ReadOnlyMemory<byte>.Empty, at, at);
+                : new Security.SubjectKey(tenantId, subjectId, string.Empty, ReadOnlyMemory<byte>.Empty, at, at);
         }
 
         return ValueTask.CompletedTask;

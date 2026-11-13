@@ -114,9 +114,9 @@ is no separate abstractions package; the namespace rule and the architecture tes
 
 - Code samples come from the repository's samples and tests (`samples/Bank`, `samples/OrderFulfilment`, `tests/`), trimmed
   for length. `using` directives are shown when they matter.
-- `sourceflow <command>` means the SourceFlow command line. In 3.0.0 it is not published as a .NET tool package: run it from
-  the repository with `dotnet run --project src/Tooling/SourceFlow.Tool -- <command>`, or inside your service with
-  `dotnet run -- sourceflow <command>` ([section 17](#17-the-command-line-tool)).
+- `sourceflow <command>` means the SourceFlow command line: the `SourceFlow.Tool` .NET tool (`dotnet sourceflow`), the
+  repository build (`dotnet run --project src/Tooling/SourceFlow.Tool -- <command>`), or your service
+  (`dotnet run -- sourceflow <command>`) ([section 17](#17-the-command-line-tool)).
 - "The design" refers to the documents in [docs/v3.0.0/Design](../Design/README.md); where they differ from this guide,
   the code and this guide describe what shipped.
 
@@ -1247,7 +1247,7 @@ sf.UsePostgreSql(o =>
 | `PartitionMonthsAhead` | 3 | Months of partitions kept ahead by the maintenance job |
 | `PartitionMaintenanceInterval` | 1 hour | How often the maintenance job runs |
 
-**Schema management.** The schema is a set of versioned, embedded SQL scripts (`V001` to `V005`) applied by
+**Schema management.** The schema is a set of versioned, embedded SQL scripts (`V001` to `V006`) applied by
 `PostgreSqlSchemaMigrator` under an advisory lock, in one transaction, recorded with SHA-256 checksums in
 `{schema}.schema_history`. A newer schema than the package is accepted, so rolling upgrades work. At startup the adapter
 migrates (`AutoMigrate`) or verifies; a missing or outdated schema stops the host with a `SchemaMigrationException` that
@@ -2515,8 +2515,9 @@ sf.Security(s => s
 
 - After an event is serialised, each `[PersonalData]` member's value is encrypted with AES-256-GCM under its subject's data
   key and replaced by a `{"$pd": "..."}` marker. Snapshots are encrypted the same way.
-- A subject's data key is created on first use, wrapped by the key provider and stored in `data_keys`. The streams that
-  hold the subject's data are recorded in `subject_streams`.
+- A subject's data key belongs to its tenant: it is created on first use, wrapped by the key provider and stored in
+  `data_keys` under (tenant, subject), so erasing a subject in one tenant leaves the same subject id in another tenant
+  readable. The streams that hold the subject's data are recorded in `subject_streams`.
 - Decryption is transparent in aggregate loads, subscriptions (projections, handlers, process managers),
   `IAggregateReader` and the SFQL aggregate fold. SFQL `from events` returns the markers.
 
@@ -2940,11 +2941,17 @@ accounts.
 Full reference: [SourceFlow.Tool README](SourceFlow.Tool-README.md). Decision:
 [ADR-031](../ADRs/ADR-031-cli-runs-store-commands-globally-and-model-commands-in-the-service.md).
 
-### 17.1 Two ways to run it
+### 17.1 Ways to run it
 
-`SourceFlow.Tool` is not published as a .NET tool package in 3.0.0. Run it in one of two ways:
+**As a .NET tool**, for commands that need only a database or a workspace. `SourceFlow.Tool` is packed as a .NET tool
+and published with the 3.0 packages; the release build embeds SourceFlow Studio in it:
 
-**From the repository**, for commands that need only a database or a workspace:
+```bash
+dotnet tool install --global SourceFlow.Tool
+dotnet sourceflow <command> [options]
+```
+
+**From the repository**, the same commands without installing anything:
 
 ```bash
 dotnet run --project src/Tooling/SourceFlow.Tool -- <command> [options]

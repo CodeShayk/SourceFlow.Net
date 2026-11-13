@@ -15,9 +15,17 @@ internal sealed partial class PersonalDataEraser(SourceFlowRuntime runtime, Pers
         ArgumentException.ThrowIfNullOrWhiteSpace(subjectId);
         string tenant = tenantId ?? runtime.Options.DefaultTenant;
 
-        // (1) Destroy the key: from now on every member encrypted for the subject reads as erased.
-        await keys.ShredKeyAsync(subjectId, runtime.Time.GetUtcNow(), cancellationToken).ConfigureAwait(false);
-        protector.Evict(subjectId);
+        // (1) Destroy the tenant's key: from now on every member encrypted for the subject in this tenant reads as erased.
+        // The same subject id in another tenant has its own key and is untouched.
+        DateTimeOffset now = runtime.Time.GetUtcNow();
+        await keys.ShredKeyAsync(tenant, subjectId, now, cancellationToken).ConfigureAwait(false);
+        protector.Evict(tenant, subjectId);
+        if (tenant == runtime.Options.DefaultTenant && tenant != MessageEnvelope.DefaultTenant)
+        {
+            // Markers written before keys were per tenant (v1) use the key stored under MessageEnvelope.DefaultTenant.
+            await keys.ShredKeyAsync(MessageEnvelope.DefaultTenant, subjectId, now, cancellationToken).ConfigureAwait(false);
+            protector.Evict(MessageEnvelope.DefaultTenant, subjectId);
+        }
 
         // (2) Snapshots and cached states of the subject's streams were built from decrypted data.
         IReadOnlyList<StreamId> streams = await keys.GetSubjectStreamsAsync(tenant, subjectId, cancellationToken).ConfigureAwait(false);

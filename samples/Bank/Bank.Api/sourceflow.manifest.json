@@ -519,8 +519,18 @@
       "handles": []
     }
   ],
-  "publishes": [],
-  "subscribes": [],
+  "publishes": [
+    {
+      "domainEvent": "bank.account.opened.v1",
+      "as": "accounts.account-opened.v1",
+      "topic": "accounts.events"
+    }
+  ],
+  "subscribes": [
+    {
+      "topic": "accounts.events"
+    }
+  ],
   "commandRoutes": [],
   "workflows": [],
   "schemas": "catalog://bank"

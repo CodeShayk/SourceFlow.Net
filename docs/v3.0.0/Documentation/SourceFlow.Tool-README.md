@@ -39,10 +39,18 @@ database, and inside a service, where it uses the service's own model and storag
 
 The tool needs the .NET 10 runtime. `<command> --help` lists every option of a command.
 
-> The tool is not published as a .NET tool package yet: the project file sets `PackAsTool` (command name `sourceflow`) but
-> also `IsPackable` to `false`, so packing the solution does not produce it. Run it from source or inside a service, as
-> below. Once a package is published, `dotnet tool install --global SourceFlow.Tool` will make it available as
-> `dotnet sourceflow`, which is the form used in the examples in this document.
+### As a .NET tool
+
+`SourceFlow.Tool` is packed as a .NET tool (command name `sourceflow`) and published with the other 3.0 packages; the
+release build embeds the Studio web app and WebAssembly core in it, so `sourceflow studio` needs nothing else:
+
+```bash
+dotnet tool install --global SourceFlow.Tool    # once 3.0 packages are published; or --version 3.0.0-alpha.N from GitHub Packages
+dotnet sourceflow --help
+```
+
+The examples in this document use `dotnet sourceflow`. Until a package is available to you, run the tool from source or
+inside a service, as below.
 
 ### From source
 

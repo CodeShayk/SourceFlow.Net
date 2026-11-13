@@ -1053,11 +1053,20 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
     private async Task<PostgreSqlSchemaMigrator> MigratorAsync(ParseResult r, CancellationToken ct)
     {
         await Task.CompletedTask;
-        TenantIsolation isolation = r.GetValue<bool>("--rls") ? TenantIsolation.RowLevelSecurity : TenantIsolation.Runtime;
+        bool rls = r.GetValue<bool>("--rls");
+        TenantIsolation isolation = rls ? TenantIsolation.RowLevelSecurity : TenantIsolation.Runtime;
         bool partition = r.GetValue<bool>("--partition-events");
         if (services?.GetService<PostgreSqlStore>() is { } store)
         {
-            return new PostgreSqlSchemaMigrator(store.DataSource, store.Options.Schema, isolation, partition || store.Options.PartitionEvents);
+            // Inside the service, the store's own isolation decides: migrating a row-level security schema without it would
+            // drop the policies, and the service's next startup check would refuse the schema (ADR-022).
+            if (rls && store.Options.TenantIsolation != TenantIsolation.RowLevelSecurity)
+            {
+                throw new CliException("--rls conflicts with the service's storage, which uses TenantIsolation." + store.Options.TenantIsolation
+                    + ". Set TenantIsolation = RowLevelSecurity in the service, or run without --rls.");
+            }
+
+            return new PostgreSqlSchemaMigrator(store.DataSource, store.Options.Schema, store.Options.TenantIsolation, partition || store.Options.PartitionEvents);
         }
 
         string connection = r.GetValue(_connection) ?? Environment.GetEnvironmentVariable("SOURCEFLOW_CONNECTION")

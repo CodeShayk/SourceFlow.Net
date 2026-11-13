@@ -23,6 +23,14 @@ builder.Services.AddSourceFlow(sf =>
     sf.AddModule<AccountsModule>();
     sf.AddModule<TransfersModule>();
     sf.AddModule<NotificationsModule>();
+
+    // Accounts publishes its public contract (AccountOpenedV1, no personal data); Notifications receives it through the
+    // service's own subscription (RT-R4), exactly as it would if it ran as a separate service.
+    sf.Routing(r =>
+    {
+        r.Publish<AccountOpened>().As(AccountContracts.ToV1).To("accounts.events");
+        r.Subscribe("accounts.events");
+    });
     sf.Configure(o => o.PollInterval = TimeSpan.FromMilliseconds(200));
     sf.UsePostgreSql(connectionString, o => o.AutoMigrate = Flag(builder.Configuration, "SourceFlow:AutoMigrate", true));
     sf.UseInMemoryTransport();

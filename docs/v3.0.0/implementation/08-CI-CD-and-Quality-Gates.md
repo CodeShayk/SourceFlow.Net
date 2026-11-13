@@ -93,7 +93,7 @@ All three move to `.github/emulators/<name>/` (WP-0.3). Tests prefer the Testcon
 
 | Stage | On `v3.0.0` push | On `v3.0.0-rc.*` tag | On `v3.0.0` tag (`master`, after cutover) |
 |-------|------------------|----------------------|-------------------------------------------|
-| Version | `3.0.0-alpha.N` (GitVersion) | `3.0.0-rc.N` | `3.0.0` |
+| Version | `3.0.0-alpha.N` (N is the `v3-release` run number) | `3.0.0-rc.N` (from the tag) | `3.0.0` (from the tag) |
 | Build + full PR gate | ✔ | ✔ | ✔ |
 | Sign (NuGet author signing), SBOM (CycloneDX), SourceLink | ✔ | ✔ | ✔ |
 | Publish | GitHub Packages | GitHub Packages + NuGet.org (pre-release) | GitHub Packages + **NuGet.org** |

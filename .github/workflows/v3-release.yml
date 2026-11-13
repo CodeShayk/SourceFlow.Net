@@ -51,6 +51,19 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "prerelease=$([[ "$version" == *-* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
+      # The SourceFlow.Tool package embeds the Studio SPA and the WebAssembly core (`sourceflow studio`); build them first.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.18"
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Build SourceFlow Studio (embedded in the tool)
+        working-directory: studio
+        run: |
+          npm ci
+          npm run build:wasm
+          npm run build
+
       # Deterministic, CI (ContinuousIntegrationBuild, embedded untracked sources) and SourceLink builds: Directory.Build.props.
       - name: Build
         run: dotnet build SourceFlow.slnx -c Release -warnaserror -p:Version=${{ steps.version.outputs.version }}

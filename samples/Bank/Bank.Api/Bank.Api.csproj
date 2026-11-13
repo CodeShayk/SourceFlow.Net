@@ -4,6 +4,12 @@
     <UseSourceFlowGenerator>false</UseSourceFlowGenerator>
     <InvariantGlobalization>true</InvariantGlobalization>
     <UserSecretsId>sourceflow-bank-api</UserSecretsId>
+    <!-- The AOT check (ARCH-06): dotnet publish -p:SourceFlowAotCheck=true. PublishAot is set here, not on the command
+         line, because a global property also reaches the netstandard2.0 source generator, which cannot be AOT-compiled
+         (NETSDK1207). -->
+    <PublishAot Condition="'$(SourceFlowAotCheck)' == 'true'">true</PublishAot>
+    <!-- SourceFlow.Tool is referenced as a library (the in-service CLI, ADR-031), not run as a separate executable. -->
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Hosting\SourceFlow.AspNetCore\SourceFlow.AspNetCore.csproj" />

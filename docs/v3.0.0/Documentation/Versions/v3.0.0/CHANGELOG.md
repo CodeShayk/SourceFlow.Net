@@ -411,9 +411,12 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
 
 ### Other notes
 
-- The CI coverage gate reports but does not yet enforce the per-package targets.
-- `SourceFlow.Tool` is marked `IsPackable=false` in this build, so the release pipeline does not publish the CLI as a
-  .NET tool yet; the samples reference the project directly.
+- `SourceFlow.Tool` ships as a .NET tool (`dotnet sourceflow`) with SourceFlow Studio embedded; services can also
+  reference it to run the CLI in process.
+- Personal-data keys are per tenant (PostgreSQL migration V006, SQL Server V002): erasing a subject in one tenant leaves
+  the same subject id in other tenants untouched. Markers written before this change (`v1`) still read.
+- `sourceflow db migrate` inside a service uses the service's own tenant isolation, so it cannot switch row-level security
+  off by mistake.
 - Playwright runs the Studio end-to-end tests on Chromium only.
 - On a shared development machine, PostgreSQL saturates at about 2,700 commands/s; see the
   [load test report](../../../implementation/load-test-report.md).

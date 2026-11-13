@@ -84,7 +84,7 @@ flowchart LR
 | Job | Runs on | What it does |
 |-----|---------|--------------|
 | `dependency-review` | ubuntu | `actions/dependency-review-action`; fails on new or updated dependencies with a moderate or worse vulnerability. Pull requests only. |
-| `build (ubuntu)`, `build (windows)` | both | `dotnet restore` and `dotnet build SourceFlow.slnx -c Release -warnaserror`. On Linux also `dotnet publish samples/Bank/Bank.Api -p:PublishAot=true -warnaserror` (ARCH-06: the core and adapters stay AOT-clean). |
+| `build (ubuntu)`, `build (windows)` | both | `dotnet restore` and `dotnet build SourceFlow.slnx -c Release -warnaserror`. On Linux also `dotnet publish samples/Bank/Bank.Api -p:SourceFlowAotCheck=true -warnaserror` (ARCH-06: the core and adapters stay AOT-clean). The project sets `PublishAot` itself when `SourceFlowAotCheck` is true: `-p:PublishAot=true` on the command line would also reach the `netstandard2.0` source generator, which cannot be AOT-compiled (NETSDK1207). |
 | `unit` | ubuntu | `dotnet test --solution SourceFlow.slnx` excluding the traits `Requires=Docker`, `LocalStack`, `PubSubEmulator`, `ServiceBusEmulator`, `RealCloud`, `Terraform` and `Category=Chaos`, `Performance`. This includes unit, architecture, workflow golden and fuzz-seed tests and the in-memory storage and transport conformance kits. |
 | `storage` | ubuntu | `tests/Storage/SourceFlow.Storage.Tests` with Testcontainers (PostgreSQL, PostgreSQL with row-level security, SQL Server), excluding `Category=Chaos`. |
 | `transports (aws\|gcp\|azure)` | ubuntu | Starts the emulator from `.github/emulators/<name>` and waits for its health gate, then runs `tests/Cloud/SourceFlow.Cloud.Tests` filtered by `Cloud=Aws\|Gcp\|Azure`, excluding `RealCloud` and `Terraform`. |
@@ -162,16 +162,18 @@ Two jobs:
 **`release`** (permissions `contents: write`, `packages: write`, `id-token: write`, `attestations: write`):
 
 1. **Version.** From the tag, or `3.0.0-alpha.<run>` for a push.
-2. **Build** with `-warnaserror -p:Version=…`. CI builds are deterministic, with `ContinuousIntegrationBuild`,
+2. **Studio.** Node 22.18, `npm ci`, `npm run build:wasm` and `npm run build` in `studio/`, so the `SourceFlow.Tool` package
+   embeds the Studio web app and WebAssembly core (`sourceflow studio`).
+3. **Build** with `-warnaserror -p:Version=…`. CI builds are deterministic, with `ContinuousIntegrationBuild`,
    `EmbedUntrackedSources` and SourceLink from `Directory.Build.props`.
-3. **Unit tests**: `Category=Unit`, excluding `Requires=Docker`.
-4. **Pack** with symbol packages (`.snupkg`).
-5. **SBOM.** `dotnet-CycloneDX` (pinned `CYCLONEDX_VERSION`) writes one CycloneDX JSON SBOM per shipped package to
+4. **Unit tests**: `Category=Unit`, excluding `Requires=Docker`.
+5. **Pack** with symbol packages (`.snupkg`).
+6. **SBOM.** `dotnet-CycloneDX` (pinned `CYCLONEDX_VERSION`) writes one CycloneDX JSON SBOM per shipped package to
    `artifacts/sbom/<package>.cdx.json`.
-6. **Author signing.** `dotnet nuget sign` with the certificate from `NUGET_SIGNING_CERTIFICATE`, a timestamp from
+7. **Author signing.** `dotnet nuget sign` with the certificate from `NUGET_SIGNING_CERTIFICATE`, a timestamp from
    `TIMESTAMPER`, then `dotnet nuget verify --all`.
-7. **Provenance.** `actions/attest-build-provenance` attests every `.nupkg` (Sigstore, keyless).
-8. **Upload** the `packages-<version>` artifact and push to GitHub Packages with `GITHUB_TOKEN`.
+8. **Provenance.** `actions/attest-build-provenance` attests every `.nupkg` (Sigstore, keyless).
+9. **Upload** the `packages-<version>` artifact and push to GitHub Packages with `GITHUB_TOKEN`.
 
 **`publish`** (tags only, environment `nuget-release`): downloads the artifact, pushes to nuget.org with `NUGET_API_KEY`,
 and creates the GitHub release with generated notes, the packages, the symbol packages and the SBOMs (marked
@@ -182,8 +184,8 @@ Never create the tag `v3.0.0` while the branch `v3.0.0` exists: the names would 
 
 What ships: every project under `src/` that is packable, which is `SourceFlow.Net` (with the generator inside),
 `SourceFlow.Storage.PostgreSQL`, `.SqlServer`, `.EntityFrameworkCore`, `SourceFlow.Cloud.Aws`, `.Azure`, `.Gcp`,
-`SourceFlow.AspNetCore`, `SourceFlow.Testing` and `SourceFlow.Studio`. `SourceFlow.Tool`, `SourceFlow.Generators` and
-`SourceFlow.Studio.Wasm` set `IsPackable` to false.
+`SourceFlow.AspNetCore`, `SourceFlow.Testing`, `SourceFlow.Studio` and the .NET tool `SourceFlow.Tool`. `SourceFlow.Generators`
+(shipped inside `SourceFlow.Net`) and `SourceFlow.Studio.Wasm` (embedded in the tool) set `IsPackable` to false.
 
 ## 6. Demo images (`v3-images.yml`)
 
@@ -214,7 +216,7 @@ to the cloud sandboxes).
 | `load test (tier M)` | `docker compose up -d --build --wait postgres bank-api`, then k6 (`grafana/k6:2.3.0`) runs `loadtest/k6/bank-tier-m.js` at 1,000 commands/s for 5 minutes. Reports only (`continue-on-error`): the hosted runner shares its CPUs between the service, PostgreSQL and k6. |
 | `relay latency (emulators)` | `Category=Performance` on the three emulators (PERF-07: outbox commit to broker acknowledgement). |
 | `dast (OWASP ZAP)` | Starts the Bank API and runs `zap-api-scan.py` against `deploy/dast/query-api.openapi.json` with `deploy/dast/zap-rules.tsv`. Fails on any medium or high finding; the report is uploaded. |
-| `long-properties` | `Category=Property` with `CsCheck_Iter=50000`. No test currently carries that trait, so this job selects no tests. |
+| `long-properties` | `Category=Property` with `CsCheck_Iter=50000`: the CsCheck property tests (snapshot fold equivalence, storage linearizability on every store, SFQL parameterisation on both SQL engines, workflow runtime against the simulator) run with many more iterations than in the PR gate. |
 
 Not built from plan 08 §3: the sweeper for leftover cloud resources (the real-cloud tests delete their own prefixed
 resources), and automatic issues for benchmark regressions.
@@ -334,7 +336,7 @@ Prerequisites: the .NET SDK from `global.json`, Docker, and for Studio Node 22.1
 ```bash
 # build (as the build job)
 dotnet build SourceFlow.slnx -c Release -warnaserror
-dotnet publish samples/Bank/Bank.Api/Bank.Api.csproj -c Release -p:PublishAot=true -warnaserror
+dotnet publish samples/Bank/Bank.Api/Bank.Api.csproj -c Release -p:SourceFlowAotCheck=true -warnaserror   # needs the native toolchain
 
 # unit job: no Docker needed
 dotnet test --solution SourceFlow.slnx -c Release --no-build --ignore-exit-code 8 \

@@ -147,7 +147,7 @@ namespace SourceFlow.Studio.Dsl.Validation
                         _dataTypes[field.Name] = source is not null && name.IndexOf('.') < 0 ? source.Type : "object";
                         if (source is { PersonalData: true } && !field.Personal)
                         {
-                            Report(WorkflowRules.PersonalData, "Data field '" + field.Name + "' copies personal data (" + _workflow.Start.On + "." + name + "); mark it 'personal: true' so it is crypto-shredded in the workflow state, or don't keep it.", field.Location);
+                            Report(WorkflowRules.PersonalData, "Data field '" + field.Name + "' copies personal data (" + _workflow.Start.On + "." + name + "); mark it 'personal: true', or don't keep it.", field.Location);
                         }
                     }
                     else

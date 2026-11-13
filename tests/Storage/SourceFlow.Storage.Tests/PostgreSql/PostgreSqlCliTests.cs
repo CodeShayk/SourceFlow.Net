@@ -136,7 +136,32 @@ public sealed class PostgreSqlCliTests(PostgreSqlServer server) : PostgreSqlTest
         plan.ShouldNotContain("Ada");   // values are parameters, never in the statement (I-3)
     }
 
-    private async Task<IHost> StartAsync(string schema)
+    [Fact]
+    [Trait("Id", "E2E-25")]
+    [Trait("Covers", "ADR-022")]
+    public async Task InsideTheService_DbMigrate_KeepsTheServicesTenantIsolation()
+    {
+        string schema = PostgreSqlServer.NewSchema("cli");
+        await new PostgreSqlSchemaMigrator(Server.DataSource, schema, TenantIsolation.RowLevelSecurity).MigrateAsync(Ct);
+        using (IHost rls = await StartAsync(schema, TenantIsolation.RowLevelSecurity))
+        {
+            (int migrated, string output, string error) = await RunAsync(rls.Services, "db", "migrate");   // no --rls
+
+            migrated.ShouldBe(0, error);
+            output.ShouldContain("up to date");
+        }
+
+        // The policies are still in place: the schema verifies as row-level security, not as runtime isolation.
+        await new PostgreSqlSchemaMigrator(Server.DataSource, schema, TenantIsolation.RowLevelSecurity).VerifyAsync(Ct);
+        await Should.ThrowAsync<SchemaMigrationException>(() => new PostgreSqlSchemaMigrator(Server.DataSource, schema, TenantIsolation.Runtime).VerifyAsync(Ct));
+
+        using IHost runtime = await StartAsync(PostgreSqlServer.NewSchema("cli"));
+        (int refused, _, string conflict) = await RunAsync(runtime.Services, "db", "migrate", "--rls");
+        refused.ShouldBe(1);
+        conflict.ShouldContain("--rls conflicts");
+    }
+
+    private async Task<IHost> StartAsync(string schema, TenantIsolation isolation = TenantIsolation.Runtime)
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { EnvironmentName = Environments.Development, DisableDefaults = true });
         builder.Services.AddSourceFlow(sf =>
@@ -150,6 +175,11 @@ public sealed class PostgreSqlCliTests(PostgreSqlServer server) : PostgreSqlTest
             {
                 o.DataSource = Server.DataSource;
                 o.Schema = schema;
+                o.TenantIsolation = isolation;
+                if (isolation == TenantIsolation.RowLevelSecurity)
+                {
+                    o.SystemDataSource = Server.DataSource;
+                }
             });
             sf.UseInMemoryTransport();
         });

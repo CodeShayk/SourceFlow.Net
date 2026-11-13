@@ -296,7 +296,7 @@ public static class FuzzTargets
             ProtectedTemplate = protectedEnvelope;
             ProtectedSeeds = [[.. Encoding.UTF8.GetBytes(protectedEnvelope.Protection + "\n"), .. protectedEnvelope.Body.Span]];
 
-            (ReadOnlyMemory<byte> personal, _) = Personal.ProtectAsync(typeof(AccountOpened), "bank-account-x", Envelopes[1].Body, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+            (ReadOnlyMemory<byte> personal, _) = Personal.ProtectAsync(typeof(AccountOpened), MessageEnvelope.DefaultTenant, "bank-account-x", Envelopes[1].Body, CancellationToken.None).AsTask().GetAwaiter().GetResult();
             PersonalSeeds = [personal.ToArray(), Envelopes[1].Body.ToArray()];
             V2Map = new V2MessageMap().Type("MyApp.Commands.CreateAccount, MyApp", "bank.account.open", 1);
         }

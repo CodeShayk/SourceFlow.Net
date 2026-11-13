@@ -79,14 +79,14 @@ flowchart TB
         MSG["Each protected message body<br/>carries its wrapped DEK"]
     end
     subgraph Personal["Personal data"]
-        SDEK["One DEK per subject"]
-        DK[("data_keys<br/>subject_id · key_ref · wrapped_key · shredded_at")]
+        SDEK["One DEK per tenant and subject"]
+        DK[("data_keys<br/>tenant_id · subject_id · key_ref · wrapped_key · shredded_at")]
         PD["$pd markers in events and snapshots"]
     end
     MK -- wraps --> PDEK
     MK -- wraps --> SDEK
     PDEK -- AES-256-GCM, AD = id|type|source --> MSG
-    SDEK -- AES-256-GCM, AD = subject|path --> PD
+    SDEK -- AES-256-GCM, AD = tenant|subject|path --> PD
     SDEK -- stored wrapped --> DK
 ```
 
@@ -209,12 +209,17 @@ sequenceDiagram
 
 ### 3.5 Crypto-shredding and tenants
 
-`data_keys` is keyed by `subject_id` alone and carries no `tenant_id`, while `subject_streams` is tenant-scoped (and
-covered by row-level security). Consequences:
+Data keys belong to a tenant: `data_keys` is keyed by `(tenant_id, subject_id)` (PostgreSQL V006, SQL Server V002), and
+`subject_streams` is tenant-scoped too (and covered by row-level security). Consequences:
 
-- `ShredKeyAsync(subject)` destroys the subject's key for **every** tenant; snapshot deletion and document scrubbing apply
-  to the tenant passed to `EraseSubjectAsync`.
-- Subject ids must be unique across tenants. Use UUIDs or prefix them with the tenant.
+- `EraseSubjectAsync(subject, tenantId)` shreds that tenant's key for the subject, deletes the snapshots and scrubs the
+  documents of that tenant's streams. The same subject id in another tenant keeps its key and stays readable.
+- The tenant is in each marker (`v2:{tenant}:{subject}:…`) and in the associated data, so a marker copied into another
+  tenant's data does not decrypt there.
+- Markers written before keys were per tenant (`v1:{subject}:…`, associated data `subject|path`) read with the key stored
+  under the default tenant `-`, where the migration moved every existing key. Erasing a subject in the configured
+  `DefaultTenant` also shreds that legacy key when the two differ.
+- To erase a person everywhere, erase them in each tenant that holds their data.
 
 ### 3.6 Guarantees and failure behaviour
 
@@ -246,10 +251,10 @@ leads its key with it:
 | `documents` | `(tenant_id, collection, id)` |
 | `process_instances` | `(tenant_id, process_type, process_id)` |
 | `subject_streams` | `(tenant_id, subject_id, stream_id)` |
+| `data_keys` | `(tenant_id, subject_id)`; not covered by row-level security (read outside tenant sessions) |
 | `schemas` | `(tenant_id, message_type, type_version)`; always `'-'`, schemas are code |
 
-`outbox`, `inbox`, `checkpoints`, `leases`, `dead_letters`, `nodes`, `collection_aliases` and `data_keys` hold no
-tenant column: they are keyed by globally unique message ids or by infrastructure names. A single-tenant service never
+`outbox`, `inbox`, `checkpoints`, `leases`, `dead_letters`, `nodes` and `collection_aliases` hold no tenant column: they are keyed by globally unique message ids or by infrastructure names. A single-tenant service never
 sees tenancy: everything runs under `'-'`.
 
 The bucket of a stream is `xxHash32(tenant_id + '/' + stream_id) & 1023`, so the same stream id in two tenants is two

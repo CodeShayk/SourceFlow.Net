@@ -33,7 +33,7 @@ public sealed class PersonalDataTests
         string stored = await RawAsync(host, id);
         stored.ShouldNotContain("Ada Lovelace");
         stored.ShouldNotContain("12 Byron Lane");
-        stored.ShouldContain("\"$pd\":\"v1:");
+        stored.ShouldContain("\"$pd\":\"v2:");
         stored.ShouldContain("\"city\":\"London\"", customMessage: "the city is not personal data");
         stored.ShouldContain("\"customer\":\"cust-1\"", customMessage: "the subject id itself is not encrypted");
     }
@@ -207,7 +207,7 @@ public sealed class PersonalDataTests
 
         keys.Generated.ShouldBe(2);
         keys.Unwrapped.ShouldBe(2, "each key is unwrapped once, then cached");
-        (await host.Store.GetKeyAsync("cust-1", Ct)).ShouldNotBeNull().KeyReference.ShouldBe("local-master/v1");
+        (await host.Store.GetKeyAsync(MessageEnvelope.DefaultTenant, "cust-1", Ct)).ShouldNotBeNull().KeyReference.ShouldBe("local-master/v1");
     }
 
     [Fact]
@@ -315,12 +315,76 @@ public sealed class PersonalDataTests
         var model = new SourceFlowModelBuilder().AddModule<CoreTestModule>().Build();
         var store = new InMemoryStore();
         using var protector = new PersonalDataProtector(keys, store, model);
-        (ReadOnlyMemory<byte> body, _) = await protector.ProtectAsync(typeof(PatientRenamed), "s", Encoding.UTF8.GetBytes("{\"patientId\":\"x\",\"customer\":\"c\",\"name\":\"Ada\"}"), Ct);
+        (ReadOnlyMemory<byte> body, _) = await protector.ProtectAsync(typeof(PatientRenamed), MessageEnvelope.DefaultTenant, "s", Encoding.UTF8.GetBytes("{\"patientId\":\"x\",\"customer\":\"c\",\"name\":\"Ada\"}"), Ct);
 
         using var empty = new PersonalDataProtector(keys, new InMemoryStore(), model);   // a store that never saw the key
 
         Encoding.UTF8.GetString((await empty.UnprotectAsync(body, Ct)).Span).ShouldContain("\"name\":\"[erased]\"");
         Encoding.UTF8.GetString((await protector.UnprotectAsync(body, Ct)).Span).ShouldContain("\"name\":\"Ada\"");
+    }
+
+    [Fact]
+    [Trait("Id", "UT-PII-25")]
+    [Trait("Covers", "doc 10 4;ADR-022")]
+    public async Task Keys_ArePerTenant_ErasingASubjectInOneTenant_LeavesTheOtherTenantReadable()
+    {
+        using var keys = new LocalKeyProvider();
+        var model = new SourceFlowModelBuilder().AddModule<CoreTestModule>().Build();
+        var store = new InMemoryStore();
+        using var protector = new PersonalDataProtector(keys, store, model);
+        byte[] json = Encoding.UTF8.GetBytes("{\"patientId\":\"x\",\"customer\":\"cust-1\",\"name\":\"Ada\"}");
+        (ReadOnlyMemory<byte> inA, _) = await protector.ProtectAsync(typeof(PatientRenamed), "tenant-a", "s", json, Ct);
+        (ReadOnlyMemory<byte> inB, _) = await protector.ProtectAsync(typeof(PatientRenamed), "tenant-b", "s", json, Ct);
+
+        keys.Generated.ShouldBe(2, "the same subject id has a key per tenant");
+        Encoding.UTF8.GetString(inA.Span).ShouldContain("\"$pd\":\"v2:");
+
+        // Erase cust-1 in tenant-a only.
+        await store.ShredKeyAsync("tenant-a", "cust-1", DateTimeOffset.UnixEpoch, Ct);
+        protector.Evict("tenant-a", "cust-1");
+
+        Encoding.UTF8.GetString((await protector.UnprotectAsync(inA, Ct)).Span).ShouldContain("\"name\":\"[erased]\"");
+        Encoding.UTF8.GetString((await protector.UnprotectAsync(inB, Ct)).Span).ShouldContain("\"name\":\"Ada\"");
+
+        // A marker moved into another tenant's data does not decrypt: the tenant is part of the associated data.
+        string markerA = JsonDocument.Parse(inB).RootElement.GetProperty("name").GetProperty("$pd").GetString()!;
+        string forged = markerA.Replace("v2:" + Base64Url("tenant-b"), "v2:" + Base64Url("tenant-c"), StringComparison.Ordinal);
+        await store.AddKeyAsync((await store.GetKeyAsync("tenant-b", "cust-1", Ct))! with { TenantId = "tenant-c" }, Ct);
+        await Should.ThrowAsync<DecryptionFailedException>(async () => await protector.UnprotectAsync(Encoding.UTF8.GetBytes($"{{\"name\":{{\"$pd\":\"{forged}\"}}}}"), Ct));
+    }
+
+    [Fact]
+    [Trait("Id", "UT-PII-26")]
+    [Trait("Covers", "doc 10 4")]
+    public async Task V1Markers_WrittenBeforeKeysWerePerTenant_ReadWithTheDefaultTenantsKey()
+    {
+        using var keys = new LocalKeyProvider();
+        var model = new SourceFlowModelBuilder().AddModule<CoreTestModule>().Build();
+        var store = new InMemoryStore();
+        using var protector = new PersonalDataProtector(keys, store, model);
+
+        // A v1 marker: no tenant; associated data "subject|path"; the key now stored under the default tenant.
+        using DataKey key = await keys.GenerateDataKeyAsync(Ct);
+        await store.AddKeyAsync(new SubjectKey(MessageEnvelope.DefaultTenant, "cust-1", key.KeyReference, key.Wrapped, DateTimeOffset.UnixEpoch, null), Ct);
+        byte[] plaintext = Encoding.UTF8.GetBytes("\"Ada\"");
+        byte[] payload = new byte[28 + plaintext.Length];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(payload.AsSpan(0, 12));
+        using (var aes = new System.Security.Cryptography.AesGcm(key.Plaintext, 16))
+        {
+            aes.Encrypt(payload.AsSpan(0, 12), plaintext, payload.AsSpan(28), payload.AsSpan(12, 16), Encoding.UTF8.GetBytes("cust-1|name"));
+        }
+
+        string v1 = $"{{\"name\":{{\"$pd\":\"v1:{Base64Url("cust-1")}:s:{Convert.ToBase64String(payload)}\"}}}}";
+        Encoding.UTF8.GetString((await protector.UnprotectAsync(Encoding.UTF8.GetBytes(v1), Ct)).Span).ShouldBe("{\"name\":\"Ada\"}");
+
+        await store.ShredKeyAsync(MessageEnvelope.DefaultTenant, "cust-1", DateTimeOffset.UnixEpoch, Ct);
+        protector.Evict(MessageEnvelope.DefaultTenant, "cust-1");
+        Encoding.UTF8.GetString((await protector.UnprotectAsync(Encoding.UTF8.GetBytes(v1), Ct)).Span).ShouldBe("{\"name\":\"[erased]\"}");
+    }
+
+    private static string Base64Url(string value)
+    {
+        return System.Buffers.Text.Base64Url.EncodeToString(Encoding.UTF8.GetBytes(value));
     }
 
     [Fact]

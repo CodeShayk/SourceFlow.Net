@@ -340,6 +340,7 @@ public sealed class PostgreSqlQueryTests(PostgreSqlServer server) : PostgreSqlTe
 
     [Fact]
     [Trait("Id", "QRY-60")]
+    [Trait("Category", "Property")]
     [Trait("Covers", "ADR-026")]
     public void NoLiteral_EverRequestValueIsAParameter()
     {

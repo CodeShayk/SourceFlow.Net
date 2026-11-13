@@ -103,6 +103,7 @@ public sealed class SnapshotTests
 
     [Fact]
     [Trait("Id", "SCK-54")]
+    [Trait("Category", "Property")]
     [Trait("Covers", "doc 05 8.1")]
     public async Task LoadFromSnapshotPlusTail_EqualsTheFullFold_ForRandomHistories()
     {
