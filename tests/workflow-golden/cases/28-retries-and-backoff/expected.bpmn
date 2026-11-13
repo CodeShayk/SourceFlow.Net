@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<bpmn:definitions id="Definitions_approve_order_1" targetNamespace="https://sourceflow.net/workflows/orders" exporter="SourceFlow Studio" exporterVersion="1" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:message id="Message_orders_approve_order_v1" name="orders.approve-order.v1" />
+  <bpmn:message id="Message_orders_order_approved_v1" name="orders.order-approved.v1" />
+  <bpmn:message id="Message_orders_order_placed_v1" name="orders.order-placed.v1" />
+  <bpmn:message id="Message_orders_order_rejected_by_review_v1" name="orders.order-rejected-by-review.v1" />
+  <bpmn:process id="Process_approve_order_1" name="approve-order@1" isExecutable="false">
+    <bpmn:startEvent id="Start" name="orders.order-placed.v1">
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_orders_order_placed_v1" />
+    </bpmn:startEvent>
+    <bpmn:endEvent id="Completed" name="Completed">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateThrowEvent id="Compensate" name="Compensate completed steps">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+      <bpmn:compensateEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="Compensated" name="Compensated">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="ManualIntervention" name="Manual intervention">
+      <bpmn:documentation>An operator resumes, retries or aborts the instance.</bpmn:documentation>
+    </bpmn:endEvent>
+    <bpmn:sendTask id="Send_approve" name="approve: orders.approve-order.v1" messageRef="Message_orders_approve_order_v1">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:receiveTask id="Await_approve" name="approve: await orders.order-approved.v1" messageRef="Message_orders_order_approved_v1">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:boundaryEvent id="Failure_approve_1" name="orders.order-rejected-by-review.v1" attachedToRef="Await_approve" cancelActivity="true">
+      <bpmn:documentation>retry 1× (fixed, initial PT0S)</bpmn:documentation>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_orders_order_rejected_by_review_v1" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="Timeout_approve" name="timeout PT1H" attachedToRef="Await_approve" cancelActivity="true">
+      <bpmn:documentation>retry 20× (exponential, initial PT1S, cap PT1H)</bpmn:documentation>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">PT1H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="Flow_1" name="nothing to undo" sourceRef="Compensate" targetRef="Compensated" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Start" targetRef="Send_approve" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Send_approve" targetRef="Await_approve" />
+    <bpmn:sequenceFlow id="Flow_4" name="✓ orders.order-approved.v1" sourceRef="Await_approve" targetRef="Completed" />
+    <bpmn:sequenceFlow id="Flow_5" name="✕ orders.order-rejected-by-review.v1" sourceRef="Failure_approve_1" targetRef="Completed" />
+    <bpmn:sequenceFlow id="Flow_6" name="⏱ PT1H" sourceRef="Timeout_approve" targetRef="Send_approve" />
+  </bpmn:process>
+</bpmn:definitions>

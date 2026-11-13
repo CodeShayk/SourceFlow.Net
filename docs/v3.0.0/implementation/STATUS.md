@@ -4,7 +4,7 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 
 ## Progress summary
 
-Updated 2026-11-13. **53 of 63 work packages are done (84%)** and 10 not started. By estimated effort, 113.5 of 138.5 engineer-weeks are done (82%).
+Updated 2026-11-13. **54 of 63 work packages are done (86%)** and 9 not started. By estimated effort, 116.5 of 138.5 engineer-weeks are done (84%).
 
 | Milestone | Done | In progress | Todo | Effort done (ew) |
 |-----------|------|-------------|------|------------------|
@@ -14,7 +14,7 @@ Updated 2026-11-13. **53 of 63 work packages are done (84%)** and 10 not started
 | M3 Cloud transports | 7 | 0 | 0 | 19 of 19 |
 | M4 Tooling and operations | 7 | 0 | 0 | 16.5 of 16.5 |
 | M5 Security and migration | 5 | 0 | 0 | 11 of 11 |
-| Track S: Workflow DSL and Studio | 3 | 0 | 10 | 7 of 32 |
+| Track S: Workflow DSL and Studio | 4 | 0 | 9 | 10 of 32 |
 
 Completed in this round:
 
@@ -47,6 +47,7 @@ Completed in this round:
 - WP-S.1: the static service manifest (`[assembly: SourceFlowManifest]`) with `emits`/`rejects` from static analysis of `Decide`, and SF0019.
 - WP-S.2: design-time mode, `dotnet sourceflow manifest export` with a drift check, and the `sourceflow.domain.yaml` workspace loader.
 - WP-S.3: the workflow DSL core: model, YAML reader with positions, `schemas/workflow-1.json`, CESQL guards and the validator (WF-V01…V16), with a 30-case golden suite.
+- WP-S.4: the workflow simulator, path enumerator with coverage, spec generator, and Mermaid and BPMN exporters.
 - WP-5.5: fuzz harnesses for every untrusted-input parser (four contract breaks found and fixed), the security review against the threat model, an append-only runtime role script, and SBOMs, signing and provenance in the release pipeline.
 
 M2 (PostgreSQL), M3 (cloud transports) and M4 (operations, SQL Server, scale) are complete. M3's real-cloud exit evidence (5 green nights per cloud) comes from the nightly workflow.
@@ -57,7 +58,7 @@ M5 (security and migration) is built. Its exit criteria still need three things:
 - the signing certificate;
 - the maintainer's sign-off of `docs/v3.0.0/implementation/security-review.md`.
 
-Track S (Workflow DSL and Studio) is under way: WP-S.1 to WP-S.3 are done.
+Track S (Workflow DSL and Studio) is under way: WP-S.1 to WP-S.4 are done (S1, manifests and the DSL core, is complete).
 
 | WP | Title | Estimate (ew) | Status | Notes |
 |----|-------|---------------|--------|-------|
@@ -114,7 +115,7 @@ Track S (Workflow DSL and Studio) is under way: WP-S.1 to WP-S.3 are done.
 | WP-S.1 | Static manifest emission | 2 | done | The generator emits `[assembly: SourceFlowManifest(json)]` (`manifestVersion: 1`): messages with typed fields (JSON names, nullability, personal data), aggregates with each command's `emits`/`rejects`, handled events, command-handler commands, process managers (`handles`/`sends`/`schedules`) and projections. The static analysis is shared with SF0019 (helper-built events, computed codes, helper decisions), and `[Emits]`/`[Rejects]` fill the gaps. The Bank sample's manifests are exact with no SF0019. Tests: UT-MAN-01..08, GEN-51..55. The OrderFulfilment half of the acceptance comes with its sample (WP-S.13) |
 | WP-S.2 | Design-time manifest export + workspace | 1.5 | done | Design-time mode (`SOURCEFLOW_DESIGN_TIME=1`): the manifest is written on the generic host's `HostBuilt` event and the process ends before the host starts. `dotnet sourceflow manifest export --project` (build, then a design-time run; arguments after `--` go to the app) or inside a service, with `--check` for drift. The merge takes membership from the runtime model and adds `commandRoutes` (`replyOnReject`), `publishes` and `subscribes`. `sourceflow.domain.yaml` model and loader with positions, and offline by default. `ServiceManifest` and a portable JSON reader live under `Dsl/`. The Bank manifest is committed and drift-checked in `v3-pr.yml`. Tests: UT-MAN-09..15 (no storage or transport use under fault-injecting adapters; byte-identical repeats; a real design-time run of Bank.Api against a refused database port) |
 | WP-S.3 | DSL core: model, reader, schema, validator | 3.5 | done | `SourceFlow.Studio/Dsl` (portable for the generator): model with source positions, YamlDotNet node-model reader (WF-S01..S06; anchors and aliases rejected; YAML 1.2 core scalars), ISO-8601 durations, a CESQL guard parser, binder and three-valued evaluator, the validator WF-V01..V16 with partial (compile-time) mode, and the structural fingerprint for WF-V15. `schemas/workflow-1.json` agrees with the reader on every golden file. `next: complete` added (the §5.1 example never completed; WF-V05 found it). Golden suite `tests/workflow-golden`: a four-service domain and 30 cases. Tests: UT-WF-01..40, WF-GOLD-01..30 |
-| WP-S.4 | Simulator, path enumerator, spec generator, exporters | 3 | todo | |
+| WP-S.4 | Simulator, path enumerator, spec generator, exporters | 3 | done | `Dsl/Simulation`: a deterministic simulator of the doc 15 §5.3 table (explicit clock, one pending timer, retries per outcome, a reverse-order compensation stack, manual, resume, retry-step and abort) with UUIDv5 send ids equal to `MessageIds.CreateVersion5`. A path enumerator: bounded loops, retries at 0/1/max, guard branches, edge coverage, and a minimal cover (the §5.1 example has 437 paths, 6 in the cover). The spec generator writes `WorkflowSpec` tests (the API lands in WP-S.5), with a guard-solving start-data picker. Mermaid `stateDiagram-v2` and BPMN 2.0 (semantic model) exporters. Golden files per valid case: paths, Mermaid, BPMN; specs for the example. Tests: UT-WF-41..60. The specs compile once WP-S.5 adds `WorkflowSpec` and the generated workflow |
 | WP-S.5 | Workflow code generation + runtime abstractions | 4 | todo | |
 | WP-S.6 | Runtime support: metrics, CLI, version guard | 1.5 | todo | |
 | WP-S.7 | WASM core + TypeScript facade | 1.5 | todo | |

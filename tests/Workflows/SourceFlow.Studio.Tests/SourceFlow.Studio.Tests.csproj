@@ -3,6 +3,7 @@
   <ItemGroup>
     <PackageReference Include="JsonSchema.Net" />
     <PackageReference Include="CsCheck" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Workflows\SourceFlow.Studio\SourceFlow.Studio.csproj" />

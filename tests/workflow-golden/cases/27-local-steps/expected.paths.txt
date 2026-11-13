@@ -1,0 +1,5 @@
+P01 reject-if-needed: success → cancel: success ⇒ Completed
+P02 reject-if-needed: success → cancel: rejected orders.already_shipped ⇒ Completed
+P03 reject-if-needed: success → cancel: timeout ⇒ ManualIntervention
+
+edges: 4, uncovered: none

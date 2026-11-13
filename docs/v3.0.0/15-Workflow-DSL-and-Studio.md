@@ -296,6 +296,36 @@ CompensationStack = [ (stepId, compensation, attempt) … ]   # pushed on each s
 
 **Infrastructure failures** (a broker outage, the owner service down) never reach the workflow as failures: the runtime retries and parks them (doc 04 §9). The workflow sees only business outcomes, plus **timeouts**. That is why every wait needs a timeout.
 
+**As built (WP-S.4): the simulator** (`Dsl/Simulation/WorkflowSimulator`). The simulator is the reference implementation of this table; the generated process manager must match it (WF-DIFF, WP-S.5).
+
+- **Determinism.** It is pure and deterministic. Time is explicit: a timer firing moves the clock to the timer's due time.
+- **State.** Status, step, phase, attempt, retries per outcome, the compensation stack, data, the failure, the one pending timer, and `CompensationPending`.
+- **Retries.**
+  - A retry with a delay sets the phase to `Retrying` and schedules a `retry` timer. Without a delay, the command is re-sent at once.
+  - Business retries and timeout retries are counted separately. A re-sent attempt gets a new id; a re-entered step starts again at attempt 1.
+- **Message ids.** `UUIDv5(SourceFlow namespace, "workflow/{name@v}/{instance}/{step}/{attempt}")`.
+  - Compensations use `compensate:{step}` as the step part.
+  - `on.*` sends use `on:completed` and `on:compensated`, at attempt 1.
+  - This is the same algorithm as `MessageIds.CreateVersion5`.
+- **Unhandled outcomes.** A rejection or failure event the step doesn't declare goes to `ManualIntervention`, with the failure recorded.
+- **Compensations.** A rejected compensation counts as a failed attempt, like a timeout: it retries, then goes to `ManualIntervention` with the stack kept.
+- **Operator commands.**
+  - **Resume** continues the compensation when it was the compensation that failed.
+  - **Abort with `compensate: true`** compensates and ends `Aborted`, without `on.compensated`.
+  - **`RetryWorkflowStep`** re-sends the current step or compensation with the next attempt.
+- **Paths** (`PathEnumerator`). The enumerator re-runs the simulator per path prefix. It branches on every outcome, on guarded steps (taken or skipped), and on retry loops at 0, 1 and max (an outcome once, or repeated until its retries run out).
+  - **Bounds.** Each step is entered at most twice per path; paths end in a terminal status or `ManualIntervention`; the limits are configurable, and truncation is reported.
+  - **Assumptions.** `start.when` and success guards are assumed to hold.
+  - **Coverage.** Coverage marks every statechart edge, including immediate retries.
+  - **Minimal cover.** `MinimalCover()` is a greedy set that covers every edge and every end status. The §5.1 example has 437 paths and a minimal cover of 6.
+- **Specs** (`SpecGenerator`). One xUnit test per path (the minimal cover by default; all paths, or selected ids, on request). Each test is written against `WorkflowSpec.For<TWorkflow, TModule>()` from `SourceFlow.Testing` (WP-S.5): `Start`, `Succeed`, `Reject`, `Fail`, `FireTimer`, `ThenSends`, `ThenStatus`.
+  - **Start data.** A small solver over the guard literals picks start data that makes each guarded step take the path's decision.
+  - **Event data.** Events carry the instance key, and captured fields get distinct values.
+- **Exports.**
+  - **Mermaid.** A `stateDiagram-v2` with a symbol and a text label per edge kind; compensations are a nested state, numbered in the order they run.
+  - **BPMN 2.0.** The semantic model only (no BPMNDI): a message start event, send and receive tasks, timer and message boundary events, guard gateways with CESQL `conditionExpression`, compensation boundary events with `isForCompensation` tasks, and retries as documentation.
+  - **BPMN check.** The model is checked for well-formedness, unique ids and resolved references. Validating against the OMG XSDs is not automated, because the XSDs are not vendored.
+
 ### 5.4 Validation rules (WFD-28)
 
 | ID | Rule | Severity |

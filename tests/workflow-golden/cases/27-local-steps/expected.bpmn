@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<bpmn:definitions id="Definitions_review_order_3" targetNamespace="https://sourceflow.net/workflows/orders" exporter="SourceFlow Studio" exporterVersion="1" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:message id="Message_orders_cancel_order_v1" name="orders.cancel-order.v1" />
+  <bpmn:message id="Message_orders_order_cancelled_v1" name="orders.order-cancelled.v1" />
+  <bpmn:message id="Message_orders_order_placed_v1" name="orders.order-placed.v1" />
+  <bpmn:message id="Message_orders_order_rejected_by_review_v1" name="orders.order-rejected-by-review.v1" />
+  <bpmn:message id="Message_orders_reject_order_v1" name="orders.reject-order.v1" />
+  <bpmn:message id="Message_rejected_orders_already_shipped" name="rejected:orders.already_shipped" />
+  <bpmn:process id="Process_review_order_3" name="review-order@3" isExecutable="false">
+    <bpmn:documentation>Local steps, rejections of local commands and explicit no-timeout and no-compensation.</bpmn:documentation>
+    <bpmn:startEvent id="Start" name="orders.order-placed.v1">
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_orders_order_placed_v1" />
+    </bpmn:startEvent>
+    <bpmn:endEvent id="Completed" name="Completed">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+      <bpmn:incoming>Flow_7</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateThrowEvent id="Compensate" name="Compensate completed steps">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+      <bpmn:compensateEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="Compensated" name="Compensated">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="ManualIntervention" name="Manual intervention">
+      <bpmn:documentation>An operator resumes, retries or aborts the instance.</bpmn:documentation>
+      <bpmn:incoming>Flow_8</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sendTask id="Send_reject_if_needed" name="reject-if-needed: orders.reject-order.v1" messageRef="Message_orders_reject_order_v1">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:receiveTask id="Await_reject_if_needed" name="reject-if-needed: await orders.order-rejected-by-review.v1" messageRef="Message_orders_order_rejected_by_review_v1">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:sendTask id="Send_cancel" name="cancel: orders.cancel-order.v1" messageRef="Message_orders_cancel_order_v1">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:receiveTask id="Await_cancel" name="cancel: await orders.order-cancelled.v1" messageRef="Message_orders_order_cancelled_v1">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:boundaryEvent id="Failure_cancel_1" name="rejected orders.already_shipped" attachedToRef="Await_cancel" cancelActivity="true">
+      <bpmn:outgoing>Flow_7</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_rejected_orders_already_shipped" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="Timeout_cancel" name="timeout PT10M" attachedToRef="Await_cancel" cancelActivity="true">
+      <bpmn:outgoing>Flow_8</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">PT10M</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="Flow_1" name="nothing to undo" sourceRef="Compensate" targetRef="Compensated" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Start" targetRef="Send_reject_if_needed" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Send_reject_if_needed" targetRef="Await_reject_if_needed" />
+    <bpmn:sequenceFlow id="Flow_4" name="✓ orders.order-rejected-by-review.v1" sourceRef="Await_reject_if_needed" targetRef="Send_cancel" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Send_cancel" targetRef="Await_cancel" />
+    <bpmn:sequenceFlow id="Flow_6" name="✓ orders.order-cancelled.v1" sourceRef="Await_cancel" targetRef="Completed" />
+    <bpmn:sequenceFlow id="Flow_7" name="✕ rejected orders.already_shipped" sourceRef="Failure_cancel_1" targetRef="Completed" />
+    <bpmn:sequenceFlow id="Flow_8" name="⏱ PT10M" sourceRef="Timeout_cancel" targetRef="ManualIntervention" />
+  </bpmn:process>
+</bpmn:definitions>
