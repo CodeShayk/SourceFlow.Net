@@ -86,7 +86,7 @@ public sealed class DomainWorkspace
                     .Select(f => System.IO.Path.GetRelativePath(root, f).Replace('\\', '/'))
                     .Order(StringComparer.Ordinal)]
                 : [];
-            services.Add(new WorkspaceService(entry.Name!, entry.Manifest!, manifest, workflows is null ? null : entry.Workflows, files));
+            services.Add(new WorkspaceService(entry.Name!, entry.Manifest!, manifest, workflows is null ? null : entry.Workflows, files) { ProjectLocation = entry.Project });
         }
 
         return new DomainWorkspace(file, definition.Domain!, definition.Description, services);
@@ -160,7 +160,7 @@ public sealed class DomainWorkspace
     {
         if (node is not YamlMappingNode mapping)
         {
-            throw Error(file, node, "a service is a mapping with 'name', 'manifest' and optionally 'workflows'");
+            throw Error(file, node, "a service is a mapping with 'name', 'manifest' and optionally 'workflows' and 'project'");
         }
 
         var entry = new WorkspaceFile.ServiceEntry();
@@ -177,8 +177,11 @@ public sealed class DomainWorkspace
                 case "workflows":
                     entry.Workflows = Scalar(file, value);
                     break;
+                case "project":
+                    entry.Project = Scalar(file, value);
+                    break;
                 default:
-                    throw Error(file, key, $"unknown key '{((YamlScalarNode)key).Value}' (expected name, manifest or workflows)");
+                    throw Error(file, key, $"unknown key '{((YamlScalarNode)key).Value}' (expected name, manifest, workflows or project)");
             }
         }
 
@@ -252,7 +255,11 @@ public sealed class DomainWorkspace
 /// <param name="Manifest">The loaded manifest.</param>
 /// <param name="WorkflowsLocation">The workflows folder as written, or null when the service owns no workflows.</param>
 /// <param name="WorkflowFiles">The <c>*.sfflow.yaml</c> files, relative to the workspace root with <c>/</c> separators, sorted.</param>
-public sealed record WorkspaceService(string Name, string ManifestLocation, ServiceManifest Manifest, string? WorkflowsLocation, IReadOnlyList<string> WorkflowFiles);
+public sealed record WorkspaceService(string Name, string ManifestLocation, ServiceManifest Manifest, string? WorkflowsLocation, IReadOnlyList<string> WorkflowFiles)
+{
+    /// <summary>The service's project (a .csproj or its folder) as written, or null: Studio can then re-export its manifest (WP-S.8).</summary>
+    public string? ProjectLocation { get; init; }
+}
 
 /// <summary>How a workspace is loaded.</summary>
 public sealed class WorkspaceLoadOptions
@@ -301,5 +308,7 @@ internal sealed class WorkspaceFile
         public string? Manifest { get; set; }
 
         public string? Workflows { get; set; }
+
+        public string? Project { get; set; }
     }
 }

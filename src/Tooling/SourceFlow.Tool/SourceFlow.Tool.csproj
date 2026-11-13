@@ -2,7 +2,9 @@
   <!--
     dotnet sourceflow (WP-4.1, ADR-031): store-level commands run from the global tool with a connection string; commands
     that need the service's model run inside the service (dotnet run, then: sourceflow ...) through SourceFlowCli.RunAsync.
-    migrate v2 (WP-5.4) reads the v2 database on PostgreSQL or SQL Server; the Studio commands come with track S.
+    migrate v2 (WP-5.4) reads the v2 database on PostgreSQL or SQL Server. Track S adds manifest export (WP-S.2), the
+    workflow commands (WP-S.6) and the Studio local host (WP-S.8), which serves the SPA and the WebAssembly core embedded
+    below when they were built first (npm run build in studio/; npm run build:wasm).
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -10,12 +12,21 @@
     <ToolCommandName>sourceflow</ToolCommandName>
     <Description>The dotnet sourceflow command-line tool.</Description>
     <IsPackable>false</IsPackable>
+    <StudioAppDist>$(MSBuildThisFileDirectory)..\..\..\studio\app\dist\</StudioAppDist>
+    <StudioFramework>$(MSBuildThisFileDirectory)..\..\..\artifacts\studio-wasm\wwwroot\_framework\</StudioFramework>
   </PropertyGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
     <ProjectReference Include="..\..\Storage\SourceFlow.Storage.PostgreSQL\SourceFlow.Storage.PostgreSQL.csproj" />
+    <ProjectReference Include="..\..\Workflows\SourceFlow.Studio\SourceFlow.Studio.csproj" />
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="Microsoft.Data.SqlClient" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" />
+  </ItemGroup>
+  <!-- The Studio SPA and the WebAssembly core, when built (resource names use the folder paths; the host normalises separators). -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(StudioAppDist)**\*" Condition="Exists('$(StudioAppDist)index.html')" LogicalName="studio/app/%(RecursiveDir)%(Filename)%(Extension)" WithCulture="false" />
+    <EmbeddedResource Include="$(StudioFramework)**\*" Exclude="$(StudioFramework)**\*.gz" Condition="Exists('$(StudioFramework)dotnet.js')" LogicalName="studio/framework/%(RecursiveDir)%(Filename)%(Extension)" WithCulture="false" />
   </ItemGroup>
 </Project>

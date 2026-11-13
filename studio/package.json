@@ -5,14 +5,17 @@
   "license": "MIT",
   "type": "module",
   "workspaces": [
-    "core-client"
+    "core-client",
+    "app"
   ],
   "engines": {
     "node": ">=22.18"
   },
   "scripts": {
     "build:wasm": "npm run build:wasm --workspace @sourceflow/core-client",
+    "build": "npm run build --workspace @sourceflow/studio-app",
     "typecheck": "npm run typecheck --workspaces",
-    "test": "npm run test --workspaces"
+    "test": "npm run test --workspaces",
+    "e2e": "npm run e2e --workspace @sourceflow/studio-app"
   }
 }

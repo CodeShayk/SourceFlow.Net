@@ -463,6 +463,26 @@ Visual encodings never rely on colour alone. Each path type has a distinct line 
 
 Exports: SVG and PNG (client-side), Mermaid `stateDiagram-v2`, BPMN 2.0 XML (export only; product WQ2).
 
+**As built (WP-S.8): the shell and the local host.**
+
+- **`dotnet sourceflow studio`** takes `--workspace` (default `sourceflow.domain.yaml`), `--port` (default 5180; 0 picks a free one), `--read-only`, `--open`, and `--assets` / `--framework` (serve a local build instead of the copies embedded in the tool). It is a Kestrel host bound to `127.0.0.1`.
+- **Requests it refuses (doc 15 §6.4):**
+  - a `Host` header that isn't `localhost`, `127.0.0.1` or `[::1]` (DNS rebinding);
+  - a write whose `Origin` is another site;
+  - a write that isn't JSON (a cross-site form can't send it).
+- **Headers.** Every response carries a strict CSP (`'self'`, plus `'wasm-unsafe-eval'` for the core), `X-Frame-Options: DENY`, `nosniff` and `no-referrer`.
+- **The REST API:**
+  - `GET /api/workspace` returns the services with their manifest JSON, workflow files and project.
+  - `GET` and `PUT /api/files?path=` read and write a file. Only `*.sfflow.yaml` and `*.sfflow.layout.json` inside the workspace are allowed, never through a link, and writes only inside a service's `workflows` folder (atomically: a temporary file, then a move).
+  - `POST /api/services/{service}/manifest/export` runs the design-time export for the service's `project`, a new optional key in `sourceflow.domain.yaml`.
+  - In read-only mode, every write returns 403.
+- **Static files.** The host serves the SPA, with a fallback to `index.html` for client routes and page navigations, and the WebAssembly core, as Brotli when the browser accepts it. Both come from the folders given, or from the tool's embedded copies when they were built before it.
+- **`studio/app`.** A React 19 and TypeScript app (Vite) with React Router, TanStack Query for the host API, Zustand for UI state, and Radix for the keyboard-map dialog.
+  - The shell has a header (domain, read-only badge, light/dark/system theme, keyboard map), the workspace explorer, a domain overview, a service view (aggregates and commands, with a manifest re-export) and a workflow view.
+  - The workflow view shows the file with line numbers and marks the selected diagnostic's line. The statechart (WP-S.9) and the editor (WP-S.10) replace its body.
+  - The diagnostics panel lists errors first and names the severity in words. The core validates in a module Web Worker; `worker.ts` listens with `addEventListener`, because a `globalThis.onmessage` already set when `dotnet.js` loads makes the runtime take the worker for a pthread.
+  - The keyboard map is `Shift+?`, with `Alt+1`/`Alt+2`/`Alt+3` to move focus, `F8`/`Shift+F8` for diagnostics, `Alt+T` for the theme and `Alt+H` for the overview.
+
 **As built (WP-S.7): the shared core.**
 
 - **The API.** `SourceFlow.Studio.Dsl.Api.StudioApi` exposes the core as JSON:

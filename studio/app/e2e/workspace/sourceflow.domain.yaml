@@ -1,0 +1,13 @@
+# The Studio end-to-end workspace (STU-E2E): the golden suite's commerce domain, with two orders workflows.
+domain: commerce
+description: Order to delivery
+services:
+  - name: orders
+    manifest: ../../../../tests/workflow-golden/domain/orders.manifest.json
+    workflows: orders/workflows
+  - name: inventory
+    manifest: ../../../../tests/workflow-golden/domain/inventory.manifest.json
+  - name: payments
+    manifest: ../../../../tests/workflow-golden/domain/payments.manifest.json
+  - name: shipping
+    manifest: ../../../../tests/workflow-golden/domain/shipping.manifest.json
