@@ -50,7 +50,8 @@ jobs:
       - run: dotnet build SourceFlow.slnx -c Release --no-restore -warnaserror
       - name: AOT publish check (ARCH-06)
         if: matrix.os == 'ubuntu-latest' && hashFiles('samples/Bank/Bank.Api/Bank.Api.csproj') != ''
-        run: dotnet publish samples/Bank/Bank.Api/Bank.Api.csproj -c Release -p:PublishAot=true -warnaserror
+        # PublishAot is set inside Bank.Api.csproj: as a global property it would reach the netstandard2.0 generator (NETSDK1207).
+        run: dotnet publish samples/Bank/Bank.Api/Bank.Api.csproj -c Release -p:SourceFlowAotCheck=true -warnaserror
 
   unit:
     needs: build
