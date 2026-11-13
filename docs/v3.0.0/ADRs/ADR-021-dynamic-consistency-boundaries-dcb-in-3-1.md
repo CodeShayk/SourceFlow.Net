@@ -8,7 +8,7 @@
 
 ## Context
 
-Some business rules span more than one aggregate: "a username is unique", "a course can't exceed capacity *and* a student can't exceed their course limit". With stream-per-aggregate consistency ([ADR-008](ADR-008-optimistic-concurrency-with-automatic-re-decide.md), ES-R2), teams handle these with oversized aggregates, reservation process managers, or eventual compensation. The industry has started adopting **Dynamic Consistency Boundaries**. Axon Framework 5 and Axon Server 2025.x support them, KurrentDB 25.1 added multi-stream appends, and Cratis Chronicle and the dcb.events community specify them ([competitive analysis](../13-Competitive-Analysis.md)). In DCB, a decision reads the events matching a *query* (event types + tags), and the append succeeds only if no new matching event has been committed since the read.
+Some business rules span more than one aggregate: "a username is unique", "a course can't exceed capacity *and* a student can't exceed their course limit". With stream-per-aggregate consistency ([ADR-008](ADR-008-optimistic-concurrency-with-automatic-re-decide.md), ES-R2), teams handle these with oversized aggregates, reservation process managers, or eventual compensation. The industry has started adopting **Dynamic Consistency Boundaries**. Axon Framework 5 and Axon Server 2025.x support them, KurrentDB 25.1 added multi-stream appends, and Cratis Chronicle and the dcb.events community specify them ([competitive analysis](../Design/13-Competitive-Analysis.md)). In DCB, a decision reads the events matching a *query* (event types + tags), and the append succeeds only if no new matching event has been committed since the read.
 
 ## Decision
 

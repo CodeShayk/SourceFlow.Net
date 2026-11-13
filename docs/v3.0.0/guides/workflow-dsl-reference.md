@@ -45,7 +45,7 @@ One field of the instance data: copied from the start event (from), or typed wit
 | `from` | string matching `^start\.data(\.[A-Za-z_][A-Za-z0-9_]*)+$` |  | Copies the value from the start event, for example start.data.total. |
 | `type` | `string` or `integer` or `number` or `boolean` or `uuid` or `date-time` or `date` or `time` or `duration` or `uri` or `array` or `object` |  | The field type when it is not copied from the start event. |
 | `default` | string or number or boolean or null |  | The initial value of a typed field. |
-| `personal` | boolean |  | Personal data: crypto-shredded in the workflow state (WF-V14). |
+| `personal` | boolean |  | Marks the field as personal data; a value from a [PersonalData] field must be marked (WF-V14). Workflow state is not encrypted yet in 3.0. |
 
 Give exactly one of `from` or `type`.
 

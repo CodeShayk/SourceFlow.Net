@@ -20,7 +20,7 @@ v2 publishes to the broker outside any transaction. Idempotency is an opt-in che
 ## Alternatives
 
 - (a) Broker-native exactly-once (SQS FIFO dedup, ASB duplicate detection, Pub/Sub exactly-once). Its windows are limited (5 min on SQS FIFO), it is inconsistent across clouds, and it doesn't cover the database side. It stays as a complementary layer.
-- (b) Log tailing (reading `$all` to publish) instead of an outbox table. That avoids the double write, but can't carry remote commands or timers, and it couples publication to event types. Rejected for uniformity; [doc 04](../04-Messaging-Pipeline.md#7-outbox) explains why.
+- (b) Log tailing (reading `$all` to publish) instead of an outbox table. That avoids the double write, but can't carry remote commands or timers, and it couples publication to event types. Rejected for uniformity; [doc 04](../Design/04-Messaging-Pipeline.md#7-outbox) explains why.
 
 ## Consequences
 

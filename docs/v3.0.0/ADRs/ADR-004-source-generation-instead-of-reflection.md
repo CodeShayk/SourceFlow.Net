@@ -18,7 +18,7 @@ Incremental source generators produce:
 - per message assembly: **no** JSON context. Roslyn generators can't see each other's output, so a SourceFlow-generated `[JsonSerializable]` context would never be processed by the System.Text.Json generator. Each module instead **declares** its own `JsonSerializerContext` (`[SourceFlowModule(typeof(AccountsJsonContext))]`). Analyzer SF0010 checks that every message, document and process-state type in the module is listed, and a code fix adds missing entries (design correction DC-1, found during the implementation spike);
 - strongly typed id types (`Parse`, `TryFormat`, a JSON converter, a stream-id formatter).
 
-Analyzers enforce the contracts (§ SF diagnostics in [doc 03](../03-Domain-Programming-Model.md#9-analyzers)). The runtime uses `FrozenDictionary` lookups built from the generated tables.
+Analyzers enforce the contracts (§ SF diagnostics in [doc 03](../Design/03-Domain-Programming-Model.md#9-analyzers)). The runtime uses `FrozenDictionary` lookups built from the generated tables.
 
 ## Alternatives
 

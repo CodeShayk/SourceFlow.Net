@@ -1,6 +1,6 @@
 # 06 — Projections and Subscriptions
 
-Design drivers: [ADR-010](ADRs/ADR-010-commit-ordered-global-position-for-gap-free.md), [ADR-016](ADRs/ADR-016-projections-inline-or-async-with-partitioned-fenced.md) and [ADR-020](ADRs/ADR-020-process-managers-with-durable-state-and-timers.md). Fixes v2's in-memory, uncheckpointed, non-rebuildable projections (EVT-02..04, DOM-10) and the lost-event risk on crashes.
+Design drivers: [ADR-010](../ADRs/ADR-010-commit-ordered-global-position-for-gap-free.md), [ADR-016](../ADRs/ADR-016-projections-inline-or-async-with-partitioned-fenced.md) and [ADR-020](../ADRs/ADR-020-process-managers-with-durable-state-and-timers.md). Fixes v2's in-memory, uncheckpointed, non-rebuildable projections (EVT-02..04, DOM-10) and the lost-event risk on crashes.
 
 ## 1. Subscribers and their sources
 
@@ -82,7 +82,7 @@ while lease held:
 
 The CLI command `projection rebuild <name@version>` forces steps 2–5 without a code change (same version, new generation suffix: `account-summary@1.2`). `projection generations` lists the aliases, `projection switch` rolls back to a retained generation, and `--in-place` drops and replays the same generation instead.
 
-**Details ([ADR-032](ADR-032-blue-green-read-model-generations-behind-forward-only-aliases.md)).**
+**Details ([ADR-032](../ADRs/ADR-032-blue-green-read-model-generations-behind-forward-only-aliases.md)).**
 - The alias only moves forward, by compare-and-set: one node switches it.
 - Old-version nodes stop their generation once a newer version serves reads.
 - EF Core projections take part when they opt in to a schema per generation (`IGenerationSchemaContext`). Their reads resolve the generation with `IReadModelResolver`.

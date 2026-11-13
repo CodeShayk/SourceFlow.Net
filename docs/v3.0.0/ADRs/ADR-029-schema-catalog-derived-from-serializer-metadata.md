@@ -5,7 +5,7 @@
 | **Status** | Accepted |
 | **Date** | 2026-11-11 |
 | **Deciders** | v3 architecture review; WP-1.12 implementation |
-| **Amends** | [doc 14](../14-Query-Side-and-SFQL.md) §2.1 and §2.2; WBS WP-1.12 ("a generator extension that emits a JSON Schema") |
+| **Amends** | [doc 14](../Design/14-Query-Side-and-SFQL.md) §2.1 and §2.2; WBS WP-1.12 ("a generator extension that emits a JSON Schema") |
 
 ## Context
 

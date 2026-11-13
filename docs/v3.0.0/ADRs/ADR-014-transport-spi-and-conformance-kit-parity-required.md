@@ -12,7 +12,7 @@ v2 providers diverge in behaviour (doc 04 §10 parity matrix), ignore options (G
 
 ## Decision
 
-- A small SPI ([doc 07](../07-Cloud-Transports.md#2-transport-spi)): send, publish, receive (with settle operations), provision, and capabilities.
+- A small SPI ([doc 07](../Design/07-Cloud-Transports.md#2-transport-spi)): send, publish, receive (with settle operations), provision, and capabilities.
 - Behaviour that the core can supply (retries, dead-lettering, inbox, encryption, telemetry) is implemented **once in the core**, not in each transport.
 - A **Transport Conformance Kit** (about 40 scenarios) must pass for AWS SNS/SQS, Azure Service Bus, Google Pub/Sub and the in-memory transport before GA.
 
@@ -22,7 +22,7 @@ v2 providers diverge in behaviour (doc 04 §10 parity matrix), ignore options (G
 
 ## Product sign-off (2026-11-10)
 
-Q5 and Q6 are answered **"new version 3.0.0"**. AWS SNS/SQS, Azure Service Bus and Google Pub/Sub all ship GA in 3.0.0, and each one blocks the release until it passes the TCK. The earlier option of moving Azure to 3.1 is withdrawn ([doc 12 §5](../12-Migration-Delivery-and-Traceability.md#5-delivery-plan)).
+Q5 and Q6 are answered **"new version 3.0.0"**. AWS SNS/SQS, Azure Service Bus and Google Pub/Sub all ship GA in 3.0.0, and each one blocks the release until it passes the TCK. The earlier option of moving Azure to 3.1 is withdrawn ([doc 12 §5](../Design/12-Migration-Delivery-and-Traceability.md#5-delivery-plan)).
 
 ## Traces
 

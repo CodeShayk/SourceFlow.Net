@@ -1,6 +1,6 @@
 # 04 — Messaging Pipeline and Delivery Semantics
 
-Design drivers: [ADR-005](ADRs/ADR-005-logical-message-type-names-and-registry.md), [ADR-006](ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md), [ADR-007](ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md), [ADR-011](ADRs/ADR-011-cloudevents-envelope-and-w3c-trace-context.md), [ADR-012](ADRs/ADR-012-one-middleware-abstraction-for-all-stages.md), [ADR-013](ADRs/ADR-013-use-platform-libraries-delete-bespoke-equivalents.md) and [ADR-018](ADRs/ADR-018-business-rejections-are-values-not-exceptions.md). Fixes: GAP-01, GAP-09, GAP-10, GAP-11, GAP-19 and NFR-REL-04/06.
+Design drivers: [ADR-005](../ADRs/ADR-005-logical-message-type-names-and-registry.md), [ADR-006](../ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md), [ADR-007](../ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md), [ADR-011](../ADRs/ADR-011-cloudevents-envelope-and-w3c-trace-context.md), [ADR-012](../ADRs/ADR-012-one-middleware-abstraction-for-all-stages.md), [ADR-013](../ADRs/ADR-013-use-platform-libraries-delete-bespoke-equivalents.md) and [ADR-018](../ADRs/ADR-018-business-rejections-are-values-not-exceptions.md). Fixes: GAP-01, GAP-09, GAP-10, GAP-11, GAP-19 and NFR-REL-04/06.
 
 ## 1. The envelope
 
@@ -30,7 +30,7 @@ public sealed class MessageEnvelope
 }
 ```
 
-### 1.1 CloudEvents mapping ([ADR-011](ADRs/ADR-011-cloudevents-envelope-and-w3c-trace-context.md))
+### 1.1 CloudEvents mapping ([ADR-011](../ADRs/ADR-011-cloudevents-envelope-and-w3c-trace-context.md))
 
 | Envelope | CloudEvents attribute | Notes |
 |----------|-----------------------|-------|
@@ -56,7 +56,7 @@ Transports use **binary mode**: attributes go in native headers (`ce_` prefix wh
 
 ### 2.1 Registry
 
-- Built at startup from generated module registrations only ([ADR-004](ADRs/ADR-004-source-generation-instead-of-reflection.md)). It is frozen into a `FrozenDictionary<(string name, int version), MessageTypeInfo>` and a `FrozenDictionary<Type, MessageTypeInfo>`.
+- Built at startup from generated module registrations only ([ADR-004](../ADRs/ADR-004-source-generation-instead-of-reflection.md)). It is frozen into a `FrozenDictionary<(string name, int version), MessageTypeInfo>` and a `FrozenDictionary<Type, MessageTypeInfo>`.
 - `MessageTypeInfo` holds the CLR type, the `JsonTypeInfo` (source-generated), the kind (command, event or integration event), the upcaster chain, any `[PersonalData]` members, and the size limit.
 - **Allow-list semantics**: a received or stored envelope whose `(type, version)` isn't registered is never deserialised. It is parked with reason `UnknownMessageType` (GAP-10).
 - Startup validation catches duplicate names across modules, events without upcasters for versions older than the latest when those versions are still in the store (opt-in check), and commands with no owner or route.
@@ -101,14 +101,14 @@ sf.Routing(r =>
 
 | Rule | Detail |
 |------|--------|
-| RT-R1 | A command type is **owned** (it has a local `Decide` or handler) or **routed** (`.To(endpoint)`). Never both, never neither ([ADR-007](ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md), SF0014). |
+| RT-R1 | A command type is **owned** (it has a local `Decide` or handler) or **routed** (`.To(endpoint)`). Never both, never neither ([ADR-007](../ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md), SF0014). |
 | RT-R2 | An owner receives remote commands on its endpoint, and they go through the same command processor as local ones. The owner sequences them, logs them and can replay its streams (GAP-19). |
 | RT-R3 | Domain events are published **only** through `Publish<T>()` mappings, and therefore only through the outbox. |
 | RT-R4 | Each service has **its own subscription** per subscribed topic. Fan-out is to every subscribing service; instances of one service compete (doc 07). Fixes GAP-02 and GAP-13. |
 | RT-R5 | Endpoint and topic names are logical. The transport maps them to physical names with a configurable naming convention (prefix, environment, FIFO suffix). |
-| RT-R6 | Routing and topology are validated at startup. Under `ProvisioningMode.Validate`, the physical resources are validated too ([ADR-017](ADRs/ADR-017-provisioning-modes-and-topology-as-data.md)). |
+| RT-R6 | Routing and topology are validated at startup. Under `ProvisioningMode.Validate`, the physical resources are validated too ([ADR-017](../ADRs/ADR-017-provisioning-modes-and-topology-as-data.md)). |
 
-## 4. Middleware pipeline ([ADR-012](ADRs/ADR-012-one-middleware-abstraction-for-all-stages.md))
+## 4. Middleware pipeline ([ADR-012](../ADRs/ADR-012-one-middleware-abstraction-for-all-stages.md))
 
 ```csharp
 public interface IMessageMiddleware
@@ -226,7 +226,7 @@ The exception→class mapping is configurable through `sf.Errors(e => e.Treat<My
 
 ### 9.2 Delayed retries
 
-The runtime prefers the broker's native delay: SQS `ChangeMessageVisibility` (up to 12 h), ASB scheduled re-send, Pub/Sub nack with the subscription's retry policy. When the transport lacks a capability, the fallback is an outbox row with `deliver_at` addressed to the same endpoint, carrying an incremented `sfattempt` header. The delay schedule is identical on every transport ([ADR-014](ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md)).
+The runtime prefers the broker's native delay: SQS `ChangeMessageVisibility` (up to 12 h), ASB scheduled re-send, Pub/Sub nack with the subscription's retry policy. When the transport lacks a capability, the fallback is an outbox row with `deliver_at` addressed to the same endpoint, carrying an incremented `sfattempt` header. The delay schedule is identical on every transport ([ADR-014](../ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md)).
 
 ### 9.3 Dead letters (parking)
 

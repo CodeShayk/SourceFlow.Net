@@ -5,7 +5,7 @@
 | **Status** | Accepted |
 | **Date** | 2026-11-11 |
 | **Deciders** | v3 architecture review; WP-2.7 implementation |
-| **Amends** | [doc 06](../06-Projections-and-Subscriptions.md) §6; [ADR-031](ADR-031-cli-runs-store-commands-globally-and-model-commands-in-the-service.md) decision 6 |
+| **Amends** | [doc 06](../Design/06-Projections-and-Subscriptions.md) §6; [ADR-031](ADR-031-cli-runs-store-commands-globally-and-model-commands-in-the-service.md) decision 6 |
 
 ## Context
 

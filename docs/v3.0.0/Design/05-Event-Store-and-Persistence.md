@@ -1,6 +1,6 @@
 # 05 — Event Store and Persistence
 
-Design drivers: [ADR-002](ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md), [ADR-006](ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md), [ADR-008](ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md), [ADR-009](ADRs/ADR-009-event-store-on-adonet-postgresql-first.md), [ADR-010](ADRs/ADR-010-commit-ordered-global-position-for-gap-free.md) and [ADR-016](ADRs/ADR-016-projections-inline-or-async-with-partitioned-fenced.md). Fixes: GAP-04, GAP-05, GAP-15, GAP-17, CMD-05, EF-06, EF-21 and NFR-PERF-03.
+Design drivers: [ADR-002](../ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md), [ADR-006](../ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md), [ADR-008](../ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md), [ADR-009](../ADRs/ADR-009-event-store-on-adonet-postgresql-first.md), [ADR-010](../ADRs/ADR-010-commit-ordered-global-position-for-gap-free.md) and [ADR-016](../ADRs/ADR-016-projections-inline-or-async-with-partitioned-fenced.md). Fixes: GAP-04, GAP-05, GAP-15, GAP-17, CMD-05, EF-06, EF-21 and NFR-PERF-03.
 
 ## 1. Ports
 
@@ -52,7 +52,7 @@ public interface IDeadLetterStore { /* Park / Query / Get / MarkReplayed / Disca
 | `StreamVersion` | `long`. `None = 0`; the first event is 1 | |
 | `ExpectedVersion` | `Any`, `NoStream`, `StreamExists`, or `Exact(v)` | |
 | `GlobalPosition` | `(ulong Commit, ulong Sequence)`, compared lexicographically | PostgreSQL: `(xid8, seq)`. SQL Server: `(rowversion, 0)` |
-| `Bucket` | `ushort` 0–1023 = `xxHash32(tenant_id + '/' + stream_id) & 1023` | Computed by the client at append; fixes the stream→partition mapping and spreads tenants ([ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)) |
+| `Bucket` | `ushort` 0–1023 = `xxHash32(tenant_id + '/' + stream_id) & 1023` | Computed by the client at append; fixes the stream→partition mapping and spreads tenants ([ADR-022](../ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)) |
 
 ## 2. PostgreSQL schema (reference implementation, PostgreSQL 15+)
 
@@ -99,7 +99,7 @@ CREATE INDEX ix_events_tags        ON sourceflow.events USING gin (tags);   -- c
 -- + generated partial expression indexes for [Queryable] fields (`dotnet sourceflow db index sync`)
 ```
 
-With `TenantIsolation.RowLevelSecurity` ([ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)):
+With `TenantIsolation.RowLevelSecurity` ([ADR-022](../ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)):
 
 - Migration V002 creates a `tenant_isolation` policy on `streams`, `events`, `snapshots`, `documents`, `process_instances` and `subject_streams`. Each policy is `USING` and `WITH CHECK (tenant_id = current_setting('sourceflow.tenant', true))`.
 - The migrator **enables and forces** row-level security on those tables. Forcing makes the policies apply to the table owner too, so only superusers and `BYPASSRLS` roles skip them.
@@ -110,7 +110,7 @@ With `TenantIsolation.RowLevelSecurity` ([ADR-022](ADRs/ADR-022-conjoined-multi-
 - The global log (subscriptions) is read through `SystemConnectionString`, a role with `BYPASSRLS`, because it spans tenants.
 - `inbox`, `outbox`, `checkpoints`, `leases` and `dead_letters` hold no tenant payload and are not policy-protected.
 
-`metadata` is `jsonb` so operators can query by correlation or causation (`metadata->>'correlationId'`) using an optional expression index. `data` is `json`, not `jsonb` ([ADR-028](ADRs/ADR-028-postgresql-payload-columns-and-adapter-refinements.md)): it keeps the serializer's exact bytes and accepts every valid JSON text (including `\u0000`), while still supporting `->>` and expression indexes for debugging, ad-hoc analysis and SFQL. Fields protected by crypto-shredding are ciphertext strings inside it ([doc 10 §4](10-Security-and-Compliance.md#4-personal-data-in-an-immutable-log-crypto-shredding)).
+`metadata` is `jsonb` so operators can query by correlation or causation (`metadata->>'correlationId'`) using an optional expression index. `data` is `json`, not `jsonb` ([ADR-028](../ADRs/ADR-028-postgresql-payload-columns-and-adapter-refinements.md)): it keeps the serializer's exact bytes and accepts every valid JSON text (including `\u0000`), while still supporting `->>` and expression indexes for debugging, ad-hoc analysis and SFQL. Fields protected by crypto-shredding are ciphertext strings inside it ([doc 10 §4](10-Security-and-Compliance.md#4-personal-data-in-an-immutable-log-crypto-shredding)).
 
 ## 3. Append
 
@@ -139,11 +139,11 @@ SELECT @tenant, @bucket, @stream_id, s.base + e.ord, e.id, e.type, e.ver,
 | `StreamExists` | `UPDATE … WHERE NOT is_deleted AND NOT is_archived` (no version predicate) |
 | `Any` | `INSERT INTO streams … ON CONFLICT DO UPDATE SET version = streams.version + @count WHERE NOT is_deleted AND NOT is_archived` |
 
-Both take the stream row lock and apply to the committed version they then observe, so every append that reaches the database is still a compare-and-set on an observed version, which §5.3 relies on ([ADR-028](ADRs/ADR-028-postgresql-payload-columns-and-adapter-refinements.md)).
+Both take the stream row lock and apply to the committed version they then observe, so every append that reaches the database is still a compare-and-set on an observed version, which §5.3 relies on ([ADR-028](../ADRs/ADR-028-postgresql-payload-columns-and-adapter-refinements.md)).
 
 **ES-R2: one stream append per session.** A command changes one aggregate (the DDD consistency boundary). The session rejects a second `Append` to a different stream. Bulk operations such as the v2 import use one session per stream.
 
-**Conflict detection.** The statement affects 0 rows exactly when the stream predicate fails. The session checks the affected-row count and raises `ConcurrencyException`, then rolls back. That also discards every other queued write in the same batch (outbox, inbox, projections). A unique violation on `uq_events_stream_version` is mapped to `ConcurrencyException` as a backstop. **No retries happen in the storage layer.** Re-deciding is the command processor's job ([ADR-008](ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md)), and the resilience pipeline excludes `ConcurrencyException` (fixes EF-21).
+**Conflict detection.** The statement affects 0 rows exactly when the stream predicate fails. The session checks the affected-row count and raises `ConcurrencyException`, then rolls back. That also discards every other queued write in the same batch (outbox, inbox, projections). A unique violation on `uq_events_stream_version` is mapped to `ConcurrencyException` as a backstop. **No retries happen in the storage layer.** Re-deciding is the command processor's job ([ADR-008](../ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md)), and the resilience pipeline excludes `ConcurrencyException` (fixes EF-21).
 
 ### 3.2 One round trip
 
@@ -158,7 +158,7 @@ Both take the stream row lock and apply to the committed version they then obser
 7. `SELECT pg_notify(…)`.
 8. `COMMIT`.
 
-The conditional statements assert in SQL (`sf_assert`, SQLSTATE `SF001`), so a failed check aborts the batch before its `COMMIT` ([ADR-028](ADRs/ADR-028-postgresql-payload-columns-and-adapter-refinements.md)). `Max Auto Prepare` keeps these statements prepared on the server.
+The conditional statements assert in SQL (`sf_assert`, SQLSTATE `SF001`), so a failed check aborts the batch before its `COMMIT` ([ADR-028](../ADRs/ADR-028-postgresql-payload-columns-and-adapter-refinements.md)). `Max Auto Prepare` keeps these statements prepared on the server.
 
 ### 3.3 Cost
 
@@ -208,7 +208,7 @@ SELECT seq, tx_id, bucket, stream_id, stream_version, event_id, event_type, type
  LIMIT @max;
 ```
 
-The set of rows below the horizon is **final**. The adapter reports the horizon inclusively as `(xmin − 1, max)`: every position at or below `LogBatch.Horizon` is final ([ADR-028](ADRs/ADR-028-postgresql-payload-columns-and-adapter-refinements.md)). Ordering by `(tx_id, seq)` is total and stable, so a checkpoint `(tx_id, seq)` can never skip a row. The `bucket` filter is answered from the `INCLUDE` column of `ix_events_commit_order`, so partitioned readers scan only the index range and fetch heap rows only for their own buckets.
+The set of rows below the horizon is **final**. The adapter reports the horizon inclusively as `(xmin − 1, max)`: every position at or below `LogBatch.Horizon` is final ([ADR-028](../ADRs/ADR-028-postgresql-payload-columns-and-adapter-refinements.md)). Ordering by `(tx_id, seq)` is total and stable, so a checkpoint `(tx_id, seq)` can never skip a row. The `bucket` filter is answered from the `INCLUDE` column of `ix_events_commit_order`, so partitioned readers scan only the index range and fetch heap rows only for their own buckets.
 
 ### 5.3 Per-stream order equals global order
 
@@ -469,7 +469,7 @@ CREATE TABLE sourceflow.data_keys (                                         -- c
 ## 10. Read-model stores
 
 - **Document store** (`IDocumentSession` / `IDocumentReader<T>`): `jsonb` documents keyed by `(collection, id)`, with `Get`, `GetMany`, and a raw-SQL query escape hatch. Rebuilt collections are versioned (`account-summary@2`) for blue/green switches (doc 06 §6).
-- **EF Core** (`SourceFlow.Storage.EntityFrameworkCore`): `IEfProjection<TDbContext>` handlers receive a `DbContext` bound to the session's connection and transaction. `SaveChanges` happens before the checkpoint in the same commit. EF Core is **not** used for the event store ([ADR-009](ADRs/ADR-009-event-store-on-adonet-postgresql-first.md)).
+- **EF Core** (`SourceFlow.Storage.EntityFrameworkCore`): `IEfProjection<TDbContext>` handlers receive a `DbContext` bound to the session's connection and transaction. `SaveChanges` happens before the checkpoint in the same commit. EF Core is **not** used for the event store ([ADR-009](../ADRs/ADR-009-event-store-on-adonet-postgresql-first.md)).
   - EF projections are one kind of **session projection** (`ISessionProjection<TUnitOfWork>` in the core). The generator emits their `When` dispatch, and their module registers them. A storage package supplies an `IProjectionUnitOfWork<T>` that creates the unit of work on the session and completes it before the commit. For EF Core that registration is `UseEntityFrameworkProjections<TDbContext>((o, c) => o.UseNpgsql(c), o => new ReportingDbContext(o))`. A session projection without its unit of work fails at startup.
   - **ES-R1 still holds.** Before creating the first unit of work, the runtime calls `IStorageSession.FlushAsync`, which sends the queued append first. EF writes therefore always follow the append, and a conflict surfaces before any EF write. Code that writes through `session.Connection` directly must call `FlushAsync` first.
   - `IdempotentUpsert.UpsertAsync` applies a change only when the source version is newer than the row's `IVersionedReadModel.Version`, so replays and rebuilds are harmless.

@@ -4,7 +4,7 @@
 |---|---|
 | **Status** | Draft for architecture review |
 | **Target** | .NET 10 (`net10.0`) and C# 14 only |
-| **Input** | [Product requirements](../product/README.md), especially the [gaps and open questions](../product/06-Gaps-Risks-and-Open-Questions.md) |
+| **Input** | [Product requirements](../../product/README.md), especially the [gaps and open questions](../../product/06-Gaps-Risks-and-Open-Questions.md) |
 | **Nature** | Ground-up rewrite. Not source- or binary-compatible with v2. A migration path is provided ([doc 12](12-Migration-Delivery-and-Traceability.md)) |
 
 ## 1. Executive summary
@@ -40,7 +40,7 @@ v3 rebuilds the library on a small number of well-proven patterns:
 | # | Document | Read if you are… |
 |---|----------|------------------|
 | 01 | [Architecture Overview](01-Architecture-Overview.md) — quality goals, principles, package layout, runtime flows | everyone (start here) |
-| ADRs | [Architecture Decision Records](ADRs/README.md) — 27 ADRs, one file each, with alternatives and consequences | reviewers and approvers |
+| ADRs | [Architecture Decision Records](../ADRs/README.md) — 27 ADRs, one file each, with alternatives and consequences | reviewers and approvers |
 | 03 | [Domain Programming Model](03-Domain-Programming-Model.md) — messages, ids, aggregates, handlers, process managers, projections, generators | domain developers |
 | 04 | [Messaging Pipeline and Delivery Semantics](04-Messaging-Pipeline.md) — envelope, type registry, routing, middleware, inbox and outbox, retries, dead letters | framework and platform engineers |
 | 05 | [Event Store and Persistence](05-Event-Store-and-Persistence.md) — contracts, schemas, concurrency, global ordering, snapshots | storage implementers and DBAs |
@@ -59,20 +59,20 @@ v3 rebuilds the library on a small number of well-proven patterns:
 
 **Product sign-off received on 2026-11-10.** Every answer below is **Accepted**. Q2 was accepted with an added requirement, and Q5 and Q6 were fixed to release 3.0.0.
 
-| Question ([doc 06](../product/06-Gaps-Risks-and-Open-Questions.md#open-questions-for-product-decisions)) | Decision (accepted) | ADR |
+| Question ([doc 06](../../product/06-Gaps-Risks-and-Open-Questions.md#open-questions-for-product-decisions)) | Decision (accepted) | ADR |
 |---|---|---|
-| Q1 — Command sourcing or event sourcing? | **Event sourcing.** Commands are not stored as the source of truth. | [ADR-002](ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md) |
-| Q2 — Where does the command log live? | In the **owning service's** event store. Its streams are the only authoritative history. **Added requirement:** querying events is modelled *inside* the owning service's domain and business boundary. Each service exposes queries only over its own events and read models, using its own domain vocabulary. Other services never query its event log directly; they consume its integration events or call its query API. See [doc 14 §1.1](14-Query-Side-and-SFQL.md#11-query-ownership-the-service-boundary-q2). | [ADR-007](ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md), [ADR-023](ADRs/ADR-023-sfql-query-language-with-cesql-predicates.md) |
-| Q3 — Hybrid dispatch by default? | **No.** A command type is handled locally *or* routed to exactly one remote owner, never both. | [ADR-007](ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md) |
-| Q4 — Id strategy? | **Strongly typed ids**, assigned by the caller. UUIDv7 by default; string ids also supported. | [ADR-015](ADRs/ADR-015-strongly-typed-caller-assigned-ids-uuidv7-default.md) |
-| Q5 — GA bar for GCP? | **Google Pub/Sub ships GA in 3.0.0**, passing the full conformance kit. | [ADR-014](ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md) |
-| Q6 — Azure provider? | **Azure Service Bus ships GA in 3.0.0**, with no slip to 3.1. AWS, Azure and GCP are all release-blocking. | [ADR-014](ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md) |
-| Q7 — Consistency model? | **Transactional write side** (append, outbox and inbox in one transaction). Read side is configurable per projection: inline (strong) or async (eventual). | [ADR-006](ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md), [ADR-016](ADRs/ADR-016-projections-inline-or-async-with-partitioned-fenced.md) |
+| Q1 — Command sourcing or event sourcing? | **Event sourcing.** Commands are not stored as the source of truth. | [ADR-002](../ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md) |
+| Q2 — Where does the command log live? | In the **owning service's** event store. Its streams are the only authoritative history. **Added requirement:** querying events is modelled *inside* the owning service's domain and business boundary. Each service exposes queries only over its own events and read models, using its own domain vocabulary. Other services never query its event log directly; they consume its integration events or call its query API. See [doc 14 §1.1](14-Query-Side-and-SFQL.md#11-query-ownership-the-service-boundary-q2). | [ADR-007](../ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md), [ADR-023](../ADRs/ADR-023-sfql-query-language-with-cesql-predicates.md) |
+| Q3 — Hybrid dispatch by default? | **No.** A command type is handled locally *or* routed to exactly one remote owner, never both. | [ADR-007](../ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md) |
+| Q4 — Id strategy? | **Strongly typed ids**, assigned by the caller. UUIDv7 by default; string ids also supported. | [ADR-015](../ADRs/ADR-015-strongly-typed-caller-assigned-ids-uuidv7-default.md) |
+| Q5 — GA bar for GCP? | **Google Pub/Sub ships GA in 3.0.0**, passing the full conformance kit. | [ADR-014](../ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md) |
+| Q6 — Azure provider? | **Azure Service Bus ships GA in 3.0.0**, with no slip to 3.1. AWS, Azure and GCP are all release-blocking. | [ADR-014](../ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md) |
+| Q7 — Consistency model? | **Transactional write side** (append, outbox and inbox in one transaction). Read side is configurable per projection: inline (strong) or async (eventual). | [ADR-006](../ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md), [ADR-016](../ADRs/ADR-016-projections-inline-or-async-with-partitioned-fenced.md) |
 
 ## 4. Conventions in these documents
 
 - **MUST, SHOULD, MAY** follow RFC 2119.
-- Product requirement IDs (`CMD-05`, `GAP-19`, …) refer to [docs/product](../product/README.md).
+- Product requirement IDs (`CMD-05`, `GAP-19`, …) refer to [docs/product](../../product/README.md).
 - v3 design IDs: ADRs are `ADR-nnn`, and each document numbers its own design rules (for example `ES-R3` = event-store rule 3).
 - Code samples are **illustrative API shapes**, not final signatures. The public API is frozen at the end of M1 by API approval tests ([doc 11](11-Testing-and-Quality.md)).
 - Performance figures are **targets to validate**, not measurements ([doc 09](09-Performance-and-Scalability.md)).

@@ -1,12 +1,12 @@
 # 14 — Query Side: Event Schema Catalog and SFQL
 
-Design drivers: [ADR-005](ADRs/ADR-005-logical-message-type-names-and-registry.md), [ADR-016](ADRs/ADR-016-projections-inline-or-async-with-partitioned-fenced.md), [ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md) **[ADR-023](ADRs/ADR-023-sfql-query-language-with-cesql-predicates.md)** and **[ADR-026](ADRs/ADR-026-per-service-query-api-with-sql-syntax-and-injection-proof-compilation.md)**. This document specifies how the **read side** of CQRS is queried, separately from writes: the event schema catalog that makes events queryable, and SFQL, the query language that runs over it.
+Design drivers: [ADR-005](../ADRs/ADR-005-logical-message-type-names-and-registry.md), [ADR-016](../ADRs/ADR-016-projections-inline-or-async-with-partitioned-fenced.md), [ADR-022](../ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md) **[ADR-023](../ADRs/ADR-023-sfql-query-language-with-cesql-predicates.md)** and **[ADR-026](../ADRs/ADR-026-per-service-query-api-with-sql-syntax-and-injection-proof-compilation.md)**. This document specifies how the **read side** of CQRS is queried, separately from writes: the event schema catalog that makes events queryable, and SFQL, the query language that runs over it.
 
 ## 1. CQRS separation rules
 
 | Rule | Detail |
 |------|--------|
-| Q-R1 | **Writes never read through the query side.** `Decide`, `When` and `React` get state only from their own stream (or DCB query, [ADR-021](ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)). Using `IQueryService` inside aggregate, process-manager or projection code is an **error** (analyzer SF0015). Using it in an `ICommandHandler` is a **warning** (SF0016: "decisions based on eventually consistent reads"). |
+| Q-R1 | **Writes never read through the query side.** `Decide`, `When` and `React` get state only from their own stream (or DCB query, [ADR-021](../ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)). Using `IQueryService` inside aggregate, process-manager or projection code is an **error** (analyzer SF0015). Using it in an `ICommandHandler` is a **warning** (SF0016: "decisions based on eventually consistent reads"). |
 | Q-R2 | **Queries never write.** SFQL has no data-changing grammar. Execution uses a `QueryDataSource` whose database role has `SELECT` only on `events`, `streams`, `documents`, `schemas` and `collection_aliases`. It can't read `outbox`, `inbox` or `data_keys`. |
 | Q-R3 | **Separate resources.** `sf.Query(q => q.ConnectionString = …)` may point at a **read replica**. Query load never competes for the write pool. |
 | Q-R4 | **Logical addressing.** Queries name logical event types, schema fields, collections and aggregates, never tables or JSON paths. The physical schema can evolve without breaking queries. |
@@ -96,7 +96,7 @@ Attributes on message members drive the extensions:
 | `[Queryable]` | The field may appear in `where`, `order by` and `summarize by` over the event log. It generates a **partial expression index** (§7.2). |
 | `[RenamedFrom("holder", Version = 1)]` | The binder maps the field to its old name when reading rows of that version. |
 | `[PersonalData]` | The field can't be filtered, sorted or grouped (it is ciphertext). It is decrypted or masked only in `project` (§8). |
-| `[Tag("account")]` | The field becomes a tag ([ADR-021](ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)). Tags are always queryable through `has_tag()`. |
+| `[Tag("account")]` | The field becomes a tag ([ADR-021](../ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)). Tags are always queryable through `has_tag()`. |
 
 Decimals are serialised as strings (`format: decimal`) so they compare exactly.
 
@@ -404,7 +404,7 @@ Results are ordered and keyset-paginated. The continuation token is opaque and c
 
 | Concern | Semantics |
 |---------|-----------|
-| **Tenancy** ([ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)) | The binder injects `tenant = <ambient tenant>` into every source. `options (tenants = 'all')` needs the `sourceflow.query.cross-tenant` permission. PostgreSQL RLS enforces it again at the database. |
+| **Tenancy** ([ADR-022](../ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)) | The binder injects `tenant = <ambient tenant>` into every source. `options (tenants = 'all')` needs the `sourceflow.query.cross-tenant` permission. PostgreSQL RLS enforces it again at the database. |
 | **Archived streams** ([doc 05 §9](05-Event-Store-and-Persistence.md#9-retention-archiving-and-growth)) | `from events` leaves out events of archived streams. `options (include_archived = true)` includes them and needs no permission. `from stream` and `from aggregate` always read archived streams. |
 | **Personal data** (doc 10 §4) | `[PersonalData]` fields can't appear in `where`, `order by`, `summarize` or `lookup` keys (SFQ0301), because they are ciphertext. In `project` they are decrypted in process **only** with the `sourceflow.query.pii` permission. Otherwise they come back redacted. Erased subjects come back as `"[erased]"`. |
 | **Permissions** | `sourceflow.query.events`, `.readmodels`, `.aggregates`, `.schema`, `.pii`, `.scan`, `.cross-tenant`, `.adhoc` (ad-hoc API queries), `.validate`, `.explain` (reveals physical schema: operators only). They are evaluated through `IAuthorizationService` policies against the caller's `ClaimsPrincipal`, or the service identity for in-process calls. |

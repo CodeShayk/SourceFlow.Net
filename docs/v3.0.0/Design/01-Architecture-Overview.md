@@ -10,11 +10,11 @@
 
 | # | Assumption | If wrong, revisit |
 |---|------------|-------------------|
-| A1 | Users run on .NET 10 and can adopt C# 14. | [ADR-001](ADRs/ADR-001-target-dotnet-10-and-csharp-14.md) |
-| A2 | The write-side store is a relational database (PostgreSQL first, SQL Server second). Teams that need a dedicated event database can add an adapter later. | [ADR-009](ADRs/ADR-009-event-store-on-adonet-postgresql-first.md) |
+| A1 | Users run on .NET 10 and can adopt C# 14. | [ADR-001](../ADRs/ADR-001-target-dotnet-10-and-csharp-14.md) |
+| A2 | The write-side store is a relational database (PostgreSQL first, SQL Server second). Teams that need a dedicated event database can add an adapter later. | [ADR-009](../ADRs/ADR-009-event-store-on-adonet-postgresql-first.md) |
 | A3 | A typical service handles 10²–10⁴ commands/s at peak, and aggregate streams are mostly short (fewer than 1,000 events). Long streams use snapshots. | [doc 09](09-Performance-and-Scalability.md) |
-| A4 | Cross-service communication is asynchronous messaging. Synchronous RPC is out of scope. | [ADR-007](ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md) |
-| A5 | Teams accept at-least-once delivery from brokers. The library makes processing *effectively once* using the inbox and outbox. | [ADR-006](ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md) |
+| A4 | Cross-service communication is asynchronous messaging. Synchronous RPC is out of scope. | [ADR-007](../ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md) |
+| A5 | Teams accept at-least-once delivery from brokers. The library makes processing *effectively once* using the inbox and outbox. | [ADR-006](../ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md) |
 | A6 | v2 users accept a major-version break in return for a migration tool. | [doc 12](12-Migration-Delivery-and-Traceability.md) |
 
 ## 2. Quality goals
@@ -60,12 +60,12 @@ Each quality is a measurable scenario. Targets are validated in M2 to M4 ([doc 0
 |--------------|-----|-----------------------|
 | An event store on EF Core | The ORM adds per-append overhead and gives no control over ordering or locking SQL. EF Core stays for **read models** only. | Demand from users bound to EF-only database providers |
 | A custom circuit breaker or retry engine | Polly v8 via `Microsoft.Extensions.Resilience` is the platform standard. | — |
-| A query bus or mediator for reads | Read models are plain stores. A *query language* **is** in scope ([ADR-023](ADRs/ADR-023-sfql-query-language-with-cesql-predicates.md), [doc 14](14-Query-Side-and-SFQL.md)), but there is no request/response query bus around it. | — |
-| ~~General joins in SFQL~~ | **Now in scope** (product request, 2026-11-10; [ADR-026](ADRs/ADR-026-per-service-query-api-with-sql-syntax-and-injection-proof-compilation.md)): bounded `INNER`/`LEFT` equality joins, grouping and ordering, plus a SQL syntax, behind the per-service query API | — |
+| A query bus or mediator for reads | Read models are plain stores. A *query language* **is** in scope ([ADR-023](../ADRs/ADR-023-sfql-query-language-with-cesql-predicates.md), [doc 14](14-Query-Side-and-SFQL.md)), but there is no request/response query bus around it. | — |
+| ~~General joins in SFQL~~ | **Now in scope** (product request, 2026-11-10; [ADR-026](../ADRs/ADR-026-per-service-query-api-with-sql-syntax-and-injection-proof-compilation.md)): bounded `INNER`/`LEFT` equality joins, grouping and ordering, plus a SQL syntax, behind the per-service query API | — |
 | `UNION`, CTEs and window functions in SFQL | Not needed for the requested constructs; more surface to secure | Measured demand (`sfql/1.1`) |
-| ~~A saga DSL or state-machine designer~~ | **Trigger met (product request, 2026-11-10).** Now in scope as the separate utility *SourceFlow Studio*: a YAML DSL compiled to process managers, plus a React designer ([doc 15](15-Workflow-DSL-and-Studio.md), [ADR-024](ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md), [ADR-025](ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md)). Still **no runtime workflow engine** | — |
+| ~~A saga DSL or state-machine designer~~ | **Trigger met (product request, 2026-11-10).** Now in scope as the separate utility *SourceFlow Studio*: a YAML DSL compiled to process managers, plus a React designer ([doc 15](15-Workflow-DSL-and-Studio.md), [ADR-024](../ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md), [ADR-025](../ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md)). Still **no runtime workflow engine** | — |
 | A runtime workflow interpreter / engine | DSL workflows are compiled into process managers. One execution model (ADR-024) | — |
-| Database-per-tenant and schema-per-tenant | **Conjoined** tenancy with row-level security is in 3.0 ([ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)). Separate databases per tenant wait for demand. | Tenants needing physical isolation |
+| Database-per-tenant and schema-per-tenant | **Conjoined** tenancy with row-level security is in 3.0 ([ADR-022](../ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)). Separate databases per tenant wait for demand. | Tenants needing physical isolation |
 | A claim-check (large payload offload) | Size validation is in 3.0. Offloading is 3.x. | Messages above broker limits in real workloads |
 | Archiving cold streams to object storage | Monthly range partitioning of the events table **is** in 3.0 as an opt-in, because the capacity model shows tier M needs it ([doc 09 §5](09-Performance-and-Scalability.md#5-capacity-model)). Detached partitions can be archived with standard database tooling. A built-in archive tier behind `IEventStore` is not needed yet. | Users needing transparent reads of archived streams |
 | Snapshots on by default | Most streams are short. Snapshots are a per-aggregate opt-in policy. | `aggregate.load.events` p95 > 200 |
@@ -107,7 +107,7 @@ flowchart TB
     classDef a fill:#eef,stroke:#88a
 ```
 
-**Dependency rules** ([ADR-027](ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md); enforced by `SourceFlow.Architecture.Tests` with NetArchTest):
+**Dependency rules** ([ADR-027](../ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md); enforced by `SourceFlow.Architecture.Tests` with NetArchTest):
 
 1. **ARCH-01.** `SourceFlow.Net` depends only on the BCL, `Microsoft.Extensions.*`, Polly and `Microsoft.Extensions.Resilience`. It has no cloud SDK, database driver or OpenTelemetry SDK.
 2. **ARCH-02.** The core never references an adapter, even through reflection (v2's `UseEFIdempotency` reflection hack is removed).
@@ -130,7 +130,7 @@ All packages target `net10.0` only and are versioned together (`3.0.x`). The sin
 | Hosting | `SourceFlow.AspNetCore` | `MapCommand<T>()` (Idempotency-Key, If-Match → expected version, ProblemDetails, ETag, consistency-token header) and the opt-in `MapSourceFlowQuery()` endpoint | ASP.NET Core |
 | Tooling | `SourceFlow.Testing` | Given/When/Then specs for aggregates, process managers and projections. Fake transport and store with fault injection. `FakeTimeProvider` integration. Base classes for the conformance kits. | xUnit-agnostic core |
 | Tooling | `SourceFlow.Tool` (`dotnet sourceflow`) | CLI: topology export and validate, projection rebuild, dead-letter list/replay/discard, v2 migration, workflow and studio commands | System.CommandLine |
-| Workflows | `SourceFlow.Studio` | Workflow DSL semantic core: YAML model, validator, simulator, path enumerator, spec generator, exporters, manifest model. The generator compiles the same sources ([ADR-027 §6](ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md#6-studio-and-the-generator-share-one-dsl-implementation)) | YamlDotNet |
+| Workflows | `SourceFlow.Studio` | Workflow DSL semantic core: YAML model, validator, simulator, path enumerator, spec generator, exporters, manifest model. The generator compiles the same sources ([ADR-027 §6](../ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md#6-studio-and-the-generator-share-one-dsl-implementation)) | YamlDotNet |
 | Workflows | `SourceFlow.Studio.Wasm` + `@sourceflow/studio` (npm) | SourceFlow Studio: the WebAssembly build of the DSL core, and the React designer (separate utility, own release train). The WASM build ships inside the npm package and the tool, not on NuGet | .NET browser-wasm; React 19 |
 
 **Extensibility SPIs in `SourceFlow.Net`.** Each provider implements one namespace and registers through one `SourceFlowBuilder.Use*` slot.
@@ -165,7 +165,7 @@ One core package means a single reference brings the contracts, the runtime and 
 | **Schema catalog** | Generated JSON Schemas for every message and read-model type. Registered at startup, compatibility-checked in CI, exported as AsyncAPI. | 14 |
 | **Query engine + per-service query API** | Request guard → SFQL (pipeline or SQL syntax) parse → bind → policy → plan → compile to parameterised SQL, executed on a read-only connection. Consistency tokens. HTTP API in every service with injection defence | 14 |
 | **Workflow compiler** (build time) | `.sfflow.yaml` → validated → generated process manager + timers + operator commands; service manifest emission | 15 |
-| **Tenant context** | `ITenantResolver` → ambient tenant → envelope `sftenant` → `SET LOCAL sourceflow.tenant` for RLS | [ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md) |
+| **Tenant context** | `ITenantResolver` → ambient tenant → envelope `sftenant` → `SET LOCAL sourceflow.tenant` for RLS | [ADR-022](../ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md) |
 
 ## 8. Key runtime flows
 
@@ -193,7 +193,7 @@ sequenceDiagram
     CP-->>API: CommandResult.Accepted(v+n)
 ```
 
-On `ConcurrencyException` at commit, the processor reloads and re-decides, up to `MaxConcurrencyRetries` (default 3) with jittered backoff, then returns `CommandResult.Conflict`. Re-deciding is safe because `Decide` is pure ([ADR-003](ADRs/ADR-003-aggregates-as-pure-deciders-decide-evolve.md), [ADR-008](ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md)).
+On `ConcurrencyException` at commit, the processor reloads and re-decides, up to `MaxConcurrencyRetries` (default 3) with jittered backoff, then returns `CommandResult.Conflict`. Re-deciding is safe because `Decide` is pure ([ADR-003](../ADRs/ADR-003-aggregates-as-pure-deciders-decide-evolve.md), [ADR-008](../ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md)).
 
 ### 8.2 Async projection and process manager
 

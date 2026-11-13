@@ -5,7 +5,7 @@
 | **Status** | Accepted |
 | **Date** | 2026-11-11 |
 | **Deciders** | v3 architecture review; WP-4.1 implementation |
-| **Amends** | WBS WP-4.1; [doc 06](../06-Projections-and-Subscriptions.md) §6 (`projection rebuild`) |
+| **Amends** | WBS WP-4.1; [doc 06](../Design/06-Projections-and-Subscriptions.md) §6 (`projection rebuild`) |
 
 ## Context
 

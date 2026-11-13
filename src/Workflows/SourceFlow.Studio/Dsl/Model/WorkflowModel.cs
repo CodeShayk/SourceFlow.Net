@@ -163,7 +163,7 @@ namespace SourceFlow.Studio.Dsl.Model
         /// <summary>The default value when there is no <see cref="From"/>.</summary>
         public ScalarValue? Default { get; internal set; }
 
-        /// <summary>The owner marks the field as personal data (crypto-shredded in state, WF-V14).</summary>
+        /// <summary>The owner marks the field as personal data (WF-V14); workflow state is not encrypted yet in 3.0.</summary>
         public bool Personal { get; internal set; }
     }
 

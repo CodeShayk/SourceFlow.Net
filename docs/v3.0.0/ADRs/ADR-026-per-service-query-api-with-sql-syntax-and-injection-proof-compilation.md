@@ -8,7 +8,7 @@
 
 ## Context
 
-The product now requires **every service** to expose a query API for retrieving its data. The API must validate syntax, guard against SQL and script injection, and support the basic SQL constructs: joins, filtering, grouping and ordering. SFQL ([ADR-023](ADR-023-sfql-query-language-with-cesql-predicates.md)) was pipeline-only, allowed key lookups but no general joins, and its HTTP endpoint was opt-in with ad-hoc queries disabled by default ([doc 14](../14-Query-Side-and-SFQL.md)). Queries must still stay inside the owning service's boundary (product Q2, rules Q-B1…B6).
+The product now requires **every service** to expose a query API for retrieving its data. The API must validate syntax, guard against SQL and script injection, and support the basic SQL constructs: joins, filtering, grouping and ordering. SFQL ([ADR-023](ADR-023-sfql-query-language-with-cesql-predicates.md)) was pipeline-only, allowed key lookups but no general joins, and its HTTP endpoint was opt-in with ad-hoc queries disabled by default ([doc 14](../Design/14-Query-Side-and-SFQL.md)). Queries must still stay inside the owning service's boundary (product Q2, rules Q-B1…B6).
 
 ## Decision
 

@@ -8,7 +8,7 @@
 
 ## Context
 
-The original design treated multi-tenancy as YAGNI and only passed a `tenant` header through ([doc 01 §4](../01-Architecture-Overview.md#4-deliberately-not-built-yagni-register)). The competitive analysis (C1) shows mature competitors (Marten, Wolverine, Axon) provide it, and SaaS teams treat it as a prerequisite. Bolting it on later would change primary keys in every table: a breaking schema migration.
+The original design treated multi-tenancy as YAGNI and only passed a `tenant` header through ([doc 01 §4](../Design/01-Architecture-Overview.md#4-deliberately-not-built-yagni-register)). The competitive analysis (C1) shows mature competitors (Marten, Wolverine, Axon) provide it, and SaaS teams treat it as a prerequisite. Bolting it on later would change primary keys in every table: a breaking schema migration.
 
 ## Decision
 

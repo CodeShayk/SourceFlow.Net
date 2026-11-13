@@ -192,7 +192,7 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Adds the SourceFlow health checks (doc 08 §5) as <c>{prefix}.ready</c>, <c>.store</c>, <c>.transport</c>,
-    /// <c>.outbox</c>, <c>.subscriptions</c> and <c>.leases</c>. Ready, store and transport carry the <c>ready</c> tag;
+    /// <c>.outbox</c>, <c>.subscriptions</c>, <c>.leases</c> and <c>.keys</c>. Ready, store and transport carry the <c>ready</c> tag;
     /// every check carries <c>sourceflow</c>. Map liveness without them, so a dependency outage does not restart the service:
     /// <c>app.MapHealthChecks("/health/live", new() { Predicate = _ =&gt; false })</c> and
     /// <c>app.MapHealthChecks("/health/ready", new() { Predicate = c =&gt; c.Tags.Contains("ready") })</c>.

@@ -5,7 +5,7 @@
 | **Status** | Plan, ready for execution. No code has been written yet. |
 | **Where code will live** | Branch **`v3.0.0`** cut from `master`, rewriting the repository's own `src/` and `tests/` ([plan 02](02-Branching-Versioning-and-Repository-Layout.md)) |
 | **Baseline** | v2.0.0 on `master` (commit `086673b`), plus the Azure provider on `origin/azure-cloud` |
-| **Design** | [docs/v3.0.0](../README.md): 14 design documents and 23 ADRs. Product sign-off received 2026-11-10. |
+| **Design** | [docs/v3.0.0](../Design/README.md): 14 design documents and 23 ADRs. Product sign-off received 2026-11-10. |
 
 ## Purpose
 

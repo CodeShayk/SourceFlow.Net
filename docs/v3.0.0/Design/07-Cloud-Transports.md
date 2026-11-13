@@ -1,6 +1,6 @@
 # 07 — Cloud Transports
 
-Design drivers: [ADR-011](ADRs/ADR-011-cloudevents-envelope-and-w3c-trace-context.md), [ADR-014](ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md) and [ADR-017](ADRs/ADR-017-provisioning-modes-and-topology-as-data.md). Fixes: GAP-01, GAP-02, GAP-03, GAP-11, GAP-12, GAP-13, AWS-02/03/05, GCP-04/05/07 and RES-05.
+Design drivers: [ADR-011](../ADRs/ADR-011-cloudevents-envelope-and-w3c-trace-context.md), [ADR-014](../ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md) and [ADR-017](../ADRs/ADR-017-provisioning-modes-and-topology-as-data.md). Fixes: GAP-01, GAP-02, GAP-03, GAP-11, GAP-12, GAP-13, AWS-02/03/05, GCP-04/05/07 and RES-05.
 
 ## 1. Principle: thin transports, smart core
 
@@ -8,7 +8,7 @@ v2 put retries, idempotency, dead-lettering, encryption and telemetry *inside* e
 
 ## 2. Transport SPI
 
-> **As built ([ADR-033](ADRs/ADR-033-final-transport-spi-pull-receivers-and-the-in-memory-reference-broker.md)).** The SPI is pull-based: `ITransport` has `SendAsync`, `PublishAsync`, `CreateReceiverAsync`, `CreateDeadLetterReceiverAsync` and `ProvisionAsync`. `ITransportReceiver.ReceiveAsync(max, wait)` feeds the core's receive loop, and `ReceivedMessage` settles with `CompleteAsync`, `AbandonAsync(delay)`, `RenewAsync` or `DeadLetterAsync(reason)`.
+> **As built ([ADR-033](../ADRs/ADR-033-final-transport-spi-pull-receivers-and-the-in-memory-reference-broker.md)).** The SPI is pull-based: `ITransport` has `SendAsync`, `PublishAsync`, `CreateReceiverAsync`, `CreateDeadLetterReceiverAsync` and `ProvisionAsync`. `ITransportReceiver.ReceiveAsync(max, wait)` feeds the core's receive loop, and `ReceivedMessage` settles with `CompleteAsync`, `AbandonAsync(delay)`, `RenewAsync` or `DeadLetterAsync(reason)`.
 >
 > `TransportCapabilities` adds `OrderedDelivery`, `NativeDeadLetter`, `SubscriptionFilters`, `MaxBatchSize`, `Deduplication` and `MaxLockDuration`. Errors are typed: `TransportException.IsTransient`, a per-message `TransportSendException`, and `TopologyValidationException.Problems`.
 >
@@ -159,7 +159,7 @@ Ordered endpoints and topics are opt-in per endpoint or topic (`.Ordered()`). Th
 | No native DLQ configuration (GAP-11) | Every endpoint gets a DLQ backstop, and the ingestor drains it into `sf_dead_letters` |
 | Production features opt-in or missing per provider (GAP-01) | Features live in core middleware, so every transport has them |
 
-## 5. Provisioning ([ADR-017](ADRs/ADR-017-provisioning-modes-and-topology-as-data.md))
+## 5. Provisioning ([ADR-017](../ADRs/ADR-017-provisioning-modes-and-topology-as-data.md))
 
 | Mode | Behaviour | Required permissions |
 |------|-----------|----------------------|
@@ -203,7 +203,7 @@ Azure (`FullyQualifiedNamespace` + `TokenCredential`, i.e. managed identity) and
 
 ## 7. Transport Conformance Kit (TCK)
 
-The TCK is an abstract test suite in `SourceFlow.Testing`. Each transport test project subclasses it and supplies a fixture: an emulator, or a real cloud account in nightly runs. **GA requires every mandatory scenario to pass for every transport** ([ADR-014](ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md), Q5).
+The TCK is an abstract test suite in `SourceFlow.Testing`. Each transport test project subclasses it and supplies a fixture: an emulator, or a real cloud account in nightly runs. **GA requires every mandatory scenario to pass for every transport** ([ADR-014](../ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md), Q5).
 
 | Group | Scenarios (abridged) |
 |-------|----------------------|

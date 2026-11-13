@@ -1,6 +1,6 @@
 # 15 — Workflow DSL and SourceFlow Studio
 
-Design drivers: [ADR-024](ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md), [ADR-025](ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md), [ADR-020](ADRs/ADR-020-process-managers-with-durable-state-and-timers.md) and [ADR-007](ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md). Requirements: [product doc 07](../product/07-Workflow-Designer-Requirements.md) (WFD-10…37, WFD-NFR-1…6).
+Design drivers: [ADR-024](../ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md), [ADR-025](../ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md), [ADR-020](../ADRs/ADR-020-process-managers-with-durable-state-and-timers.md) and [ADR-007](../ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md). Requirements: [product doc 07](../../product/07-Workflow-Designer-Requirements.md) (WFD-10…37, WFD-NFR-1…6).
 
 ## 1. Scope and position
 
@@ -663,7 +663,7 @@ Exports: SVG and PNG (client-side), Mermaid `stateDiagram-v2`, BPMN 2.0 XML (exp
 
 ## 7. Runtime support and observability
 
-The runtime adds no new execution model. The small runtime types used by generated code live in the core package, namespace **`SourceFlow.Workflows`** in `SourceFlow.Net` ([ADR-027](ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md)): `WorkflowStatus`, `CompensationEntry`, `WorkflowFailure`, the operator command base types, and an `IWorkflowHooks` marker. No extra package is needed.
+The runtime adds no new execution model. The small runtime types used by generated code live in the core package, namespace **`SourceFlow.Workflows`** in `SourceFlow.Net` ([ADR-027](../ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md)): `WorkflowStatus`, `CompensationEntry`, `WorkflowFailure`, the operator command base types, and an `IWorkflowHooks` marker. No extra package is needed.
 
 | Signal | Detail |
 |--------|--------|
@@ -710,7 +710,7 @@ The core also gains deterministic send ids (`Reaction.Send(command, MessageId)`,
 | Package / artifact | Targets | Contents |
 |--------------------|---------|----------|
 | `SourceFlow.Net` (extended) | net10.0 | Runtime types for generated workflows (§7), namespace `SourceFlow.Workflows` |
-| `SourceFlow.Studio` (`src/Workflows/`) | net10.0 | DSL model, YAML reader (YamlDotNet) with source positions, JSON Schema, validator (WF-V*), simulator, path enumerator, spec generator, Mermaid/BPMN exporters, manifest model and merger. The `Dsl/**` sources are also **compiled into the generator** (one implementation, two compilations; [ADR-027 §6](ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md#6-studio-and-the-generator-share-one-dsl-implementation)) |
+| `SourceFlow.Studio` (`src/Workflows/`) | net10.0 | DSL model, YAML reader (YamlDotNet) with source positions, JSON Schema, validator (WF-V*), simulator, path enumerator, spec generator, Mermaid/BPMN exporters, manifest model and merger. The `Dsl/**` sources are also **compiled into the generator** (one implementation, two compilations; [ADR-027 §6](../ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md#6-studio-and-the-generator-share-one-dsl-implementation)) |
 | `SourceFlow.Studio.Wasm` (`src/Workflows/`) | net10.0 `browser-wasm` | `[JSExport]` facade over `SourceFlow.Studio`. Shipped inside the npm package and the tool, not on NuGet |
 | `SourceFlow.Generators` (extended; packed in `SourceFlow.Net`) | netstandard2.0 (compiler plugin) | `WorkflowGenerator`; manifest emission; SF0019, SF0020, SF0021; the linked `SourceFlow.Studio` DSL sources and YamlDotNet |
 | `SourceFlow.Tool` (extended) | net10.0 | `manifest export`, `workflow …`, `studio` |

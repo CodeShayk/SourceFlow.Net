@@ -1,7 +1,7 @@
 # OrderFulfilment sample
 
 Four services of a commerce domain and the workflow that runs between them: the order-fulfilment workflow of
-[design doc 15 §5.1](../../docs/v3.0.0/15-Workflow-DSL-and-Studio.md#51-example-order-fulfilment-with-success-failures-retries-and-rollback).
+[design doc 15 §5.1](../../docs/v3.0.0/Design/15-Workflow-DSL-and-Studio.md#51-example-order-fulfilment-with-success-failures-retries-and-rollback).
 The [workflows guide](../../docs/v3.0.0/guides/workflows.md) walks through it.
 
 | Service | Project | Owns |

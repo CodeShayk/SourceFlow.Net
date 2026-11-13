@@ -20,4 +20,4 @@ Every package targets `net10.0` and is compiled with C# 14 (extension members, t
 
 ## Consequences
 
-(+) Smaller, faster code; AOT; one build. (−) .NET Framework and older runtimes stay on v2. v2 receives security fixes for 12 months after v3 GA ([doc 12](../12-Migration-Delivery-and-Traceability.md)).
+(+) Smaller, faster code; AOT; one build. (−) .NET Framework and older runtimes stay on v2. v2 receives security fixes for 12 months after v3 GA ([doc 12](../Design/12-Migration-Delivery-and-Traceability.md)).

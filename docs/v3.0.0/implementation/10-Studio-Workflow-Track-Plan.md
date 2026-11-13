@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | **Requirement** | [Product doc 07](../../product/07-Workflow-Designer-Requirements.md) (WFD-10…37, WFD-NFR-1…6) |
-| **Design** | [Design doc 15](../15-Workflow-DSL-and-Studio.md), [ADR-024](../ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md), [ADR-025](../ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md) |
-| **Release** | **Studio 1.0**, a separate release train. Targeted for 3.0.0 GA; **not** release-blocking for 3.0.0 ([design doc 12 §5.0](../12-Migration-Delivery-and-Traceability.md#50-sourceflow-studio-release-train-product-doc-07-wq1)) |
+| **Design** | [Design doc 15](../Design/15-Workflow-DSL-and-Studio.md), [ADR-024](../ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md), [ADR-025](../ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md) |
+| **Release** | **Studio 1.0**, a separate release train. Targeted for 3.0.0 GA; **not** release-blocking for 3.0.0 ([design doc 12 §5.0](../Design/12-Migration-Delivery-and-Traceability.md#50-sourceflow-studio-release-train-product-doc-07-wq1)) |
 | **Branch** | Same integration branch `v3.0.0`; work branches `v3/wp-s.<n>-<slug>` |
 | **Lane** | **F**: 1 .NET/Roslyn engineer + 1 React/TypeScript engineer, with lane B (generators) reviewing |
 
@@ -185,7 +185,7 @@ In addition to [plan 09 §1](09-Definition-of-Done-Risks-and-Tracking.md#1-defin
 - [ ] UI changes include component tests, a Playwright scenario when user-visible, and pass axe with no serious violations.
 
 **Studio 1.0 release gate:**
-- S1–S4 exit criteria met ([design doc 12 §5.0](../12-Migration-Delivery-and-Traceability.md#50-sourceflow-studio-release-train-product-doc-07-wq1));
+- S1–S4 exit criteria met ([design doc 12 §5.0](../Design/12-Migration-Delivery-and-Traceability.md#50-sourceflow-studio-release-train-product-doc-07-wq1));
 - WF-E2E-01..11 green on all three cloud transports;
 - performance and accessibility budgets met;
 - the DSL `sourceflow.workflow/1` and `manifestVersion: 1` are frozen (public contracts).

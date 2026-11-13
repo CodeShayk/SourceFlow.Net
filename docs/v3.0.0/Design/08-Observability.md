@@ -1,6 +1,6 @@
 # 08 — Observability
 
-Design driver: [ADR-019](ADRs/ADR-019-telemetry-always-on-with-standard-semantic-conventions.md). Fixes: OBS-01, OBS-04, CTL-02, CTL-03, GAP-14, NFR-OPS-01/02/05.
+Design driver: [ADR-019](../ADRs/ADR-019-telemetry-always-on-with-standard-semantic-conventions.md). Fixes: OBS-01, OBS-04, CTL-02, CTL-03, GAP-14, NFR-OPS-01/02/05.
 
 **Goal.** An operator can answer "is it healthy, is it fast, is it fresh, and where did *this* message go?" from standard OpenTelemetry signals, without reading SourceFlow's code.
 
@@ -12,7 +12,7 @@ Design driver: [ADR-019](ADRs/ADR-019-telemetry-always-on-with-standard-semantic
 | `Meter` | `SourceFlow` | package version |
 | Logger categories | `SourceFlow.*` (for example `SourceFlow.Commands`, `SourceFlow.Subscriptions`, `SourceFlow.Cloud.Aws`) | — |
 
-Both are **always created** ([ADR-019](ADRs/ADR-019-telemetry-always-on-with-standard-semantic-conventions.md)). Without a listener, a span start costs one null check and an instrument update is a no-op. The one-line opt-in for users is:
+Both are **always created** ([ADR-019](../ADRs/ADR-019-telemetry-always-on-with-standard-semantic-conventions.md)). Without a listener, a span start costs one null check and an instrument update is a no-op. The one-line opt-in for users is:
 
 ```csharp
 builder.Services.AddOpenTelemetry()
@@ -20,7 +20,7 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(m => m.AddMeter(SourceFlowTelemetry.MeterName));           // "SourceFlow"
 ```
 
-The library depends on `System.Diagnostics` only, and there is no separate OpenTelemetry package ([ADR-027 §5](ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md#5-opentelemetry-without-an-extra-package)). Histogram bucket boundaries are declared on the instruments with `InstrumentAdvice<T>` (.NET 9+), so no SDK views are needed. The OpenTelemetry SDK stays the *user's* dependency.
+The library depends on `System.Diagnostics` only, and there is no separate OpenTelemetry package ([ADR-027 §5](../ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md#5-opentelemetry-without-an-extra-package)). Histogram bucket boundaries are declared on the instruments with `InstrumentAdvice<T>` (.NET 9+), so no SDK views are needed. The OpenTelemetry SDK stays the *user's* dependency.
 
 ## 2. Tracing
 
@@ -60,7 +60,7 @@ The library does not sample. The documentation recommends a parent-based sampler
 - **Parent or link.** `SourceFlowOptions.Telemetry.ParentBasedOnMessage` makes the `process` span a child of the `create` span. Otherwise the span is linked to it.
 - **Append span.** The `sourceflow.eventstore.append` span carries `db.operation.name` and `sourceflow.events.count`. `db.system.name` is not set, because the core does not know which store is behind the ports.
 - **Not built yet.** The `settle` span and the baggage propagation above (`PropagateBaggage`) are not built; they are follow-ups, and the sections above still describe them as designed.
-- **Wiring guide.** See [guides/opentelemetry.md](guides/opentelemetry.md).
+- **Wiring guide.** See [guides/opentelemetry.md](../guides/opentelemetry.md).
 
 ## 3. Metrics
 
@@ -82,7 +82,7 @@ Units follow UCUM. Histogram buckets are set through `InstrumentAdvice`: duratio
 | `sourceflow.command.duration` | Histogram | s | `sourceflow.command.type`, `sourceflow.outcome` | Write latency SLO |
 | `sourceflow.eventstore.append.duration` | Histogram | s | `db.system.name` | Database health |
 | `sourceflow.eventstore.append.events` | Histogram | {event} | `sourceflow.aggregate.type` | Event volume and shape |
-| `sourceflow.eventstore.concurrency_conflicts` | Counter | {conflict} | `sourceflow.aggregate.type` | Hot-stream detection ([ADR-008](ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md)) |
+| `sourceflow.eventstore.concurrency_conflicts` | Counter | {conflict} | `sourceflow.aggregate.type` | Hot-stream detection ([ADR-008](../ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md)) |
 | `sourceflow.aggregate.load.events` | Histogram | {event} | `sourceflow.aggregate.type`, `sourceflow.load.source` | Snapshot tuning (doc 05 §8) |
 | `sourceflow.aggregate.cache.hits` | Counter | {hit} | `sourceflow.aggregate.type`, `result` | Cache effectiveness |
 | `sourceflow.snapshot.written` | Counter | {snapshot} | `sourceflow.aggregate.type` | Background snapshot writes (doc 05 §8.1) |
@@ -116,7 +116,7 @@ Each measurement is recorded exactly once, at one well-defined place, and the me
 
 - All log statements use **source-generated `[LoggerMessage]`** methods, so the hot path allocates nothing when the level is off. Event ids are grouped in ranges (1000–1999 commands, 2000–2999 store, 3000–3999 transport, 4000–4999 subscriptions, 5000–5999 security).
 - Logs are structured, with stable property names that match span attributes (`MessageId`, `MessageType`, `CorrelationId`, `StreamId`, `Outcome`).
-- Payloads are **never logged by default**. When `LogPayloads = true` is set for debugging, payloads go through `Microsoft.Extensions.Compliance.Redaction`: members marked `[PersonalData]` or classified with a data-classification attribute are redacted by the configured redactor ([ADR-013](ADRs/ADR-013-use-platform-libraries-delete-bespoke-equivalents.md)).
+- Payloads are **never logged by default**. When `LogPayloads = true` is set for debugging, payloads go through `Microsoft.Extensions.Compliance.Redaction`: members marked `[PersonalData]` or classified with a data-classification attribute are redacted by the configured redactor ([ADR-013](../ADRs/ADR-013-use-platform-libraries-delete-bespoke-equivalents.md)).
 - Log levels: `Information` for lifecycle (start, stop, provisioning, lease changes); `Debug` per message; `Warning` for retries and conflicts beyond the threshold; `Error` for parks and stalls.
 
 ## 5. Health checks

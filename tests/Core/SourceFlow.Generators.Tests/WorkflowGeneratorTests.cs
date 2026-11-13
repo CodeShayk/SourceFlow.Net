@@ -98,6 +98,7 @@ public sealed partial class WorkflowGeneratorTests
     public void ValidationErrors_AreSF0020_AtTheYamlPosition()
     {
         string broken = Workflow
+            .ReplaceLineEndings("\n")
             .Replace("    timeout: { after: PT1H, then: manual }", "    retries: 3", StringComparison.Ordinal)
             .Replace("then: manual\n", "then: { goto: nowhere }\n", StringComparison.Ordinal);
 

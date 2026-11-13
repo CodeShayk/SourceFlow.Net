@@ -1,7 +1,7 @@
 # M4 load test report (WP-4.7)
 
-The tier-M load test of the Bank API ([doc 09 §5](../09-Performance-and-Scalability.md#5-capacity-model): 1,000 commands/s
-at peak) against the SLOs of [doc 08 §6](../08-Observability.md#6-slos-and-alerting-shipped-as-guidance-plus-dashboards).
+The tier-M load test of the Bank API ([doc 09 §5](../Design/09-Performance-and-Scalability.md#5-capacity-model): 1,000 commands/s
+at peak) against the SLOs of [doc 08 §6](../Design/08-Observability.md#6-slos-and-alerting-shipped-as-guidance-plus-dashboards).
 The scenario and how to run it are in [`loadtest/README.md`](../../../loadtest/README.md).
 
 ## Result

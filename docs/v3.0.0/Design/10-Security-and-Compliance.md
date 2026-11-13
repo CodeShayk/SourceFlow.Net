@@ -1,6 +1,6 @@
 # 10 — Security and Compliance
 
-Design drivers: [ADR-005](ADRs/ADR-005-logical-message-type-names-and-registry.md), [ADR-013](ADRs/ADR-013-use-platform-libraries-delete-bespoke-equivalents.md) and [ADR-017](ADRs/ADR-017-provisioning-modes-and-topology-as-data.md). Fixes: GAP-10, GAP-12, SEC-03/04/06, NFR-SEC-02/03/04.
+Design drivers: [ADR-005](../ADRs/ADR-005-logical-message-type-names-and-registry.md), [ADR-013](../ADRs/ADR-013-use-platform-libraries-delete-bespoke-equivalents.md) and [ADR-017](../ADRs/ADR-017-provisioning-modes-and-topology-as-data.md). Fixes: GAP-10, GAP-12, SEC-03/04/06, NFR-SEC-02/03/04.
 
 ## 1. Threat model (STRIDE)
 
@@ -18,7 +18,7 @@ The assets are domain events (the system of record), command and integration mes
 | **Elevation of privilege** | A wire message instantiating arbitrary types (v2 GAP-10) | Registry allow-list: only `(type, version)` pairs registered at compile time are deserialisable. No polymorphic `$type` from the wire. Unknown types are parked unread. |
 | **Elevation of privilege** | Over-privileged runtime credentials (v2 GAP-12) | `ProvisioningMode.Validate` in Production needs describe-only rights. The runtime database role has DML only on SourceFlow tables. |
 
-**As built (WP-5.5 security review, [implementation/security-review.md](implementation/security-review.md)).**
+**As built (WP-5.5 security review, [implementation/security-review.md](../implementation/security-review.md)).**
 
 - **Events in the database.** The append-only runtime role comes from `dotnet sourceflow db script --grants <role>` (PostgreSQL).
   - **Grants.** DML on the SourceFlow tables. `UPDATE`, `DELETE` and `TRUNCATE` are revoked on `events` and every partition, and default privileges keep new partitions append-only.
@@ -32,7 +32,7 @@ The assets are domain events (the system of record), command and integration mes
 
 ## 2. Deserialisation hardening
 
-- **Allow-list.** The registry is frozen at startup from generated registrations ([ADR-005](ADRs/ADR-005-logical-message-type-names-and-registry.md)). There is no `Type.GetType` on wire input.
+- **Allow-list.** The registry is frozen at startup from generated registrations ([ADR-005](../ADRs/ADR-005-logical-message-type-names-and-registry.md)). There is no `Type.GetType` on wire input.
 - **JSON options.** Source-generated contexts only. `MaxDepth = 64`. Duplicate properties are disallowed. Strict number handling. Unmapped members are ignored for stored events (tolerant reader) and configurable for wire messages.
 - **Limits.** Body size is checked against the registry and transport limits before parsing. Header count and size limits apply (doc 04 §2.3).
 
@@ -163,7 +163,7 @@ The analyzer SF0011 makes sure every `[PersonalData]` member has a resolvable su
 
 - **Builds**: deterministic builds, SourceLink, embedded PDBs, NuGet **author signing**, and a CycloneDX SBOM attached to every release.
 - **Scanning**: CodeQL (already in v2 CI), dependency review on PRs, Renovate for updates, and an OpenSSF Scorecard target of ≥ 7.
-- **Policy**: the [SECURITY.md](../../SECURITY.md) disclosure process carries over. Security fixes are backported to the latest 3.x minor and, for 12 months after 3.0 GA, to v2.
+- **Policy**: the [SECURITY.md](../../../SECURITY.md) disclosure process carries over. Security fixes are backported to the latest 3.x minor and, for 12 months after 3.0 GA, to v2.
 - **Fuzzing**: SharpFuzz harnesses for the envelope parsers (CloudEvents binary and structured), the registry lookup, and the protected-payload decoder run nightly.
 
 **As built (WP-5.5).**

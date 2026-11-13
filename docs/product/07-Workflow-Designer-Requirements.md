@@ -4,7 +4,7 @@
 |---|---|
 | **Origin** | Product request, 2026-11-10. This is a **new** requirement, not reverse-engineered from v2 code. |
 | **Status of every requirement below** | **Planned** |
-| **Design** | [v3 design doc 15](../v3.0.0/15-Workflow-DSL-and-Studio.md), [ADR-024](../v3.0.0/ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md), [ADR-025](../v3.0.0/ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md) |
+| **Design** | [v3 design doc 15](../v3.0.0/Design/15-Workflow-DSL-and-Studio.md), [ADR-024](../v3.0.0/ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md), [ADR-025](../v3.0.0/ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md) |
 
 ## 1. Problem
 

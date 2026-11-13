@@ -15,7 +15,7 @@ An identity or sequence column is allocated at insert time, not at commit time. 
 A subscription reads only events whose transaction is known to be complete, in an order that later commits can't change:
 - **PostgreSQL**: each event stores `tx_id xid8 DEFAULT pg_current_xact_id()`. The position is `(tx_id, seq)`. Reads ask for `tx_id < pg_snapshot_xmin(pg_current_snapshot())` ordered by `(tx_id, seq)`. Every transaction below `xmin` has finished, so that prefix is final.
 - **SQL Server**: each event has a `rowversion`. Reads ask for `rv < MIN_ACTIVE_ROWVERSION()` ordered by `rv`.
-- An append always writes the stream row first, so the transaction id is acquired under the stream lock and per-stream order matches global order ([doc 05 §5](../05-Event-Store-and-Persistence.md#5-global-ordering-and-the-safe-horizon)).
+- An append always writes the stream row first, so the transaction id is acquired under the stream lock and per-stream order matches global order ([doc 05 §5](../Design/05-Event-Store-and-Persistence.md#5-global-ordering-and-the-safe-horizon)).
 
 ## Alternatives
 

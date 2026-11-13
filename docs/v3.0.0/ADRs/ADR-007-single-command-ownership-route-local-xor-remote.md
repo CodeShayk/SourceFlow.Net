@@ -27,7 +27,7 @@ Keep hybrid behind a flag. Rejected: it needs idempotency to stay correct, it su
 
 ## Product sign-off (2026-11-10)
 
-Q2 and Q3 were accepted, with one added requirement for Q2: **querying events is modelled within the owning service's domain and business boundary.** Ownership therefore covers reads as well as writes. Only the owning service queries its streams. It does so through query models expressed in its own domain vocabulary ([ADR-023](ADR-023-sfql-query-language-with-cesql-predicates.md), [doc 14 §1.1](../14-Query-Side-and-SFQL.md#11-query-ownership-the-service-boundary-q2)).
+Q2 and Q3 were accepted, with one added requirement for Q2: **querying events is modelled within the owning service's domain and business boundary.** Ownership therefore covers reads as well as writes. Only the owning service queries its streams. It does so through query models expressed in its own domain vocabulary ([ADR-023](ADR-023-sfql-query-language-with-cesql-predicates.md), [doc 14 §1.1](../Design/14-Query-Side-and-SFQL.md#11-query-ownership-the-service-boundary-q2)).
 
 ## Traces
 

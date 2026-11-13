@@ -1,6 +1,6 @@
 # 03 — Domain Programming Model
 
-This document defines what application developers write, and what the source generators produce from it. Design drivers: [ADR-002](ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md), [ADR-003](ADRs/ADR-003-aggregates-as-pure-deciders-decide-evolve.md), [ADR-004](ADRs/ADR-004-source-generation-instead-of-reflection.md), [ADR-005](ADRs/ADR-005-logical-message-type-names-and-registry.md), [ADR-015](ADRs/ADR-015-strongly-typed-caller-assigned-ids-uuidv7-default.md), [ADR-018](ADRs/ADR-018-business-rejections-are-values-not-exceptions.md) and [ADR-020](ADRs/ADR-020-process-managers-with-durable-state-and-timers.md).
+This document defines what application developers write, and what the source generators produce from it. Design drivers: [ADR-002](../ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md), [ADR-003](../ADRs/ADR-003-aggregates-as-pure-deciders-decide-evolve.md), [ADR-004](../ADRs/ADR-004-source-generation-instead-of-reflection.md), [ADR-005](../ADRs/ADR-005-logical-message-type-names-and-registry.md), [ADR-015](../ADRs/ADR-015-strongly-typed-caller-assigned-ids-uuidv7-default.md), [ADR-018](../ADRs/ADR-018-business-rejections-are-values-not-exceptions.md) and [ADR-020](../ADRs/ADR-020-process-managers-with-durable-state-and-timers.md).
 
 ## 1. Building blocks, v2 → v3
 
@@ -10,15 +10,15 @@ This document defines what application developers write, and what the source gen
 | `Aggregate<T>` (façade that sends commands) | Removed. Callers use `ICommandSender`. | The façade added no behaviour. |
 | `Saga<T>` + `IHandles<C>` (handle, mutate, persist, raise) | **Aggregate `Decide` methods** (pure), or an `ICommandHandler<C, TAggregate>` when dependencies are needed | Persistence and event raising belong to the runtime. |
 | `IHandlesWithEvent<C,E>` (reflection-built event) | `Decision.Accept(new E(...))` | The event is built explicitly and type-checked. |
-| (none) | **Process manager** | Durable, cross-aggregate coordination with timers ([ADR-020](ADRs/ADR-020-process-managers-with-durable-state-and-timers.md)) |
-| `View<TViewModel>` + `IProjectOn<E>` | **Projection** (document, EF Core or custom), inline or async | Checkpointed, rebuildable, partitionable ([ADR-016](ADRs/ADR-016-projections-inline-or-async-with-partitioned-fenced.md)) |
+| (none) | **Process manager** | Durable, cross-aggregate coordination with timers ([ADR-020](../ADRs/ADR-020-process-managers-with-durable-state-and-timers.md)) |
+| `View<TViewModel>` + `IProjectOn<E>` | **Projection** (document, EF Core or custom), inline or async | Checkpointed, rebuildable, partitionable ([ADR-016](../ADRs/ADR-016-projections-inline-or-async-with-partitioned-fenced.md)) |
 | `Command<TPayload>` + `EntityRef` + `Metadata` | `record` implementing `ICommand<TAggregate>` with a typed id. Metadata moves to the envelope. | No payload wrapper or mutable metadata. |
 | `Event<TEntity>` (payload = whole entity) | `record` implementing `IEvent` that carries only the facts that changed | Events are facts, not entity snapshots. |
 | (none) | **Integration event** (`IIntegrationEvent`), the public contract | Keeps internal domain events private. |
 
 ## 2. Messages
 
-Messages are immutable `sealed record`s with a stable logical name and version ([ADR-005](ADRs/ADR-005-logical-message-type-names-and-registry.md)).
+Messages are immutable `sealed record`s with a stable logical name and version ([ADR-005](../ADRs/ADR-005-logical-message-type-names-and-registry.md)).
 
 ```csharp
 // Commands target exactly one aggregate type (or none, see §6.2)
@@ -58,7 +58,7 @@ public sealed record AccountClosed(AccountId AccountId, string Reason, DateTimeO
 | DM-R3 | A command targets an aggregate by having exactly one member of that aggregate's id type, or by marking one with `[AggregateId]` when there are several (SF0003). |
 | DM-R4 | Message metadata (id, correlation, causation, time, tenant, trace) lives in the **envelope**, never in the record. |
 | DM-R5 | Members must be serialisable by the System.Text.Json source generator (SF0010). |
-| DM-R6 | Query and consistency metadata is declared on members: `[Queryable]` (indexed and filterable in SFQL), `[Tag("account")]` (DCB tag, [ADR-021](ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)), `[RenamedFrom("old", Version = n)]` (keeps queries stable across versions). The generator turns these into the schema catalog (doc 14 §2). |
+| DM-R6 | Query and consistency metadata is declared on members: `[Queryable]` (indexed and filterable in SFQL), `[Tag("account")]` (DCB tag, [ADR-021](../ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)), `[RenamedFrom("old", Version = n)]` (keeps queries stable across versions). The generator turns these into the schema catalog (doc 14 §2). |
 
 ### 2.1 Upcasting
 
@@ -91,7 +91,7 @@ public readonly partial record struct AccountId(Guid Value);
 public readonly partial record struct Iban(string Value);
 ```
 
-The generator emits `New()` (using `Guid.CreateVersion7(TimeProvider)`), `Parse`/`TryParse`, `ISpanFormattable`/`IUtf8SpanFormattable`, a JSON converter registered in the generated JSON context, and `ToStreamSegment()`. Default values are rejected when a command is sent ([ADR-015](ADRs/ADR-015-strongly-typed-caller-assigned-ids-uuidv7-default.md), GAP-20).
+The generator emits `New()` (using `Guid.CreateVersion7(TimeProvider)`), `Parse`/`TryParse`, `ISpanFormattable`/`IUtf8SpanFormattable`, a JSON converter registered in the generated JSON context, and `ToStreamSegment()`. Default values are rejected when a command is sent ([ADR-015](../ADRs/ADR-015-strongly-typed-caller-assigned-ids-uuidv7-default.md), GAP-20).
 
 ## 4. Aggregates
 
@@ -220,7 +220,7 @@ partial record BankAccount : IAggregateRuntime<BankAccount, AccountId>
 }
 ```
 
-The pattern-matching `switch` over sealed types compiles to type checks with no reflection or boxing ([ADR-004](ADRs/ADR-004-source-generation-instead-of-reflection.md)).
+The pattern-matching `switch` over sealed types compiles to type checks with no reflection or boxing ([ADR-004](../ADRs/ADR-004-source-generation-instead-of-reflection.md)).
 
 ## 5. Command processing
 
@@ -382,11 +382,11 @@ public sealed partial record MoneyTransfer : IProcessManager<MoneyTransfer, Tran
 }
 ```
 
-**Two ways to author a process manager.** Write the record by hand, as above, or describe the workflow in the YAML DSL and let the generator produce it ([doc 15](15-Workflow-DSL-and-Studio.md), [ADR-024](ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md)). Generated workflows add declarative business retries, reverse-order compensation, a pivot and manual intervention, and can be visualised and simulated in SourceFlow Studio. Both run on the same runtime.
+**Two ways to author a process manager.** Write the record by hand, as above, or describe the workflow in the YAML DSL and let the generator produce it ([doc 15](15-Workflow-DSL-and-Studio.md), [ADR-024](../ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md)). Generated workflows add declarative business retries, reverse-order compensation, a pivot and manual intervention, and can be visualised and simulated in SourceFlow Studio. Both run on the same runtime.
 
 `ReactionContext<TId>` carries the strongly typed instance id (`ctx.Id`), the reaction time, the message id and whether the message starts the instance. `Reaction` API (DC-3): static entry points `Reaction.Send(…)`, `Reaction.Become(…)`, `Reaction.Complete()` and `Reaction.Ignore`; chained instance methods `AndSend`, `Schedule`, `AndBecome` and `AndComplete`. C# can't have a static and an instance method with the same signature, so the earlier `.Send(…).Send(…)` shape isn't possible.
 
-**Runtime semantics** ([ADR-020](ADRs/ADR-020-process-managers-with-durable-state-and-timers.md)):
+**Runtime semantics** ([ADR-020](../ADRs/ADR-020-process-managers-with-durable-state-and-timers.md)):
 
 1. The process manager subscribes to every event type it has a `React` for. The source can be local (the subscription engine) or remote (the receive pipeline).
 2. For each event, in one transaction:
@@ -396,7 +396,7 @@ public sealed partial record MoneyTransfer : IProcessManager<MoneyTransfer, Tran
    - add the commands and timers to the outbox;
    - record the inbox entry and the checkpoint.
 3. `Complete()` marks the instance complete. Later events for it are ignored, and the state is kept for `CompletedRetention` (default 30 days) for diagnostics.
-4. **Rejections as inputs.** When a command sent by a process manager is rejected by its owner, the owner sends a `CommandRejected<T>` reply to the correlation (if `ReplyOnReject` is set on the route). This closes the loop for compensation without exceptions ([ADR-018](ADRs/ADR-018-business-rejections-are-values-not-exceptions.md)).
+4. **Rejections as inputs.** When a command sent by a process manager is rejected by its owner, the owner sends a `CommandRejected<T>` reply to the correlation (if `ReplyOnReject` is set on the route). This closes the loop for compensation without exceptions ([ADR-018](../ADRs/ADR-018-business-rejections-are-values-not-exceptions.md)).
 
 ### 6.2 Event handlers (side effects)
 
@@ -522,7 +522,7 @@ The generated module registers **only** what it found at compile time, with no a
 | SF0011 | Error | `[PersonalData]` is used in an event without a resolvable subject key (doc 10 §4). |
 | SF0012 | Error | A process manager handles an event without a correlation (no `CorrelateBy` and not a reply). |
 | SF0013 | Warning | `.AsIs()` publishes an event containing `[PersonalData]`. |
-| SF0014 | Error | A command type is both handled locally and routed remotely ([ADR-007](ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md)). The analyzer catches it when routing uses constant expressions and the aggregate or handler is declared in the same compilation; an aggregate from a referenced assembly is another service's, whose contracts this one uses. Startup validation always catches it. |
+| SF0014 | Error | A command type is both handled locally and routed remotely ([ADR-007](../ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md)). The analyzer catches it when routing uses constant expressions and the aggregate or handler is declared in the same compilation; an aggregate from a referenced assembly is another service's, whose contracts this one uses. Startup validation always catches it. |
 | SF0015 | Error | `IQueryService` or `IAggregateReader` used inside `Decide`, `When`, `React` or projection code. CQRS separation (doc 14 Q-R1). |
 | SF0016 | Warning | `IQueryService` used in an `ICommandHandler`: the decision depends on eventually consistent reads. |
 | SF0017 | Warning | `[Queryable]` on a `[PersonalData]` member. It has no effect, because ciphertext can't be indexed. |

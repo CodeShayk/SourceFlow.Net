@@ -5,7 +5,7 @@
 | **Status** | Accepted |
 | **Date** | 2026-11-11 |
 | **Deciders** | v3 architecture review; WP-1.13 implementation |
-| **Amends** | [doc 14](../14-Query-Side-and-SFQL.md) Q-B4 ("the generator binds every `[DomainQuery]` at build time against the catalog") |
+| **Amends** | [doc 14](../Design/14-Query-Side-and-SFQL.md) Q-B4 ("the generator binds every `[DomainQuery]` at build time against the catalog") |
 
 ## Context
 

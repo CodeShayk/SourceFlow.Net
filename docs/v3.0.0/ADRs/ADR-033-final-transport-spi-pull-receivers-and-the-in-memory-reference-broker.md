@@ -5,7 +5,7 @@
 | **Status** | Accepted |
 | **Date** | 2026-11-11 |
 | **Deciders** | v3 architecture review; WP-3.1 implementation |
-| **Amends** | [doc 07](../07-Cloud-Transports.md) §2, §7; [ADR-014](ADR-014-transport-spi-and-conformance-kit-parity-required.md) |
+| **Amends** | [doc 07](../Design/07-Cloud-Transports.md) §2, §7; [ADR-014](ADR-014-transport-spi-and-conformance-kit-parity-required.md) |
 
 ## Context
 

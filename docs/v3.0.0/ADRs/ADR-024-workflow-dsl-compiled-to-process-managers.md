@@ -8,7 +8,7 @@
 
 ## Context
 
-The product now requires a saga DSL and a visual designer for workflows that span the services of a business domain. The workflows must show success, failure, retry and rollback paths ([product doc 07](../../product/07-Workflow-Designer-Requirements.md)). The original design had put this in the YAGNI register ([doc 01 §4](../01-Architecture-Overview.md#4-deliberately-not-built-yagni-register)), with "repeated user demand" as the trigger; that trigger has now occurred.
+The product now requires a saga DSL and a visual designer for workflows that span the services of a business domain. The workflows must show success, failure, retry and rollback paths ([product doc 07](../../product/07-Workflow-Designer-Requirements.md)). The original design had put this in the YAGNI register ([doc 01 §4](../Design/01-Architecture-Overview.md#4-deliberately-not-built-yagni-register)), with "repeated user demand" as the trigger; that trigger has now occurred.
 
 v3 already has a durable process-manager runtime ([ADR-020](ADR-020-process-managers-with-durable-state-and-timers.md)): state with optimistic concurrency, outbox commands, durable timers and inbox deduplication. Command ownership is fixed ([ADR-007](ADR-007-single-command-ownership-route-local-xor-remote.md)), and rejections are values that can be replied to the sender ([ADR-018](ADR-018-business-rejections-are-values-not-exceptions.md)).
 

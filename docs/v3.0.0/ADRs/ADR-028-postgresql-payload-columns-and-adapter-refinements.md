@@ -5,7 +5,7 @@
 | **Status** | Accepted |
 | **Date** | 2026-11-11 |
 | **Deciders** | v3 architecture review; WP-2.1 to WP-2.4 implementation |
-| **Amends** | [doc 05](../05-Event-Store-and-Persistence.md) §2, §3.1, §5.2, §7; [ADR-009](ADR-009-event-store-on-adonet-postgresql-first.md) |
+| **Amends** | [doc 05](../Design/05-Event-Store-and-Persistence.md) §2, §3.1, §5.2, §7; [ADR-009](ADR-009-event-store-on-adonet-postgresql-first.md) |
 
 ## Context
 

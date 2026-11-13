@@ -19,7 +19,7 @@ It also gives no cost or safety guard. The original design listed a query langua
 
 ## Decision
 
-Define **SFQL (SourceFlow Query Language)**, specified in [doc 14](../14-Query-Side-and-SFQL.md):
+Define **SFQL (SourceFlow Query Language)**, specified in [doc 14](../Design/14-Query-Side-and-SFQL.md):
 
 1. **Read-only by grammar.** There is no DML or DDL production, so a statement can't write.
 2. **Logical, not physical.** It addresses logical event types, schema fields, read-model collections and aggregates, never tables or JSON paths.
@@ -51,7 +51,7 @@ Define **SFQL (SourceFlow Query Language)**, specified in [doc 14](../14-Query-S
 Q2 was accepted with the requirement that **event querying is modelled within the owning service's domain and business boundary**. SFQL therefore:
 1. resolves only the **service's own** catalog: its event types, its read models, its aggregates;
 2. never reads another service's event log. Foreign facts are queryable only after the service has turned received integration events into its **own** read models;
-3. is published to other services as a **named domain query** (a contract in the service's vocabulary), not as free-form access to its events ([doc 14 §1.1](../14-Query-Side-and-SFQL.md#11-query-ownership-the-service-boundary-q2)).
+3. is published to other services as a **named domain query** (a contract in the service's vocabulary), not as free-form access to its events ([doc 14 §1.1](../Design/14-Query-Side-and-SFQL.md#11-query-ownership-the-service-boundary-q2)).
 
 ## Traces
 

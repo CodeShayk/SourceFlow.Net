@@ -154,7 +154,7 @@
         },
         "personal": {
           "type": "boolean",
-          "description": "Personal data: crypto-shredded in the workflow state (WF-V14)."
+          "description": "Marks the field as personal data; a value from a [PersonalData] field must be marked (WF-V14). Workflow state is not encrypted yet in 3.0."
         }
       },
       "oneOf": [

@@ -1,12 +1,12 @@
 # 09 — Performance and Scalability
 
-Every number in this document is a **target** or an **estimate**, to be validated by the benchmark and load-test programme in §7. Design drivers: [ADR-001](ADRs/ADR-001-target-dotnet-10-and-csharp-14.md), [ADR-004](ADRs/ADR-004-source-generation-instead-of-reflection.md), [ADR-008](ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md), [ADR-009](ADRs/ADR-009-event-store-on-adonet-postgresql-first.md), [ADR-010](ADRs/ADR-010-commit-ordered-global-position-for-gap-free.md) and [ADR-016](ADRs/ADR-016-projections-inline-or-async-with-partitioned-fenced.md). Fixes: NFR-PERF-03, NFR-PERF-04, NFR-PERF-07.
+Every number in this document is a **target** or an **estimate**, to be validated by the benchmark and load-test programme in §7. Design drivers: [ADR-001](../ADRs/ADR-001-target-dotnet-10-and-csharp-14.md), [ADR-004](../ADRs/ADR-004-source-generation-instead-of-reflection.md), [ADR-008](../ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md), [ADR-009](../ADRs/ADR-009-event-store-on-adonet-postgresql-first.md), [ADR-010](../ADRs/ADR-010-commit-ordered-global-position-for-gap-free.md) and [ADR-016](../ADRs/ADR-016-projections-inline-or-async-with-partitioned-fenced.md). Fixes: NFR-PERF-03, NFR-PERF-04, NFR-PERF-07.
 
 ## 1. Hot-path rules
 
 | # | Rule |
 |---|------|
-| HP-1 | No reflection, `Activator`, `MakeGenericMethod` or `Type.GetType` after startup. Every dispatch goes through generated `switch` statements or `FrozenDictionary` lookups ([ADR-004](ADRs/ADR-004-source-generation-instead-of-reflection.md)). |
+| HP-1 | No reflection, `Activator`, `MakeGenericMethod` or `Type.GetType` after startup. Every dispatch goes through generated `switch` statements or `FrozenDictionary` lookups ([ADR-004](../ADRs/ADR-004-source-generation-instead-of-reflection.md)). |
 | HP-2 | `ValueTask` on every hot async API. No `async void`, no sync-over-async, `ConfigureAwait(false)` in library code. |
 | HP-3 | No LINQ, closures or `params object[]` on the hot path. Logging uses `[LoggerMessage]`. |
 | HP-4 | Serialisation writes to pooled `IBufferWriter<byte>` and reads from `ReadOnlySequence<byte>`, with no intermediate `string` for bodies. |

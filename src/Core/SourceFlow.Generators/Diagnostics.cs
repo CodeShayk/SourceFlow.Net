@@ -5,7 +5,7 @@ namespace SourceFlow.Generators
     /// <summary>SourceFlow diagnostics (design doc 03 §9). Ids are stable; never reuse a retired id.</summary>
     internal static class Diagnostics
     {
-        private const string HelpBase = "https://github.com/CodeShayk/SourceFlow.Net/blob/v3.0.0/docs/v3.0.0/03-Domain-Programming-Model.md#9-analyzers";
+        private const string HelpBase = "https://github.com/CodeShayk/SourceFlow.Net/blob/v3.0.0/docs/v3.0.0/Design/03-Domain-Programming-Model.md#9-analyzers";
 
         public static readonly DiagnosticDescriptor MissingMessageType = new(
             "SF0001", "Message type has no [MessageType]",
@@ -75,12 +75,12 @@ namespace SourceFlow.Generators
         public static readonly DiagnosticDescriptor WorkflowInvalid = new(
             "SF0020", "Workflow DSL validation failure",
             "{0}",
-            "SourceFlow.Workflows", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: "https://github.com/CodeShayk/SourceFlow.Net/blob/v3.0.0/docs/v3.0.0/15-Workflow-DSL-and-Studio.md#54-validation-rules-wfd-28");
+            "SourceFlow.Workflows", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: "https://github.com/CodeShayk/SourceFlow.Net/blob/v3.0.0/docs/v3.0.0/Design/15-Workflow-DSL-and-Studio.md#54-validation-rules-wfd-28");
 
         public static readonly DiagnosticDescriptor WorkflowHookMissing = new(
             "SF0021", "Workflow hook has no implementation",
             "{0}",
-            "SourceFlow.Workflows", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: "https://github.com/CodeShayk/SourceFlow.Net/blob/v3.0.0/docs/v3.0.0/15-Workflow-DSL-and-Studio.md#55-code-generation-wfd-29");
+            "SourceFlow.Workflows", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: "https://github.com/CodeShayk/SourceFlow.Net/blob/v3.0.0/docs/v3.0.0/Design/15-Workflow-DSL-and-Studio.md#55-code-generation-wfd-29");
 
         public static readonly DiagnosticDescriptor NoOwner = new(
             "SF0006", "Command has no Decide or handler",

@@ -143,4 +143,4 @@ Source projects live under `src/<Category>/<Package>/`. Test projects are one pe
 - (−) Domain assemblies reference the runtime assembly. ARCH-04 (namespace rule) mitigates this.
 - (−) A cross-cloud KMS user pulls an unused transport SDK.
 - (−) Category test projects are larger, so CI filters by trait (plan 08).
-- Supersedes the package-map parts of [doc 01 §5–6](../01-Architecture-Overview.md#5-logical-architecture), the packaging note in [ADR-004](ADR-004-source-generation-instead-of-reflection.md) and the package list in [ADR-024](ADR-024-workflow-dsl-compiled-to-process-managers.md) and [ADR-025](ADR-025-studio-react-spa-with-shared-wasm-core.md).
+- Supersedes the package-map parts of [doc 01 §5–6](../Design/01-Architecture-Overview.md#5-logical-architecture), the packaging note in [ADR-004](ADR-004-source-generation-instead-of-reflection.md) and the package list in [ADR-024](ADR-024-workflow-dsl-compiled-to-process-managers.md) and [ADR-025](ADR-025-studio-react-spa-with-shared-wasm-core.md).

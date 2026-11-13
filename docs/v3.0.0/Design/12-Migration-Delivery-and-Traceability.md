@@ -26,7 +26,7 @@ v3 is a **new major version**. It is neither source- nor binary-compatible with 
 | `ReplayCommands(id)` | Not needed for state (loading *is* replaying events). `dotnet sourceflow projection rebuild` for read models. | Side-effect free |
 | `ICommandDispatchMiddleware`, `ICommandSubscribeMiddleware`, `IEventDispatchMiddleware`, `IEventSubscribeMiddleware` | `IMessageMiddleware` with `PipelineStage` | |
 | `UseSourceFlowAws(o, bus, idem)` / `UseSourceFlowGcp(...)` | `sf.UseAmazonSqs(...)` / `sf.UseGooglePubSub(...)` / `sf.UseAzureServiceBus(...)` | Options are honoured |
-| `bus.Send.Command<T>(q => q.Queue("x"))` | `r.Command<T>().To("x")` | Remote only ([ADR-007](ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md)) |
+| `bus.Send.Command<T>(q => q.Queue("x"))` | `r.Command<T>().To("x")` | Remote only ([ADR-007](../ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md)) |
 | `bus.Raise.Event<T>(t => t.Topic("x"))` | `r.Publish<T>().As(map).To("x")` | Integration contract |
 | `bus.Listen.To.CommandQueue("x")` | `r.Endpoint("x")` (default: service name) | |
 | `bus.Subscribe.To.Topic("x")` | `r.Subscribe("x")` | One subscription per service |
@@ -39,7 +39,7 @@ v3 is a **new major version**. It is neither source- nor binary-compatible with 
 
 ## 3. Data migration (`dotnet sourceflow migrate v2`)
 
-v2 stores *commands* and *current entity state*. Re-running v2 commands to derive events would repeat the non-determinism that [ADR-002](ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md) removes. The migration therefore imports **current state as genesis events** and **archives** the v2 history.
+v2 stores *commands* and *current entity state*. Re-running v2 commands to derive events would repeat the non-determinism that [ADR-002](../ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md) removes. The migration therefore imports **current state as genesis events** and **archives** the v2 history.
 
 ```csharp
 // User-supplied, one per aggregate type (generated scaffold via `dotnet sourceflow migrate v2 scaffold`)
@@ -66,7 +66,7 @@ public sealed class BankAccountImport : IV2Import<V2BankAccount, BankAccount>
 
 Known limitations: v2 commands lost by GAP-04 or GAP-20 (logged under id 0, or not rebuildable) can't be recovered as history, but the current state *is* migrated. The plan step reports them.
 
-**As built (WP-5.4).** See also the guide [guides/migrating-from-v2.md](guides/migrating-from-v2.md).
+**As built (WP-5.4).** See also the guide [guides/migrating-from-v2.md](../guides/migrating-from-v2.md).
 
 - **API.** `SourceFlow.Migration` in the core:
   - **Registration.** `sf.MigrateFromV2(v2 => v2.From(new V2Source(dataSource, V2Dialect.PostgreSql|SqlServer)).Import(…).Ignore(…).NotRebuildable(…))`.
@@ -137,33 +137,33 @@ The workflow DSL and Studio are a **separate utility on their own release train*
 
 | Release | Items |
 |---------|-------|
-| **3.1** | Dynamic consistency boundaries API ([ADR-021](ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)); stream compaction; RabbitMQ and Kafka transports (through the TCK); event gateway (subscription → Kafka sink); SFQL `sfql/1.1` (window functions over `events`, if demand is confirmed) |
+| **3.1** | Dynamic consistency boundaries API ([ADR-021](../ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)); stream compaction; RabbitMQ and Kafka transports (through the TCK); event gateway (subscription → Kafka sink); SFQL `sfql/1.1` (window functions over `events`, if demand is confirmed) |
 | **3.x** | Database-per-tenant; KurrentDB storage adapter; open-source "SourceFlow Console" over the CLI and query APIs; claim-check for large payloads; GraphQL adapter over read models |
 
 ## 6. Traceability: v2 gaps → v3 resolution
 
-| Gap ([doc 06](../product/06-Gaps-Risks-and-Open-Questions.md)) | Resolution | Where |
+| Gap ([doc 06](../../product/06-Gaps-Risks-and-Open-Questions.md)) | Resolution | Where |
 |-----|------------|-------|
-| GAP-01 Production pipeline not wired | Features are core middleware, always on, identical on every transport | doc 04 §4, doc 07 §1, [ADR-014](ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md) |
+| GAP-01 Production pipeline not wired | Features are core middleware, always on, identical on every transport | doc 04 §4, doc 07 §1, [ADR-014](../ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md) |
 | GAP-02 AWS shared queue, no raw delivery | One endpoint and one receiver per service; raw delivery; FIFO compatibility validated | doc 07 §4.1, RX-R5 |
 | GAP-03 Ignored options (Region …) | Options map to SDK config; validation forbids unhonoured options | doc 07 §6 |
-| GAP-04 Implicit rebuild contract, silent skips | Event sourcing; logical type names; upcasters; unknown types fail loudly | [ADR-002](ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md), [ADR-005](ADRs/ADR-005-logical-message-type-names-and-registry.md), doc 03 §2.1 |
-| GAP-05 O(n), racy, non-atomic sequencing | Compare-and-set append; one transaction; re-decide on conflict | [ADR-008](ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md), doc 05 §3 |
-| GAP-06 Replay side effects | Loading is a pure fold; rebuilds exclude handlers and process managers | [ADR-002](ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md), doc 06 §6 |
+| GAP-04 Implicit rebuild contract, silent skips | Event sourcing; logical type names; upcasters; unknown types fail loudly | [ADR-002](../ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md), [ADR-005](../ADRs/ADR-005-logical-message-type-names-and-registry.md), doc 03 §2.1 |
+| GAP-05 O(n), racy, non-atomic sequencing | Compare-and-set append; one transaction; re-decide on conflict | [ADR-008](../ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md), doc 05 §3 |
+| GAP-06 Replay side effects | Loading is a pure fold; rebuilds exclude handlers and process managers | [ADR-002](../ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md), doc 06 §6 |
 | GAP-07 Swallowed event failures | Events are appended with the decision; subscribers retry, stop or park, visibly | doc 06 §7 |
-| GAP-08 Captive dependencies | Aggregates aren't DI services; handlers are resolved per message scope | [ADR-003](ADRs/ADR-003-aggregates-as-pure-deciders-decide-evolve.md), doc 03 §5.3 |
-| GAP-09 Per-delivery idempotency key | Inbox keyed on the logical `MessageId` | [ADR-006](ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md), doc 04 §6 |
-| GAP-10 No type allow-list | Registry allow-list; parked unread | [ADR-005](ADRs/ADR-005-logical-message-type-names-and-registry.md), doc 10 §2 |
+| GAP-08 Captive dependencies | Aggregates aren't DI services; handlers are resolved per message scope | [ADR-003](../ADRs/ADR-003-aggregates-as-pure-deciders-decide-evolve.md), doc 03 §5.3 |
+| GAP-09 Per-delivery idempotency key | Inbox keyed on the logical `MessageId` | [ADR-006](../ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md), doc 04 §6 |
+| GAP-10 No type allow-list | Registry allow-list; parked unread | [ADR-005](../ADRs/ADR-005-logical-message-type-names-and-registry.md), doc 10 §2 |
 | GAP-11 Incomplete dead-letter story | Parking store, native DLQ backstop and ingestor, CLI replay | doc 04 §9.3 |
-| GAP-12 Provisioning can't be switched off | `ProvisioningMode` + topology export | [ADR-017](ADRs/ADR-017-provisioning-modes-and-topology-as-data.md), doc 07 §5 |
+| GAP-12 Provisioning can't be switched off | `ProvisioningMode` + topology export | [ADR-017](../ADRs/ADR-017-provisioning-modes-and-topology-as-data.md), doc 07 §5 |
 | GAP-13 GCP shared subscriptions, no ordering | `{svc}.{topic}` subscriptions; ordering enabled and validated | doc 07 §4.1 |
 | GAP-14 Metric and log inaccuracies | Single-recording rule with tests; semconv names | doc 08 §3 |
 | GAP-15 "Not found" semantics unspecified | Pinned in the port contract and the conformance kit | doc 05 §1, doc 11 §4 |
-| GAP-16 Assembly-scan fallback rethrows | No assembly scanning (generators) | [ADR-004](ADRs/ADR-004-source-generation-instead-of-reflection.md) |
+| GAP-16 Assembly-scan fallback rethrows | No assembly scanning (generators) | [ADR-004](../ADRs/ADR-004-source-generation-instead-of-reflection.md) |
 | GAP-17 Process-global EF registration | Options in DI; no static state | doc 05 §10 |
 | GAP-18 Doc and metadata drift | Dashboards and docs generated from code; API approval; package metadata checked in CI | doc 08 §6, doc 11 §1 |
-| GAP-19 Owner doesn't log received commands | Received commands go through the owner's command processor | [ADR-007](ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md), RT-R2 |
-| GAP-20 New entities logged under id 0 | Caller-assigned strongly typed ids; defaults rejected | [ADR-015](ADRs/ADR-015-strongly-typed-caller-assigned-ids-uuidv7-default.md) |
+| GAP-19 Owner doesn't log received commands | Received commands go through the owner's command processor | [ADR-007](../ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md), RT-R2 |
+| GAP-20 New entities logged under id 0 | Caller-assigned strongly typed ids; defaults rejected | [ADR-015](../ADRs/ADR-015-strongly-typed-caller-assigned-ids-uuidv7-default.md) |
 
 ## 7. Traceability: product requirement areas → v3
 
@@ -173,8 +173,8 @@ The workflow DSL and Studio are a **separate utility on their own release train*
 | CMD (commands, bus, log, replay) | Command processor and event-sourced streams — doc 03 §5, doc 05 |
 | EVT (events) | Domain events vs integration events; durable subscriptions — doc 03 §7, doc 06 |
 | STO (store contracts) | Role-segregated ports with pinned semantics — doc 05 §1 |
-| REG (registration) | Generated modules — [ADR-004](ADRs/ADR-004-source-generation-instead-of-reflection.md) |
-| EXT (middleware) | One middleware abstraction — [ADR-012](ADRs/ADR-012-one-middleware-abstraction-for-all-stages.md) |
+| REG (registration) | Generated modules — [ADR-004](../ADRs/ADR-004-source-generation-instead-of-reflection.md) |
+| EXT (middleware) | One middleware abstraction — [ADR-012](../ADRs/ADR-012-one-middleware-abstraction-for-all-stages.md) |
 | OBS / CTL (telemetry, health) | doc 08 |
 | PERF | doc 09 |
 | EF (persistence) | PostgreSQL and SQL Server stores, EF Core read models — doc 05 |
@@ -183,9 +183,9 @@ The workflow DSL and Studio are a **separate utility on their own release train*
 | SEC | doc 10 |
 | AWS / GCP (+ Azure) | doc 07, with the TCK as the parity gate |
 | NFR (all) | Quality goals in doc 01 §2, verified by doc 11 |
-| Query side (new request) | Schema catalog, SFQL, consistency tokens, temporal reads — doc 14, [ADR-023](ADRs/ADR-023-sfql-query-language-with-cesql-predicates.md) |
+| Query side (new request) | Schema catalog, SFQL, consistency tokens, temporal reads — doc 14, [ADR-023](../ADRs/ADR-023-sfql-query-language-with-cesql-predicates.md) |
 | Workflow DSL + visual designer (new request) | Separate utility: DSL compiled to process managers, React Studio, manifests — doc 15, ADR-024, ADR-025, §5.0 |
-| Competitive parity (new request) | Tenancy ([ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)), DCB readiness ([ADR-021](ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)), archiving, `MapCommand`, roadmap — doc 13 |
+| Competitive parity (new request) | Tenancy ([ADR-022](../ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)), DCB readiness ([ADR-021](../ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)), archiving, `MapCommand`, roadmap — doc 13 |
 
 ## 8. Risk register
 
@@ -194,7 +194,7 @@ The workflow DSL and Studio are a **separate utility on their own release train*
 | R1 | v2 users find the event-sourcing shift too large | Medium | High | Migration tool, concept map, companion-book chapter, v2 support window, coexistence bridge |
 | R2 | The source-generator learning curve or generator bugs block users | Medium | Medium | Snapshot-tested generators; clear diagnostics; documented "view generated code"; small generated surface |
 | R3 | `xid8` horizon stalls caused by long transactions in shared databases | Medium | Medium | `horizon_age` metric and health check; guidance to keep a dedicated database or schema; documented impact (latency only) |
-| R4 | Semantic-convention churn in OTel messaging | High | Low | Pinned semconv version with opt-in upgrades ([ADR-019](ADRs/ADR-019-telemetry-always-on-with-standard-semantic-conventions.md)) |
+| R4 | Semantic-convention churn in OTel messaging | High | Low | Pinned semconv version with opt-in upgrades ([ADR-019](../ADRs/ADR-019-telemetry-always-on-with-standard-semantic-conventions.md)) |
 | R5 | Three release-blocking transports overload M3 | Medium | High | The SPI and TCK land first, so each transport is mechanical. Three parallel workstreams. Emulators in CI from day one. Schedule pressure moves the date, not the scope (Q5/Q6 sign-off) |
 | R6 | Outbox write amplification at tier L | Low | Medium | Measured in M2–M4; log-tailing alternative documented (doc 09 §8) |
 | R7 | AOT and trimming constraints conflict with user libraries (validators, EF Core) | Medium | Low | AOT is a goal for the core and adapters; EF Core read models are documented as JIT-only where EF requires it |
@@ -205,7 +205,7 @@ The workflow DSL and Studio are a **separate utility on their own release train*
 ## 9. Review checklist for approvers
 
 - [x] Q1–Q7 answers ([README §3](README.md#3-answers-to-the-open-product-questions)) accepted by product on 2026-11-10 (Q2 with the query-boundary requirement; Q5/Q6 = 3.0.0).
-- [ ] [ADR-001](ADRs/ADR-001-target-dotnet-10-and-csharp-14.md) to [ADR-023](ADRs/ADR-023-sfql-query-language-with-cesql-predicates.md) accepted or amended.
+- [ ] [ADR-001](../ADRs/ADR-001-target-dotnet-10-and-csharp-14.md) to [ADR-023](../ADRs/ADR-023-sfql-query-language-with-cesql-predicates.md) accepted or amended.
 - [ ] SFQL `sfql/1` grammar and semantics (doc 14) accepted as a public, versioned contract.
 - [ ] Workflow DSL `sourceflow.workflow/1` and manifest `manifestVersion: 1` accepted as public contracts (doc 15); Studio release-train decision (WQ1) confirmed.
 - [ ] Competitive positioning and licence commitment (doc 13 §6, §8) accepted by leadership.

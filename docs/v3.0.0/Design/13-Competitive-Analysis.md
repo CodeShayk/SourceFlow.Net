@@ -71,7 +71,7 @@ Legend: ● built-in · ◐ partial, through a companion product, or licence-gat
 | Analyzers enforcing ES discipline (purity, determinism, PII) | ○ | ○ | ○ | ○ | ○ | ○ | ● |
 | Stable logical event type names + upcasting | ● | ● | ◐ | ● | ◐ | ● | ● |
 | Optimistic concurrency + automatic re-decide | ● (via Wolverine) | ● | ● | ● | — | — (single writer) | ● |
-| Multi-stream atomic append / DCB | ● (`[WriteAggregate]`) | ○ | ● (25.1)† | ● (DCB)† | — | ○ | ◐ tags in 3.0 schema; DCB in 3.1 ([ADR-021](ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)) |
+| Multi-stream atomic append / DCB | ● (`[WriteAggregate]`) | ○ | ● (25.1)† | ● (DCB)† | — | ○ | ◐ tags in 3.0 schema; DCB in 3.1 ([ADR-021](../ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)) |
 | Gap-free global ordering, **no timeouts** | ◐ (high-water mark + stale threshold) | ◐ (store-dependent) | ● (native log) | ● | — | ◐ (journal-dependent) | ● commit-ordered (`xid8` / rowversion) |
 | Inline + async projections, rebuilds | ● | ● | ◐ | ● | ○ | ◐ | ● blue/green |
 | Partitioned projections with **fencing tokens** | ◐ (sharding; leadership by locks) | ◐ | ◐ (persistent subscriptions) | ● | — | ◐ | ● |
@@ -86,7 +86,7 @@ Legend: ● built-in · ◐ partial, through a companion product, or licence-gat
 | OpenTelemetry with **messaging semconv** + lag, outbox-age and horizon metrics | ◐ | ● | ◐ | ◐ | ◐ | ◐ | ● |
 | Shipped SLO dashboards and alerts | ○ | ○ | ◐ (UI) | ◐ | ● (ServicePulse, commercial) | ○ | ● Grafana/Prometheus + Aspire |
 | Crypto-shredding for GDPR | ○ (masking by rewrite) | ○ | ○ | ◐ (commercial add-on) | ○ | ○ | ● |
-| Multi-tenancy | ● (conjoined + database-per-tenant) | ○ | ◐ | ● | ◐ | ○ | ● conjoined + Postgres RLS in 3.0 ([ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)); database-per-tenant 3.x |
+| Multi-tenancy | ● (conjoined + database-per-tenant) | ○ | ◐ | ● | ◐ | ○ | ● conjoined + Postgres RLS in 3.0 ([ADR-022](../ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)); database-per-tenant 3.x |
 | Stream archiving / tiered storage | ● (archive, compacting) | ○ | ◐ (licensed)† | ◐ | — | ○ | ◐ partitions + archive flag in 3.0; compaction 3.1 |
 | Temporal queries (state as of version or time) | ● | ◐ | ● | ● | — | ◐ | ● (added by this study) |
 | Kafka / RabbitMQ transports | ● | ● | ◐ (connectors) | ◐ | ● | ◐ | ◐ 3.1 through the TCK |
@@ -98,17 +98,17 @@ Legend: ● built-in · ◐ partial, through a companion product, or licence-gat
 
 | Converged practice | Seen in | v3 conformance |
 |--------------------|---------|----------------|
-| Events are the source of truth; state is a fold | All event-sourcing products | ● [ADR-002](ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md) |
-| Per-stream optimistic concurrency with expected version | Marten, KurrentDB, Eventuous, Axon | ● [ADR-008](ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md) |
-| Stable event type names, separate from CLR types; upcasters | Axon, Marten, Eventuous | ● [ADR-005](ADRs/ADR-005-logical-message-type-names-and-registry.md) |
+| Events are the source of truth; state is a fold | All event-sourcing products | ● [ADR-002](../ADRs/ADR-002-event-sourcing-replaces-command-sourcing.md) |
+| Per-stream optimistic concurrency with expected version | Marten, KurrentDB, Eventuous, Axon | ● [ADR-008](../ADRs/ADR-008-optimistic-concurrency-with-automatic-re-decide.md) |
+| Stable event type names, separate from CLR types; upcasters | Axon, Marten, Eventuous | ● [ADR-005](../ADRs/ADR-005-logical-message-type-names-and-registry.md) |
 | Private domain events vs public integration events | Eventuous (gateway), Axon, DDD guidance | ● doc 03 §7 |
-| Transactional outbox and idempotent receivers | Wolverine, NServiceBus, MassTransit | ● [ADR-006](ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md) |
+| Transactional outbox and idempotent receivers | Wolverine, NServiceBus, MassTransit | ● [ADR-006](../ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md) |
 | Immediate + delayed retries, then an error queue | NServiceBus, MassTransit, Wolverine | ● doc 04 §9 |
 | Checkpointed, rebuildable projections | Marten, Eventuous, Axon | ● doc 06 |
 | Snapshots as an optimisation, not truth | All | ● doc 05 §8 |
 | Correlation and causation metadata | All | ● doc 04 §1 |
-| Multi-tenancy as a first-class concern | Marten, Wolverine, Axon | ● after this study ([ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)) |
-| Moving beyond fixed aggregates for cross-entity invariants (DCB) | Axon 5†, KurrentDB multi-stream†, Cratis†, EventSourcingDB community | ◐ schema-ready in 3.0, API in 3.1 ([ADR-021](ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)) |
+| Multi-tenancy as a first-class concern | Marten, Wolverine, Axon | ● after this study ([ADR-022](../ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)) |
+| Moving beyond fixed aggregates for cross-entity invariants (DCB) | Axon 5†, KurrentDB multi-stream†, Cratis†, EventSourcingDB community | ◐ schema-ready in 3.0, API in 3.1 ([ADR-021](../ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)) |
 | Archiving or tiering cold data | Marten†, KurrentDB† | ◐ partitions + archive flag in 3.0 |
 
 **Conclusion.** v3 follows every converged practice. Two emerging standards, DCB and first-class tenancy, are added by this study.
@@ -117,8 +117,8 @@ Legend: ● built-in · ◐ partial, through a companion product, or licence-gat
 
 | # | Competitor advantage | Response | When |
 |---|----------------------|----------|------|
-| C1 | Marten and Wolverine: mature multi-tenancy | **Adopt**: conjoined tenancy (tenant column, tenant-scoped streams, PostgreSQL row-level security) in 3.0. Database-per-tenant in 3.x. | 3.0 ([ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)) |
-| C2 | Axon 5 DCB, KurrentDB multi-stream appends: cross-entity consistency without inflated aggregates | **Adopt in 3.1**: tag-based append conditions. 3.0 adds `tags` to the event schema and a `[Tag]` attribute, so stored events are DCB-ready with no migration. | 3.1 ([ADR-021](ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)) |
+| C1 | Marten and Wolverine: mature multi-tenancy | **Adopt**: conjoined tenancy (tenant column, tenant-scoped streams, PostgreSQL row-level security) in 3.0. Database-per-tenant in 3.x. | 3.0 ([ADR-022](../ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)) |
+| C2 | Axon 5 DCB, KurrentDB multi-stream appends: cross-entity consistency without inflated aggregates | **Adopt in 3.1**: tag-based append conditions. 3.0 adds `tags` to the event schema and a `[Tag]` attribute, so stored events are DCB-ready with no migration. | 3.1 ([ADR-021](../ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)) |
 | C3 | Marten and KurrentDB: archiving and compaction | 3.0: monthly partitions plus a stream `archived` flag (excluded from loads and rebuilds unless asked for). 3.1: compaction (genesis snapshot event + archive the prefix). | 3.0 / 3.1 |
 | C4 | Temporal queries ("state as of …") | **Adopt**: `IAggregateReader.LoadAsync(id, AsOf.Version(v) / AsOf.Time(t))`. Cheap, given the store design. | 3.0 |
 | C5 | Wolverine.Http: low-ceremony HTTP endpoints | **Adopt** a small `SourceFlow.AspNetCore` package: `app.MapCommand<TCommand>(route)` maps `Idempotency-Key`, `If-Match` → `ExpectedVersion`, `CommandResult` → ProblemDetails or 2xx with `ETag`. | 3.0 |
@@ -158,8 +158,8 @@ Each claim is backed by a concrete design element, so it can be verified rather 
 
 | Change | Documents updated |
 |--------|-------------------|
-| Conjoined multi-tenancy + row-level security in 3.0 | [ADR-022](ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md), doc 01 §4, doc 05 §2, doc 12 §5 |
-| DCB-ready schema in 3.0 (`tags`), DCB API in 3.1 | [ADR-021](ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md), doc 05 §2 |
+| Conjoined multi-tenancy + row-level security in 3.0 | [ADR-022](../ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md), doc 01 §4, doc 05 §2, doc 12 §5 |
+| DCB-ready schema in 3.0 (`tags`), DCB API in 3.1 | [ADR-021](../ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md), doc 05 §2 |
 | Stream archive flag (3.0), compaction (3.1) | doc 05 §9 |
 | Temporal aggregate reads | doc 03 §5.4 |
 | `SourceFlow.AspNetCore` with `MapCommand<T>` | doc 01 §6, doc 03 §5.1, doc 12 §5 |
@@ -170,7 +170,7 @@ Each claim is backed by a concrete design element, so it can be verified rather 
 | Risk | Mitigation |
 |------|------------|
 | The Critter Stack's momentum and maturity | Differentiate on A1–A9, not on feature count. Publish a Marten → SourceFlow migration guide only after GA. |
-| DCB becomes the expected default before 3.1 | The schema is DCB-ready in 3.0, and the 3.1 API is designed now ([ADR-021](ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)). |
+| DCB becomes the expected default before 3.1 | The schema is DCB-ready in 3.0, and the 3.1 API is designed now ([ADR-021](../ADRs/ADR-021-dynamic-consistency-boundaries-dcb-in-3-1.md)). |
 | Licence shifts in the ecosystem (including ours) | Commit publicly to MIT or Apache for every package. Any future commercial offering covers *services* (support, console hosting), never core features. |
 
 ## 9. Sources (checked during this study)
