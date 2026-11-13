@@ -92,7 +92,7 @@ internal sealed class StudioHost : IAsyncDisposable
         response.Headers["Referrer-Policy"] = "no-referrer";
         response.Headers.ContentSecurityPolicy =
             "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; " +
-            "connect-src 'self'; img-src 'self' data: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'";
+            "connect-src 'self'; img-src 'self' data: blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
 
         if (!LoopbackHosts.Contains(context.Request.Host.Host, StringComparer.OrdinalIgnoreCase))
         {

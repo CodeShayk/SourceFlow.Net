@@ -11,6 +11,10 @@ const monaco = join(dirname(createRequire(import.meta.url).resolve('monaco-edito
 // The Studio SPA. In development the local host (dotnet sourceflow studio, port 5180) serves the API and the
 // WebAssembly core; `npm run build` writes dist/, which the tool embeds or serves with --assets.
 export default defineConfig({
+  // Relative URLs everywhere (assets, workers, the ELK worker): the static site (npx @sourceflow/studio build) works from
+  // any folder. index.html's <base href="/"> keeps them at the root for the local host's deep routes; the static build
+  // drops it.
+  base: './',
   plugins: [react()],
   resolve: {
     alias: [{ find: /^monaco-editor\/esm\/vs\/(.*)$/, replacement: join(monaco, 'esm', 'vs', '$1') }],

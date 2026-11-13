@@ -4,3 +4,6 @@ coverage/
 *.tsbuildinfo
 test-results/
 playwright-report/
+
+# The static-site CLI (npx @sourceflow/studio build) lives in app/bin, which the repository-wide .NET rule ignores.
+!app/bin/

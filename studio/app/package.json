@@ -1,10 +1,18 @@
 {
-  "name": "@sourceflow/studio-app",
+  "name": "@sourceflow/studio",
   "version": "0.1.0",
   "private": true,
-  "description": "SourceFlow Studio: the workflow designer SPA (doc 15 §6, ADR-025).",
+  "description": "SourceFlow Studio: the workflow designer SPA (doc 15 §6, ADR-025), and `npx @sourceflow/studio build` for a read-only static site.",
   "license": "MIT",
   "type": "module",
+  "bin": {
+    "sourceflow-studio": "./bin/studio.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "framework"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",

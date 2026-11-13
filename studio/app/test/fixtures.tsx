@@ -140,6 +140,8 @@ export function fakeCore(result: Diagnostic[] = diagnostics) {
     simulateStep: vi.fn(async (_request: SimulateRequest): Promise<SimulateResult> => {
       throw new Error('No simulation in this test.');
     }),
+    toMermaid: vi.fn(async () => ({ text: 'stateDiagram-v2\n    [*] --> reserve_stock\n' })),
+    toBpmn: vi.fn(async () => ({ text: '<?xml version="1.0" encoding="UTF-8"?>\n<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"/>\n' })),
   } satisfies StudioCore;
 }
 

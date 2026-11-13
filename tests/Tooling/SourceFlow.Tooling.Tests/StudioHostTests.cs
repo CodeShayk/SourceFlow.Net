@@ -96,6 +96,7 @@ public sealed class StudioHostTests : IAsyncLifetime
 
         response.StatusCode.ShouldBe(expected, "DNS rebinding: a page on another name must not reach the workspace");
         response.Headers.GetValues("Content-Security-Policy").Single().ShouldContain("default-src 'self'");
+        response.Headers.GetValues("Content-Security-Policy").Single().ShouldContain("base-uri 'self'", Case.Sensitive, "the app's <base href=\"/\"> (its relative URLs, WP-S.12); no other origin");
         response.Headers.GetValues("X-Frame-Options").Single().ShouldBe("DENY");
     }
 

@@ -41,6 +41,8 @@ export interface WorkspaceDto {
   description?: string;
   file: string;
   readOnly: boolean;
+  /** A static site (`npx @sourceflow/studio build`): read-only, with no local host behind it. */
+  staticSite?: boolean;
   services: ServiceDto[];
 }
 
@@ -105,5 +107,45 @@ export function hostApi(base = '', fetcher: typeof fetch = (input, init) => fetc
       });
       return (await response.json()) as SpecsResult;
     },
+  };
+}
+
+/** Where `npx @sourceflow/studio build` puts the workspace snapshot, next to index.html. */
+export const STATIC_DATA = { workspace: 'data/workspace.json', files: 'data/files.json' } as const;
+
+/**
+ * The API of a static site: the workspace and its files as the build wrote them, read-only. `base` is the site's folder
+ * (index.html's), so the site works from any path.
+ */
+export function staticApi(base: string, fetcher: typeof fetch = (input, init) => fetch(input, init)): WorkspaceApi {
+  async function json<T>(path: string): Promise<T> {
+    const response = await fetcher(new URL(path, base).href);
+    if (!response.ok) {
+      throw new ApiError(response.status, `This static site has no ${path} (${response.status}): build it again with npx @sourceflow/studio build.`);
+    }
+
+    return (await response.json()) as T;
+  }
+
+  let files: Promise<Record<string, string>> | undefined;
+  const refuse = async (): Promise<never> => {
+    throw new ApiError(403, 'This is a read-only static site: open the workspace with dotnet sourceflow studio to change it.');
+  };
+  return {
+    async workspace() {
+      return { ...(await json<WorkspaceDto>(STATIC_DATA.workspace)), readOnly: true, staticSite: true };
+    },
+    async readFile(path) {
+      files ??= json<Record<string, string>>(STATIC_DATA.files);
+      const text = (await files)[path];
+      if (text === undefined) {
+        throw new ApiError(404, `No file '${path}' in this static site.`);
+      }
+
+      return text;
+    },
+    writeFile: refuse,
+    exportManifest: refuse,
+    specs: refuse,
   };
 }

@@ -6,16 +6,19 @@
   "type": "module",
   "workspaces": [
     "core-client",
-    "app"
+    "app",
+    "action"
   ],
   "engines": {
     "node": ">=22.18"
   },
   "scripts": {
     "build:wasm": "npm run build:wasm --workspace @sourceflow/core-client",
-    "build": "npm run build --workspace @sourceflow/studio-app",
+    "build": "npm run build --workspace @sourceflow/studio",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test --workspaces",
-    "e2e": "npm run e2e --workspace @sourceflow/studio-app"
+    "e2e": "npm run e2e --workspace @sourceflow/studio",
+    "build:action": "npm run build --workspace @sourceflow/workflow-diff",
+    "site": "npm exec --workspace @sourceflow/studio -- sourceflow-studio build"
   }
 }

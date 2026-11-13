@@ -573,6 +573,50 @@ Visual encodings never rely on colour alone. Each path type has a distinct line 
 
 Exports: SVG and PNG (client-side), Mermaid `stateDiagram-v2`, BPMN 2.0 XML (export only; product WQ2).
 
+**As built (WP-S.12): exports, the static site and the PR diagrams.**
+
+- **One SVG renderer** (`studio/app/src/graph/svg.ts`). `statechartSvg(graph, positions, {theme, title, marks})` is a pure function of the core's graph and the ELK layout. The export, the static site and the workflow-diff action all draw with it.
+  - **Accessibility.** The document is `role="img"`, named by its title and described by a sentence. Each state and transition has a `<title>`: the same accessible name as on the canvas.
+  - **Encodings.** Each kind keeps its line style, arrow, symbol label and shape (§6.1). Colours come from the light or dark palette and are only a redundant cue.
+  - **Routing.** Transitions are routed orthogonally from the bottom of a state to the top of the next. Retries loop out to the side.
+  - **Determinism.** The same graph and positions give the same bytes.
+- **Exports in the workflow view** (an Export group in the toolbar):
+  - **SVG** of the statechart as the canvas shows it (ELK, plus the positions saved beside the workflow), in the current theme.
+  - **PNG**: the SVG drawn on a canvas at twice its size.
+  - **Mermaid** and **BPMN**: the core's `toMermaid` and `toBpmn`, byte for byte the golden `expected.mmd` and `expected.bpmn`.
+
+  Every export is made in the browser and saved as a download. One that needs a readable workflow says so.
+- **`npx @sourceflow/studio build [--workspace] [--out site] [--assets] [--framework]`** (`studio/app/bin/studio.mjs`; the app package is now `@sourceflow/studio`) writes a read-only static site.
+  - **Workspace.** The workspace is read with the .NET loader's rules (`bin/workspace.mjs`): unknown keys are errors with a line and column, remote manifests are refused, and workflow files are listed recursively and sorted.
+  - **What it writes:**
+    - the built app;
+    - the WebAssembly core: `dotnet.js` and the files it names, so stale fingerprinted copies and the `.br`/`.gz` files are left out (6 MB);
+    - `data/workspace.json`, the workspace with its manifests;
+    - `data/files.json`, the workflows and their layout files;
+    - `.nojekyll`, because GitHub Pages would otherwise drop `_framework`.
+  - **Safety.** It only ever replaces a folder it wrote (a `.sourceflow-site` marker).
+  - **Static mode.** The site's `index.html` carries `<meta name="sourceflow-mode" content="static">`, which switches the app to static mode: it reads the snapshot, keeps routes in the hash (a static host has no fallback to `index.html`), and loads the core from its own folder.
+  - **Read-only.** Everything is read-only. Simulation, paths and exports work. Specs say they need the local host.
+- **Relative URLs.** The app is built with a relative base, so assets, the ELK, Monaco and core workers resolve from the module that loads them, from any folder. The local host's deep routes keep working through `<base href="/">` in `index.html`, which the static build removes. The host's CSP now allows `base-uri 'self'` (was `'none'`): a base on its own origin only.
+- **The `workflow-diff` GitHub Action** (`studio/action`, `@sourceflow/workflow-diff`). For a pull request, it lists the `*.sfflow.yaml` files changed between base and head with git, reads both texts, and has the core (in Node, through the new `@sourceflow/core-client/node` in-process client) draw each.
+  - **Diff.** `diffGraphs` compares states and transitions by id. A state changes when its kind, label, sends, awaits, guard, timeout, compensation, order or parent changes; a transition changes when its ends, kind or label change. `describeDiff` says each change in words.
+  - **SVGs.** Before and after go to `out/` with the changes marked by a word and a coloured outline (＋ added, − removed, △ changed).
+  - **The comment.** One comment with a marker, created once and updated on every push, holds:
+    - the changes in words;
+    - Mermaid diagrams, which GitHub draws, with `classDef` marks on the changed states;
+    - a link to the run's artifact for the SVGs.
+
+    A comment over GitHub's 65,536 characters drops the diagrams. A workflow that can't be read is reported with the core's message. A comment- or format-only edit is "no change to the statechart".
+  - **Bundling.** `npm run build:action` bundles `dist/main.js` (`action.yml`: Node 24) with the core in `dist/framework`. This repository runs it from source (`.github/workflows/workflow-diff.yml`, which comments only when the token can write).
+  - **Deviation:** the SVGs reach the pull request as the run's artifact rather than inline images. GitHub doesn't show `data:` images in comments, and hosting them would mean pushing to a branch.
+- **Tests.**
+  - **SVG and diff (Vitest):** the SVG's structure, determinism, themes and marks; the diff's additions, removals and changes.
+  - **Export buttons:** downloads and errors.
+  - **CLI:** the snapshot and its errors, the static index, the core files, replacing only a site, the command line, and the static API.
+  - **The action against a fixture repository:** real git, the real core and ELK, and a fake GitHub API. A pull request adds, removes, changes, breaks and reformats workflows. The test checks the SVGs and their marks, one comment created then updated, "no longer changes", no comment when nothing ever changed, `comment: false`, and the length limit.
+  - **STU-E2E-14:** SVG (drawn by the browser as an image), PNG (signature and size), Mermaid and BPMN equal to the golden files, and the dark theme.
+  - **STU-E2E-15:** the static site on a plain file server under `/docs/studio/`: read-only, hash routes surviving a reload, the core, simulation, paths and Monaco from the site's folder, nothing requested outside it, and no serious axe violations.
+
 **As built (WP-S.8): the shell and the local host.**
 
 - **`dotnet sourceflow studio`** takes `--workspace` (default `sourceflow.domain.yaml`), `--port` (default 5180; 0 picks a free one), `--read-only`, `--open`, and `--assets` / `--framework` (serve a local build instead of the copies embedded in the tool). It is a Kestrel host bound to `127.0.0.1`.

@@ -1,0 +1,54 @@
+# Workflow diff (doc 15 §6.3, WFD-36; WP-S.12): on a pull request that changes *.sfflow.yaml, the before and after
+# statecharts as SVGs (the run's workflow-diff artifact) and a comment with the changes and Mermaid diagrams. It runs
+# the action from this repository (studio/action), built with the WebAssembly core of the same commit.
+name: workflow-diff
+
+on:
+  pull_request:
+    branches: [ "v3.0.0" ]
+    paths: [ "**/*.sfflow.yaml" ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: workflow-diff-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # the base commit's files too
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.18"
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - name: Build the action and its WebAssembly core
+        working-directory: studio
+        run: |
+          npm ci
+          npm run build:wasm
+          npm run build:action
+      - name: Diff the workflows
+        uses: ./studio/action
+        with:
+          out: workflow-diff
+          # A pull request from a fork gets a read-only token: the SVGs are still uploaded.
+          comment: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: workflow-diff
+          path: workflow-diff
+          if-no-files-found: ignore

@@ -1,0 +1,38 @@
+# SourceFlow workflow diff (doc 15 §6.3, WFD-36): on a pull request, draws the statechart of every changed
+# *.sfflow.yaml before and after the change, marks what was added, removed and changed, writes the SVGs to a folder
+# (upload it as an artifact) and comments a summary with Mermaid diagrams on the pull request.
+name: SourceFlow workflow diff
+description: Before/after statecharts of the workflow files a pull request changes, as SVGs and a PR comment.
+branding:
+  icon: git-pull-request
+  color: blue
+inputs:
+  token:
+    description: Token to comment with (needs pull-requests write).
+    default: ${{ github.token }}
+  base:
+    description: The base commit (default the pull request's base).
+    required: false
+  head:
+    description: The head commit (default the pull request's head).
+    required: false
+  out:
+    description: Where to write the SVGs.
+    default: workflow-diff
+  theme:
+    description: light or dark.
+    default: light
+  comment:
+    description: Comment on the pull request (true or false).
+    default: "true"
+  artifact:
+    description: The artifact name the SVGs are uploaded as, named in the comment.
+    default: workflow-diff
+outputs:
+  changed:
+    description: How many workflow files changed.
+  out:
+    description: The folder with the SVGs.
+runs:
+  using: node24
+  main: dist/main.js

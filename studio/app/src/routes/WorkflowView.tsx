@@ -5,6 +5,9 @@ import type { ServiceDto, WorkspaceDto } from '../api.ts';
 import { Tabs } from '../components/Tabs.tsx';
 import { isDirty, textOf, useEditor } from '../edit/editorStore.ts';
 import { canRedo, canUndo } from '../edit/history.ts';
+import { download, EXPORTS, exportWorkflow, type ExportFormat } from '../export.ts';
+import { useStudio } from '../store.ts';
+import { prefersDark, resolveTheme } from '../theme.ts';
 import { layoutPath, pruneLayout, writeLayout } from '../edit/layoutFile.ts';
 import { palette as paletteOf } from '../edit/palette.ts';
 import { PalettePanel } from '../edit/PalettePanel.tsx';
@@ -35,7 +38,8 @@ interface Props {
  * model: visual edits are minimal text edits, typing in the editor is the same text, and undo covers both.
  */
 export const WorkflowView = forwardRef<HTMLElement, Props>(function WorkflowView({ path, owner, workspace, stored, diagnostics, selected, error }, ref) {
-  const { api, core, codeEditor: CodeEditor } = useServices();
+  const { api, core, layout: engine, codeEditor: CodeEditor } = useServices();
+  const themePreference = useStudio((s) => s.theme);
   const simulation = useSimulation();
   const queries = useQueryClient();
   const editor = useEditor();
@@ -128,6 +132,21 @@ export const WorkflowView = forwardRef<HTMLElement, Props>(function WorkflowView
   });
 
   const name = path.slice(path.lastIndexOf('/') + 1);
+  const [exporting, setExporting] = useState<{ busy?: ExportFormat; error?: string; done?: string }>({});
+  const exportAs = async (format: ExportFormat) => {
+    if (text === undefined) {
+      return;
+    }
+
+    setExporting({ busy: format });
+    try {
+      const file = await exportWorkflow(format, text, name, { core, layout: engine }, open ? editor.layout : { version: 1, nodes: {} }, resolveTheme(themePreference, prefersDark()));
+      download(file.name, file.content);
+      setExporting({ done: `Exported ${file.name}.` });
+    } catch (failure) {
+      setExporting({ error: `The export needs a readable workflow: ${(failure as Error).message}` });
+    }
+  };
   const simulated = simulation.file === path && simulation.yaml === text ? activeNode(simulation.moves.at(-1)?.result) : undefined;
   const selectedStep = steps.find((s) => s.id === editor.selected);
   return (
@@ -144,9 +163,20 @@ export const WorkflowView = forwardRef<HTMLElement, Props>(function WorkflowView
           <button type="button" className="button" disabled={readOnly || !dirty} onClick={() => void save()} aria-keyshortcuts="Control+S">Save</button>
           <button type="button" className="button" disabled={!open || !canUndo(editor.history)} onClick={() => editor.undo()} aria-keyshortcuts="Control+Z">Undo</button>
           <button type="button" className="button" disabled={!open || !canRedo(editor.history)} onClick={() => editor.redo()} aria-keyshortcuts="Control+Y">Redo</button>
+          <span className="toolbar-divider" aria-hidden="true" />
+          <span className="toolbar-group" role="group" aria-label="Export">
+            {EXPORTS.map((e) => (
+              <button key={e.format} type="button" className="button" disabled={text === undefined || exporting.busy !== undefined} onClick={() => void exportAs(e.format)}
+                aria-label={`Export ${e.label}`} title={`Download the ${e.format === 'svg' || e.format === 'png' ? 'statechart' : 'workflow'} as ${e.label}`}>
+                {e.label}
+              </button>
+            ))}
+          </span>
           <span role="status" className="save-state">{readOnly ? 'Read-only' : saving !== undefined && saving.text === text ? saving.message : dirty ? 'Unsaved changes' : 'No changes'}</span>
         </div>
       </header>
+      {exporting.error !== undefined ? <p role="alert" className="edit-error">{exporting.error}</p> : null}
+      {exporting.done !== undefined ? <p role="status" className="sr-only" aria-label="Export">{exporting.done}</p> : null}
       {editor.error !== undefined && open ? (
         <p role="alert" className="edit-error">
           {editor.error} <button type="button" className="button" onClick={() => editor.clearError()}>Dismiss</button>
@@ -176,7 +206,7 @@ export const WorkflowView = forwardRef<HTMLElement, Props>(function WorkflowView
               { id: 'swimlane', label: 'Swimlane', content: () => <SwimlaneView text={text} workspace={workspace} name={name} /> },
               {
                 id: 'paths', label: 'Paths', content: () => (
-                  <PathExplorer path={path} text={text} name={name} owner={owner} readOnly={readOnly} dirty={dirty}
+                  <PathExplorer path={path} text={text} name={name} owner={owner} readOnly={readOnly} dirty={dirty} staticSite={workspace.staticSite === true}
                     selected={simulation.file === path ? simulation.selectedPaths : undefined}
                     onSelect={(ids) => { simulation.open(path, text); simulation.setSelectedPaths(ids); }}
                     onSimulate={(p) => {

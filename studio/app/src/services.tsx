@@ -9,7 +9,7 @@ import type { LayoutEngine } from './graph/layout.ts';
 import { manifests } from './workspace.ts';
 
 /** The part of the core client the app uses. */
-export type StudioCore = Pick<StudioCoreClient, 'validate' | 'graph' | 'enumeratePaths' | 'sequence' | 'simulateStep'>;
+export type StudioCore = Pick<StudioCoreClient, 'validate' | 'graph' | 'enumeratePaths' | 'sequence' | 'simulateStep' | 'toMermaid' | 'toBpmn'>;
 
 export interface StudioServices {
   api: WorkspaceApi;

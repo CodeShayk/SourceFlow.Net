@@ -13,6 +13,8 @@ interface Props {
   readOnly: boolean;
   /** Unsaved changes: the host generates specs from the saved file. */
   dirty: boolean;
+  /** A static site has no host to generate specs. */
+  staticSite?: boolean;
   selected: readonly string[] | undefined;
   onSelect: (paths: string[]) => void;
   onSimulate: (path: WorkflowPath) => void;
@@ -48,7 +50,7 @@ function shown(result: PathsResult, filter: Filter): WorkflowPath[] {
   return result.paths.filter((p) => filter === 'all' || (filter === 'cover' ? cover.has(p.id) : p.end === filter));
 }
 
-export function PathExplorer({ path, text, name, owner, readOnly, dirty, selected, onSelect, onSimulate }: Props) {
+export function PathExplorer({ path, text, name, owner, readOnly, dirty, staticSite = false, selected, onSelect, onSimulate }: Props) {
   const { api } = useServices();
   const paths = usePaths(text);
   const [filter, setFilter] = useState<Filter>('all');
@@ -90,7 +92,7 @@ export function PathExplorer({ path, text, name, owner, readOnly, dirty, selecte
     }
   };
 
-  const configured = owner?.tests !== undefined && owner.module !== undefined;
+  const configured = owner?.tests !== undefined && owner.module !== undefined && !staticSite;
   return (
     <section className="paths" aria-labelledby="paths-title">
       <h2 id="paths-title">Paths</h2>
@@ -143,7 +145,9 @@ export function PathExplorer({ path, text, name, owner, readOnly, dirty, selecte
             <ul>{mine.missed.map((e) => <li key={e}><code>{e}</code></li>)}</ul>
           </details>
         ) : null}
-        {!configured ? (
+        {staticSite ? (
+          <p className="hint">This static site can't write specs: open the workspace with <code>dotnet sourceflow studio</code> to generate them.</p>
+        ) : !configured ? (
           <p className="hint">
             To write specs, give {owner?.name ?? 'the owner'} a <code>tests</code> folder (its test project) and its <code>module</code> type in the workspace file.
           </p>
