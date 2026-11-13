@@ -1,0 +1,16 @@
+[
+  {
+    "id": "WF-V14",
+    "severity": "warning",
+    "line": 14,
+    "column": 3,
+    "message": "Data field 'email' copies personal data (orders.order-placed.v1.customerEmail); mark it 'personal: true' so it is crypto-shredded in the workflow state, or don't keep it."
+  },
+  {
+    "id": "WF-V14",
+    "severity": "warning",
+    "line": 37,
+    "column": 53,
+    "message": "The capture 'holder' copies personal data (payments.payment-captured.v1.cardHolder); declare it in 'data' with 'personal: true'."
+  }
+]

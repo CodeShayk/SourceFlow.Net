@@ -1,0 +1,16 @@
+[
+  {
+    "id": "WF-S02",
+    "severity": "error",
+    "line": 5,
+    "column": 1,
+    "message": "Unknown key 'colour' in workflow; expected sourceflow.workflow, name, version, owner, description, start, data, steps, on."
+  },
+  {
+    "id": "WF-S02",
+    "severity": "error",
+    "line": 14,
+    "column": 5,
+    "message": "Unknown key 'retries' in step; expected id, send, await, timeout, compensate, pivot, when, next."
+  }
+]

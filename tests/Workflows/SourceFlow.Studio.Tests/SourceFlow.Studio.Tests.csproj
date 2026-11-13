@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Workflow DSL, manifests, golden and differential suites, WASM facade (plan 10 §3). -->
   <ItemGroup>
+    <PackageReference Include="JsonSchema.Net" />
+    <PackageReference Include="CsCheck" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\..\src\Workflows\SourceFlow.Studio\SourceFlow.Studio.csproj" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,106 @@
+{
+  "manifestVersion": 1,
+  "service": "shipping",
+  "endpoint": "shipping",
+  "sourceflowVersion": "3.0.0",
+  "messages": [
+    {
+      "type": "legacy.adjust",
+      "version": 1,
+      "kind": "command",
+      "clrType": "LegacyAdjust",
+      "aggregate": "ledger",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "shipping.create-shipment",
+      "version": 1,
+      "kind": "command",
+      "clrType": "ShippingCreateShipment",
+      "aggregate": "shipment",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "lines",
+          "type": "array"
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "type": "shipping.shipment-created",
+      "version": 1,
+      "kind": "event",
+      "clrType": "ShippingShipmentCreated",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "shipmentId",
+          "type": "uuid"
+        }
+      ]
+    }
+  ],
+  "aggregates": [
+    {
+      "name": "ledger",
+      "clrType": "Shipping.Ledger",
+      "commands": [
+        {
+          "type": "legacy.adjust",
+          "version": 1,
+          "emits": [],
+          "rejects": []
+        }
+      ],
+      "events": []
+    },
+    {
+      "name": "shipment",
+      "clrType": "Shipping.Shipment",
+      "commands": [
+        {
+          "type": "shipping.create-shipment",
+          "version": 1,
+          "emits": [
+            "shipping.shipment-created.v1"
+          ],
+          "rejects": [
+            "shipping.address_invalid"
+          ]
+        }
+      ],
+      "events": [
+        "shipping.shipment-created.v1"
+      ]
+    }
+  ],
+  "processManagers": [],
+  "projections": [],
+  "publishes": [
+    {
+      "domainEvent": "shipping.shipment-created.v1",
+      "as": "shipping.shipment-created.v1",
+      "topic": "shipping.events"
+    }
+  ],
+  "subscribes": [],
+  "commandRoutes": [],
+  "workflows": [],
+  "schemas": "catalog://shipping"
+}

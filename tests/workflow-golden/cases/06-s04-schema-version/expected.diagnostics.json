@@ -1,0 +1,9 @@
+[
+  {
+    "id": "WF-S04",
+    "severity": "error",
+    "line": 1,
+    "column": 22,
+    "message": "This workflow uses sourceflow.workflow 2; this version of SourceFlow reads version 1. Update SourceFlow Studio and the SourceFlow.Net package."
+  }
+]

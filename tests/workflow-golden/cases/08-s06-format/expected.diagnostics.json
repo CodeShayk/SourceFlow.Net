@@ -1,0 +1,30 @@
+[
+  {
+    "id": "WF-S06",
+    "severity": "error",
+    "line": 2,
+    "column": 7,
+    "message": "'ApproveOrder' is not a kebab-case name such as 'order-fulfilment'."
+  },
+  {
+    "id": "WF-S06",
+    "severity": "error",
+    "line": 9,
+    "column": 9,
+    "message": "'Approve_Order' is not a kebab-case step id such as 'charge-payment'."
+  },
+  {
+    "id": "WF-S06",
+    "severity": "error",
+    "line": 10,
+    "column": 22,
+    "message": "'orders.approve-order' is not a command type such as 'payments.charge.v1'."
+  },
+  {
+    "id": "WF-V01",
+    "severity": "error",
+    "line": 10,
+    "column": 22,
+    "message": "orders.approve-order (send.command) is not a message type of the workspace."
+  }
+]

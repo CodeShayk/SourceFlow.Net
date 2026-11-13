@@ -1,0 +1,16 @@
+[
+  {
+    "id": "WF-S05",
+    "severity": "error",
+    "line": 12,
+    "column": 23,
+    "message": "'5 minutes' is not an ISO-8601 duration such as PT30S, PT5M, PT1H or P1D (years and months are not supported)."
+  },
+  {
+    "id": "WF-S05",
+    "severity": "error",
+    "line": 12,
+    "column": 74,
+    "message": "'P1M' is not an ISO-8601 duration such as PT30S, PT5M, PT1H or P1D (years and months are not supported)."
+  }
+]

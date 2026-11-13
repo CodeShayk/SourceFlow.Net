@@ -1,0 +1,25 @@
+sourceflow.workflow: 1
+name: approve-order
+version: 1
+owner: orders
+start: { on: orders.order-placed.v1, correlate: data.orderId }
+data:
+  orderId: { from: start.data.orderId }
+steps:
+  - id: approve
+    send: { command: orders.approve-order.v1, map: { orderId: $data.orderId } }
+    await: { success: orders.order-approved.v1 }
+    timeout: { after: PT1H, then: manual }
+  - id: adjust
+    send: { command: legacy.adjust.v1, map: { orderId: $data.orderId } }
+    await: { success: orders.order-approved.v1 }
+    timeout: { after: PT1H, then: manual }
+  - id: invoice
+    send: { command: billing.invoice.v1, map: { orderId: $data.orderId } }
+    await: { success: orders.order-approved.v1 }
+    timeout: { after: PT1H, then: manual }
+  - id: void
+    send: { command: payments.void.v1, map: { paymentId: $data.orderId } }
+    await: { success: payments.voided.v1 }
+    timeout: { after: PT1H, then: manual }
+    compensate: { none: true, reason: nothing to undo }

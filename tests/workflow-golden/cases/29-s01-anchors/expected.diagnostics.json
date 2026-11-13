@@ -1,0 +1,9 @@
+[
+  {
+    "id": "WF-S01",
+    "severity": "error",
+    "line": 12,
+    "column": 14,
+    "message": "Anchors and aliases are not allowed in workflow files; repeat the value instead (it keeps visual edits lossless)."
+  }
+]

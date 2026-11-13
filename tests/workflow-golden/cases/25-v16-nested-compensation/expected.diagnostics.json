@@ -1,0 +1,16 @@
+[
+  {
+    "id": "WF-V16",
+    "severity": "error",
+    "line": 47,
+    "column": 9,
+    "message": "A compensation awaits its success only; it can't branch on failures (its retry and timeout handle them)."
+  },
+  {
+    "id": "WF-V16",
+    "severity": "error",
+    "line": 50,
+    "column": 7,
+    "message": "A compensation can't declare 'compensate': compensations are not compensated or redirected (no nested sagas)."
+  }
+]

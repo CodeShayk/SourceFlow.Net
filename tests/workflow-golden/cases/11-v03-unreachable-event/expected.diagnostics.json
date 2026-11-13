@@ -1,0 +1,16 @@
+[
+  {
+    "id": "WF-V03",
+    "severity": "error",
+    "line": 19,
+    "column": 16,
+    "message": "inventory.reserve-stock.v1 doesn't produce payments.refunded.v1 (step 'reserve-stock'); it produces inventory.stock-reserved.v1."
+  },
+  {
+    "id": "WF-V03",
+    "severity": "error",
+    "line": 70,
+    "column": 23,
+    "message": "orders never receives inventory.audited.v1 (step 'await-address-fix'): it is published to inventory.events, which orders doesn't subscribe to (or filters out)."
+  }
+]

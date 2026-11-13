@@ -1,0 +1,78 @@
+sourceflow.workflow: 1
+name: order-fulfilment
+version: 1
+owner: orders                         # generated into the orders service
+description: Reserve stock, take payment, ship.
+
+start:
+  on: orders.order-placed.v1          # local domain event of the owner
+  correlate: data.orderId             # instance id
+  when: "event.data.priority = true AND (event.data.total >"
+data:                                 # instance data, typed from schemas
+  orderId: { from: start.data.orderId }
+  amount:  { from: start.data.total }
+  lines:   { from: start.data.lines }
+
+steps:
+  - id: reserve-stock
+    send:  { command: inventory.reserve-stock.v1, map: { orderId: $data.orderId, lines: $data.lines } }
+    await:
+      success: { on: inventory.stock-reserved.v1, when: "event.data.sku = 'x' OR $data.unknown" }
+      failure:
+        - rejected: inventory.out_of_stock
+          then: fail                  # compensate completed steps (none yet), then Compensated
+    timeout: { after: PT5M, retry: { max: 2 }, then: fail }
+    compensate:
+      send:  { command: inventory.release-stock.v1, map: { orderId: $data.orderId } }
+      await: { success: inventory.stock-released.v1 }
+      retry: { max: 5, backoff: exponential, initial: PT30S, cap: PT10M }
+      timeout: { after: PT15M }
+
+  - id: charge-payment
+    send:  { command: payments.charge.v1, map: { orderId: $data.orderId, amount: $data.amount } }
+    await:
+      success:
+        on: payments.payment-captured.v1
+        capture: { paymentId: event.data.paymentId }
+      failure:
+        - rejected: payments.declined
+          retry: { max: 3, backoff: fixed, initial: PT10M }    # business retry
+          then: fail
+        - rejected: payments.fraud_suspected
+          then: fail
+    timeout: { after: PT2M, retry: { max: 2 }, then: fail }
+    compensate:
+      send:  { command: payments.refund.v1, map: { paymentId: $data.paymentId, amount: $data.amount } }
+      await: { success: payments.refunded.v1 }
+      retry: { max: 5, backoff: exponential, initial: PT1M }
+      timeout: { after: PT30M }
+
+  - id: review-large-order
+    when: "$data.amount > 'big'"        # CESQL guard; skipped when false
+    await:
+      success: orders.order-approved.v1
+      failure:
+        - on: orders.order-rejected-by-review.v1
+          then: fail
+    timeout: { after: P1D, then: manual }
+
+  - id: create-shipment
+    pivot: true                        # point of no return
+    send:  { command: shipping.create-shipment.v1, map: { orderId: $data.orderId, lines: $data.lines } }
+    await:
+      success: shipping.shipment-created.v1
+      failure:
+        - rejected: shipping.address_invalid
+          then: { goto: await-address-fix }    # forward recovery after pivot
+    timeout: { after: PT1H, retry: { max: 3, backoff: exponential, initial: PT5M }, then: manual }
+    next: complete
+
+  - id: await-address-fix
+    await: { success: orders.address-corrected.v1 }
+    timeout: { after: P2D, then: manual }
+    next: create-shipment
+
+on:
+  completed:   { send: { command: orders.mark-fulfilled.v1, map: { orderId: $data.orderId } } }
+  compensated: { send: { command: orders.cancel-order.v1,   map: { orderId: $data.orderId, reason: $failure.code } } }
+  manual:      { alert: true }         # metric + structured log + dead-letter-style record

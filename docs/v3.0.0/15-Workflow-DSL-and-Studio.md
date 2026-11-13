@@ -214,6 +214,7 @@ steps:
         - rejected: shipping.address_invalid
           then: { goto: await-address-fix }    # forward recovery after pivot
     timeout: { after: PT1H, retry: { max: 3, backoff: exponential, initial: PT5M }, then: manual }
+    next: complete                     # without it, success would fall through to await-address-fix
 
   - id: await-address-fix
     await: { success: orders.address-corrected.v1 }
@@ -242,6 +243,31 @@ on:
 | `then` | `fail`, `manual`, `{ goto: stepId }`, `complete` | `fail` isn't allowed after the pivot (WF-V07) |
 
 Expressions use **CESQL** (the same expression language and evaluator as SFQL; doc 14 §4) over `$data`, `event` and `$failure`. Complex logic uses `$hook` partial methods that the author implements in C#. These are pure and deterministic, and the analyzers check them as for `React` (SF0004/SF0009).
+
+**As built (WP-S.3): the grammar.**
+
+- **`next: complete`** ends the workflow after a success.
+  - **Why.** The first version of the §5.1 example let `create-shipment` fall through to `await-address-fix`, so it never completed; WF-V05 found it.
+  - **Reserved.** `complete` can't be a step id.
+- **`timeout` and `compensate`.** Each takes an object, or `none` (`{ none: true, reason: … }`; the scalar `none` is accepted, but WF-V06 or WF-V09 then asks for a reason).
+- **`data` fields** take `personal: true` (WF-V14). Typed fields take a `type` from the manifest field types and an optional scalar `default`.
+- **`$failure`** has `code`, `message` and `step`, and exists only in `on.compensated`.
+- **`event.data.*` in a `send` map** is the start event, in the first step only. Later values are captured into data first.
+- **Not allowed.** Anchors and aliases are rejected (IR-18). Scalars follow the YAML 1.2 core schema, and quoted values are always strings.
+- **Structure.** `schemas/workflow-1.json` (draft 2020-12) describes the structure. A test checks on every golden file that the schema and the reader agree; structural bounds that are validation rules, such as WF-V10's retry range, stay in the validator.
+
+**As built: guards.** Guards use a CESQL subset implemented once under `SourceFlow.Studio/Dsl/Expressions`: `OR`, `AND`, `NOT`, comparisons, `LIKE`, `[NOT] IN`, `EXISTS`, arithmetic, and literals. Keywords are case-insensitive.
+
+- **Why not the SFQL parser.** That parser is `net10.0`-only, and the generator (`netstandard2.0`) must share the guard semantics (WFD-NFR-2).
+- **Binding.** The binder type-checks against data and event field types:
+  - `start.when` sees `event.data.*` of the start message;
+  - a step's `when` sees `$data.*`;
+  - a success `when` sees both.
+- **Evaluation.** Three-valued logic:
+  - a comparison with a missing value is unknown;
+  - unknown propagates (Kleene `AND`/`OR`);
+  - a guard holds only when it is true;
+  - `x = null` tests for a missing value.
 
 ### 5.3 Execution semantics
 
@@ -290,6 +316,22 @@ CompensationStack = [ (stepId, compensation, attempt) … ]   # pushed on each s
 | WF-V14 | No `[PersonalData]` field in `data` unless the owner marks it as personal data (it is then crypto-shredded in state like any other) | Warning |
 | WF-V15 | `name@version` unique per owner; changing a published version's structure without bumping `version` | Error |
 | WF-V16 | Compensation commands aren't themselves compensated (no nested sagas inside compensation) | Error |
+
+**As built (WP-S.3): validation** (`WorkflowAnalysis.Analyze` = reader, then `WorkflowValidator`).
+
+- **Structural ids.** The reader reports structural problems as `WF-S01` (YAML, anchors), `S02` (unknown key), `S03` (shape), `S04` (DSL version, with a migration hint), `S05` (duration) and `S06` (name, id, reference or path format). Every diagnostic has a stable id, a severity and a line and column.
+- **Rule details:**
+  - **WF-V02** also flags an owner that isn't the compiling service, or isn't in the workspace, and a route to the wrong endpoint.
+  - **WF-V03** requires an awaited event to come from the sent command. The event must be in its `emits`, or be published from one of them; and it must reach the owner, either as the owner's domain event or as a publication on a topic the owner subscribes to, allowed by its `only` filter.
+  - **WF-V04** requires await-only steps to carry the instance key (the last segment of `start.correlate`). Replies to commands the workflow sent use the envelope correlation.
+  - **WF-V08** applies the `replyOnReject` check only to remote commands.
+  - **WF-V10** checks only `1 ≤ max ≤ 20`, a positive `initial` for exponential backoff, and `cap ≥ initial`. Each attempt has its own timeout, so the delays add no other constraint.
+  - **WF-V11** checks `next` and `goto` targets. A loop without a wait can't be written: steps always wait, and only an outcome moves backwards.
+  - **WF-V12** types values from data (declared or captured), the start event, literals (`null` only into nullable fields) and hooks (unchecked).
+  - **WF-V15** compares a `name@version` with the structural fingerprint the owner's manifest records for it (`workflows[].fingerprint`, `sha256:` and 16 hex digits). Comments, the description and map-key order don't change the fingerprint. Duplicates are checked against the owner's other workflows.
+  - **WF-V16** is structural: no `compensate`, `pivot` or `next` inside a compensation, and no failure branches in a compensation's `await`.
+- **Partial mode.** At compile time only some manifests are known. Partial mode skips rules about commands whose owner is unknown, but still reports unknown types, with a hint to reference the contract package.
+- **Golden suite.** `tests/workflow-golden` holds a four-service commerce domain (`domain/`) and 30 cases (`cases/NN-*/workflow.sfflow.yaml` with `expected.diagnostics.json`). Every rule has a negative case, and five cases are valid.
 
 ### 5.5 Code generation (WFD-29)
 

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "WF-V08",
+    "severity": "error",
+    "line": 34,
+    "column": 21,
+    "message": "inventory.release-stock.v1 never rejects with 'inventory.out_of_stock'."
+  },
+  {
+    "id": "WF-V08",
+    "severity": "error",
+    "line": 34,
+    "column": 21,
+    "message": "orders doesn't receive rejections of inventory.release-stock.v1; add .ReplyOnReject() to its route."
+  },
+  {
+    "id": "WF-V08",
+    "severity": "error",
+    "line": 49,
+    "column": 21,
+    "message": "payments.charge.v1 never rejects with 'payments.fraud' (it rejects with payments.declined, payments.fraud_suspected)."
+  },
+  {
+    "id": "WF-V08",
+    "severity": "error",
+    "line": 82,
+    "column": 21,
+    "message": "'rejected: orders.empty' needs a command; step 'await-address-fix' sends none."
+  }
+]

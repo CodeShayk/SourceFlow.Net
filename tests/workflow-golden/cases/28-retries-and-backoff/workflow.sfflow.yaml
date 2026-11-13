@@ -1,0 +1,17 @@
+sourceflow.workflow: 1
+name: approve-order
+version: 1
+owner: orders
+start: { on: orders.order-placed.v1, correlate: data.orderId }
+data:
+  orderId: { from: start.data.orderId }
+steps:
+  - id: approve
+    send: { command: orders.approve-order.v1, map: { orderId: $data.orderId } }
+    await:
+      success: orders.order-approved.v1
+      failure:
+        - on: orders.order-rejected-by-review.v1
+          retry: { max: 1 }
+          then: complete
+    timeout: { after: PT1H, retry: { max: 20, backoff: exponential, initial: PT1S, cap: PT1H, jitter: false }, then: { goto: approve } }

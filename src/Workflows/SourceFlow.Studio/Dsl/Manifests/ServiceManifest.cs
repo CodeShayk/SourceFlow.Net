@@ -132,7 +132,7 @@ namespace SourceFlow.Studio.Dsl.Manifests
                 Publishes = List(root["publishes"], p => new ManifestPublication(Required(p, "domainEvent"), Required(p, "as"), Required(p, "topic"))),
                 Subscribes = List(root["subscribes"], s => new ManifestSubscription(Required(s, "topic"), Strings(s["only"]), s["where"]?.AsString)),
                 CommandRoutes = List(root["commandRoutes"], r => new ManifestCommandRoute(Required(r, "command"), Required(r, "to"), r["replyOnReject"]?.AsBoolean ?? false)),
-                Workflows = List(root["workflows"], w => new ManifestWorkflow(Required(w, "name"), Int(w, "version"), w["file"]?.AsString)),
+                Workflows = List(root["workflows"], w => new ManifestWorkflow(Required(w, "name"), Int(w, "version"), w["file"]?.AsString) { Fingerprint = w["fingerprint"]?.AsString }),
             };
         }
 
@@ -224,6 +224,10 @@ namespace SourceFlow.Studio.Dsl.Manifests
     /// <summary>A command sent to another service's endpoint.</summary>
     public sealed record ManifestCommandRoute(string Command, string To, bool ReplyOnReject);
 
-    /// <summary>A DSL workflow owned by the service.</summary>
-    public sealed record ManifestWorkflow(string Name, int Version, string? File);
+    /// <summary>A DSL workflow owned by the service, with the structural fingerprint of the published version (WF-V15).</summary>
+    public sealed record ManifestWorkflow(string Name, int Version, string? File)
+    {
+        /// <summary>The structural fingerprint (<c>WorkflowFingerprint</c>), or null.</summary>
+        public string? Fingerprint { get; init; }
+    }
 }

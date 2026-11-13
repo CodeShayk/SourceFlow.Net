@@ -1,0 +1,26 @@
+sourceflow.workflow: 1
+name: review-order
+version: 3
+owner: orders
+description: Local steps, rejections of local commands and explicit no-timeout and no-compensation.
+start:
+  on: orders.order-placed.v1
+  correlate: data.orderId
+  when: "event.data.total > 0"
+data:
+  orderId: { from: start.data.orderId }
+  reason:  { type: string, default: 'manual review' }
+steps:
+  - id: reject-if-needed
+    send: { command: orders.reject-order.v1, map: { orderId: event.data.orderId, reason: $data.reason } }
+    await: { success: orders.order-rejected-by-review.v1 }
+    timeout: { none: true, reason: the order service always answers }
+    compensate: { none: true, reason: a rejection is final }
+  - id: cancel
+    send: { command: orders.cancel-order.v1, map: { orderId: $data.orderId, reason: $data.reason } }
+    await:
+      success: orders.order-cancelled.v1
+      failure:
+        - rejected: orders.already_shipped
+          then: complete
+    timeout: { after: PT10M, then: manual }

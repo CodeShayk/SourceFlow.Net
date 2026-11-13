@@ -1,0 +1,9 @@
+[
+  {
+    "id": "WF-V03",
+    "severity": "error",
+    "line": 5,
+    "column": 14,
+    "message": "The owner never receives the start message inventory.audited.v1: it is published to inventory.events, which orders doesn't subscribe to (or filters out)."
+  }
+]

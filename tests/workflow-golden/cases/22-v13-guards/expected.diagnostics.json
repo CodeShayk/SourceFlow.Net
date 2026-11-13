@@ -1,0 +1,23 @@
+[
+  {
+    "id": "WF-V13",
+    "severity": "error",
+    "line": 10,
+    "column": 9,
+    "message": "The guard 'event.data.priority = true AND (event.data.total >' doesn't parse: the guard ends early (at character 51)."
+  },
+  {
+    "id": "WF-V13",
+    "severity": "error",
+    "line": 20,
+    "column": 57,
+    "message": "The guard 'event.data.sku = 'x' OR $data.unknown' doesn't bind: 'event.data.sku' is not in scope here ($data.* and event.data.* of inventory.stock-reserved.v1)."
+  },
+  {
+    "id": "WF-V13",
+    "severity": "error",
+    "line": 51,
+    "column": 11,
+    "message": "The guard '$data.amount > 'big'' doesn't bind: '>' compares a number with text."
+  }
+]

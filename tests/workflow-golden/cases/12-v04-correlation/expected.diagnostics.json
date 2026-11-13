@@ -1,0 +1,16 @@
+[
+  {
+    "id": "WF-V04",
+    "severity": "error",
+    "line": 5,
+    "column": 49,
+    "message": "'start.correlate' reads 'customerId', which orders.order-placed.v1 doesn't have."
+  },
+  {
+    "id": "WF-V04",
+    "severity": "error",
+    "line": 14,
+    "column": 23,
+    "message": "Step 'audit' awaits orders.audit-noted.v1 without sending a command, so it must carry the instance key 'customerId'; it doesn't."
+  }
+]

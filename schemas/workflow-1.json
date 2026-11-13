@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/CodeShayk/SourceFlow.Net/schemas/workflow-1.json",
+  "title": "SourceFlow workflow (sourceflow.workflow: 1)",
+  "description": "The workflow DSL of SourceFlow Studio (design doc 15 §5). Structure only: references to message types, owners, routes and schemas are checked by the validator (WF-V01..V16). Workflow files are YAML without anchors or aliases.",
+  "type": "object",
+  "required": ["sourceflow.workflow", "name", "version", "owner", "start", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "sourceflow.workflow": { "const": 1, "description": "The DSL version." },
+    "name": { "$ref": "#/$defs/kebab", "description": "The workflow name; with the version it is the process name name@version." },
+    "version": { "type": "integer", "minimum": 1, "description": "Structural changes to a published workflow need a new version (WF-V15)." },
+    "owner": { "type": "string", "pattern": "^[a-z][a-z0-9]*([.-][a-z0-9]+)*$", "description": "The orchestrating service; the workflow is generated into it." },
+    "description": { "type": "string" },
+    "start": { "$ref": "#/$defs/start" },
+    "data": {
+      "type": "object",
+      "description": "Instance data. Captured fields are added from their event.",
+      "propertyNames": { "$ref": "#/$defs/identifier" },
+      "additionalProperties": { "$ref": "#/$defs/dataField" }
+    },
+    "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/step" } },
+    "on": { "$ref": "#/$defs/on" }
+  },
+  "$defs": {
+    "kebab": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" },
+    "identifier": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+    "messageType": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*\\.v[1-9][0-9]*$",
+      "description": "A message type as {name}.v{version}, for example payments.charge.v1."
+    },
+    "code": { "type": "string", "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*$", "description": "A rejection error code." },
+    "duration": {
+      "type": "string",
+      "pattern": "^P(?=\\d|T\\d)(\\d+W)?(\\d+D)?(T(?=\\d)(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$",
+      "description": "An ISO-8601 duration without years and months: PT30S, PT5M, PT1H, P1D, P1DT12H."
+    },
+    "guard": { "type": "string", "description": "A CESQL boolean expression over $data.*, event.data.* (doc 15 §5.2)." },
+    "start": {
+      "type": "object",
+      "required": ["on", "correlate"],
+      "additionalProperties": false,
+      "properties": {
+        "on": { "$ref": "#/$defs/messageType" },
+        "correlate": { "type": "string", "pattern": "^data(\\.[A-Za-z_][A-Za-z0-9_]*)+$" },
+        "when": { "$ref": "#/$defs/guard" }
+      }
+    },
+    "dataField": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": "string", "pattern": "^start\\.data(\\.[A-Za-z_][A-Za-z0-9_]*)+$" },
+        "type": { "enum": ["string", "integer", "number", "boolean", "uuid", "date-time", "date", "time", "duration", "uri", "array", "object"] },
+        "default": { "type": ["string", "number", "boolean", "null"] },
+        "personal": { "type": "boolean", "description": "Personal data: crypto-shredded in the workflow state (WF-V14)." }
+      },
+      "oneOf": [
+        { "required": ["from"], "not": { "anyOf": [{ "required": ["type"] }, { "required": ["default"] }] } },
+        { "required": ["type"], "not": { "required": ["from"] } }
+      ]
+    },
+    "step": {
+      "type": "object",
+      "required": ["id", "await"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "allOf": [{ "$ref": "#/$defs/kebab" }, { "not": { "const": "complete" } }] },
+        "send": { "$ref": "#/$defs/send" },
+        "await": { "$ref": "#/$defs/await" },
+        "timeout": { "$ref": "#/$defs/timeout" },
+        "compensate": { "$ref": "#/$defs/compensate" },
+        "pivot": { "type": "boolean", "description": "The point of no return: later failures recover forward (WF-V07)." },
+        "when": { "$ref": "#/$defs/guard" },
+        "next": { "allOf": [{ "$ref": "#/$defs/kebab" }], "description": "The step after a success, or complete." }
+      }
+    },
+    "send": {
+      "type": "object",
+      "required": ["command"],
+      "additionalProperties": false,
+      "properties": {
+        "command": { "$ref": "#/$defs/messageType" },
+        "map": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/identifier" },
+          "additionalProperties": { "$ref": "#/$defs/mapValue" }
+        }
+      }
+    },
+    "mapValue": {
+      "description": "$data.x, event.data.x, $failure.code, a literal, or { $hook: Name }.",
+      "oneOf": [
+        { "type": "string", "pattern": "^(\\$data|event\\.data|\\$failure)(\\.[A-Za-z_][A-Za-z0-9_]*)+$" },
+        { "type": "string", "not": { "pattern": "^(\\$data\\.|event\\.data\\.|\\$failure\\.)" } },
+        { "type": ["number", "boolean", "null"] },
+        {
+          "type": "object",
+          "required": ["$hook"],
+          "additionalProperties": false,
+          "properties": { "$hook": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" } }
+        }
+      ]
+    },
+    "await": {
+      "type": "object",
+      "required": ["success"],
+      "additionalProperties": false,
+      "properties": {
+        "success": { "$ref": "#/$defs/success" },
+        "failure": { "type": "array", "items": { "$ref": "#/$defs/failure" } }
+      }
+    },
+    "success": {
+      "oneOf": [
+        { "$ref": "#/$defs/messageType" },
+        {
+          "type": "object",
+          "required": ["on"],
+          "additionalProperties": false,
+          "properties": {
+            "on": { "$ref": "#/$defs/messageType" },
+            "capture": {
+              "type": "object",
+              "propertyNames": { "$ref": "#/$defs/identifier" },
+              "additionalProperties": { "type": "string", "pattern": "^event\\.data(\\.[A-Za-z_][A-Za-z0-9_]*)+$" }
+            },
+            "when": { "$ref": "#/$defs/guard" }
+          }
+        }
+      ]
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rejected": { "$ref": "#/$defs/code" },
+        "on": { "$ref": "#/$defs/messageType" },
+        "retry": { "$ref": "#/$defs/retry" },
+        "then": { "$ref": "#/$defs/then" }
+      },
+      "oneOf": [{ "required": ["rejected"], "not": { "required": ["on"] } }, { "required": ["on"], "not": { "required": ["rejected"] } }]
+    },
+    "timeout": {
+      "oneOf": [
+        { "const": "none", "description": "No timeout; WF-V06 asks for the object form with a reason." },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "after": { "$ref": "#/$defs/duration" },
+            "none": { "type": "boolean" },
+            "reason": { "type": "string" },
+            "retry": { "$ref": "#/$defs/retry" },
+            "then": { "$ref": "#/$defs/then" }
+          },
+          "anyOf": [
+            { "required": ["after"], "not": { "properties": { "none": { "const": true } }, "required": ["none"] } },
+            { "required": ["none"], "properties": { "none": { "const": true } }, "not": { "required": ["after"] } }
+          ]
+        }
+      ]
+    },
+    "retry": {
+      "type": "object",
+      "required": ["max"],
+      "additionalProperties": false,
+      "description": "Bounded re-attempts; WF-V10 checks 1 <= max <= 20 and the delays.",
+      "properties": {
+        "max": { "type": "integer" },
+        "backoff": { "enum": ["fixed", "exponential"] },
+        "initial": { "$ref": "#/$defs/duration" },
+        "cap": { "$ref": "#/$defs/duration" },
+        "jitter": { "type": "boolean" }
+      }
+    },
+    "then": {
+      "oneOf": [
+        { "enum": ["fail", "manual", "complete"] },
+        { "type": "object", "required": ["goto"], "additionalProperties": false, "properties": { "goto": { "$ref": "#/$defs/kebab" } } }
+      ]
+    },
+    "compensate": {
+      "oneOf": [
+        { "const": "none", "description": "WF-V09 asks for the object form with a reason." },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "send": { "$ref": "#/$defs/send" },
+            "await": {
+              "type": "object",
+              "required": ["success"],
+              "additionalProperties": false,
+              "properties": { "success": { "$ref": "#/$defs/success" } }
+            },
+            "retry": { "$ref": "#/$defs/retry" },
+            "timeout": { "$ref": "#/$defs/timeout" },
+            "none": { "type": "boolean" },
+            "reason": { "type": "string" }
+          },
+          "anyOf": [
+            { "required": ["send", "await"] },
+            { "required": ["none"], "properties": { "none": { "const": true } } }
+          ]
+        }
+      ]
+    },
+    "on": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "completed": { "type": "object", "additionalProperties": false, "properties": { "send": { "$ref": "#/$defs/send" } } },
+        "compensated": { "type": "object", "additionalProperties": false, "properties": { "send": { "$ref": "#/$defs/send" } } },
+        "manual": { "type": "object", "additionalProperties": false, "properties": { "alert": { "type": "boolean" } } }
+      }
+    }
+  }
+}

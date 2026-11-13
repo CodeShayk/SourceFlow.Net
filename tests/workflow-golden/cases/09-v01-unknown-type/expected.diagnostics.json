@@ -1,0 +1,16 @@
+[
+  {
+    "id": "WF-V01",
+    "severity": "error",
+    "line": 10,
+    "column": 22,
+    "message": "orders.approve-the-order.v1 (send.command) is not a message type of the workspace."
+  },
+  {
+    "id": "WF-V01",
+    "severity": "error",
+    "line": 11,
+    "column": 23,
+    "message": "orders.reject-order.v1 is a command, but await.success needs an event."
+  }
+]

@@ -1,0 +1,23 @@
+[
+  {
+    "id": "WF-S03",
+    "severity": "error",
+    "line": 1,
+    "column": 1,
+    "message": "'workflow' needs 'owner'."
+  },
+  {
+    "id": "WF-S03",
+    "severity": "error",
+    "line": 3,
+    "column": 10,
+    "message": "'version' is a whole number."
+  },
+  {
+    "id": "WF-S03",
+    "severity": "error",
+    "line": 11,
+    "column": 35,
+    "message": "'then' is fail, manual, complete or { goto: <step id> }."
+  }
+]

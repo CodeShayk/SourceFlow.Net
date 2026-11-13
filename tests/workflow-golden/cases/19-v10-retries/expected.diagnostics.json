@@ -1,0 +1,30 @@
+[
+  {
+    "id": "WF-V10",
+    "severity": "error",
+    "line": 27,
+    "column": 21,
+    "message": "'max' is between 1 and 20 (it is 0); retries are bounded."
+  },
+  {
+    "id": "WF-V10",
+    "severity": "error",
+    "line": 27,
+    "column": 67,
+    "message": "'cap' is shorter than 'initial'."
+  },
+  {
+    "id": "WF-V10",
+    "severity": "error",
+    "line": 38,
+    "column": 25,
+    "message": "'max' is between 1 and 20 (it is 25); retries are bounded."
+  },
+  {
+    "id": "WF-V10",
+    "severity": "error",
+    "line": 46,
+    "column": 14,
+    "message": "Exponential backoff needs an 'initial' delay longer than zero."
+  }
+]

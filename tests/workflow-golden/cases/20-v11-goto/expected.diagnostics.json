@@ -1,0 +1,23 @@
+[
+  {
+    "id": "WF-V11",
+    "severity": "error",
+    "line": 65,
+    "column": 17,
+    "message": "'goto: fix-address' names no step."
+  },
+  {
+    "id": "WF-V05",
+    "severity": "error",
+    "line": 69,
+    "column": 5,
+    "message": "Step 'await-address-fix' is never reached."
+  },
+  {
+    "id": "WF-V11",
+    "severity": "error",
+    "line": 72,
+    "column": 11,
+    "message": "'next: ship-again' names no step."
+  }
+]
