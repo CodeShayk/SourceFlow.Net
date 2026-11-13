@@ -17,6 +17,8 @@
     <PackageReference Remove="Microsoft.NET.Test.Sdk" />
     <PackageReference Remove="Shouldly" />
     <PackageReference Remove="coverlet.collector" />
+    <PackageReference Remove="Microsoft.Testing.Extensions.CodeCoverage" />
+    <PackageReference Remove="Microsoft.Testing.Extensions.TrxReport" />
     <Using Remove="Xunit" />
     <Using Remove="Shouldly" />
   </ItemGroup>

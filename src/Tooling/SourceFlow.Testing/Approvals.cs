@@ -27,7 +27,7 @@ public static class Approvals
             throw new ArgumentException($"Snapshot name '{name}' contains characters that are not valid in a file name.", nameof(name));
         }
 
-        string directory = Path.Combine(Path.GetDirectoryName(callerFilePath) ?? ".", "Approved");
+        string directory = Path.Combine(Path.GetDirectoryName(ResolveSourcePath(callerFilePath)) ?? ".", "Approved");
         string approvedPath = Path.Combine(directory, name + ".approved.txt");
         string receivedPath = Path.Combine(directory, name + ".received.txt");
         string normalized = Normalize(received);
@@ -57,6 +57,52 @@ public static class Approvals
 
         File.WriteAllText(receivedPath, normalized, Utf8NoBom);
         throw new ApprovalMismatchException(approvedPath, receivedPath, approved is null ? null : FirstDifference(approved, normalized));
+    }
+
+    /// <summary>
+    /// The real path of a caller's source file. Deterministic builds (<c>ContinuousIntegrationBuild</c> with SourceLink) map
+    /// source paths to <c>/_/…</c>, so the compiler-supplied path does not exist on the build machine; the file is then
+    /// found by walking up from the test's output folder (and the current folder) until the mapped relative path exists.
+    /// </summary>
+    public static string ResolveSourcePath(string callerFilePath)
+    {
+        if (File.Exists(callerFilePath) || MappedRelativePath(callerFilePath) is not { } relative)
+        {
+            return callerFilePath;
+        }
+
+        foreach (string start in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
+        {
+            for (DirectoryInfo? directory = new(start); directory is not null; directory = directory.Parent)
+            {
+                string candidate = Path.Combine(directory.FullName, relative);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return callerFilePath;
+    }
+
+    // "/_/src/a.cs", "/_1/src/a.cs" or "\_\src\a.cs" → "src/a.cs"; null for an ordinary path.
+    private static string? MappedRelativePath(string path)
+    {
+        if (path.Length < 4 || path[0] is not ('/' or '\\') || path[1] != '_')
+        {
+            return null;
+        }
+
+        int i = 2;
+        while (i < path.Length && char.IsAsciiDigit(path[i]))
+        {
+            i++;
+        }
+
+        return i < path.Length - 1 && path[i] is '/' or '\\'
+            ? path[(i + 1)..].Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar)
+            : null;
     }
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);

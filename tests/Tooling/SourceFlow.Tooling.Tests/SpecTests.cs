@@ -97,17 +97,33 @@ public sealed class SpecTests
     public void Approvals_MismatchWritesReceivedFile()
     {
         string name = "approval-selftest-" + Environment.ProcessId;
-        string received = Path.Combine(Path.GetDirectoryName(ThisFile())!, "Approved", name + ".received.txt");
 
         ApprovalMismatchException mismatch = Should.Throw<ApprovalMismatchException>(() => Approvals.AssertMatches("content", name));
 
-        mismatch.ReceivedPath.ShouldBe(received);
-        File.ReadAllText(received).ShouldBe("content\n");
-        File.Delete(received);
+        // Next to this test file, wherever the build put the compiler-supplied path (CI maps it to /_/…).
+        mismatch.ReceivedPath.ShouldEndWith(Path.Combine("SourceFlow.Tooling.Tests", "Approved", name + ".received.txt"));
+        File.ReadAllText(mismatch.ReceivedPath).ShouldBe("content\n");
+        File.Delete(mismatch.ReceivedPath);
+    }
+
+    [Fact]
+    [Trait("Id", "UT-TST-08")]
+    public void Approvals_ResolveDeterministicSourcePaths_ToTheFileInTheRepository()
+    {
+        // ContinuousIntegrationBuild maps source paths to /_/…; the approved folder is still found in the checkout.
+        string name = "approval-mapped-" + Environment.ProcessId;
+        const string Mapped = "/_/tests/Tooling/SourceFlow.Tooling.Tests/SpecTests.cs";
+
+        ApprovalMismatchException mismatch = Should.Throw<ApprovalMismatchException>(() => Approvals.AssertMatches("content", name, Mapped));
+
+        mismatch.ReceivedPath.ShouldNotStartWith("/_/");
+        File.Exists(mismatch.ReceivedPath).ShouldBeTrue();
+        Path.GetDirectoryName(Path.GetDirectoryName(mismatch.ReceivedPath)).ShouldBe(Path.GetDirectoryName(ThisFile()));
+        File.Delete(mismatch.ReceivedPath);
     }
 
     private static string ThisFile([System.Runtime.CompilerServices.CallerFilePath] string path = "")
     {
-        return path;
+        return Approvals.ResolveSourcePath(path);
     }
 }
