@@ -182,12 +182,13 @@ public sealed class WorkflowRuntimeTests
 
     // ================================================================ helpers
 
+    // Version 1 only: with version 2 registered too, new orders would start on version 2 (doc 15 §5.6).
     private static Task<SourceFlowTestHost> Host(TimeProvider? time = null)
     {
         return SourceFlowTestHost.StartAsync(sf =>
         {
             sf.ServiceName = "orders";
-            sf.AddModule<FixtureModule>();
+            sf.AddModule<FixtureWithout<OrderFulfilmentWorkflowV2>>();
         }, time, cancellationToken: Ct);
     }
 

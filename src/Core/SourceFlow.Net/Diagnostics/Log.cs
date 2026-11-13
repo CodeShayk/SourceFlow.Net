@@ -73,4 +73,10 @@ internal static partial class Log
 
     [LoggerMessage(1401, LogLevel.Information, "SourceFlow service {Service} started: {Modules} module(s), {Aggregates} aggregate(s), {Subscriptions} subscription(s)")]
     public static partial void Started(ILogger logger, string service, int modules, int aggregates, int subscriptions);
+
+    [LoggerMessage(1403, LogLevel.Warning, "Outbox partition {Partition} lease was not released on stop; it expires after the lease TTL")]
+    public static partial void OutboxLeaseNotReleased(ILogger logger, Exception exception, int partition);
+
+    [LoggerMessage(1402, LogLevel.Warning, "Workflow versions were not checked for active instances: the storage adapter has no monitor (doc 15 §5.6)")]
+    public static partial void WorkflowVersionsUnchecked(ILogger logger);
 }

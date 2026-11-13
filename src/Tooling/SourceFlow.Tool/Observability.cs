@@ -55,6 +55,9 @@ public static class Observability
         new("SourceFlowHorizonHeld", $"max by (job) ({Prom(SourceFlowTelemetry.Instruments.HorizonAge)}) > 30", "5m", "warning",
             "{{ $labels.job }}: a writing transaction has held the subscription horizon for {{ $value | humanizeDuration }}.",
             "A long transaction delays every subscription (doc 05 §5.4). Find it in pg_stat_activity."),
+        new("SourceFlowWorkflowManualIntervention", $"sum by (job, workflow, version) (increase({Prom(SourceFlowTelemetry.Instruments.WorkflowManualIntervention)}[5m])) > 0", "0m", "page",
+            "{{ $labels.job }}: a {{ $labels.workflow }}@{{ $labels.version }} instance needs an operator. Find it with `dotnet sourceflow workflow list --status ManualIntervention`.",
+            "A workflow step or compensation failed with no automatic way forward (doc 15 §5.3, §7): resume, retry the step or abort it."),
     ];
 
     /// <summary>The Prometheus name of an instrument (without the histogram suffixes).</summary>
@@ -236,6 +239,7 @@ public static class Observability
             "outbox" or "inbox" or "retry" => "Outbox, inbox and retries",
             "deadletter" => "Dead letters",
             "subscription" => "Subscriptions",
+            "workflow" => "Workflows",
             _ => "Process managers and leases",
         };
     }

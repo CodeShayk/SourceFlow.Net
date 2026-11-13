@@ -49,6 +49,9 @@ internal sealed class SourceFlowMonitor
             "s", "How long the oldest writing transaction has held the subscription horizon back.");
         meter.CreateObservableGauge(SourceFlowTelemetry.Instruments.ProcessActive, () => Read<int>(s => s.Processes?.Select(p => Measure(p.Value, (SourceFlowTelemetry.Tags.ProcessType, p.Key)))),
             "{instance}", "Process-manager instances not completed, per process type.");
+        meter.CreateObservableGauge(SourceFlowTelemetry.Instruments.WorkflowActive, () => Read<int>(s => s.Workflows?.Select(w => Measure(w.Count,
+                (SourceFlowTelemetry.Tags.Workflow, w.Workflow), (SourceFlowTelemetry.Tags.WorkflowVersion, w.Version.ToString(System.Globalization.CultureInfo.InvariantCulture)), (SourceFlowTelemetry.Tags.WorkflowStatus, w.Status)))),
+            "{instance}", "Workflow instances not finished, per workflow version and status.");
         meter.CreateObservableGauge(SourceFlowTelemetry.Instruments.LeaseOwned, () => Read<int>(s => [Measure(s.Leases.Owned, (SourceFlowTelemetry.Tags.LeaseKind, "subscription"))]),
             "{lease}", "Subscription partition leases this node owns.");
     }
@@ -95,7 +98,9 @@ internal sealed class SourceFlowMonitor
             TimeSpan? horizon = store is null ? null : await TryAsync<TimeSpan?>(async ct => await store.GetHorizonAgeAsync(ct).ConfigureAwait(false), "horizon", errors, cancellationToken).ConfigureAwait(false);
             IReadOnlyDictionary<string, int>? processes = await TryAsync<IReadOnlyDictionary<string, int>>(store is null ? null : store.CountActiveProcessesAsync, "process managers", errors, cancellationToken).ConfigureAwait(false);
             IReadOnlyList<PartitionReading> partitions = await TryAsync<IReadOnlyList<PartitionReading>>(ReadPartitionsAsync, "subscriptions", errors, cancellationToken).ConfigureAwait(false) ?? [];
-            var snapshot = new MonitorSnapshot(_runtime.Time.GetUtcNow(), outbox, deadLetters, partitions, horizon, processes, ReadLeases(), errors);
+            IReadOnlyList<Workflows.WorkflowStatusCount>? workflows = store is null || !_runtime.Model.ProcessManagers.Any(p => p.IsWorkflow) ? null
+                : await TryAsync<IReadOnlyList<Workflows.WorkflowStatusCount>>(store.CountActiveWorkflowsAsync, "workflows", errors, cancellationToken).ConfigureAwait(false);
+            var snapshot = new MonitorSnapshot(_runtime.Time.GetUtcNow(), outbox, deadLetters, partitions, horizon, processes, ReadLeases(), errors) { Workflows = workflows };
             _latest = snapshot;
             return snapshot;
         }
@@ -242,7 +247,11 @@ internal sealed record MonitorSnapshot(
     TimeSpan? HorizonAge,
     IReadOnlyDictionary<string, int>? Processes,
     LeaseReading Leases,
-    IReadOnlyList<string> Errors);
+    IReadOnlyList<string> Errors)
+{
+    /// <summary>Unfinished workflow instances per workflow, version and status; null without workflows or a store monitor.</summary>
+    public IReadOnlyList<Workflows.WorkflowStatusCount>? Workflows { get; init; }
+}
 
 /// <summary>A subscription partition: events behind (null when the store cannot count them), the oldest one's age, and its stall.</summary>
 internal sealed record PartitionReading(string Subscription, int Partition, long? Lag, TimeSpan LagTime, SubscriptionStall? Stall);

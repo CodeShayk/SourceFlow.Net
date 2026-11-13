@@ -386,6 +386,32 @@ public sealed class SourceFlowRuntime
     {
         return LoggerFactory.CreateLogger<T>();
     }
+
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<IStorageSession, List<Action>> _afterCommit = [];
+
+    /// <summary>
+    /// Runs <paramref name="action"/> after <paramref name="session"/> commits (see <see cref="Committed"/>), so what it
+    /// records happens once per committed transaction, not once per attempt. An uncommitted session drops it.
+    /// </summary>
+    internal void AfterCommit(IStorageSession session, Action action)
+    {
+        _afterCommit.GetOrCreateValue(session).Add(action);
+    }
+
+    /// <summary>Runs the actions queued for <paramref name="session"/>; its committer calls it after a successful commit.</summary>
+    internal void Committed(IStorageSession session)
+    {
+        if (!_afterCommit.TryGetValue(session, out List<Action>? actions))
+        {
+            return;
+        }
+
+        _afterCommit.Remove(session);
+        foreach (Action action in actions)
+        {
+            action();
+        }
+    }
 }
 
 /// <summary>A command type is neither owned locally nor routed (RT-R1).</summary>

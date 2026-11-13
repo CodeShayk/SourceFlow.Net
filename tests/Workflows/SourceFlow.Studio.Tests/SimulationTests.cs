@@ -203,7 +203,9 @@ public sealed class SimulationTests
 
         result = Run(result, SimulationInput.Succeed());
         result.State.Step.ShouldBe("create-shipment");
-        result.Sent.Single().MessageId.ShouldBe(WorkflowIds.Send("order-fulfilment@1", "order-7", "create-shipment", 1), "a re-entered step starts at attempt 1");
+        result.Sent.Single().MessageId.ShouldBe(WorkflowIds.Send("order-fulfilment@1", "order-7", "create-shipment", 2),
+            "a re-entered step continues its attempt numbering: a new id, so the owner's inbox runs the re-send");
+        result.State.Attempt.ShouldBe(2);
 
         result = Run(result, SimulationInput.Succeed());
         result.State.Status.ShouldBe(WorkflowStatus.Completed);
@@ -230,7 +232,8 @@ public sealed class SimulationTests
         SimulationResult manual = Run(Started(), SimulationInput.Succeed(), SimulationInput.Succeed(Captured("p")), SimulationInput.FireTimer());
 
         SimulationResult resumed = Run(manual, SimulationInput.Resume());
-        resumed.State.ShouldSatisfyAllConditions(s => s.Status.ShouldBe(WorkflowStatus.Running), s => s.Step.ShouldBe("review-large-order"), s => s.Attempt.ShouldBe(1));
+        resumed.State.ShouldSatisfyAllConditions(s => s.Status.ShouldBe(WorkflowStatus.Running), s => s.Step.ShouldBe("review-large-order"),
+            s => s.Attempt.ShouldBe(2, "a resumed step is a new attempt (new send id, new timer)"));
         Run(manual, SimulationInput.Resume("create-shipment")).Sent.Single().Command.ShouldBe("shipping.create-shipment.v1");
         Run(manual, SimulationInput.Resume("nowhere")).State.Status.ShouldBe(WorkflowStatus.ManualIntervention);
         Run(manual, SimulationInput.RetryStep()).State.Attempt.ShouldBe(2);

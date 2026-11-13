@@ -229,6 +229,14 @@ internal sealed class SqlText
             """);
         ParkedDeadLettersByConsumer = R("SELECT consumer, COUNT_BIG(*) FROM {s}.dead_letters WHERE status = @status GROUP BY consumer");
         ActiveProcessesByType = R("SELECT process_type, COUNT_BIG(*) FROM {s}.process_instances WHERE completed = 0 GROUP BY process_type");
+        // The workflow-instances read model (doc 15 §7): its documents carry the status, so the gauge needs no engine.
+        ActiveWorkflows = R("""
+            SELECT w.workflow, w.version, w.status, COUNT_BIG(*)
+              FROM {s}.documents d
+              CROSS APPLY OPENJSON(d.data) WITH (workflow nvarchar(200) '$.workflow', version int '$.workflowVersion', status nvarchar(40) '$.status') w
+             WHERE d.collection = N'workflow-instances@1' AND w.status IN (N'Running', N'Compensating', N'ManualIntervention')
+             GROUP BY w.workflow, w.version, w.status
+            """);
         CountEventsAfter = R("""
             SELECT COUNT_BIG(*) FROM (
                 SELECT TOP (@cap) 1 AS one FROM {s}.events e
@@ -378,6 +386,8 @@ internal sealed class SqlText
     public string ParkedDeadLettersByConsumer { get; }
 
     public string ActiveProcessesByType { get; }
+
+    public string ActiveWorkflows { get; }
 
     public string CountEventsAfter { get; }
 

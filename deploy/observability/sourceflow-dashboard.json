@@ -1134,7 +1134,7 @@
     {
       "id": 37,
       "type": "row",
-      "title": "Messaging (semantic conventions)",
+      "title": "Workflows",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -1147,6 +1147,118 @@
     {
       "id": 38,
       "type": "timeseries",
+      "title": "sourceflow.workflow.transitions",
+      "description": "Workflow transitions by kind (success, failure, retry, timeout, compensate, manual, complete).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 124
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (workflow) (rate(sourceflow_workflow_transitions_total{job=~\"$job\"}[$__rate_interval]))",
+          "legendFormat": "{{workflow}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "type": "timeseries",
+      "title": "sourceflow.workflow.active",
+      "description": "Workflow instances not finished, per workflow version and status.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 124
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (workflow, version, status) (sourceflow_workflow_active{job=~\"$job\"})",
+          "legendFormat": "{{workflow}} {{version}} {{status}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "type": "timeseries",
+      "title": "sourceflow.workflow.manual_intervention",
+      "description": "Workflow instances that entered manual intervention (alert on any).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 132
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "sum by (workflow) (rate(sourceflow_workflow_manual_intervention_total{job=~\"$job\"}[$__rate_interval]))",
+          "legendFormat": "{{workflow}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "type": "row",
+      "title": "Messaging (semantic conventions)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 140
+      },
+      "panels": []
+    },
+    {
+      "id": 42,
+      "type": "timeseries",
       "title": "messaging.client.sent.messages",
       "description": "Messages sent to the broker.",
       "datasource": {
@@ -1157,7 +1269,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 124
+        "y": 141
       },
       "fieldConfig": {
         "defaults": {
@@ -1178,7 +1290,7 @@
       ]
     },
     {
-      "id": 39,
+      "id": 43,
       "type": "timeseries",
       "title": "messaging.client.consumed.messages",
       "description": "Messages received from the broker.",
@@ -1190,7 +1302,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 124
+        "y": 141
       },
       "fieldConfig": {
         "defaults": {
@@ -1211,7 +1323,7 @@
       ]
     },
     {
-      "id": 40,
+      "id": 44,
       "type": "timeseries",
       "title": "messaging.process.duration",
       "description": "Received message processing duration.",
@@ -1223,7 +1335,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 132
+        "y": 149
       },
       "fieldConfig": {
         "defaults": {

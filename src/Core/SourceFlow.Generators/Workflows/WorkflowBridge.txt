@@ -81,6 +81,25 @@ namespace SourceFlow.Workflows.Engine
             return current.State is null ? null : (global::SourceFlow.Workflows.WorkflowStatus)(int)SimulationStateJson.Read(_workflow, current.State, _options).Status;
         }
 
+        /// <summary>The instance's status and position for the runtime (the workflow-instances read model), or null before the start.</summary>
+        public global::SourceFlow.Workflows.WorkflowInstanceInfo? Describe(TSelf current)
+        {
+            if (current.State is null)
+            {
+                return null;
+            }
+
+            SimulationState state = SimulationStateJson.Read(_workflow, current.State, _options);
+            return new global::SourceFlow.Workflows.WorkflowInstanceInfo(
+                (global::SourceFlow.Workflows.WorkflowStatus)(int)state.Status,
+                state.Step,
+                state.Attempt,
+                state.Failure is { } failure ? new global::SourceFlow.Workflows.WorkflowFailure(failure.Code, failure.Message, failure.Step) : null,
+                state.CompensationStack.Count,
+                state.StartedAt,
+                state.Now);
+        }
+
         /// <summary>The engine state, for tests and diagnostics.</summary>
         public SimulationState? Inspect(TSelf current)
         {
@@ -123,6 +142,11 @@ namespace SourceFlow.Workflows.Engine
                 {
                     reaction = reaction.Schedule(new global::SourceFlow.Workflows.WorkflowTimer(_process, instance, timer.Kind, timer.Step, timer.Attempt), timer.Due);
                 }
+            }
+
+            foreach (SimulationTransition transition in result.Transitions)
+            {
+                reaction = reaction.AndRecord(new global::SourceFlow.Workflows.WorkflowTransition(transition.Kind, transition.Step, transition.Attempt));
             }
 
             return result.State.IsTerminal ? reaction.AndComplete() : reaction;

@@ -15,12 +15,35 @@ public sealed class OutboxRelay
 {
     private readonly SourceFlowRuntime _runtime;
     private readonly ILogger _logger;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, LeaseToken> _leases = new();
 
     /// <summary>Creates the relay.</summary>
     public OutboxRelay(SourceFlowRuntime runtime)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _logger = runtime.Logger<OutboxRelay>();
+    }
+
+    /// <summary>
+    /// Releases the outbox partition leases this relay holds, so another node (a rolling deploy's next instance) takes
+    /// them over at once instead of after <see cref="SourceFlowOptions.LeaseTtl"/>. The host calls it on stop, after the
+    /// relay loop ended; a failure only leaves the lease to expire.
+    /// </summary>
+    public async ValueTask ReleaseAllAsync(CancellationToken cancellationToken)
+    {
+        foreach (KeyValuePair<int, LeaseToken> held in _leases)
+        {
+            try
+            {
+                await _runtime.Storage.Leases.ReleaseAsync(held.Value, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                Log.OutboxLeaseNotReleased(_logger, exception, held.Key);
+            }
+
+            _leases.TryRemove(held.Key, out _);
+        }
     }
 
     /// <summary>Runs one pass over every partition; returns the number of rows dispatched or rescheduled.</summary>
@@ -40,8 +63,11 @@ public sealed class OutboxRelay
         LeaseToken? lease = await _runtime.Storage.Leases.TryAcquireAsync($"outbox:{partition}", _runtime.Options.NodeId, _runtime.Options.LeaseTtl, cancellationToken).ConfigureAwait(false);
         if (lease is null)
         {
+            _leases.TryRemove(partition, out _);
             return 0;
         }
+
+        _leases[partition] = lease;
 
         int work = 0;
         try

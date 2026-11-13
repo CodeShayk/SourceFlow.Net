@@ -65,6 +65,13 @@ public static class SourceFlowTelemetry
         public const string ProcessType = "process.type";
         public const string LeaseKind = "lease.kind";
         public const string CacheResult = "result";
+        public const string Workflow = "workflow";
+        public const string WorkflowVersion = "version";
+        public const string TransitionKind = "kind";
+        public const string WorkflowStatus = "status";
+        public const string WorkflowStep = "sourceflow.workflow.step";
+        public const string WorkflowAttempt = "sourceflow.workflow.attempt";
+        public const string WorkflowTransition = "sourceflow.workflow.transition";
 #pragma warning restore CS1591
     }
 
@@ -96,6 +103,9 @@ public static class SourceFlowTelemetry
         public const string SubscriptionBatchDuration = "sourceflow.subscription.batch.duration";
         public const string ProcessActive = "sourceflow.process.active";
         public const string LeaseOwned = "sourceflow.lease.owned";
+        public const string WorkflowTransitions = "sourceflow.workflow.transitions";
+        public const string WorkflowActive = "sourceflow.workflow.active";
+        public const string WorkflowManualIntervention = "sourceflow.workflow.manual_intervention";
         public const string SentMessages = "messaging.client.sent.messages";
         public const string ConsumedMessages = "messaging.client.consumed.messages";
         public const string ProcessDuration = "messaging.process.duration";
@@ -133,6 +143,9 @@ public static class SourceFlowTelemetry
         new(Instruments.SubscriptionBatchDuration, InstrumentKind.Histogram, "s", "Subscription batch duration.", [Tags.Subscription]),
         new(Instruments.ProcessActive, InstrumentKind.Gauge, "{instance}", "Process-manager instances not completed, per process type.", [Tags.ProcessType]),
         new(Instruments.LeaseOwned, InstrumentKind.Gauge, "{lease}", "Subscription partition leases this node owns.", [Tags.LeaseKind]),
+        new(Instruments.WorkflowTransitions, InstrumentKind.Counter, "{transition}", "Workflow transitions by kind (success, failure, retry, timeout, compensate, manual, complete).", [Tags.Workflow, Tags.WorkflowVersion, Tags.TransitionKind]),
+        new(Instruments.WorkflowActive, InstrumentKind.Gauge, "{instance}", "Workflow instances not finished, per workflow version and status.", [Tags.Workflow, Tags.WorkflowVersion, Tags.WorkflowStatus]),
+        new(Instruments.WorkflowManualIntervention, InstrumentKind.Counter, "{instance}", "Workflow instances that entered manual intervention (alert on any).", [Tags.Workflow, Tags.WorkflowVersion]),
         new(Instruments.SentMessages, InstrumentKind.Counter, "{message}", "Messages sent to the broker.", [Tags.MessagingSystem, Tags.Destination, Tags.ErrorType]),
         new(Instruments.ConsumedMessages, InstrumentKind.Counter, "{message}", "Messages received from the broker.", [Tags.MessagingSystem, Tags.Destination, Tags.ConsumerGroup]),
         new(Instruments.ProcessDuration, InstrumentKind.Histogram, "s", "Received message processing duration.", [Tags.MessagingSystem, Tags.Destination, Tags.ConsumerGroup, Tags.ErrorType]),
@@ -191,6 +204,8 @@ public sealed class SourceFlowMetrics : IDisposable
         SentMessages = Meter.CreateCounter<long>("messaging.client.sent.messages", "{message}", "Messages sent to the broker.");
         ConsumedMessages = Meter.CreateCounter<long>("messaging.client.consumed.messages", "{message}", "Messages received from the broker.");
         ProcessDuration = Meter.CreateHistogram("messaging.process.duration", "s", "Received message processing duration.", tags: null, advice: duration);
+        WorkflowTransitions = Meter.CreateCounter<long>("sourceflow.workflow.transitions", "{transition}", "Workflow transitions by kind (success, failure, retry, timeout, compensate, manual, complete).");
+        WorkflowManualInterventions = Meter.CreateCounter<long>("sourceflow.workflow.manual_intervention", "{instance}", "Workflow instances that entered manual intervention (alert on any).");
     }
 
     /// <summary>The meter.</summary>
@@ -235,6 +250,12 @@ public sealed class SourceFlowMetrics : IDisposable
     public Counter<long> ConsumedMessages { get; }
 
     public Histogram<double> ProcessDuration { get; }
+
+    /// <summary><c>sourceflow.workflow.transitions</c>, tagged with <c>workflow</c>, <c>version</c> and <c>kind</c>.</summary>
+    public Counter<long> WorkflowTransitions { get; }
+
+    /// <summary><c>sourceflow.workflow.manual_intervention</c>, tagged with <c>workflow</c> and <c>version</c>.</summary>
+    public Counter<long> WorkflowManualInterventions { get; }
 #pragma warning restore CS1591
 
     /// <inheritdoc />

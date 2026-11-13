@@ -29,6 +29,7 @@ namespace Orders
         public global::SourceFlow.Workflows.WorkflowStatus? Status => Process.Status(this);
 
         static ApproveOrderWorkflowV1 global::SourceFlow.Workflows.IWorkflowState<ApproveOrderWorkflowV1>.FromState(string? state) => new() { State = state };
+        global::SourceFlow.Workflows.WorkflowInstanceInfo? global::SourceFlow.Workflows.IWorkflowInstance.Describe() => Process.Describe(this);
         static string global::SourceFlow.IProcessManagerRuntime<ApproveOrderWorkflowV1, global::SourceFlow.Workflows.WorkflowInstanceId>.ProcessName => ProcessName;
         static global::System.Collections.Generic.IReadOnlyList<global::System.Type> global::SourceFlow.IProcessManagerRuntime<ApproveOrderWorkflowV1, global::SourceFlow.Workflows.WorkflowInstanceId>.HandledMessages => __handled;
 

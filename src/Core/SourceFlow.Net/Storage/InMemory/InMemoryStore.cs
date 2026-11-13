@@ -280,6 +280,23 @@ public sealed class InMemoryStore :
         }
     }
 
+    /// <inheritdoc />
+    public ValueTask<IReadOnlyList<Workflows.WorkflowStatusCount>> CountActiveWorkflowsAsync(CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<Workflows.WorkflowStatusCount> counts = _documents
+                .Where(d => d.Key.Collection == Workflows.WorkflowInstanceSummary.Collection)
+                .Select(d => Workflows.WorkflowRuntime.DeserializeSummary(d.Value.Data.Span))
+                .Where(s => s.IsActive)
+                .GroupBy(s => (s.Workflow, s.WorkflowVersion, s.Status))
+                .Select(g => new Workflows.WorkflowStatusCount(g.Key.Workflow, g.Key.WorkflowVersion, g.Key.Status, g.Count()))
+                .OrderBy(c => c.Workflow, StringComparer.Ordinal).ThenBy(c => c.Version).ThenBy(c => c.Status, StringComparer.Ordinal)
+                .ToArray();
+            return ValueTask.FromResult(counts);
+        }
+    }
+
     // ------------------------------------------------------------------ IEventLogReader
 
     /// <inheritdoc />

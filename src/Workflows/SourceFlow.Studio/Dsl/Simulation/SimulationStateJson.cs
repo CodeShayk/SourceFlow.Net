@@ -32,11 +32,19 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 .Prop("attempt", state.Attempt)
                 .Prop("aborting", state.Aborting)
                 .Prop("compensationPending", state.CompensationPending)
-                .Prop("now", state.Now.ToString("O", CultureInfo.InvariantCulture));
+                .Prop("now", state.Now.ToString("O", CultureInfo.InvariantCulture))
+                .Prop("startedAt", state.StartedAt.ToString("O", CultureInfo.InvariantCulture));
             w.Key("retries").Begin();
             foreach (KeyValuePair<string, int> retry in state.Retries.OrderBy(r => r.Key, StringComparer.Ordinal))
             {
                 w.Prop(retry.Key, retry.Value);
+            }
+
+            w.End();
+            w.Key("attempts").Begin();
+            foreach (KeyValuePair<string, int> attempt in state.Attempts.OrderBy(r => r.Key, StringComparer.Ordinal))
+            {
+                w.Prop(attempt.Key, attempt.Value);
             }
 
             w.End();
@@ -77,12 +85,18 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 Aborting = root["aborting"]?.AsBoolean ?? false,
                 CompensationPending = root["compensationPending"]?.AsBoolean ?? false,
                 Now = Time(root["now"]?.AsString),
+                StartedAt = Time(root["startedAt"]?.AsString ?? root["now"]?.AsString),
                 StartData = Map(root["startData"]),
                 Options = options ?? SimulationOptions.Default,
             };
             foreach (KeyValuePair<string, JsonValue> retry in root["retries"]?.Members ?? Array.Empty<KeyValuePair<string, JsonValue>>())
             {
                 state._retries[retry.Key] = (int)(retry.Value.AsInteger ?? 0);
+            }
+
+            foreach (KeyValuePair<string, JsonValue> attempt in root["attempts"]?.Members ?? Array.Empty<KeyValuePair<string, JsonValue>>())
+            {
+                state._attempts[attempt.Key] = (int)(attempt.Value.AsInteger ?? 0);
             }
 
             state._stack.AddRange((root["stack"]?.Items ?? Array.Empty<JsonValue>()).Select(i => i.AsString ?? string.Empty));

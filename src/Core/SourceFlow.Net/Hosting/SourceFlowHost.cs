@@ -64,6 +64,7 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
 
         await RegisterSchemasAsync(cancellationToken).ConfigureAwait(false);
         CheckDomainQueries();
+        await CheckWorkflowVersionsAsync(cancellationToken).ConfigureAwait(false);
         _stopping = new CancellationTokenSource();
         CancellationToken stopping = _stopping.Token;
         _runtime.Snapshots.Start();
@@ -123,6 +124,11 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
         catch (Exception exception) when (exception is TimeoutException or OperationCanceledException)
         {
             // Unfinished work is retried after restart (outbox rows stay, messages are redelivered).
+        }
+
+        if (_settings.Roles.HasFlag(SourceFlowRoles.Relay))
+        {
+            await _relay.ReleaseAllAsync(cancellationToken).ConfigureAwait(false);   // the next node relays at once
         }
 
         if (_settings.Roles.HasFlag(SourceFlowRoles.Subscriptions) && _subscriptions.HasSubscriptions)
@@ -187,6 +193,40 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
         if (problems.Count > 0)
         {
             throw new Query.DomainQueryException("SF0018: domain queries don't match this service's catalog: " + string.Join(" ", problems));
+        }
+    }
+
+    // doc 15 §5.6: in-flight instances finish on the version they started on, so a version of a workflow this service
+    // still runs can only be removed once none of its instances is active. Fails startup otherwise.
+    private async Task CheckWorkflowVersionsAsync(CancellationToken cancellationToken)
+    {
+        HashSet<string> registered = [.. _runtime.Model.ProcessManagers.Where(p => p.IsWorkflow).Select(p => p.Name)];
+        if (registered.Count == 0)
+        {
+            return;
+        }
+
+        if (_runtime.Storage.Monitor is not { } monitor)
+        {
+            Log.WorkflowVersionsUnchecked(_logger);
+            return;
+        }
+
+        HashSet<string> names = [.. registered.Select(p => Workflows.WorkflowRuntime.TryParseProcessName(p, out string? name, out _) ? name : p)];
+        IReadOnlyDictionary<string, int> active = await monitor.CountActiveProcessesAsync(cancellationToken).ConfigureAwait(false);
+        List<string> removed =
+        [
+            .. active
+                .Where(a => a.Value > 0 && !registered.Contains(a.Key)
+                    && Workflows.WorkflowRuntime.TryParseProcessName(a.Key, out string? name, out _) && names.Contains(name))
+                .OrderBy(a => a.Key, StringComparer.Ordinal)
+                .Select(a => $"{a.Key} has {a.Value} active instance(s)"),
+        ];
+        if (removed.Count > 0)
+        {
+            throw new Workflows.WorkflowVersionRemovedException(
+                $"A workflow version with active instances is no longer registered: {string.Join("; ", removed)}. Keep the version until " +
+                "its instances finish (`dotnet sourceflow workflow list --name <name> --version <v> --active`), or abort them first.");
         }
     }
 

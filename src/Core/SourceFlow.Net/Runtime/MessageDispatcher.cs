@@ -79,6 +79,7 @@ internal sealed class MessageDispatcher(SourceFlowRuntime runtime, CommandProces
         try
         {
             await session.CommitAsync(cancellationToken).ConfigureAwait(false);
+            runtime.Committed(session);
         }
         catch (DuplicateMessageException)
         {

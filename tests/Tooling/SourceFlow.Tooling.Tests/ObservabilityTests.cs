@@ -81,7 +81,7 @@ public sealed class ObservabilityTests
         string rules = Observability.AlertRules();
 
         Observability.Alerts.Select(a => a.Name).ShouldBe(
-            ["SourceFlowDeadLetterParked", "SourceFlowSubscriptionStalled", "SourceFlowOutboxDelayed", "SourceFlowReadModelsStale", "SourceFlowWriteLatency", "SourceFlowWriteErrors", "SourceFlowHorizonHeld"]);
+            ["SourceFlowDeadLetterParked", "SourceFlowSubscriptionStalled", "SourceFlowOutboxDelayed", "SourceFlowReadModelsStale", "SourceFlowWriteLatency", "SourceFlowWriteErrors", "SourceFlowHorizonHeld", "SourceFlowWorkflowManualIntervention"]);
         foreach (AlertRule alert in Observability.Alerts)
         {
             System.Text.RegularExpressions.Regex.Matches(alert.Expression, "(sourceflow|messaging)_[a-z_]+")

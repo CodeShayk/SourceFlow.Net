@@ -221,6 +221,12 @@ internal sealed class SqlText
         OutboxBacklog = R("SELECT partition, count(*), min(COALESCE(first_due_at, greatest(deliver_at, created_at))) FILTER (WHERE deliver_at <= now() OR first_due_at IS NOT NULL) FROM {s}.outbox GROUP BY partition ORDER BY partition");
         ParkedDeadLettersByConsumer = R("SELECT consumer, count(*) FROM {s}.dead_letters WHERE status = @status GROUP BY consumer");
         ActiveProcessesByType = R("SELECT process_type, count(*) FROM {s}.process_instances WHERE NOT completed GROUP BY process_type");
+        // The workflow-instances read model (doc 15 §7): its documents carry the status, so the gauge needs no engine.
+        ActiveWorkflows = R("""
+            SELECT data->>'workflow', (data->>'workflowVersion')::int, data->>'status', count(*) FROM {s}.documents
+             WHERE collection = 'workflow-instances@1' AND data->>'status' IN ('Running', 'Compensating', 'ManualIntervention')
+             GROUP BY 1, 2, 3
+            """);
         CountEventsAfter = R("""
             SELECT count(*) FROM (
                 SELECT 1 FROM {s}.events e
@@ -356,6 +362,8 @@ internal sealed class SqlText
     public string ParkedDeadLettersByConsumer { get; }
 
     public string ActiveProcessesByType { get; }
+
+    public string ActiveWorkflows { get; }
 
     public string CountEventsAfter { get; }
 

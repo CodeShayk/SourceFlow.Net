@@ -221,8 +221,9 @@ namespace SourceFlow.Generators
             });
 
             IncrementalValueProvider<ImmutableArray<WorkflowOutput>> allWorkflows = workflows.Collect();
-            context.RegisterSourceOutput(allWorkflows.Combine(moduleModels), static (spc, pair) =>
+            context.RegisterSourceOutput(allWorkflows.Combine(moduleModels).Combine(options), static (spc, all) =>
             {
+                var pair = all.Left;
                 WorkflowRegistration[] registrations = pair.Left.Select(o => o.Registration).Where(r => r is not null).Select(r => r!).ToArray();
                 ModuleModel? module = pair.Right.OrderBy(m => m.FullName, System.StringComparer.Ordinal).FirstOrDefault();
                 if (registrations.Length == 0 || module is null)
@@ -230,7 +231,7 @@ namespace SourceFlow.Generators
                     return;
                 }
 
-                spc.AddSource(Literal.HintName(module.FullName, "Workflows"), WorkflowPipeline.Registration(module, registrations));
+                spc.AddSource(Literal.HintName(module.FullName, "Workflows"), WorkflowPipeline.Registration(module, registrations, all.Right.ServiceName));
                 foreach ((string hint, string source) in WorkflowPipeline.Engine())
                 {
                     spc.AddSource(hint, source);

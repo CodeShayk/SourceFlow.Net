@@ -59,3 +59,11 @@ groups:
         annotations:
           summary: "{{ $labels.job }}: a writing transaction has held the subscription horizon for {{ $value | humanizeDuration }}."
           description: "A long transaction delays every subscription (doc 05 §5.4). Find it in pg_stat_activity."
+      - alert: SourceFlowWorkflowManualIntervention
+        expr: "sum by (job, workflow, version) (increase(sourceflow_workflow_manual_intervention_total[5m])) > 0"
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $labels.job }}: a {{ $labels.workflow }}@{{ $labels.version }} instance needs an operator. Find it with `dotnet sourceflow workflow list --status ManualIntervention`."
+          description: "A workflow step or compensation failed with no automatic way forward (doc 15 §5.3, §7): resume, retry the step or abort it."

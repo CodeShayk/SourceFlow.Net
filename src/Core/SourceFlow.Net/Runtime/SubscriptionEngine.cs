@@ -467,6 +467,7 @@ internal sealed class SubscriptionEngine
         session.SaveCheckpoint(definition.Name, partition, events[^1].Position, lease);
         await _runtime.FaultAsync(FaultPoints.SubscriptionAfterApplyBeforeCommit, cancellationToken).ConfigureAwait(false);
         await session.CommitAsync(cancellationToken).ConfigureAwait(false);
+        _runtime.Committed(session);
     }
 
     // Returns false when the partition stops at this event (Stop policy).

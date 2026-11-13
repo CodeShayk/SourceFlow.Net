@@ -62,13 +62,14 @@ public sealed record ScheduledMessage(IMessage Message, DateTimeOffset DeliverAt
 /// </summary>
 public sealed class Reaction
 {
-    private static readonly Reaction IgnoreInstance = new([], [], [], null, completes: false, ignored: true);
+    private static readonly Reaction IgnoreInstance = new([], [], [], null, completes: false, ignored: true, []);
 
     private readonly ICommand[] _commands;
     private readonly MessageId?[] _commandIds;
     private readonly ScheduledMessage[] _scheduled;
+    private readonly Workflows.WorkflowTransition[] _transitions;
 
-    private Reaction(ICommand[] commands, MessageId?[] commandIds, ScheduledMessage[] scheduled, object? newState, bool completes, bool ignored)
+    private Reaction(ICommand[] commands, MessageId?[] commandIds, ScheduledMessage[] scheduled, object? newState, bool completes, bool ignored, Workflows.WorkflowTransition[] transitions)
     {
         _commands = commands;
         _commandIds = commandIds;
@@ -76,6 +77,7 @@ public sealed class Reaction
         NewState = newState;
         Completes = completes;
         IsIgnored = ignored;
+        _transitions = transitions;
     }
 
     /// <summary>Nothing happens; the state is unchanged.</summary>
@@ -102,64 +104,77 @@ public sealed class Reaction
     /// <summary>True for <see cref="Ignore"/>.</summary>
     public bool IsIgnored { get; }
 
+    /// <summary>
+    /// The workflow transitions this reaction takes (generated DSL workflows only; doc 15 §7): recorded as metrics and
+    /// spans once the reaction commits.
+    /// </summary>
+    public IReadOnlyList<Workflows.WorkflowTransition> Transitions => _transitions;
+
     /// <summary>Sends a command.</summary>
     public static Reaction Send(ICommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return new Reaction([command], [null], [], null, completes: false, ignored: false);
+        return new Reaction([command], [null], [], null, completes: false, ignored: false, []);
     }
 
     /// <summary>Sends a command with a deterministic message id.</summary>
     public static Reaction Send(ICommand command, MessageId messageId)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return new Reaction([command], [messageId], [], null, completes: false, ignored: false);
+        return new Reaction([command], [messageId], [], null, completes: false, ignored: false, []);
     }
 
     /// <summary>Moves to a new state.</summary>
     public static Reaction Become(object newState)
     {
         ArgumentNullException.ThrowIfNull(newState);
-        return new Reaction([], [], [], newState, completes: false, ignored: false);
+        return new Reaction([], [], [], newState, completes: false, ignored: false, []);
     }
 
     /// <summary>Completes the instance.</summary>
     public static Reaction Complete()
     {
-        return new Reaction([], [], [], null, completes: true, ignored: false);
+        return new Reaction([], [], [], null, completes: true, ignored: false, []);
     }
 
     /// <summary>Also sends a command.</summary>
     public Reaction AndSend(ICommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return new Reaction([.. _commands, command], [.. _commandIds, null], _scheduled, NewState, Completes, ignored: false);
+        return new Reaction([.. _commands, command], [.. _commandIds, null], _scheduled, NewState, Completes, ignored: false, _transitions);
     }
 
     /// <summary>Also sends a command with a deterministic message id.</summary>
     public Reaction AndSend(ICommand command, MessageId messageId)
     {
         ArgumentNullException.ThrowIfNull(command);
-        return new Reaction([.. _commands, command], [.. _commandIds, messageId], _scheduled, NewState, Completes, ignored: false);
+        return new Reaction([.. _commands, command], [.. _commandIds, messageId], _scheduled, NewState, Completes, ignored: false, _transitions);
     }
 
     /// <summary>Also schedules <paramref name="message"/> for delivery at <paramref name="deliverAt"/>.</summary>
     public Reaction Schedule(IMessage message, DateTimeOffset deliverAt)
     {
         ArgumentNullException.ThrowIfNull(message);
-        return new Reaction(_commands, _commandIds, [.. _scheduled, new ScheduledMessage(message, deliverAt)], NewState, Completes, ignored: false);
+        return new Reaction(_commands, _commandIds, [.. _scheduled, new ScheduledMessage(message, deliverAt)], NewState, Completes, ignored: false, _transitions);
     }
 
     /// <summary>Also moves to a new state.</summary>
     public Reaction AndBecome(object newState)
     {
         ArgumentNullException.ThrowIfNull(newState);
-        return new Reaction(_commands, _commandIds, _scheduled, newState, Completes, ignored: false);
+        return new Reaction(_commands, _commandIds, _scheduled, newState, Completes, ignored: false, _transitions);
+    }
+
+    /// <summary>Also records a workflow transition (generated DSL workflows; doc 15 §7).</summary>
+    public Reaction AndRecord(Workflows.WorkflowTransition transition)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        return new Reaction(_commands, _commandIds, _scheduled, NewState, Completes, IsIgnored, [.. _transitions, transition]);
     }
 
     /// <summary>Also completes the instance.</summary>
     public Reaction AndComplete()
     {
-        return new Reaction(_commands, _commandIds, _scheduled, NewState, completes: true, ignored: false);
+        return new Reaction(_commands, _commandIds, _scheduled, NewState, completes: true, ignored: false, _transitions);
     }
 }

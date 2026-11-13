@@ -143,6 +143,9 @@ public abstract class ProcessManagerDescriptor
     /// <summary>The initial state.</summary>
     public abstract object Initial { get; }
 
+    /// <summary>True for a generated DSL workflow (doc 15 §5.5): its state is a <see cref="Workflows.IWorkflowInstance"/>.</summary>
+    public bool IsWorkflow => typeof(Workflows.IWorkflowInstance).IsAssignableFrom(StateType);
+
     /// <summary>
     /// Correlates a message to an instance id (its stream segment form): <c>CorrelateBy</c> first, then the envelope
     /// correlation id when it parses as the id type.

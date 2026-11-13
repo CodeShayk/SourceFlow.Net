@@ -74,6 +74,21 @@ public sealed partial class PostgreSqlStore : IStoreMonitor
         return await ReadCountsAsync(command, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<Workflows.WorkflowStatusCount>> CountActiveWorkflowsAsync(CancellationToken cancellationToken)
+    {
+        await using NpgsqlConnection connection = await SystemDataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(Sql.ActiveWorkflows, connection);
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var counts = new List<Workflows.WorkflowStatusCount>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            counts.Add(new Workflows.WorkflowStatusCount(reader.GetString(0), reader.GetInt32(1), reader.GetString(2), checked((int)reader.GetInt64(3))));
+        }
+
+        return [.. counts.OrderBy(c => c.Workflow, StringComparer.Ordinal).ThenBy(c => c.Version).ThenBy(c => c.Status, StringComparer.Ordinal)];
+    }
+
     private static async Task<IReadOnlyDictionary<string, int>> ReadCountsAsync(NpgsqlCommand command, CancellationToken cancellationToken)
     {
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);

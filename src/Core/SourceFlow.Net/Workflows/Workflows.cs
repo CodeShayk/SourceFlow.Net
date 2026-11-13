@@ -159,9 +159,129 @@ public sealed record CompensationEntry(string Step);
 /// <summary>Marks the <c>$hook</c> implementations of a generated workflow (pure and deterministic, as <c>React</c>).</summary>
 public interface IWorkflowHooks;
 
+/// <summary>
+/// A transition of a workflow instance (doc 15 §7): what <c>sourceflow.workflow.transitions</c> counts and what each
+/// <c>workflow {name} {step}</c> span describes. Generated workflows add them to their <see cref="Reaction"/>; the runtime
+/// records them once the reaction has committed.
+/// </summary>
+/// <param name="Kind">One of <see cref="Kinds"/>.</param>
+/// <param name="Step">The step (or compensated step), when there is one.</param>
+/// <param name="Attempt">The attempt of the step or compensation.</param>
+public sealed record WorkflowTransition(string Kind, string? Step, int Attempt)
+{
+    /// <summary>A step succeeded.</summary>
+    public const string Success = "success";
+
+    /// <summary>A step failed with no retry left.</summary>
+    public const string Failure = "failure";
+
+    /// <summary>A step or compensation is retried.</summary>
+    public const string Retry = "retry";
+
+    /// <summary>A step or compensation timed out.</summary>
+    public const string Timeout = "timeout";
+
+    /// <summary>A completed step is being compensated.</summary>
+    public const string Compensate = "compensate";
+
+    /// <summary>The instance needs an operator.</summary>
+    public const string Manual = "manual";
+
+    /// <summary>The instance completed.</summary>
+    public const string Complete = "complete";
+
+    /// <summary>Every kind (the <c>kind</c> tag's values).</summary>
+    public static IReadOnlyList<string> Kinds { get; } = [Success, Failure, Retry, Timeout, Compensate, Manual, Complete];
+}
+
+/// <summary>What a workflow instance is doing (doc 15 §6.1 observe, §7).</summary>
+/// <param name="Status">The status.</param>
+/// <param name="Step">The current step, or the step being compensated; null when terminal.</param>
+/// <param name="Attempt">The attempt of the current step or compensation.</param>
+/// <param name="Failure">Why it failed, once it has.</param>
+/// <param name="PendingCompensations">Completed steps that would be compensated on failure.</param>
+/// <param name="StartedAt">When the instance started.</param>
+/// <param name="UpdatedAt">When it last moved (the reaction time).</param>
+public sealed record WorkflowInstanceInfo(
+    WorkflowStatus Status,
+    string? Step,
+    int Attempt,
+    WorkflowFailure? Failure,
+    int PendingCompensations,
+    DateTimeOffset StartedAt,
+    DateTimeOffset UpdatedAt);
+
+/// <summary>A generated workflow instance, seen by the runtime without its type.</summary>
+public interface IWorkflowInstance
+{
+    /// <summary>The instance's status and position, or null before the start message.</summary>
+    WorkflowInstanceInfo? Describe();
+}
+
+/// <summary>
+/// A document of the <c>workflow-instances</c> read model: one per workflow instance, written in the same transaction as
+/// the instance's state. The generated domain query <c>&lt;service&gt;.workflow-instances.v1</c>, <c>dotnet sourceflow
+/// workflow list|show</c> and the <c>sourceflow.workflow.active</c> gauge read it (doc 15 §6.1, §7).
+/// </summary>
+/// <param name="Workflow">The workflow name (without the version).</param>
+/// <param name="WorkflowVersion">The workflow version (not <c>version</c>: that is every read-model row's document version).</param>
+/// <param name="Instance">The instance (the correlation value).</param>
+/// <param name="Status">The <see cref="WorkflowStatus"/> name.</param>
+/// <param name="Step">The current step; null when terminal.</param>
+/// <param name="Attempt">The attempt of the current step or compensation.</param>
+/// <param name="FailureCode">The failure code, once failed.</param>
+/// <param name="FailureMessage">The failure description, once failed.</param>
+/// <param name="FailureStep">The step that failed.</param>
+/// <param name="PendingCompensations">Completed steps that would be compensated on failure.</param>
+/// <param name="StartedAt">When the instance started.</param>
+/// <param name="UpdatedAt">When it last moved.</param>
+public sealed record WorkflowInstanceSummary(
+    string Workflow,
+    int WorkflowVersion,
+    string Instance,
+    string Status,
+    string? Step,
+    int Attempt,
+    string? FailureCode,
+    string? FailureMessage,
+    string? FailureStep,
+    int PendingCompensations,
+    DateTimeOffset StartedAt,
+    DateTimeOffset UpdatedAt)
+{
+    /// <summary>The read model's name in queries (<c>from readmodel "workflow-instances"</c>).</summary>
+    public const string ReadModel = "workflow-instances";
+
+    /// <summary>The document collection.</summary>
+    public const string Collection = "workflow-instances@1";
+
+    /// <summary>The statuses of an instance that is not finished.</summary>
+    public static IReadOnlyList<string> ActiveStatuses { get; } =
+        [nameof(WorkflowStatus.Running), nameof(WorkflowStatus.Compensating), nameof(WorkflowStatus.ManualIntervention)];
+
+    /// <summary>The process type, <c>name@version</c>.</summary>
+    public string ProcessName => Workflow + "@" + WorkflowVersion.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>True while the instance is not finished.</summary>
+    public bool IsActive => ActiveStatuses.Contains(Status, StringComparer.Ordinal);
+
+    /// <summary>The document id of an instance: <c>name@version/instance</c>.</summary>
+    public static string DocumentId(string processName, string instance)
+    {
+        return processName + "/" + instance;
+    }
+}
+
+/// <summary>The number of instances of a workflow version in a status (the <c>sourceflow.workflow.active</c> gauge).</summary>
+/// <param name="Workflow">The workflow name.</param>
+/// <param name="Version">The version.</param>
+/// <param name="Status">The status name.</param>
+/// <param name="Count">The instances.</param>
+public sealed record WorkflowStatusCount(string Workflow, int Version, string Status, int Count);
+
 /// <summary>A generated workflow's state: the engine state as JSON (WP-S.5).</summary>
 /// <typeparam name="TSelf">The generated workflow.</typeparam>
-public interface IWorkflowState<TSelf>
+public interface IWorkflowState<TSelf> : IWorkflowInstance
     where TSelf : class, IWorkflowState<TSelf>
 {
     /// <summary>The engine state as JSON, or null before the start message.</summary>
@@ -169,6 +289,19 @@ public interface IWorkflowState<TSelf>
 
     /// <summary>Creates the state.</summary>
     static abstract TSelf FromState(string? state);
+}
+
+/// <summary>
+/// A workflow version that still has active instances is no longer registered (doc 15 §5.6): startup fails, because
+/// in-flight instances finish on the version they started on.
+/// </summary>
+public sealed class WorkflowVersionRemovedException : InvalidOperationException
+{
+    /// <summary>Creates the exception.</summary>
+    public WorkflowVersionRemovedException(string message)
+        : base(message)
+    {
+    }
 }
 
 /// <summary>Runtime support for generated workflows: their message and state JSON metadata.</summary>
@@ -227,6 +360,93 @@ public static class WorkflowRuntime
         }
     }
 
+    /// <summary>The text of the generated <c>&lt;service&gt;.workflow-instances</c> domain query (one workflow's instances, newest first).</summary>
+    public const string InstancesQueryText =
+        "from readmodel \"workflow-instances\"\n" +
+        "| where workflow = @workflow\n" +
+        "| project workflow, workflowVersion, instance, status, step, attempt, failureCode, failureMessage, failureStep, pendingCompensations, startedAt, updatedAt\n" +
+        "| order by updatedAt desc";
+
+    /// <summary>The name suffix of the generated domain query: <c>&lt;service&gt;.workflow-instances</c>.</summary>
+    public const string InstancesQuerySuffix = ".workflow-instances";
+
+    /// <summary>The parameters of the generated domain query.</summary>
+    public static IReadOnlyList<DomainQueryParameter> InstancesQueryParameters { get; } = [new("workflow", typeof(string))];
+
+    /// <summary>The result columns of the generated domain query.</summary>
+    public static IReadOnlyList<string> InstancesQueryColumns { get; } =
+        ["workflow", "workflowVersion", "instance", "status", "step", "attempt", "failureCode", "failureMessage", "failureStep", "pendingCompensations", "startedAt", "updatedAt"];
+
+    /// <summary>Builds a result row of the generated domain query.</summary>
+    public static WorkflowInstanceSummary MaterializeInstance(IQueryRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return new WorkflowInstanceSummary(
+            DomainQueryValues.Get<string>(DomainQueryValues.Column(row, "workflow")),
+            DomainQueryValues.Get<int>(DomainQueryValues.Column(row, "workflowVersion")),
+            DomainQueryValues.Get<string>(DomainQueryValues.Column(row, "instance")),
+            DomainQueryValues.Get<string>(DomainQueryValues.Column(row, "status")),
+            DomainQueryValues.Get<string?>(DomainQueryValues.Column(row, "step")),
+            DomainQueryValues.Get<int>(DomainQueryValues.Column(row, "attempt")),
+            DomainQueryValues.Get<string?>(DomainQueryValues.Column(row, "failureCode")),
+            DomainQueryValues.Get<string?>(DomainQueryValues.Column(row, "failureMessage")),
+            DomainQueryValues.Get<string?>(DomainQueryValues.Column(row, "failureStep")),
+            DomainQueryValues.Get<int>(DomainQueryValues.Column(row, "pendingCompensations")),
+            DomainQueryValues.Get<DateTimeOffset>(DomainQueryValues.Column(row, "startedAt")),
+            DomainQueryValues.Get<DateTimeOffset>(DomainQueryValues.Column(row, "updatedAt")));
+    }
+
+    /// <summary>Splits a workflow process name <c>name@version</c>.</summary>
+    public static bool TryParseProcessName(string? processName, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? name, out int version)
+    {
+        int at = processName?.LastIndexOf('@') ?? -1;
+        if (at > 0 && int.TryParse(processName.AsSpan(at + 1), NumberStyles.None, CultureInfo.InvariantCulture, out version) && version > 0)
+        {
+            name = processName![..at];
+            return true;
+        }
+
+        name = null;
+        version = 0;
+        return false;
+    }
+
+    /// <summary>The read-model document of an instance.</summary>
+    /// <param name="processName">The process type, <c>name@version</c>.</param>
+    /// <param name="instance">The instance (correlation value).</param>
+    /// <param name="info">What it is doing.</param>
+    public static WorkflowInstanceSummary Summarize(string processName, string instance, WorkflowInstanceInfo info)
+    {
+        ArgumentNullException.ThrowIfNull(info);
+        if (!TryParseProcessName(processName, out string? name, out int version))
+        {
+            throw new ArgumentException($"'{processName}' is not a workflow process name (name@version).", nameof(processName));
+        }
+
+        return new WorkflowInstanceSummary(name, version, instance, info.Status.ToString(), info.Step, info.Attempt,
+            info.Failure?.Code, info.Failure?.Message, info.Failure?.Step, info.PendingCompensations, info.StartedAt, info.UpdatedAt);
+    }
+
+    /// <summary>Serializes a summary document.</summary>
+    public static byte[] SerializeSummary(WorkflowInstanceSummary summary)
+    {
+        return JsonSerializer.SerializeToUtf8Bytes(summary, WorkflowJsonContext.Default.WorkflowInstanceSummary);
+    }
+
+    /// <summary>Reads a summary document.</summary>
+    public static WorkflowInstanceSummary DeserializeSummary(ReadOnlySpan<byte> json)
+    {
+        return JsonSerializer.Deserialize(json, WorkflowJsonContext.Default.WorkflowInstanceSummary)
+            ?? throw new JsonException("A workflow instance document is null.");
+    }
+
+    /// <summary>The message body of an operator action (camelCase JSON, as the service reads it).</summary>
+    public static byte[] SerializeControl(WorkflowControl control)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        return JsonSerializer.SerializeToUtf8Bytes(control, WorkflowJsonContext.Default.WorkflowControl);
+    }
+
     /// <summary>Formats a correlation value read from a message member the way the engine does.</summary>
     public static string CorrelationValue(object? value)
     {
@@ -242,5 +462,6 @@ public static class WorkflowRuntime
 
 [JsonSerializable(typeof(WorkflowTimer))]
 [JsonSerializable(typeof(WorkflowControl))]
+[JsonSerializable(typeof(WorkflowInstanceSummary))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 internal sealed partial class WorkflowJsonContext : JsonSerializerContext;

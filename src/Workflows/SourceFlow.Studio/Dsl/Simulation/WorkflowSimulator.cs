@@ -92,6 +92,43 @@ namespace SourceFlow.Studio.Dsl.Simulation
         }
     }
 
+    /// <summary>
+    /// A transition of an instance, for the <c>sourceflow.workflow.transitions</c> metric and the <c>workflow</c> span
+    /// (doc 15 §7). Not an effect: it is how the run is counted, not what it does.
+    /// </summary>
+    public sealed record SimulationTransition(string Kind, string? Step, int Attempt)
+    {
+        /// <summary>A step succeeded.</summary>
+        public const string Success = "success";
+
+        /// <summary>A step failed (a rejection, a failure event or a timeout) with no retry left.</summary>
+        public const string Failure = "failure";
+
+        /// <summary>A step or compensation is retried.</summary>
+        public const string Retry = "retry";
+
+        /// <summary>A step or compensation timed out.</summary>
+        public const string Timeout = "timeout";
+
+        /// <summary>A completed step is being compensated.</summary>
+        public const string Compensate = "compensate";
+
+        /// <summary>The instance needs an operator.</summary>
+        public const string Manual = "manual";
+
+        /// <summary>The instance completed.</summary>
+        public const string Complete = "complete";
+
+        /// <summary>Every kind, in the order of doc 15 §7.</summary>
+        public static IReadOnlyList<string> Kinds { get; } = new[] { Success, Failure, Retry, Timeout, Compensate, Manual, Complete };
+
+        /// <inheritdoc />
+        public override string ToString()
+        {
+            return Kind + (Step is null ? string.Empty : " " + Step + "#" + Attempt.ToString(CultureInfo.InvariantCulture));
+        }
+    }
+
     /// <summary>A sent command: its type, deterministic message id and field values.</summary>
     public sealed record SentCommand(string Command, Guid MessageId, IReadOnlyList<KeyValuePair<string, object?>> Fields)
     {
@@ -163,6 +200,9 @@ namespace SourceFlow.Studio.Dsl.Simulation
         /// <summary>The simulated clock.</summary>
         public DateTimeOffset Now { get; internal set; }
 
+        /// <summary>When the instance started (the start message's reaction time).</summary>
+        public DateTimeOffset StartedAt { get; internal set; }
+
         /// <summary>True while compensating for an operator abort (ends in Aborted, not Compensated).</summary>
         public bool Aborting { get; internal set; }
 
@@ -173,6 +213,15 @@ namespace SourceFlow.Studio.Dsl.Simulation
         public bool IsTerminal => Status == WorkflowStatus.Completed || Status == WorkflowStatus.Compensated || Status == WorkflowStatus.Aborted;
 
         internal Dictionary<string, int> _retries = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// The last attempt number used per step (and per <c>compensate:{step}</c>), across re-entries: a step entered
+        /// again (a <c>goto</c> loop, an operator resume) continues the numbering, so its send ids and timers never repeat
+        /// an earlier visit's (an owner's inbox would drop the re-send; an old timer would look current).
+        /// </summary>
+        public IReadOnlyDictionary<string, int> Attempts => _attempts;
+
+        internal Dictionary<string, int> _attempts = new Dictionary<string, int>(StringComparer.Ordinal);
 
         internal List<string> _stack = new List<string>();
 
@@ -192,10 +241,12 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 Failure = Failure,
                 Timer = Timer,
                 Now = Now,
+                StartedAt = StartedAt,
                 Aborting = Aborting,
                 CompensationPending = CompensationPending,
                 Options = Options,
                 _retries = new Dictionary<string, int>(_retries, StringComparer.Ordinal),
+                _attempts = new Dictionary<string, int>(_attempts, StringComparer.Ordinal),
                 _stack = new List<string>(_stack),
                 _data = new Dictionary<string, object?>(_data, StringComparer.Ordinal),
             };
@@ -369,10 +420,11 @@ namespace SourceFlow.Studio.Dsl.Simulation
     /// <summary>The new state and the effects of one transition.</summary>
     public sealed class SimulationResult
     {
-        internal SimulationResult(SimulationState state, IReadOnlyList<SimulationEffect> effects)
+        internal SimulationResult(SimulationState state, IReadOnlyList<SimulationEffect> effects, IReadOnlyList<SimulationTransition> transitions)
         {
             State = state;
             Effects = effects;
+            Transitions = transitions;
         }
 
         /// <summary>The state after the transition.</summary>
@@ -380,6 +432,9 @@ namespace SourceFlow.Studio.Dsl.Simulation
 
         /// <summary>The effects, in order.</summary>
         public IReadOnlyList<SimulationEffect> Effects { get; }
+
+        /// <summary>The transitions taken, in order (what the metrics count, doc 15 §7).</summary>
+        public IReadOnlyList<SimulationTransition> Transitions { get; }
 
         /// <summary>The commands sent by the transition (the outbox).</summary>
         public IEnumerable<SentCommand> Sent => Effects.Where(e => e.Command is not null).Select(e => e.Command!);
@@ -411,7 +466,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
 
             string correlate = workflow.Start.Correlate.StartsWith("data.", StringComparison.Ordinal) ? workflow.Start.Correlate.Substring(5) : workflow.Start.Correlate;
             string instance = SentCommand.Format(Read(startData, correlate)).Trim('\'');
-            var run = new Run(new SimulationState(workflow, instance) { Now = now, StartData = startData, Options = options ?? SimulationOptions.Default });
+            var run = new Run(new SimulationState(workflow, instance) { Now = now, StartedAt = now, StartData = startData, Options = options ?? SimulationOptions.Default });
             if (workflow.Start.When is { } when && GuardParser.Parse(when).Expression is { } guard
                 && run.State.Options.Guard?.Invoke(SimulationOptions.StartGuard) != true
                 && !GuardEvaluator.Evaluate(guard, path => path.StartsWith("event.data.", StringComparison.Ordinal) ? Read(startData, path.Substring(11)) : null))
@@ -488,6 +543,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
         private sealed class Run
         {
             private readonly List<SimulationEffect> _effects = new List<SimulationEffect>();
+            private readonly List<SimulationTransition> _transitions = new List<SimulationTransition>();
 
             public Run(SimulationState state)
             {
@@ -500,7 +556,19 @@ namespace SourceFlow.Studio.Dsl.Simulation
 
             public SimulationResult Result()
             {
-                return new SimulationResult(State, _effects);
+                return new SimulationResult(State, _effects, _transitions);
+            }
+
+            // The next attempt of a step or compensation: one after the last used, across re-entries.
+            private void NextAttempt(string key)
+            {
+                State.Attempt = (State._attempts.TryGetValue(key, out int last) ? last : 0) + 1;
+                State._attempts[key] = State.Attempt;
+            }
+
+            private void Transition(string kind, string? step)
+            {
+                _transitions.Add(new SimulationTransition(kind, step, State.Attempt));
             }
 
             public void Effect(string kind, string text, SentCommand? command = null, SimulationTimer? timer = null)
@@ -606,7 +674,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                     }
 
                     State.Step = step.Id;
-                    State.Attempt = 1;
+                    NextAttempt(step.Id);
                     State._retries.Clear();
                     Attempt(step);
                     return;
@@ -689,6 +757,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                     }
 
                     CancelTimer();
+                    Transition(SimulationTransition.Success, step.Id);
                     if (step.Compensate is { None: false })
                     {
                         State._stack.Add(step.Id);
@@ -714,6 +783,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 {
                     // Not declared: an unexpected business outcome needs an operator.
                     State.Failure = new WorkflowFailure(outcome.Value ?? outcome.Kind, outcome.Message ?? "unhandled " + outcome.Kind, step.Id);
+                    Transition(SimulationTransition.Failure, step.Id);
                     Manual("unhandled " + outcome);
                     return;
                 }
@@ -726,6 +796,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                     return;
                 }
 
+                Transition(SimulationTransition.Failure, step.Id);
                 Then(failure.Then, new WorkflowFailure(outcome.Value ?? outcome.Kind, outcome.Message ?? outcome.ToString(), step.Id));
             }
 
@@ -739,7 +810,8 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 int used = Used(key) + 1;
                 State._retries[key] = used;
                 TimeSpan delay = retry.Delay(used);
-                State.Attempt++;
+                NextAttempt(step.Id);
+                Transition(SimulationTransition.Retry, step.Id);
                 if (delay > TimeSpan.Zero)
                 {
                     State.Phase = WorkflowPhase.Retrying;
@@ -826,6 +898,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 }
 
                 // A timeout of the current attempt.
+                Transition(SimulationTransition.Timeout, step.Id);
                 TimeoutSpec timeout = step.Timeout!;
                 if (timeout.Retry is { } retry && Used("timeout") < retry.Max)
                 {
@@ -833,6 +906,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                     return;
                 }
 
+                Transition(SimulationTransition.Failure, step.Id);
                 Then(timeout.Then, new WorkflowFailure("timeout", step.Id + " timed out", step.Id));
             }
 
@@ -868,8 +942,9 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 }
 
                 State.Step = State._stack[State._stack.Count - 1];
-                State.Attempt = 1;
+                NextAttempt("compensate:" + State.Step);
                 State._retries.Clear();
+                Transition(SimulationTransition.Compensate, State.Step);
                 SendCompensation();
             }
 
@@ -910,6 +985,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                     return;
                 }
 
+                Transition(SimulationTransition.Timeout, State.Step);
                 CompensationFailed("timeout");
             }
 
@@ -920,7 +996,8 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 {
                     int used = Used("compensation") + 1;
                     State._retries["compensation"] = used;
-                    State.Attempt++;
+                    NextAttempt("compensate:" + State.Step);
+                    Transition(SimulationTransition.Retry, State.Step);
                     TimeSpan delay = retry.Delay(used);
                     if (delay > TimeSpan.Zero)
                     {
@@ -944,6 +1021,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
             private void Complete()
             {
                 State.Timer = null;
+                Transition(SimulationTransition.Complete, State.Step);
                 State.Step = null;
                 Status(WorkflowStatus.Completed);
                 if (Workflow.On.Completed is { } send)
@@ -956,6 +1034,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
             private void Manual(string why)
             {
                 bool compensating = State.Status == WorkflowStatus.Compensating;
+                Transition(SimulationTransition.Manual, State.Step);
                 Status(WorkflowStatus.ManualIntervention, why);
                 State.Aborting &= compensating;
                 State.Phase = WorkflowPhase.Awaiting;
@@ -1003,7 +1082,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                             Status(WorkflowStatus.Compensating);
                             if (op.Action == "retry-step" && State.Step is not null)
                             {
-                                State.Attempt++;
+                                NextAttempt("compensate:" + State.Step);
                                 SendCompensation();
                             }
                             else
@@ -1017,7 +1096,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                         Status(WorkflowStatus.Running);
                         if (op.Action == "retry-step" && State.Step is not null)
                         {
-                            State.Attempt++;
+                            NextAttempt(State.Step);
                             Attempt(Current);
                         }
                         else
@@ -1031,7 +1110,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                             }
 
                             State.Step = Workflow.Steps[index].Id;
-                            State.Attempt = 1;
+                            NextAttempt(State.Step);
                             State._retries.Clear();
                             Attempt(Workflow.Steps[index]);
                         }

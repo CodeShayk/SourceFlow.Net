@@ -12,7 +12,7 @@ the rules in CI.
 | File | What it is |
 |------|------------|
 | `sourceflow-dashboard.json` | A Grafana dashboard. The first row shows the service-level objectives of doc 08 §6: write availability, p99 write latency, read-model freshness, delivery durability, and parked messages. After that there is one panel per instrument, grouped by area. Import it and choose your Prometheus data source. The `Service` variable is the `job` label (from `service.name`). |
-| `sourceflow-alerts.yaml` | Prometheus alert rules for the same objectives, plus stalled subscriptions and a held log horizon. Severity is `page` or `warning`. |
+| `sourceflow-alerts.yaml` | Prometheus alert rules for the same objectives, plus stalled subscriptions, a held log horizon and DSL workflow instances that need an operator (`SourceFlowWorkflowManualIntervention`). Severity is `page` or `warning`. |
 
 ## Metric names
 

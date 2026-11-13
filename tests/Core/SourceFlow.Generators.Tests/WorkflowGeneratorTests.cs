@@ -227,6 +227,25 @@ public sealed partial class WorkflowGeneratorTests
         File.Exists(Path.Combine(Path.GetDirectoryName(typeof(SourceFlowGenerator).Assembly.Location)!, "YamlDotNet.dll")).ShouldBeTrue("the generator's dependency resolves from its own folder");
     }
 
+    [Fact]
+    [Trait("Id", "GEN-65")]
+    [Trait("Covers", "WFD-37")]
+    public void WorkflowInstancesQuery_IsGeneratedAndRegistered_NamedForTheService()
+    {
+        GeneratorRun run = Run();
+
+        string registration = run.Source("Orders.OrdersModule.Workflows.g.cs");
+        registration.ShouldContain("builder.AddDomainQuery<WorkflowInstancesQuery, global::SourceFlow.Workflows.WorkflowInstanceSummary>();");
+        registration.ShouldContain("public sealed record WorkflowInstancesQuery(string Workflow) : global::SourceFlow.IDomainQueryRuntime<WorkflowInstancesQuery, global::SourceFlow.Workflows.WorkflowInstanceSummary>");
+        registration.ShouldContain("public const string QueryName = \"orders.workflow-instances\";", Case.Sensitive, "the workflows' owner names the service");
+        registration.ShouldContain("static string global::SourceFlow.IDomainQueryRuntime<WorkflowInstancesQuery, global::SourceFlow.Workflows.WorkflowInstanceSummary>.QueryText => global::SourceFlow.Workflows.WorkflowRuntime.InstancesQueryText;");
+        run.CompilationErrors().ShouldBeEmpty();
+
+        Run(properties: new Dictionary<string, string>(Properties) { ["build_property.SourceFlowServiceName"] = "orders" })
+            .Source("Orders.OrdersModule.Workflows.g.cs").ShouldContain("\"orders.workflow-instances\"");
+        GeneratorHarness.RunWithFiles([Domain], []).Result.GeneratedTrees.ShouldNotContain(t => t.FilePath.EndsWith("Workflows.g.cs", StringComparison.Ordinal), "no workflows: no query");
+    }
+
     [GeneratedRegex(@"(?m)^\s*public (?:(?:static|sealed|abstract|readonly|partial)\s+)*(?:class|record|struct|enum|interface)\b")]
     private static partial Regex PublicType();
 

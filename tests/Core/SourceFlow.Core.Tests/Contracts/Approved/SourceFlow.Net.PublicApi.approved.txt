@@ -414,9 +414,11 @@ namespace SourceFlow
         public bool IsIgnored { get; }
         public object? NewState { get; }
         public System.Collections.Generic.IReadOnlyList<SourceFlow.ScheduledMessage> Scheduled { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Workflows.WorkflowTransition> Transitions { get; }
         public static SourceFlow.Reaction Ignore { get; }
         public SourceFlow.Reaction AndBecome(object newState) { }
         public SourceFlow.Reaction AndComplete() { }
+        public SourceFlow.Reaction AndRecord(SourceFlow.Workflows.WorkflowTransition transition) { }
         public SourceFlow.Reaction AndSend(SourceFlow.ICommand command) { }
         public SourceFlow.Reaction AndSend(SourceFlow.ICommand command, SourceFlow.MessageId messageId) { }
         public SourceFlow.Reaction Schedule(SourceFlow.IMessage message, System.DateTimeOffset deliverAt) { }
@@ -665,6 +667,8 @@ namespace SourceFlow.Diagnostics
         public System.Diagnostics.Metrics.Counter<long> SnapshotsDropped { get; }
         public System.Diagnostics.Metrics.Counter<long> SnapshotsWritten { get; }
         public System.Diagnostics.Metrics.Histogram<double> SubscriptionBatchDuration { get; }
+        public System.Diagnostics.Metrics.Counter<long> WorkflowManualInterventions { get; }
+        public System.Diagnostics.Metrics.Counter<long> WorkflowTransitions { get; }
         public void Dispose() { }
     }
     public static class SourceFlowTelemetry
@@ -706,6 +710,9 @@ namespace SourceFlow.Diagnostics
             public const string SubscriptionLag = "sourceflow.subscription.lag";
             public const string SubscriptionLagTime = "sourceflow.subscription.lag_time";
             public const string SubscriptionStalled = "sourceflow.subscription.stalled";
+            public const string WorkflowActive = "sourceflow.workflow.active";
+            public const string WorkflowManualIntervention = "sourceflow.workflow.manual_intervention";
+            public const string WorkflowTransitions = "sourceflow.workflow.transitions";
         }
         public static class Tags
         {
@@ -738,6 +745,13 @@ namespace SourceFlow.Diagnostics
             public const string Stage = "stage";
             public const string StreamId = "sourceflow.stream.id";
             public const string Subscription = "sourceflow.subscription";
+            public const string TransitionKind = "kind";
+            public const string Workflow = "workflow";
+            public const string WorkflowAttempt = "sourceflow.workflow.attempt";
+            public const string WorkflowStatus = "status";
+            public const string WorkflowStep = "sourceflow.workflow.step";
+            public const string WorkflowTransition = "sourceflow.workflow.transition";
+            public const string WorkflowVersion = "version";
         }
     }
 }
@@ -2100,6 +2114,7 @@ namespace SourceFlow.Runtime
     public sealed class OutboxRelay
     {
         public OutboxRelay(SourceFlow.Runtime.SourceFlowRuntime runtime) { }
+        public System.Threading.Tasks.ValueTask ReleaseAllAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<int> RunOnceAsync(System.Threading.CancellationToken cancellationToken) { }
     }
     public abstract class ProcessManagerDescriptor
@@ -2107,6 +2122,7 @@ namespace SourceFlow.Runtime
         protected ProcessManagerDescriptor() { }
         public abstract System.Collections.Generic.IReadOnlyList<System.Type> HandledMessages { get; }
         public abstract object Initial { get; }
+        public bool IsWorkflow { get; }
         public abstract string Name { get; }
         public abstract System.Type StateType { get; }
         public abstract SourceFlow.Reaction React(object state, SourceFlow.IMessage message, string instanceId, System.DateTimeOffset now, SourceFlow.MessageId messageId, bool isNew, System.Text.Json.JsonSerializerOptions? serializer = null);
@@ -2727,6 +2743,7 @@ namespace SourceFlow.Storage
     public interface IStoreMonitor
     {
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string, int>> CountActiveProcessesAsync(System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Workflows.WorkflowStatusCount>> CountActiveWorkflowsAsync(System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<long> CountEventsAfterAsync(SourceFlow.GlobalPosition after, SourceFlow.Storage.BucketRange buckets, long cap, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string, int>> CountParkedDeadLettersAsync(System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<System.TimeSpan> GetHorizonAgeAsync(System.Threading.CancellationToken cancellationToken);
@@ -2927,6 +2944,7 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask ClearPreviousAsync(string alias, string previous, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask CompleteAsync(SourceFlow.Storage.LeaseToken lease, System.Collections.Generic.IReadOnlyList<long> sequences, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string, int>> CountActiveProcessesAsync(System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Workflows.WorkflowStatusCount>> CountActiveWorkflowsAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<int> CountAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<long> CountEventsAfterAsync(SourceFlow.GlobalPosition after, SourceFlow.Storage.BucketRange buckets, long cap, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string, int>> CountParkedDeadLettersAsync(System.Threading.CancellationToken cancellationToken) { }
@@ -3229,7 +3247,11 @@ namespace SourceFlow.Workflows
         public string Step { get; init; }
     }
     public interface IWorkflowHooks { }
-    public interface IWorkflowState<TSelf>
+    public interface IWorkflowInstance
+    {
+        SourceFlow.Workflows.WorkflowInstanceInfo? Describe();
+    }
+    public interface IWorkflowState<TSelf> : SourceFlow.Workflows.IWorkflowInstance
         where TSelf :  class, SourceFlow.Workflows.IWorkflowState<TSelf>
     {
         string? State { get; }
@@ -3268,12 +3290,58 @@ namespace SourceFlow.Workflows
         public static SourceFlow.Workflows.WorkflowInstanceId Parse(string value) { }
         public static bool TryParse(string? value, out SourceFlow.Workflows.WorkflowInstanceId id) { }
     }
+    public sealed class WorkflowInstanceInfo : System.IEquatable<SourceFlow.Workflows.WorkflowInstanceInfo>
+    {
+        public WorkflowInstanceInfo(SourceFlow.Workflows.WorkflowStatus Status, string? Step, int Attempt, SourceFlow.Workflows.WorkflowFailure? Failure, int PendingCompensations, System.DateTimeOffset StartedAt, System.DateTimeOffset UpdatedAt) { }
+        public int Attempt { get; init; }
+        public SourceFlow.Workflows.WorkflowFailure? Failure { get; init; }
+        public int PendingCompensations { get; init; }
+        public System.DateTimeOffset StartedAt { get; init; }
+        public SourceFlow.Workflows.WorkflowStatus Status { get; init; }
+        public string? Step { get; init; }
+        public System.DateTimeOffset UpdatedAt { get; init; }
+    }
+    public sealed class WorkflowInstanceSummary : System.IEquatable<SourceFlow.Workflows.WorkflowInstanceSummary>
+    {
+        public const string Collection = "workflow-instances@1";
+        public const string ReadModel = "workflow-instances";
+        public WorkflowInstanceSummary(string Workflow, int WorkflowVersion, string Instance, string Status, string? Step, int Attempt, string? FailureCode, string? FailureMessage, string? FailureStep, int PendingCompensations, System.DateTimeOffset StartedAt, System.DateTimeOffset UpdatedAt) { }
+        public int Attempt { get; init; }
+        public string? FailureCode { get; init; }
+        public string? FailureMessage { get; init; }
+        public string? FailureStep { get; init; }
+        public string Instance { get; init; }
+        public bool IsActive { get; }
+        public int PendingCompensations { get; init; }
+        public string ProcessName { get; }
+        public System.DateTimeOffset StartedAt { get; init; }
+        public string Status { get; init; }
+        public string? Step { get; init; }
+        public System.DateTimeOffset UpdatedAt { get; init; }
+        public string Workflow { get; init; }
+        public int WorkflowVersion { get; init; }
+        public static System.Collections.Generic.IReadOnlyList<string> ActiveStatuses { get; }
+        public static string DocumentId(string processName, string instance) { }
+    }
     public static class WorkflowRuntime
     {
+        public const string InstancesQuerySuffix = ".workflow-instances";
+        public const string InstancesQueryText = "from readmodel \"workflow-instances\"\n| where workflow = @workflow\n| project workfl" +
+            "ow, workflowVersion, instance, status, step, attempt, failureCode, failureMessag" +
+            "e, failureStep, pendingCompensations, startedAt, updatedAt\n| order by updatedAt " +
+            "desc";
+        public static System.Collections.Generic.IReadOnlyList<string> InstancesQueryColumns { get; }
+        public static System.Collections.Generic.IReadOnlyList<SourceFlow.DomainQueryParameter> InstancesQueryParameters { get; }
         public static string CorrelationValue(object? value) { }
+        public static SourceFlow.Workflows.WorkflowInstanceSummary DeserializeSummary(System.ReadOnlySpan<byte> json) { }
+        public static SourceFlow.Workflows.WorkflowInstanceSummary MaterializeInstance(SourceFlow.IQueryRow row) { }
         public static void RegisterMessages(SourceFlow.ISourceFlowModuleBuilder builder) { }
+        public static byte[] SerializeControl(SourceFlow.Workflows.WorkflowControl control) { }
+        public static byte[] SerializeSummary(SourceFlow.Workflows.WorkflowInstanceSummary summary) { }
         public static System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver StateResolver<TState>()
             where TState :  class, SourceFlow.Workflows.IWorkflowState<TState> { }
+        public static SourceFlow.Workflows.WorkflowInstanceSummary Summarize(string processName, string instance, SourceFlow.Workflows.WorkflowInstanceInfo info) { }
+        public static bool TryParseProcessName(string? processName, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? name, out int version) { }
     }
     public enum WorkflowStatus
     {
@@ -3283,6 +3351,14 @@ namespace SourceFlow.Workflows
         Compensated = 3,
         ManualIntervention = 4,
         Aborted = 5,
+    }
+    public sealed class WorkflowStatusCount : System.IEquatable<SourceFlow.Workflows.WorkflowStatusCount>
+    {
+        public WorkflowStatusCount(string Workflow, int Version, string Status, int Count) { }
+        public int Count { get; init; }
+        public string Status { get; init; }
+        public int Version { get; init; }
+        public string Workflow { get; init; }
     }
     [SourceFlow.MessageType("sourceflow.workflow.timer", 1)]
     public sealed class WorkflowTimer : SourceFlow.IMessage, SourceFlow.ITimeout, System.IEquatable<SourceFlow.Workflows.WorkflowTimer>
@@ -3294,5 +3370,24 @@ namespace SourceFlow.Workflows
         public string Kind { get; init; }
         public string Step { get; init; }
         public string Workflow { get; init; }
+    }
+    public sealed class WorkflowTransition : System.IEquatable<SourceFlow.Workflows.WorkflowTransition>
+    {
+        public const string Compensate = "compensate";
+        public const string Complete = "complete";
+        public const string Failure = "failure";
+        public const string Manual = "manual";
+        public const string Retry = "retry";
+        public const string Success = "success";
+        public const string Timeout = "timeout";
+        public WorkflowTransition(string Kind, string? Step, int Attempt) { }
+        public int Attempt { get; init; }
+        public string Kind { get; init; }
+        public string? Step { get; init; }
+        public static System.Collections.Generic.IReadOnlyList<string> Kinds { get; }
+    }
+    public sealed class WorkflowVersionRemovedException : System.InvalidOperationException
+    {
+        public WorkflowVersionRemovedException(string message) { }
     }
 }

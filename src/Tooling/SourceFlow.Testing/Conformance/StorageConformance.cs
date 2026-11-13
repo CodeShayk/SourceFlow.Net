@@ -122,6 +122,7 @@ public static class StorageConformance
         new("SCK-73", "Aliases: the first generation claims once; a switch is a compare-and-set that records the previous target", AliasSwitch),
         new("SCK-74", "Aliases: a requested generation is kept until it is switched in; previous is cleared only when it matches", AliasRequest),
         new("SCK-75", "Aliases: concurrent switches from the same target, exactly one wins", AliasRace),
+        new("SCK-76", "Monitor: unfinished workflow instances are counted per workflow, version and status across tenants", ActiveWorkflows),
     ];
 
     // ------------------------------------------------------------------ helpers
@@ -927,6 +928,37 @@ public static class StorageConformance
 
         Check.NotNull(await f.Documents.GetAsync("eu", "docs", "1", ct).ConfigureAwait(false), "eu document");
         Check.Null(await f.Documents.GetAsync("us", "docs", "1", ct).ConfigureAwait(false), "us cannot read it");
+    }
+
+    // ------------------------------------------------------------------ workflow instances (doc 15 §7)
+
+    private static async Task ActiveWorkflows(IStorageFixture f, CancellationToken ct)
+    {
+        if (f.Outbox is not IStoreMonitor monitor)
+        {
+            return;   // the gauge needs the optional monitor port
+        }
+
+        string name = "sck-wf-" + Guid.CreateVersion7().ToString("N");
+        (string Tenant, int Version, string Instance, string Status)[] instances =
+        [
+            ("eu", 1, "a", "Running"), ("us", 1, "b", "Running"), ("eu", 1, "c", "ManualIntervention"),
+            ("eu", 2, "d", "Compensating"), ("eu", 1, "e", "Completed"), ("us", 2, "f", "Aborted"),
+        ];
+        foreach ((string tenant, int version, string instance, string status) in instances)
+        {
+            await using IStorageSession session = await f.Sessions.BeginAsync(tenant, ct).ConfigureAwait(false);
+            var summary = new Workflows.WorkflowInstanceSummary(name, version, instance, status, null, 1, null, null, null, 0, f.Now, f.Now);
+            session.Documents.Upsert(Workflows.WorkflowInstanceSummary.Collection, Workflows.WorkflowInstanceSummary.DocumentId(summary.ProcessName, instance), 1,
+                Workflows.WorkflowRuntime.SerializeSummary(summary));
+            await session.CommitAsync(ct).ConfigureAwait(false);
+        }
+
+        IReadOnlyList<Workflows.WorkflowStatusCount> counts = await monitor.CountActiveWorkflowsAsync(ct).ConfigureAwait(false);
+        Check.SequenceEqual(
+            [$"{name}@1 ManualIntervention 1", $"{name}@1 Running 2", $"{name}@2 Compensating 1"],
+            counts.Where(c => c.Workflow == name).Select(c => $"{c.Workflow}@{c.Version} {c.Status} {c.Count}").Order(StringComparer.Ordinal),
+            "unfinished statuses only, every tenant");
     }
 
     // ------------------------------------------------------------------ read-model aliases (doc 06 §6)

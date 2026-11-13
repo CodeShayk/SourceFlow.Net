@@ -413,6 +413,16 @@ Commands of other services are referenced by **logical name**. The owner must re
 - Both versions stay registered: **new** instances start on the latest version, and **in-flight** instances finish on the version they started on.
 - `dotnet sourceflow workflow list --name order-fulfilment --version 1 --active` shows whether v1 can be removed. Removing a version with active instances is blocked by a startup check (a domain query on process state).
 
+**As built (WP-S.6).**
+
+- **Which version starts.** The process-manager runner decides, so it holds for versions in any module or assembly. A workflow version starts a new instance only when both hold:
+  - it is the latest registered version of its name;
+  - no other registered version already has an instance for that correlation value.
+
+  The second rule matters because a newly deployed version's subscription reads the log from the start, so it also sees the start events of instances that v1 began.
+- **The startup guard** fails with `WorkflowVersionRemovedException` when an unregistered version of a workflow this service runs still has active (not completed) instances. It reads the store monitor's per-process-type counts across tenants; adapters without a monitor log warning 1402 and skip it. Abort the remaining instances, or keep the version, to proceed.
+- **Re-entered steps continue their attempt numbering.** This applies to a `goto` loop such as `await-address-fix` → `create-shipment`, an operator resume, or a resumed compensation. The engine keeps the last attempt per step (and per `compensate:{step}`) in its state. A re-sent command therefore gets a new deterministic id instead of being dropped by the owner's inbox, and a timer from an earlier visit stays stale.
+
 ## 6. SourceFlow Studio (React designer)
 
 ### 6.1 Views
@@ -479,6 +489,29 @@ The runtime adds no new execution model. The small runtime types used by generat
 - `WorkflowRuntime`: message registration, state JSON metadata, and correlation values.
 
 The core also gains deterministic send ids (`Reaction.Send(command, MessageId)`, `CommandIds`) and `ReactionContext.Serializer`.
+
+**As built (WP-S.6): operations.**
+
+- **Transitions.**
+  - The engine reports each transition it takes in `SimulationResult.Transitions`, with one of the kinds in the table above.
+    - `failure` means a step failed with no retry left.
+    - A business retry counts only as `retry`.
+    - A timeout that is retried counts as `timeout` and then `retry`.
+  - The generated workflow adds the transitions to its reaction (`Reaction.AndRecord(WorkflowTransition)`).
+  - The runner opens a `workflow {name} {step}` span per transition, under the `react` span, with `sourceflow.workflow.step`, `.attempt` and `.transition`.
+  - It counts `sourceflow.workflow.transitions` (tags `workflow`, `version`, `kind`) and `sourceflow.workflow.manual_intervention` (`workflow`, `version`) only after the transaction commits, so a reaction retried after a conflict is counted once.
+- **The `workflow-instances` read model.** Each instance has a `WorkflowInstanceSummary` document in collection `workflow-instances@1`, upserted in the same transaction as its state. It holds the workflow, `workflowVersion`, instance, status, step, attempt, failure, pending compensations, `startedAt` and `updatedAt`. The read model is in the service's query catalog when it runs workflows.
+- **The `sourceflow.workflow.active` gauge** (tags `workflow`, `version`, `status`) counts unfinished instances. The monitor samples it through `IStoreMonitor.CountActiveWorkflowsAsync`: a JSON `GROUP BY` over the documents in PostgreSQL and SQL Server, and a default of none for other adapters. The version tag is an addition to the table above.
+- **The alert rule** `SourceFlowWorkflowManualIntervention` pages on any increase. It is in `deploy/observability`.
+- **The domain query.** The generator registers `WorkflowInstancesQuery(string Workflow)` as `<service>.workflow-instances` v1. The service is `SourceFlowServiceName`, or else the workflows' `owner`. The query is SFQL over the read model, newest first, and it binds at startup (SF0018).
+- **The CLI.** `dotnet sourceflow workflow` has these commands:
+  - `list [--name] [--version] [--status] [--active] [--tenant] [--limit]`. With `--name` and `--version` it also says whether that version can be removed.
+  - `show <name@v> <instance>`.
+  - `resume <name@v> <instance> [--step] [--note]`.
+  - `retry-step <name@v> <instance>`.
+  - `abort <name@v> <instance> --reason [--compensate]`.
+
+  It reads the read model and checks the status first: resume and retry-step need ManualIntervention, and abort needs an unfinished instance. It then queues a `WorkflowControl` as a due scheduled outbox row for the owner's endpoint. Inside the service that is its own endpoint; the global tool needs `--endpoint`. The operator is recorded in the reason.
 
 ## 8. Packages
 

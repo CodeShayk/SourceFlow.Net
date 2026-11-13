@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     Workflow DSL, manifests, golden and differential suites, WASM facade (plan 10 §3). The generator compiles the
-    fixture workflow (Fixture/*.sfflow.yaml) into a process manager here (WP-S.5).
+    fixture workflows (Fixture/*.sfflow.yaml, versions 1 and 2) into process managers here (WP-S.5, WP-S.6); the
+    workflow CLI runs in-service against the test host (WP-S.6).
   -->
   <PropertyGroup>
     <UseSourceFlowGenerator>true</UseSourceFlowGenerator>
@@ -15,5 +16,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Workflows\SourceFlow.Studio\SourceFlow.Studio.csproj" />
     <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
+    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Tool\SourceFlow.Tool.csproj" />
   </ItemGroup>
 </Project>

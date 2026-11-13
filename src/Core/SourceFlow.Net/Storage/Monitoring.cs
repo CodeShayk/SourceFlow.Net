@@ -29,6 +29,17 @@ public interface IStoreMonitor
 
     /// <summary>Process-manager instances not completed, per process type.</summary>
     ValueTask<IReadOnlyDictionary<string, int>> CountActiveProcessesAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Unfinished DSL workflow instances per workflow, version and status, across tenants: the documents of
+    /// <see cref="Workflows.WorkflowInstanceSummary.Collection"/> whose status is one of
+    /// <see cref="Workflows.WorkflowInstanceSummary.ActiveStatuses"/> (the <c>sourceflow.workflow.active</c> gauge, doc 15 §7).
+    /// Adapters without it report no workflow gauge.
+    /// </summary>
+    ValueTask<IReadOnlyList<Workflows.WorkflowStatusCount>> CountActiveWorkflowsAsync(CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult<IReadOnlyList<Workflows.WorkflowStatusCount>>([]);
+    }
 }
 
 /// <summary>The result of <see cref="IStoreMonitor.ProbeAsync"/>.</summary>

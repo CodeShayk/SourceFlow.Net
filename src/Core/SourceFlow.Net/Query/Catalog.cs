@@ -150,6 +150,11 @@ public sealed class QueryCatalog
         [
             .. model.Projections.OfType<DocumentProjectionDescriptor>()
                 .Select(p => new QueryReadModel(p.Name, p.Collection, p.DocumentType, Fields(model.JsonTypeInfoFor(p.DocumentType), options, 0))),
+            // DSL workflows keep one document per instance (doc 15 §6.1 observe, §7).
+            .. model.ProcessManagers.Any(p => p.IsWorkflow)
+                ? [new QueryReadModel(Workflows.WorkflowInstanceSummary.ReadModel, Workflows.WorkflowInstanceSummary.Collection, typeof(Workflows.WorkflowInstanceSummary),
+                    Fields(model.JsonTypeInfoFor(typeof(Workflows.WorkflowInstanceSummary)), options, 0))]
+                : Array.Empty<QueryReadModel>(),
         ];
         QueryAggregate[] aggregates =
         [

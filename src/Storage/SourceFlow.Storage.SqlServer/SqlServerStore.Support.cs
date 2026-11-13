@@ -120,6 +120,21 @@ public sealed partial class SqlServerStore : IStoreMonitor
         return await ReadCountsAsync(command, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public async ValueTask<IReadOnlyList<Workflows.WorkflowStatusCount>> CountActiveWorkflowsAsync(CancellationToken cancellationToken)
+    {
+        await using SqlConnection connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using SqlCommand command = Command(Sql.ActiveWorkflows, connection, null);
+        await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        var counts = new List<Workflows.WorkflowStatusCount>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            counts.Add(new Workflows.WorkflowStatusCount(reader.GetString(0), reader.GetInt32(1), reader.GetString(2), checked((int)reader.GetInt64(3))));
+        }
+
+        return [.. counts.OrderBy(c => c.Workflow, StringComparer.Ordinal).ThenBy(c => c.Version).ThenBy(c => c.Status, StringComparer.Ordinal)];
+    }
+
     private static async Task<IReadOnlyDictionary<string, int>> ReadCountsAsync(SqlCommand command, CancellationToken cancellationToken)
     {
         await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);

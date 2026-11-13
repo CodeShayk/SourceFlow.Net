@@ -38,7 +38,7 @@ namespace SourceFlow.Generators
 
     internal sealed record WorkflowDiagnostic(string Id, string Message, bool IsError, string Path, int Line, int Column, string Rule);
 
-    internal sealed record WorkflowRegistration(string FullType, EquatableArray<RejectionModel> Rejections);
+    internal sealed record WorkflowRegistration(string FullType, string Owner, EquatableArray<RejectionModel> Rejections);
 
     internal sealed record WorkflowManifestEntry(string Name, int Version, string File, string Fingerprint);
 
@@ -49,6 +49,12 @@ namespace SourceFlow.Generators
         string? Source,
         WorkflowRegistration? Registration,
         WorkflowManifestEntry? Manifest);
+
+    /// <summary>Names shared with <c>SourceFlow.Workflows.WorkflowRuntime</c> (the generator does not reference the core).</summary>
+    internal static class WorkflowRuntimeNames
+    {
+        public const string InstancesQuerySuffix = ".workflow-instances";
+    }
 
     internal static class WorkflowPipeline
     {
@@ -274,6 +280,7 @@ namespace SourceFlow.Generators
             string relative = Relative(file.Path, options.ProjectDir);
             var registration = new WorkflowRegistration(
                 fullType,
+                workflow.Owner,
                 rejections.Values.Select(r => new RejectionModel(Sf + "CommandRejected<" + r.ClrType + ">", Name(r.Ref) + ".rejected", Version(r.Ref))).ToEquatableArray());
             return new WorkflowOutput(
                 file.Path,
@@ -327,6 +334,7 @@ namespace SourceFlow.Generators
             w.Line($"public {Wf}WorkflowStatus? Status => Process.Status(this);");
             w.Line();
             w.Line($"static {className} {Wf}IWorkflowState<{className}>.FromState(string? state) => new() {{ State = state }};");
+            w.Line($"{Wf}WorkflowInstanceInfo? {Wf}IWorkflowInstance.Describe() => Process.Describe(this);");
             w.Line($"static string {contract}.ProcessName => ProcessName;");
             w.Line($"static global::System.Collections.Generic.IReadOnlyList<global::System.Type> {contract}.HandledMessages => __handled;");
             w.Line();
@@ -405,15 +413,26 @@ namespace SourceFlow.Generators
             }
         }
 
-        /// <summary>The module part that registers the workflows, the shared messages and the replies.</summary>
-        public static string Registration(ModuleModel module, IEnumerable<WorkflowRegistration> workflows)
+        /// <summary>The generated domain query's class name.</summary>
+        public const string InstancesQueryClass = "WorkflowInstancesQuery";
+
+        /// <summary>
+        /// The module part that registers the workflows, the shared messages and the replies, and the domain query
+        /// <c>&lt;service&gt;.workflow-instances</c> v1 over the instances' read model (doc 15 §6.1, §7).
+        /// </summary>
+        public static string Registration(ModuleModel module, IEnumerable<WorkflowRegistration> workflows, string? serviceName)
         {
+            WorkflowRegistration[] all = workflows.OrderBy(x => x.FullType, StringComparer.Ordinal).ToArray();
+            string service = serviceName ?? all.Select(x => x.Owner).Where(o => o.Length > 0).OrderBy(o => o, StringComparer.Ordinal).FirstOrDefault() ?? "service";
+            string query = InstancesQueryClass;
+            string result = Wf + "WorkflowInstanceSummary";
+            string contract = $"{Sf}IDomainQueryRuntime<{query}, {result}>";
             var w = new SourceWriter();
             w.OpenNamespace(module.Namespace);
             w.Open($"partial class {module.Name}");
             w.Open($"static partial void RegisterWorkflows({Sf}ISourceFlowModuleBuilder builder)");
             w.Line($"{Wf}WorkflowRuntime.RegisterMessages(builder);");
-            foreach (WorkflowRegistration workflow in workflows.OrderBy(x => x.FullType, StringComparer.Ordinal))
+            foreach (WorkflowRegistration workflow in all)
             {
                 w.Line($"builder.AddJsonTypeInfoResolver({Wf}WorkflowRuntime.StateResolver<{workflow.FullType}>());");
                 foreach (RejectionModel r in workflow.Rejections)
@@ -424,7 +443,25 @@ namespace SourceFlow.Generators
                 w.Line($"builder.AddProcessManager<{workflow.FullType}, {Wf}WorkflowInstanceId>();");
             }
 
+            w.Line($"builder.AddDomainQuery<{query}, {result}>();");
             w.Close();
+            w.Close();
+            w.Line();
+            w.Line($"/// <summary>The domain query {Xml(service + WorkflowRuntimeNames.InstancesQuerySuffix)} v1: one workflow's instances, newest first (generated).</summary>");
+            w.Line("/// <param name=\"Workflow\">The workflow name, without the version.</param>");
+            w.Line("[global::System.CodeDom.Compiler.GeneratedCode(\"SourceFlow.Generators\", \"3\")]");
+            w.Open($"public sealed record {query}(string Workflow) : {contract}");
+            w.Line($"/// <summary>The query name.</summary>");
+            w.Line($"public const string QueryName = {Literal.Of(service + WorkflowRuntimeNames.InstancesQuerySuffix)};");
+            w.Line();
+            w.Line($"static string {contract}.QueryName => QueryName;");
+            w.Line($"static int {contract}.QueryVersion => 1;");
+            w.Line($"static string {contract}.QueryText => {Wf}WorkflowRuntime.InstancesQueryText;");
+            w.Line($"static bool {contract}.IsSql => false;");
+            w.Line($"static global::System.Collections.Generic.IReadOnlyList<{Sf}DomainQueryParameter> {contract}.QueryParameters => {Wf}WorkflowRuntime.InstancesQueryParameters;");
+            w.Line($"static global::System.Collections.Generic.IReadOnlyList<string> {contract}.ResultColumns => {Wf}WorkflowRuntime.InstancesQueryColumns;");
+            w.Line($"global::System.Collections.Generic.IReadOnlyDictionary<string, object?> {contract}.ToParameters() => new global::System.Collections.Generic.Dictionary<string, object?>(global::System.StringComparer.Ordinal) {{ [\"workflow\"] = Workflow }};");
+            w.Line($"static {result} {contract}.Materialize({Sf}IQueryRow row) => {Wf}WorkflowRuntime.MaterializeInstance(row);");
             w.Close();
             w.CloseNamespace(module.Namespace);
             return w.ToString();
