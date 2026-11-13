@@ -19,7 +19,8 @@ export interface SvgOptions {
   marks?: ReadonlyMap<string, Mark>;
 }
 
-const PALETTES: Record<SvgTheme, Record<string, string>> = {
+/** The export palettes (STU-A11Y-04 checks their contrast). */
+export const PALETTES: Record<SvgTheme, Record<string, string>> = {
   light: {
     bg: '#ffffff', surface: '#f5f6f8', text: '#1b1f24', muted: '#59616c', border: '#d0d5dc',
     start: '#59616c', success: '#1a7f37', failure: '#b42318', retry: '#8250df', timeout: '#9a6700', compensation: '#0b5cad', manual: '#bc4c00', skip: '#6e7781',

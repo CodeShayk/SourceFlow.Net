@@ -277,6 +277,17 @@ jobs:
           --project samples/Bank/Bank.Api -c Release --no-build --check
           --output samples/Bank/Bank.Api/sourceflow.manifest.json
           -- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
+      - name: OrderFulfilment manifest drift check (WP-S.13)
+        # The sample's host runs one service per Service setting; each service's manifest is exported and compared.
+        shell: bash
+        run: |
+          set -e
+          for service in orders inventory payments shipping; do
+            dotnet src/Tooling/SourceFlow.Tool/bin/Release/net10.0/SourceFlow.Tool.dll manifest export \
+              --project samples/OrderFulfilment/OrderFulfilment.Host -c Release --no-build --check \
+              --output "samples/OrderFulfilment/${service^}/sourceflow.manifest.json" \
+              -- "--Service=$service" "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
+          done
 
   pack:
     needs: coverage

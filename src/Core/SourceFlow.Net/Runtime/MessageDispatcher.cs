@@ -76,6 +76,7 @@ internal sealed class MessageDispatcher(SourceFlowRuntime runtime, CommandProces
 
         await consume(session).ConfigureAwait(false);
         session.RecordInbox(consumer, envelope.MessageId, new InboxResult(CommandStatus.Accepted, StreamVersion.None, null));
+        await runtime.FaultAsync(FaultPoints.ReactionBeforeCommit, cancellationToken).ConfigureAwait(false);
         try
         {
             await session.CommitAsync(cancellationToken).ConfigureAwait(false);

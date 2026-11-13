@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace SourceFlow.Generators.Tests;
 
@@ -277,6 +279,42 @@ public sealed class AnalyzerTests
         error.Severity.ShouldBe(DiagnosticSeverity.Error);
         error.GetMessage().ShouldContain("Agg");
         remoteOnly.ShouldNotContain(d => d.Id == "SF0014");
+    }
+
+    [Fact]
+    [Trait("Id", "GEN-36")]
+    [Trait("Covers", "ADR-007")]
+    public async Task SF0014_CommandOfAReferencedService_CanBeRouted()
+    {
+        // Another service's assembly, referenced for its contracts (the OrderFulfilment sample's orders service).
+        Compilation inventory = GeneratorHarness.Run(Sources.Usings + "\nnamespace Inventory;\n" + Id + """
+                [MessageType("inventory.reserve", 1)] public sealed record Reserve(Aid A) : ICommand<Stock>;
+                [MessageType("inventory.reserved", 1)] public sealed record Reserved(Aid A) : IEvent;
+                [Aggregate("stock")] public sealed partial record Stock : IAggregate<Stock, Aid>
+                {
+                    public static Stock Initial { get; } = new();
+                    public Decision Decide(Reserve c, DecisionContext ctx) => Decision.Accept(new Reserved(c.A));
+                    private Stock When(Reserved e) => this;
+                }
+                """).Output;
+        inventory.GetDiagnostics(TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        CSharpCompilation orders = CSharpCompilation.Create(
+            "Orders",
+            [CSharpSyntaxTree.ParseText(Sources.Usings + """
+                using Inventory;
+                namespace Orders;
+                public static class Routes
+                {
+                    public static void Configure(SourceFlow.Runtime.RoutingBuilder r) => r.Command<Reserve>().To("inventory");
+                }
+                """, GeneratorHarness.ParseOptions)],
+            [.. GeneratorHarness.MetadataReferences, inventory.ToMetadataReference()],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+        ImmutableArray<Diagnostic> diagnostics = await orders.WithAnalyzers([new SourceFlowAnalyzer()]).GetAnalyzerDiagnosticsAsync(TestContext.Current.CancellationToken);
+
+        orders.GetDiagnostics(TestContext.Current.CancellationToken).Where(d => d.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        diagnostics.ShouldNotContain(d => d.Id == "SF0014", "the aggregate is another service's: this one only routes its command");
     }
 
     [Fact]

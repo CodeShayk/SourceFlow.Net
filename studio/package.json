@@ -19,6 +19,7 @@
     "test": "npm run test --workspaces",
     "e2e": "npm run e2e --workspace @sourceflow/studio",
     "build:action": "npm run build --workspace @sourceflow/workflow-diff",
-    "site": "npm exec --workspace @sourceflow/studio -- sourceflow-studio build"
+    "site": "npm exec --workspace @sourceflow/studio -- sourceflow-studio build",
+    "docs:dsl": "node scripts/dsl-reference.mjs"
   }
 }

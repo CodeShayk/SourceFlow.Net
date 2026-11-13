@@ -494,8 +494,10 @@ namespace SourceFlow.Generators
 
         private static string? OwnerOf(INamedTypeSymbol command, Compilation compilation)
         {
-            // The target aggregate's Decide (in source or in a referenced module).
+            // The target aggregate's Decide, declared in this compilation. An aggregate from a referenced assembly is
+            // another service's whose contracts this one uses; whether its module is registered here is checked at startup.
             if (command.FindInterface(KnownNames.CommandOf)?.TypeArguments[0] is INamedTypeSymbol aggregate
+                && SymbolEqualityComparer.Default.Equals(aggregate.ContainingAssembly, compilation.Assembly)
                 && aggregate.FindAttribute(KnownNames.AggregateAttribute) is not null
                 && aggregate.GetMembers("Decide").OfType<IMethodSymbol>().Any(d => d.Parameters.Length >= 1 && SymbolEqualityComparer.Default.Equals(d.Parameters[0].Type, command)))
             {

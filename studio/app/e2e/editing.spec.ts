@@ -1,4 +1,4 @@
-// STU-E2E-07..10 (plan 10 §3.3): editing in the browser against a writable host on a fresh copy of the golden workspace
+// STU-E2E-07..10 and STU-A11Y-05 (plan 10 §3.3): editing in the browser against a writable host on a fresh copy of the golden workspace
 // (e2e/generate.mjs editable-workspace): an error typed in Monaco shows everywhere, a visual fix clears it, visual edits
 // save with the file's comments, and an add → save → undo → save round trip gives back the file byte for byte.
 import { expect, test, type Page } from '@playwright/test';
@@ -111,6 +111,51 @@ test('STU-E2E-09 a retry and a compensation added visually save with the file an
   // The core checks the new compensation like any other: it still needs its map and a timeout.
   await expect(diagnostics(page).getByRole('button', { name: /Error WF-V12 .*orders\.cancel-order\.v1 needs 'orderId'/ })).toBeVisible({ timeout: 30_000 });
   await expect(diagnostics(page).getByRole('button', { name: /Error WF-V06 .*compensation of 'review-large-order'/ })).toBeVisible();
+});
+
+test('STU-A11Y-05 keyboard only: add a step, connect it, give it a failure, save', async ({ page }) => {
+  // Focus moves between controls (as Tab or a screen reader would take it); every action is a key press.
+  await page.goto(base + '/');
+  await expect(page.getByRole('navigation', { name: 'Workspace' }).getByRole('link', { name: 'Workflow keyboard-edits' })).toBeVisible();
+  await page.keyboard.press('Alt+1');
+  await expect(page.getByRole('navigation', { name: 'Workspace' })).toBeFocused();
+  await page.getByRole('navigation', { name: 'Workspace' }).getByRole('link', { name: 'Workflow keyboard-edits' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { level: 1, name: 'keyboard-edits.sfflow.yaml' })).toBeVisible();
+  await expect(page.locator('.flow[data-ready="true"]')).toBeVisible({ timeout: 30_000 });
+
+  // Add a step: choose its command by typing, Tab past the event it waits for, Enter on Add step.
+  const palette = page.getByRole('region', { name: 'Palette' });
+  const command = palette.getByRole('combobox', { name: 'Command', exact: true });
+  await command.focus();
+  await page.keyboard.type('payments.charge.v1');
+  await expect(command).toHaveValue('payments.charge.v1');
+  await page.keyboard.press('Tab');
+  await expect(palette.getByRole('combobox', { name: 'Waits for' })).toBeFocused();
+  await expect(palette.getByRole('combobox', { name: 'Waits for' })).toHaveValue('payments.payment-captured.v1');
+  await page.keyboard.press('Tab');
+  await expect(palette.getByRole('button', { name: 'Add step' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  const form = page.getByRole('form', { name: 'Properties of charge' });
+  await expect(form).toBeVisible();
+
+  // Give it a failure, and connect the failure to another step.
+  await form.getByRole('combobox', { name: 'Add a failure' }).focus();
+  await page.keyboard.type('rejected payments.declined');
+  const then = form.getByRole('combobox', { name: 'Then (rejection payments.declined)' });
+  await expect(then).toBeVisible();
+  await then.focus();
+  await page.keyboard.type('go to create-shipment');
+  await expect(then).toHaveValue('goto:create-shipment');
+
+  await page.keyboard.press('ControlOrMeta+S');
+  await expect(status(page)).toHaveText('Saved.');
+  const text = await stored(page, 'keyboard-edits');
+  const step = text.slice(text.indexOf('  - id: charge\n'));
+  expect(step).toContain('command: payments.charge.v1');
+  expect(step).toContain('success: payments.payment-captured.v1');
+  expect(step).toMatch(/rejected: payments\.declined[\s\S]*then: \{ goto: create-shipment \}/);
+  await expect(page.locator('.react-flow__node[data-id="charge"]')).toBeAttached({ timeout: 30_000 });
 });
 
 // STU-E2E-10 on every golden workflow.

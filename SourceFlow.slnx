@@ -54,6 +54,7 @@
   </Folder>
   <Folder Name="/tests/EndToEnd/">
     <Project Path="tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj" />
+    <Project Path="tests/EndToEnd/OrderFulfilment.NextRelease/OrderFulfilment.NextRelease.csproj" />
   </Folder>
   <Folder Name="/tests/Architecture/">
     <Project Path="tests/Architecture/SourceFlow.Architecture.Tests/SourceFlow.Architecture.Tests.csproj" />
@@ -67,6 +68,14 @@
     <Project Path="samples/Bank/Bank.Transfers/Bank.Transfers.csproj" />
     <Project Path="samples/Bank/Bank.Notifications/Bank.Notifications.csproj" />
     <Project Path="samples/Bank/Bank.Api/Bank.Api.csproj" />
+  </Folder>
+  <Folder Name="/samples/OrderFulfilment/">
+    <Project Path="samples/OrderFulfilment/Orders/Orders.csproj" />
+    <Project Path="samples/OrderFulfilment/Inventory/Inventory.csproj" />
+    <Project Path="samples/OrderFulfilment/Payments/Payments.csproj" />
+    <Project Path="samples/OrderFulfilment/Shipping/Shipping.csproj" />
+    <Project Path="samples/OrderFulfilment/OrderFulfilment.Host/OrderFulfilment.Host.csproj" />
+    <Project Path="samples/OrderFulfilment/Orders.Tests/Orders.Tests.csproj" />
   </Folder>
   <Folder Name="/samples/Studio/">
     <Project Path="samples/Studio/SourceFlow.Studio.Demo/SourceFlow.Studio.Demo.csproj" />

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The next release of the OrderFulfilment sample's orders service, for WF-E2E-10 (doc 15 §5.6): version 2 of the
+    order-fulfilment workflow, compiled here as the orders service (SourceFlowServiceName), with its own module. Deployed
+    beside the sample's OrdersModule, new orders start on version 2 while version 1 instances finish on version 1.
+    A library, not a test project.
+  -->
+  <PropertyGroup>
+    <IsTestProject>false</IsTestProject>
+    <OutputType>Library</OutputType>
+    <UseSourceFlowGenerator>true</UseSourceFlowGenerator>
+    <SourceFlowServiceName>orders</SourceFlowServiceName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Remove="xunit.v3" />
+    <PackageReference Remove="xunit.runner.visualstudio" />
+    <PackageReference Remove="Microsoft.NET.Test.Sdk" />
+    <PackageReference Remove="Shouldly" />
+    <PackageReference Remove="coverlet.collector" />
+    <Using Remove="Xunit" />
+    <Using Remove="Shouldly" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\samples\OrderFulfilment\Orders\Orders.csproj" />
+  </ItemGroup>
+</Project>

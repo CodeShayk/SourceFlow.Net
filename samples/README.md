@@ -20,6 +20,12 @@ docker compose down -v          # stops the demo and deletes its data
 
 `SOURCEFLOW_TAG` selects the image tag. The default is `v3-latest`. You can also use a branch name such as `v3-m2-postgresql`, or a commit tag such as `sha-a5531c8`.
 
+## OrderFulfilment
+
+[OrderFulfilment](OrderFulfilment) is the workflow sample: four services (orders, inventory, payments and shipping), the
+order-fulfilment workflow that orders runs between them, its domain workspace for SourceFlow Studio, and the specs Studio
+generated for it. It isn't part of the compose demo; its README says how to open it in Studio and run it.
+
 ## Images
 
 | Image | Source |

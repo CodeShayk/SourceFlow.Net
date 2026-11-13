@@ -1,0 +1,506 @@
+{
+  "manifestVersion": 1,
+  "service": "orders",
+  "endpoint": "orders",
+  "sourceflowVersion": "3.0.0",
+  "messages": [
+    {
+      "type": "inventory.release-stock",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Inventory.ReleaseStock",
+      "aggregate": "reservation",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "inventory.reserve-stock",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Inventory.ReserveStock",
+      "aggregate": "reservation",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "lines",
+          "type": "array"
+        }
+      ]
+    },
+    {
+      "type": "inventory.stock-released",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Inventory.StockReleased",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "lines",
+          "type": "array"
+        }
+      ]
+    },
+    {
+      "type": "inventory.stock-reserved",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Inventory.StockReserved",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "lines",
+          "type": "array"
+        }
+      ]
+    },
+    {
+      "type": "orders.address-corrected",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Orders.AddressCorrected",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "address",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "orders.approve-order",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Orders.ApproveOrder",
+      "aggregate": "order",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "orders.cancel-order",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Orders.CancelOrder",
+      "aggregate": "order",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "orders.correct-address",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Orders.CorrectAddress",
+      "aggregate": "order",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "address",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "orders.mark-fulfilled",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Orders.MarkFulfilled",
+      "aggregate": "order",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "orders.order-approved",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Orders.OrderApproved",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "orders.order-cancelled",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Orders.OrderCancelled",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "orders.order-fulfilled",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Orders.OrderFulfilled",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "orders.order-placed",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Orders.OrderPlaced",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "lines",
+          "type": "array"
+        },
+        {
+          "name": "total",
+          "type": "number"
+        },
+        {
+          "name": "shippingAddress",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "orders.order-rejected-by-review",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Orders.OrderRejectedByReview",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "orders.place-order",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Orders.PlaceOrder",
+      "aggregate": "order",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "lines",
+          "type": "array"
+        },
+        {
+          "name": "total",
+          "type": "number"
+        },
+        {
+          "name": "shippingAddress",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "orders.reject-order",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Orders.RejectOrder",
+      "aggregate": "order",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "payments.charge",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Payments.Charge",
+      "aggregate": "payment",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "payments.payment-captured",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Payments.PaymentCaptured",
+      "fields": [
+        {
+          "name": "paymentId",
+          "type": "uuid"
+        },
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "payments.refund",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Payments.Refund",
+      "aggregate": "payment",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "paymentId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "payments.refunded",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Payments.Refunded",
+      "fields": [
+        {
+          "name": "paymentId",
+          "type": "uuid"
+        },
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "shipping.create-shipment",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Shipping.CreateShipment",
+      "aggregate": "shipment",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "lines",
+          "type": "array"
+        },
+        {
+          "name": "address",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "shipping.shipment-created",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Shipping.ShipmentCreated",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "trackingNumber",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "aggregates": [
+    {
+      "name": "order",
+      "clrType": "Orders.Order",
+      "commands": [
+        {
+          "type": "orders.approve-order",
+          "version": 1,
+          "emits": [
+            "orders.order-approved.v1"
+          ],
+          "rejects": [
+            "orders.not_open"
+          ]
+        },
+        {
+          "type": "orders.cancel-order",
+          "version": 1,
+          "emits": [
+            "orders.order-cancelled.v1"
+          ],
+          "rejects": []
+        },
+        {
+          "type": "orders.correct-address",
+          "version": 1,
+          "emits": [
+            "orders.address-corrected.v1"
+          ],
+          "rejects": [
+            "orders.not_open"
+          ]
+        },
+        {
+          "type": "orders.mark-fulfilled",
+          "version": 1,
+          "emits": [
+            "orders.order-fulfilled.v1"
+          ],
+          "rejects": []
+        },
+        {
+          "type": "orders.place-order",
+          "version": 1,
+          "emits": [
+            "orders.order-placed.v1"
+          ],
+          "rejects": [
+            "orders.empty",
+            "orders.invalid_total"
+          ]
+        },
+        {
+          "type": "orders.reject-order",
+          "version": 1,
+          "emits": [
+            "orders.order-rejected-by-review.v1"
+          ],
+          "rejects": [
+            "orders.not_open"
+          ]
+        }
+      ],
+      "events": [
+        "orders.address-corrected.v1",
+        "orders.order-approved.v1",
+        "orders.order-cancelled.v1",
+        "orders.order-fulfilled.v1",
+        "orders.order-placed.v1",
+        "orders.order-rejected-by-review.v1"
+      ]
+    }
+  ],
+  "processManagers": [],
+  "projections": [],
+  "publishes": [],
+  "subscribes": [
+    {
+      "topic": "inventory.events"
+    },
+    {
+      "topic": "payments.events"
+    },
+    {
+      "topic": "shipping.events"
+    }
+  ],
+  "commandRoutes": [
+    {
+      "command": "inventory.release-stock.v1",
+      "to": "inventory",
+      "replyOnReject": false
+    },
+    {
+      "command": "inventory.reserve-stock.v1",
+      "to": "inventory",
+      "replyOnReject": true
+    },
+    {
+      "command": "payments.charge.v1",
+      "to": "payments",
+      "replyOnReject": true
+    },
+    {
+      "command": "payments.refund.v1",
+      "to": "payments",
+      "replyOnReject": false
+    },
+    {
+      "command": "shipping.create-shipment.v1",
+      "to": "shipping",
+      "replyOnReject": true
+    }
+  ],
+  "workflows": [
+    {
+      "name": "order-fulfilment",
+      "version": 1,
+      "file": "Workflows/order-fulfilment.sfflow.yaml",
+      "fingerprint": "sha256:5243a77d8d5b4bb8"
+    }
+  ],
+  "schemas": "catalog://orders"
+}

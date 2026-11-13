@@ -2053,6 +2053,7 @@ namespace SourceFlow.Runtime
     public static class FaultPoints
     {
         public const string LeaseBeforeRenew = "lease.beforeRenew";
+        public const string ReactionBeforeCommit = "reaction.beforeCommit";
         public const string ReceiverBeforeComplete = "receiver.beforeComplete";
         public const string RelayAfterPublishBeforeDelete = "relay.afterPublishBeforeDelete";
         public const string SessionAfterCommitBeforeAck = "session.afterCommitBeforeAck";

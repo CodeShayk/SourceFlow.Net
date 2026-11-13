@@ -4,217 +4,647 @@
   "title": "SourceFlow workflow (sourceflow.workflow: 1)",
   "description": "The workflow DSL of SourceFlow Studio (design doc 15 §5). Structure only: references to message types, owners, routes and schemas are checked by the validator (WF-V01..V16). Workflow files are YAML without anchors or aliases.",
   "type": "object",
-  "required": ["sourceflow.workflow", "name", "version", "owner", "start", "steps"],
+  "required": [
+    "sourceflow.workflow",
+    "name",
+    "version",
+    "owner",
+    "start",
+    "steps"
+  ],
   "additionalProperties": false,
   "properties": {
-    "sourceflow.workflow": { "const": 1, "description": "The DSL version." },
-    "name": { "$ref": "#/$defs/kebab", "description": "The workflow name; with the version it is the process name name@version." },
-    "version": { "type": "integer", "minimum": 1, "description": "Structural changes to a published workflow need a new version (WF-V15)." },
-    "owner": { "type": "string", "pattern": "^[a-z][a-z0-9]*([.-][a-z0-9]+)*$", "description": "The orchestrating service; the workflow is generated into it." },
-    "description": { "type": "string" },
-    "start": { "$ref": "#/$defs/start" },
+    "sourceflow.workflow": {
+      "const": 1,
+      "description": "The DSL version."
+    },
+    "name": {
+      "$ref": "#/$defs/kebab",
+      "description": "The workflow name; with the version it is the process name name@version."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Structural changes to a published workflow need a new version (WF-V15)."
+    },
+    "owner": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*([.-][a-z0-9]+)*$",
+      "description": "The orchestrating service; the workflow is generated into it."
+    },
+    "description": {
+      "type": "string",
+      "description": "What the workflow is for, in a sentence. Shown in Studio; it does not change the fingerprint."
+    },
+    "start": {
+      "$ref": "#/$defs/start",
+      "description": "The event that starts an instance, and how later messages find it."
+    },
     "data": {
       "type": "object",
       "description": "Instance data. Captured fields are added from their event.",
-      "propertyNames": { "$ref": "#/$defs/identifier" },
-      "additionalProperties": { "$ref": "#/$defs/dataField" }
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/dataField"
+      }
     },
-    "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/step" } },
-    "on": { "$ref": "#/$defs/on" }
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/step"
+      },
+      "description": "The steps, run in order unless a step says next or a failure says goto."
+    },
+    "on": {
+      "$ref": "#/$defs/on",
+      "description": "What happens when an instance ends: completed, compensated, or stopped for an operator."
+    }
   },
   "$defs": {
-    "kebab": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" },
-    "identifier": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+    "kebab": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "description": "Lower-case words of letters and digits joined by hyphens, for example order-fulfilment."
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "description": "A field name: letters, digits and underscores, not starting with a digit."
+    },
     "messageType": {
       "type": "string",
       "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*\\.v[1-9][0-9]*$",
       "description": "A message type as {name}.v{version}, for example payments.charge.v1."
     },
-    "code": { "type": "string", "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*$", "description": "A rejection error code." },
+    "code": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*$",
+      "description": "A rejection error code."
+    },
     "duration": {
       "type": "string",
       "pattern": "^P(?=\\d|T\\d)(\\d+W)?(\\d+D)?(T(?=\\d)(\\d+H)?(\\d+M)?(\\d+(\\.\\d+)?S)?)?$",
       "description": "An ISO-8601 duration without years and months: PT30S, PT5M, PT1H, P1D, P1DT12H."
     },
-    "guard": { "type": "string", "description": "A CESQL boolean expression over $data.*, event.data.* (doc 15 §5.2)." },
+    "guard": {
+      "type": "string",
+      "description": "A CESQL boolean expression over $data.*, event.data.* (doc 15 §5.2)."
+    },
     "start": {
       "type": "object",
-      "required": ["on", "correlate"],
+      "required": [
+        "on",
+        "correlate"
+      ],
       "additionalProperties": false,
       "properties": {
-        "on": { "$ref": "#/$defs/messageType" },
-        "correlate": { "type": "string", "pattern": "^data(\\.[A-Za-z_][A-Za-z0-9_]*)+$" },
-        "when": { "$ref": "#/$defs/guard" }
-      }
+        "on": {
+          "$ref": "#/$defs/messageType",
+          "description": "The start event: a domain event of the owner, or an integration event the owner subscribes to."
+        },
+        "correlate": {
+          "type": "string",
+          "pattern": "^data(\\.[A-Za-z_][A-Za-z0-9_]*)+$",
+          "description": "The path in the start event of the instance id, for example data.orderId. Awaited events that carry the same field correlate by it (WF-V04)."
+        },
+        "when": {
+          "$ref": "#/$defs/guard",
+          "description": "Starts an instance only when this guard over event.data.* holds."
+        }
+      },
+      "description": "The event that starts an instance, and how later messages find it."
     },
     "dataField": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "from": { "type": "string", "pattern": "^start\\.data(\\.[A-Za-z_][A-Za-z0-9_]*)+$" },
-        "type": { "enum": ["string", "integer", "number", "boolean", "uuid", "date-time", "date", "time", "duration", "uri", "array", "object"] },
-        "default": { "type": ["string", "number", "boolean", "null"] },
-        "personal": { "type": "boolean", "description": "Personal data: crypto-shredded in the workflow state (WF-V14)." }
+        "from": {
+          "type": "string",
+          "pattern": "^start\\.data(\\.[A-Za-z_][A-Za-z0-9_]*)+$",
+          "description": "Copies the value from the start event, for example start.data.total."
+        },
+        "type": {
+          "enum": [
+            "string",
+            "integer",
+            "number",
+            "boolean",
+            "uuid",
+            "date-time",
+            "date",
+            "time",
+            "duration",
+            "uri",
+            "array",
+            "object"
+          ],
+          "description": "The field type when it is not copied from the start event."
+        },
+        "default": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ],
+          "description": "The initial value of a typed field."
+        },
+        "personal": {
+          "type": "boolean",
+          "description": "Personal data: crypto-shredded in the workflow state (WF-V14)."
+        }
       },
       "oneOf": [
-        { "required": ["from"], "not": { "anyOf": [{ "required": ["type"] }, { "required": ["default"] }] } },
-        { "required": ["type"], "not": { "required": ["from"] } }
-      ]
+        {
+          "required": [
+            "from"
+          ],
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "type"
+                ]
+              },
+              {
+                "required": [
+                  "default"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "type"
+          ],
+          "not": {
+            "required": [
+              "from"
+            ]
+          }
+        }
+      ],
+      "description": "One field of the instance data: copied from the start event (from), or typed with an optional default."
     },
     "step": {
       "type": "object",
-      "required": ["id", "await"],
+      "required": [
+        "id",
+        "await"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "allOf": [{ "$ref": "#/$defs/kebab" }, { "not": { "const": "complete" } }] },
-        "send": { "$ref": "#/$defs/send" },
-        "await": { "$ref": "#/$defs/await" },
-        "timeout": { "$ref": "#/$defs/timeout" },
-        "compensate": { "$ref": "#/$defs/compensate" },
-        "pivot": { "type": "boolean", "description": "The point of no return: later failures recover forward (WF-V07)." },
-        "when": { "$ref": "#/$defs/guard" },
-        "next": { "allOf": [{ "$ref": "#/$defs/kebab" }], "description": "The step after a success, or complete." }
-      }
+        "id": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/kebab"
+            },
+            {
+              "not": {
+                "const": "complete"
+              }
+            }
+          ],
+          "description": "The step id: lower-case words joined by hyphens, unique in the workflow; complete is reserved."
+        },
+        "send": {
+          "$ref": "#/$defs/send",
+          "description": "The command the step sends to its owner. Without it, the step only waits."
+        },
+        "await": {
+          "$ref": "#/$defs/await",
+          "description": "What the step waits for: the success event, and the failures it handles."
+        },
+        "timeout": {
+          "$ref": "#/$defs/timeout",
+          "description": "How long the step waits, and what happens then. Every wait needs one, or none with a reason (WF-V06)."
+        },
+        "compensate": {
+          "$ref": "#/$defs/compensate",
+          "description": "How to undo the step after a later failure: compensations run in reverse order (WF-V09)."
+        },
+        "pivot": {
+          "type": "boolean",
+          "description": "The point of no return: later failures recover forward (WF-V07)."
+        },
+        "when": {
+          "$ref": "#/$defs/guard",
+          "description": "A guard over $data.*: when it doesn't hold, the step is skipped."
+        },
+        "next": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/kebab"
+            }
+          ],
+          "description": "The step after a success, or complete."
+        }
+      },
+      "description": "A step: send a command (or nothing), wait for its outcome, and say what happens on failure, on timeout and when undoing."
     },
     "send": {
       "type": "object",
-      "required": ["command"],
+      "required": [
+        "command"
+      ],
       "additionalProperties": false,
       "properties": {
-        "command": { "$ref": "#/$defs/messageType" },
+        "command": {
+          "$ref": "#/$defs/messageType",
+          "description": "The command, owned by exactly one service (WF-V02)."
+        },
         "map": {
           "type": "object",
-          "propertyNames": { "$ref": "#/$defs/identifier" },
-          "additionalProperties": { "$ref": "#/$defs/mapValue" }
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/mapValue"
+          },
+          "description": "The command's fields, each a $data path, an event.data path (start event, first step), $failure.code, a literal, or a $hook (WF-V12)."
         }
-      }
+      },
+      "description": "A command and the values of its fields."
     },
     "mapValue": {
       "description": "$data.x, event.data.x, $failure.code, a literal, or { $hook: Name }.",
       "oneOf": [
-        { "type": "string", "pattern": "^(\\$data|event\\.data|\\$failure)(\\.[A-Za-z_][A-Za-z0-9_]*)+$" },
-        { "type": "string", "not": { "pattern": "^(\\$data\\.|event\\.data\\.|\\$failure\\.)" } },
-        { "type": ["number", "boolean", "null"] },
+        {
+          "type": "string",
+          "pattern": "^(\\$data|event\\.data|\\$failure)(\\.[A-Za-z_][A-Za-z0-9_]*)+$",
+          "description": "A path: $data.<field>, event.data.<field> (the start event, in the first step only) or $failure.code / $failure.message (in on.compensated)."
+        },
+        {
+          "type": "string",
+          "not": {
+            "pattern": "^(\\$data\\.|event\\.data\\.|\\$failure\\.)"
+          },
+          "description": "A literal string."
+        },
+        {
+          "type": [
+            "number",
+            "boolean",
+            "null"
+          ],
+          "description": "A literal number, boolean or null (null only into a nullable field)."
+        },
         {
           "type": "object",
-          "required": ["$hook"],
+          "required": [
+            "$hook"
+          ],
           "additionalProperties": false,
-          "properties": { "$hook": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" } }
+          "properties": {
+            "$hook": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Za-z0-9]*$",
+              "description": "The method name, in PascalCase."
+            }
+          },
+          "description": "A value computed in C#: a static partial method of that name on the generated workflow record (SF0021 when it is missing)."
         }
       ]
     },
     "await": {
       "type": "object",
-      "required": ["success"],
+      "required": [
+        "success"
+      ],
       "additionalProperties": false,
       "properties": {
-        "success": { "$ref": "#/$defs/success" },
-        "failure": { "type": "array", "items": { "$ref": "#/$defs/failure" } }
-      }
+        "success": {
+          "$ref": "#/$defs/success",
+          "description": "The event that completes the step (WF-V03)."
+        },
+        "failure": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/failure"
+          },
+          "description": "The rejections and failure events the step handles; anything else stops the instance for an operator."
+        }
+      },
+      "description": "The success event and the failures a step handles."
     },
     "success": {
       "oneOf": [
-        { "$ref": "#/$defs/messageType" },
+        {
+          "$ref": "#/$defs/messageType"
+        },
         {
           "type": "object",
-          "required": ["on"],
+          "required": [
+            "on"
+          ],
           "additionalProperties": false,
           "properties": {
-            "on": { "$ref": "#/$defs/messageType" },
+            "on": {
+              "$ref": "#/$defs/messageType",
+              "description": "The success event."
+            },
             "capture": {
               "type": "object",
-              "propertyNames": { "$ref": "#/$defs/identifier" },
-              "additionalProperties": { "type": "string", "pattern": "^event\\.data(\\.[A-Za-z_][A-Za-z0-9_]*)+$" }
+              "propertyNames": {
+                "$ref": "#/$defs/identifier"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "pattern": "^event\\.data(\\.[A-Za-z_][A-Za-z0-9_]*)+$"
+              },
+              "description": "Instance data to take from the event, for example paymentId: event.data.paymentId."
             },
-            "when": { "$ref": "#/$defs/guard" }
+            "when": {
+              "$ref": "#/$defs/guard",
+              "description": "The event completes the step only when this guard over $data.* and event.data.* holds."
+            }
           }
         }
-      ]
+      ],
+      "description": "The success event, as a message type, or with captures and a guard."
     },
     "failure": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "rejected": { "$ref": "#/$defs/code" },
-        "on": { "$ref": "#/$defs/messageType" },
-        "retry": { "$ref": "#/$defs/retry" },
-        "then": { "$ref": "#/$defs/then" }
+        "rejected": {
+          "$ref": "#/$defs/code",
+          "description": "A rejection code of the command (WF-V08: in its rejects, with replyOnReject on a remote route)."
+        },
+        "on": {
+          "$ref": "#/$defs/messageType",
+          "description": "A failure event."
+        },
+        "retry": {
+          "$ref": "#/$defs/retry",
+          "description": "Sends the command again before giving up (business retry)."
+        },
+        "then": {
+          "$ref": "#/$defs/then",
+          "description": "What happens when the retries are used up."
+        }
       },
-      "oneOf": [{ "required": ["rejected"], "not": { "required": ["on"] } }, { "required": ["on"], "not": { "required": ["rejected"] } }]
+      "oneOf": [
+        {
+          "required": [
+            "rejected"
+          ],
+          "not": {
+            "required": [
+              "on"
+            ]
+          }
+        },
+        {
+          "required": [
+            "on"
+          ],
+          "not": {
+            "required": [
+              "rejected"
+            ]
+          }
+        }
+      ],
+      "description": "One failure a step handles: a rejection of its command, or a failure event."
     },
     "timeout": {
       "oneOf": [
-        { "const": "none", "description": "No timeout; WF-V06 asks for the object form with a reason." },
+        {
+          "const": "none",
+          "description": "No timeout; WF-V06 asks for the object form with a reason."
+        },
         {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "after": { "$ref": "#/$defs/duration" },
-            "none": { "type": "boolean" },
-            "reason": { "type": "string" },
-            "retry": { "$ref": "#/$defs/retry" },
-            "then": { "$ref": "#/$defs/then" }
+            "after": {
+              "$ref": "#/$defs/duration",
+              "description": "How long each attempt waits."
+            },
+            "none": {
+              "type": "boolean",
+              "description": "No timeout (the step can wait for ever); give the reason."
+            },
+            "reason": {
+              "type": "string",
+              "description": "Why the wait has no timeout."
+            },
+            "retry": {
+              "$ref": "#/$defs/retry",
+              "description": "Sends the command again when an attempt times out."
+            },
+            "then": {
+              "$ref": "#/$defs/then",
+              "description": "What happens when the last attempt times out (default fail)."
+            }
           },
           "anyOf": [
-            { "required": ["after"], "not": { "properties": { "none": { "const": true } }, "required": ["none"] } },
-            { "required": ["none"], "properties": { "none": { "const": true } }, "not": { "required": ["after"] } }
+            {
+              "required": [
+                "after"
+              ],
+              "not": {
+                "properties": {
+                  "none": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "none"
+                ]
+              }
+            },
+            {
+              "required": [
+                "none"
+              ],
+              "properties": {
+                "none": {
+                  "const": true
+                }
+              },
+              "not": {
+                "required": [
+                  "after"
+                ]
+              }
+            }
           ]
         }
-      ]
+      ],
+      "description": "A wait's timeout: after a duration, retried, then what happens; or none with a reason."
     },
     "retry": {
       "type": "object",
-      "required": ["max"],
+      "required": [
+        "max"
+      ],
       "additionalProperties": false,
       "description": "Bounded re-attempts; WF-V10 checks 1 <= max <= 20 and the delays.",
       "properties": {
-        "max": { "type": "integer" },
-        "backoff": { "enum": ["fixed", "exponential"] },
-        "initial": { "$ref": "#/$defs/duration" },
-        "cap": { "$ref": "#/$defs/duration" },
-        "jitter": { "type": "boolean" }
+        "max": {
+          "type": "integer",
+          "description": "How many more attempts, 1 to 20."
+        },
+        "backoff": {
+          "enum": [
+            "fixed",
+            "exponential"
+          ],
+          "description": "The delay between attempts: always initial (fixed), or doubling from initial (exponential). Without initial, attempts follow at once."
+        },
+        "initial": {
+          "$ref": "#/$defs/duration",
+          "description": "The first delay."
+        },
+        "cap": {
+          "$ref": "#/$defs/duration",
+          "description": "The longest delay (exponential)."
+        },
+        "jitter": {
+          "type": "boolean",
+          "description": "Randomizes the delays (default true)."
+        }
       }
     },
     "then": {
       "oneOf": [
-        { "enum": ["fail", "manual", "complete"] },
-        { "type": "object", "required": ["goto"], "additionalProperties": false, "properties": { "goto": { "$ref": "#/$defs/kebab" } } }
-      ]
+        {
+          "enum": [
+            "fail",
+            "manual",
+            "complete"
+          ],
+          "description": "fail compensates the completed steps (only before the pivot, WF-V07); manual stops the instance for an operator; complete ends it as completed."
+        },
+        {
+          "type": "object",
+          "required": [
+            "goto"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "goto": {
+              "$ref": "#/$defs/kebab",
+              "description": "The step to continue with."
+            }
+          },
+          "description": "Continue at another step (WF-V11)."
+        }
+      ],
+      "description": "fail (compensate, only before the pivot), manual (stop for an operator), complete, or { goto: step }."
     },
     "compensate": {
       "oneOf": [
-        { "const": "none", "description": "WF-V09 asks for the object form with a reason." },
+        {
+          "const": "none",
+          "description": "WF-V09 asks for the object form with a reason."
+        },
         {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "send": { "$ref": "#/$defs/send" },
+            "send": {
+              "$ref": "#/$defs/send",
+              "description": "The undoing command."
+            },
             "await": {
               "type": "object",
-              "required": ["success"],
+              "required": [
+                "success"
+              ],
               "additionalProperties": false,
-              "properties": { "success": { "$ref": "#/$defs/success" } }
+              "properties": {
+                "success": {
+                  "$ref": "#/$defs/success",
+                  "description": "The event that confirms the undo."
+                }
+              },
+              "description": "The event that confirms the undo."
             },
-            "retry": { "$ref": "#/$defs/retry" },
-            "timeout": { "$ref": "#/$defs/timeout" },
-            "none": { "type": "boolean" },
-            "reason": { "type": "string" }
+            "retry": {
+              "$ref": "#/$defs/retry",
+              "description": "Sends the undoing command again after a rejection or a timeout; when it gives up, the instance stops for an operator."
+            },
+            "timeout": {
+              "$ref": "#/$defs/timeout",
+              "description": "How long each undo attempt waits."
+            },
+            "none": {
+              "type": "boolean",
+              "description": "The step has nothing to undo; give the reason."
+            },
+            "reason": {
+              "type": "string",
+              "description": "Why the step needs no compensation."
+            }
           },
           "anyOf": [
-            { "required": ["send", "await"] },
-            { "required": ["none"], "properties": { "none": { "const": true } } }
+            {
+              "required": [
+                "send",
+                "await"
+              ]
+            },
+            {
+              "required": [
+                "none"
+              ],
+              "properties": {
+                "none": {
+                  "const": true
+                }
+              }
+            }
           ]
         }
-      ]
+      ],
+      "description": "How to undo a step: a command and the event that confirms it, with a retry and a timeout; or none with a reason."
     },
     "on": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "completed": { "type": "object", "additionalProperties": false, "properties": { "send": { "$ref": "#/$defs/send" } } },
-        "compensated": { "type": "object", "additionalProperties": false, "properties": { "send": { "$ref": "#/$defs/send" } } },
-        "manual": { "type": "object", "additionalProperties": false, "properties": { "alert": { "type": "boolean" } } }
-      }
+        "completed": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "send": {
+              "$ref": "#/$defs/send",
+              "description": "The command to send."
+            }
+          },
+          "description": "Sent when the instance completes."
+        },
+        "compensated": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "send": {
+              "$ref": "#/$defs/send",
+              "description": "The command to send."
+            }
+          },
+          "description": "Sent when the instance was compensated; $failure.code and $failure.message say why."
+        },
+        "manual": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "alert": {
+              "type": "boolean",
+              "description": "Counts the instance on the alert metric."
+            }
+          },
+          "description": "An instance stopped for an operator: alert: true counts it on the sourceflow.workflow.manual_intervention metric."
+        }
+      },
+      "description": "What happens when an instance ends."
     }
   }
 }

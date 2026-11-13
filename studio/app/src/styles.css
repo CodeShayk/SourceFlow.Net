@@ -6,6 +6,8 @@
   --text: #1b1f24;
   --muted: #59616c;
   --border: #d0d5dc;
+  /* The boundary of a control or a graphical object people must see (WCAG 1.4.11): at least 3:1 on every surface. */
+  --control-border: #767f8a;
   --accent: #0b5cad;
   --accent-text: #ffffff;
   --error: #b42318;
@@ -32,6 +34,7 @@
   --text: #e6e9ed;
   --muted: #a3acb8;
   --border: #3a414a;
+  --control-border: #7d8590;
   --accent: #6cb4ff;
   --accent-text: #0b1520;
   --error: #ff8a80;
@@ -122,7 +125,7 @@ a {
   font: inherit;
   padding: 0.25rem 0.75rem;
   border-radius: 6px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   background: var(--surface-strong);
   color: var(--text);
   cursor: pointer;
@@ -548,7 +551,7 @@ kbd {
 }
 
 .map-aggregate {
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 6px;
   background: var(--surface);
 }
@@ -594,7 +597,7 @@ kbd {
   font: inherit;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 4px;
   padding: 0.125rem 0.375rem;
   max-width: 40rem;
@@ -773,7 +776,7 @@ kbd {
   font: inherit;
   color: var(--text);
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 4px;
   padding: 0.125rem 0.375rem;
   min-width: 0;
@@ -891,7 +894,7 @@ kbd {
   font: 12px/1.4 var(--mono);
   color: var(--text);
   background: var(--bg);
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 4px;
   padding: 0.25rem 0.375rem;
   resize: vertical;

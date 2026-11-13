@@ -73,6 +73,80 @@ public sealed class BrokenQueriesModule : ISourceFlowModule
     }
 }
 
+// The same contract as Broken under another type: one assembly's generated query beside another's (doc 15 §5.6).
+public sealed record BrokenAgain(decimal Below) : IDomainQueryRuntime<BrokenAgain, BrokenRow>
+{
+    public static string QueryName => Broken.QueryName;
+
+    public static int QueryVersion => 1;
+
+    public static string QueryText => Broken.QueryText;
+
+    public static bool IsSql => false;
+
+    public static IReadOnlyList<DomainQueryParameter> QueryParameters { get; } = [new("below", typeof(decimal))];
+
+    public static IReadOnlyList<string> ResultColumns { get; } = ["Balance"];
+
+    public IReadOnlyDictionary<string, object?> ToParameters()
+    {
+        return new Dictionary<string, object?> { ["below"] = Below };
+    }
+
+    public static BrokenRow Materialize(IQueryRow row)
+    {
+        return Broken.Materialize(row);
+    }
+}
+
+// Broken's name and version with another text: a different contract.
+public sealed record BrokenElsewhere(decimal Below) : IDomainQueryRuntime<BrokenElsewhere, BrokenRow>
+{
+    public static string QueryName => Broken.QueryName;
+
+    public static int QueryVersion => 1;
+
+    public static string QueryText => "from readmodel \"elsewhere\" | where balance < @below | project balance";
+
+    public static bool IsSql => false;
+
+    public static IReadOnlyList<DomainQueryParameter> QueryParameters { get; } = [new("below", typeof(decimal))];
+
+    public static IReadOnlyList<string> ResultColumns { get; } = ["Balance"];
+
+    public IReadOnlyDictionary<string, object?> ToParameters()
+    {
+        return new Dictionary<string, object?> { ["below"] = Below };
+    }
+
+    public static BrokenRow Materialize(IQueryRow row)
+    {
+        return Broken.Materialize(row);
+    }
+}
+
+public sealed class SameQueryTwiceModule : ISourceFlowModule
+{
+    public static string ModuleName => "SameQueryTwiceModule";
+
+    public static void Register(ISourceFlowModuleBuilder builder)
+    {
+        builder.AddDomainQuery<Broken, BrokenRow>();
+        builder.AddDomainQuery<BrokenAgain, BrokenRow>();
+    }
+}
+
+public sealed class ConflictingQueriesModule : ISourceFlowModule
+{
+    public static string ModuleName => "ConflictingQueriesModule";
+
+    public static void Register(ISourceFlowModuleBuilder builder)
+    {
+        builder.AddDomainQuery<Broken, BrokenRow>();
+        builder.AddDomainQuery<BrokenElsewhere, BrokenRow>();
+    }
+}
+
 /// <summary>UT-QL-90..93: named domain queries (doc 14 Q-B4, SF0018 at startup).</summary>
 [Trait("Category", "Unit")]
 public sealed class DomainQueryTests
@@ -201,6 +275,19 @@ public sealed class DomainQueryTests
 
         rows.Select(r => (r.Holder, r.Balance, r.Status)).ShouldBe([("Ada", 20m, AccountStatus.Open), ("Annie", 40m, AccountStatus.Open)]);
         rows.ShouldAllBe(r => !r.Id.IsDefault);
+    }
+
+    [Fact]
+    [Trait("Id", "UT-QL-96")]
+    [Trait("Covers", "Q-B4")]
+    public void SameContract_RegisteredTwice_IsOneQuery_AndADifferentOneIsAnError()
+    {
+        // Each assembly with workflows generates <service>.workflow-instances v1; a service can run versions from several.
+        RuntimeModel model = new SourceFlowModelBuilder().AddModule<SameQueryTwiceModule>().Build();
+        model.DomainQueries.ShouldHaveSingleItem().Name.ShouldBe("tests.broken");
+
+        Should.Throw<InvalidOperationException>(() => new SourceFlowModelBuilder().AddModule<ConflictingQueriesModule>().Build())
+            .Message.ShouldBe("Two domain queries share the name and version of 'tests.broken' with different contracts.");
     }
 
     private static Task<SourceFlowTestHost> StartAsync()

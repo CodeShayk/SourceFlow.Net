@@ -1,0 +1,119 @@
+{
+  "manifestVersion": 1,
+  "service": "inventory",
+  "endpoint": "inventory",
+  "sourceflowVersion": "3.0.0",
+  "messages": [
+    {
+      "type": "inventory.release-stock",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Inventory.ReleaseStock",
+      "aggregate": "reservation",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "inventory.reserve-stock",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Inventory.ReserveStock",
+      "aggregate": "reservation",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "lines",
+          "type": "array"
+        }
+      ]
+    },
+    {
+      "type": "inventory.stock-released",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Inventory.StockReleased",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "lines",
+          "type": "array"
+        }
+      ]
+    },
+    {
+      "type": "inventory.stock-reserved",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Inventory.StockReserved",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "lines",
+          "type": "array"
+        }
+      ]
+    }
+  ],
+  "aggregates": [
+    {
+      "name": "reservation",
+      "clrType": "Inventory.Reservation",
+      "commands": [
+        {
+          "type": "inventory.release-stock",
+          "version": 1,
+          "emits": [
+            "inventory.stock-released.v1"
+          ],
+          "rejects": []
+        },
+        {
+          "type": "inventory.reserve-stock",
+          "version": 1,
+          "emits": [
+            "inventory.stock-reserved.v1"
+          ],
+          "rejects": [
+            "inventory.nothing_to_reserve",
+            "inventory.out_of_stock"
+          ]
+        }
+      ],
+      "events": [
+        "inventory.stock-released.v1",
+        "inventory.stock-reserved.v1"
+      ]
+    }
+  ],
+  "processManagers": [],
+  "projections": [],
+  "publishes": [
+    {
+      "domainEvent": "inventory.stock-released.v1",
+      "as": "inventory.stock-released.v1",
+      "topic": "inventory.events"
+    },
+    {
+      "domainEvent": "inventory.stock-reserved.v1",
+      "as": "inventory.stock-reserved.v1",
+      "topic": "inventory.events"
+    }
+  ],
+  "subscribes": [],
+  "commandRoutes": [],
+  "workflows": [],
+  "schemas": "catalog://inventory"
+}

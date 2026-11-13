@@ -724,3 +724,36 @@ Release train: **Studio 1.0** is versioned on its own, but its DSL schema (`sour
 - **Generator**: snapshot tests of the generated code; WF-V rule diagnostics at YAML positions.
 - **End to end**: the order-fulfilment sample across four services. All paths (success, retry-then-success, compensated, timeout-retry, manual → resume, pivot forward recovery) run on the in-memory transport and on each cloud transport.
 - **Studio**: Vitest component tests, Playwright end-to-end tests (load workspace, edit, validate, simulate, generate specs, export, round trip byte-equality), axe-core accessibility checks, and a performance budget test (200 states < 1 s).
+
+**As built (WP-S.13): the OrderFulfilment sample, the guide and hardening.**
+
+- **The sample** (`samples/OrderFulfilment`, its README walks through it).
+  - **Services.** Orders, Inventory, Payments and Shipping, each a library with its aggregate, its public commands and events, a contracts module (only those messages and their id converters) and an `Add…Service` method. The host, the design-time export and the end-to-end tests share these methods. `OrderFulfilment.Host` runs one service per process (`--Service=orders`) on PostgreSQL and a cloud transport, and maps the order's commands over HTTP.
+  - **The outside world.** Inventory asks a warehouse port (`IStockLevels`) and Payments a payment gateway port (`IPaymentGateway`, keyed by the command id), both in command handlers, so the static manifests still list every `emits` and `rejects`.
+  - **The workflow** is §5.1 with two additions that real services need: the delivery address travels to shipping (and is captured again from `orders.address-corrected.v1`), and the refund names the order. The path set is unchanged: 437 paths, a minimal cover of 6.
+  - **The workspace** (`sourceflow.domain.yaml`) names the four manifests, which the host exports at design time and CI checks for drift. It also names the orders test project and module, where Studio generated the six specs in `Orders.Tests`.
+  - **Contract packages.** A command is typed by its owner's aggregate (`ICommand<Reservation>`), so a service's contract stays in its assembly; other services reference the assembly and register only its contracts module.
+  - **Deviation:** the plan's separate contract packages per service.
+- **Findings, fixed in the framework:**
+  - **The owner's module must register the other services' contracts.** The workflow builds their commands and reads their events in the owner, so it needs their message types and id converters. The sample's `OrdersModule` registers the generated domain module and the three contracts modules; `WorkflowSpec.For<TWorkflow, TModule>()` and the hosts then run the workflow the same way. The generated specs found this.
+  - **SF0014** flagged routing a command whose aggregate is in a referenced assembly. A referenced aggregate is another service's; whether its module is registered is checked at startup. The analyzer now looks only at aggregates declared in the compilation (GEN-36).
+  - **Workflow versions in two assemblies of one service** each generated `<service>.workflow-instances` v1, and startup refused the duplicate. The same contract registered twice is now one query; different contracts with one name still fail (UT-QL-96).
+  - **A crash inside a reaction couldn't be injected.** The fault point `reaction.beforeCommit` sits before a process manager's or event handler's commit.
+- **End to end (WF-E2E-01..12, `OrderFulfilmentScenarios`).** The four services run as separate hosts with their own stores, the transport clients of one broker, and the sample's own `Add…Service` methods.
+  - **Time.** Orders runs on a clock that is real time plus an offset the test moves forward, so timers of minutes to days fall due at once while polling stays real.
+  - **The outside world.** A scripted gateway (outcomes per order, counted calls), a test warehouse, and outages: a service that is down parks what it receives, as an infrastructure failure the workflow only sees as a timeout.
+  - **Coverage:**
+    - WF-E2E-01..03 run on PostgreSQL over the in-memory broker, LocalStack, the Pub/Sub emulator and the Service Bus emulator;
+    - WF-E2E-04..09 run on the in-memory store and on PostgreSQL;
+    - WF-E2E-10 runs on PostgreSQL. Version 2 is the orders service's next release (`tests/EndToEnd/OrderFulfilment.NextRelease`, its own assembly and module);
+    - WF-E2E-11 runs on the three emulators, with every message sent and published twice: one charge, one shipment and one transition each;
+    - WF-E2E-12 (chaos) crashes the orders node at five fault points mid-workflow, and a new node finishes the workflow once.
+  - **Real cloud.** The cloud legs move to the real cloud with `SOURCEFLOW_REAL_CLOUD`.
+- **Tests of the sample** (UT-MAN-16, UT-WF-71..73): exact `emits`/`rejects`, no diagnostic against the whole domain, the path set, and specs that match what Studio generates.
+- **The guide.** `docs/v3.0.0/guides/workflows.md` covers the workspace, writing, wiring, testing, operating and Studio. The DSL reference (`guides/workflow-dsl-reference.md`) is generated from `schemas/workflow-1.json` by `npm run docs:dsl`; a test keeps it current and checks that every key has a description. The schema now describes every key, which Monaco also shows on hover.
+- **Accessibility.**
+  - **Fix:** control and domain-map outlines used a 1.5:1 border; a `--control-border` token is at least 3:1 on every surface in both themes.
+  - **STU-A11Y-04** checks contrast: the tokens and export palettes in Vitest, and the rendered states, edges, controls and labels in the browser against what is behind them (text 4.5:1, graphics 3:1).
+  - **STU-A11Y-05** adds a step, gives it a failure and connects it to another step with the keyboard only.
+- **Performance.** STU-PERF-03 measures the validation round trip in the page, from a key press in the YAML editor to the diagnostics panel. The median is 8 ms against a 100 ms budget.
+- **STU-E2E-01 on the sample.** The committed workspace opens read-only: four services on the map, no problems, 437 paths, a minimal cover of 6, and no serious axe violations.

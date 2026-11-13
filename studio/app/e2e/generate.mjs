@@ -89,13 +89,16 @@ if (what === 'large-workflow') {
   rmSync(target, { recursive: true, force: true });
   const workflows = join(target, 'orders', 'workflows');
   mkdirSync(workflows, { recursive: true });
-  // Every golden case under its case name, and copies of order-fulfilment for the visual edits that are saved (E2E-09) and
-  // for the simulation and specs (E2E-11..13), so no test reads a file another one is changing.
+  // Every golden case under its case name, and copies of order-fulfilment for the visual edits that are saved (E2E-09, and
+  // keyboard-only A11Y-05), for the simulation and specs (E2E-11..13) and for the validation timing (PERF-03), so no test
+  // reads a file another one is changing.
   for (const name of readdirSync(join(golden, 'cases'))) {
     copyFileSync(join(golden, 'cases', name, 'workflow.sfflow.yaml'), join(workflows, `${name}.sfflow.yaml`));
   }
 
   copyFileSync(join(golden, 'cases', '01-order-fulfilment', 'workflow.sfflow.yaml'), join(workflows, 'visual-edits.sfflow.yaml'));
+  copyFileSync(join(golden, 'cases', '01-order-fulfilment', 'workflow.sfflow.yaml'), join(workflows, 'keyboard-edits.sfflow.yaml'));
+  copyFileSync(join(golden, 'cases', '01-order-fulfilment', 'workflow.sfflow.yaml'), join(workflows, 'perf.sfflow.yaml'));
   copyFileSync(join(golden, 'cases', '01-order-fulfilment', 'workflow.sfflow.yaml'), join(workflows, 'simulation.sfflow.yaml'));
   mkdirSync(join(target, 'orders', 'tests'), { recursive: true });
   writeFileSync(join(target, 'orders', 'tests', 'Orders.Tests.csproj'), '<Project Sdk="Microsoft.NET.Sdk" />\n');

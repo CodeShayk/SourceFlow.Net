@@ -238,10 +238,18 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
                 + "A service runs one version of a projection; leave the old one out with Projections(p => p.Remove<T>()) (doc 06 §6).");
         }
 
-        string? duplicateQuery = _domainQueries.Values.GroupBy(q => (q.Name, q.Version)).FirstOrDefault(g => g.Count() > 1)?.Key.Name;
-        if (duplicateQuery is not null)
+        // One contract per name and version. The same contract registered twice is one query: each assembly with workflows
+        // generates <service>.workflow-instances v1, and a service may run workflow versions from several (doc 15 §5.6).
+        var domainQueries = new List<Query.DomainQueryDescriptor>();
+        foreach (IGrouping<(string Name, int Version), Query.DomainQueryDescriptor> named in _domainQueries.Values.GroupBy(q => (q.Name, q.Version)))
         {
-            throw new InvalidOperationException($"Two domain queries share the name and version of '{duplicateQuery}'.");
+            Query.DomainQueryDescriptor first = named.First();
+            if (named.Skip(1).Any(other => !SameContract(first, other)))
+            {
+                throw new InvalidOperationException($"Two domain queries share the name and version of '{named.Key.Name}' with different contracts.");
+            }
+
+            domainQueries.Add(first);
         }
 
         return new RuntimeModel(
@@ -254,8 +262,17 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
             [.. _projections.Values],
             [.. _eventHandlers.Values])
         {
-            DomainQueries = [.. _domainQueries.Values.OrderBy(q => q.Name, StringComparer.Ordinal).ThenBy(q => q.Version)],
+            DomainQueries = [.. domainQueries.OrderBy(q => q.Name, StringComparer.Ordinal).ThenBy(q => q.Version)],
         };
+    }
+
+    private static bool SameContract(Query.DomainQueryDescriptor a, Query.DomainQueryDescriptor b)
+    {
+        return a.ResultType == b.ResultType
+            && a.Language == b.Language
+            && string.Equals(a.Text, b.Text, StringComparison.Ordinal)
+            && a.Parameters.SequenceEqual(b.Parameters)
+            && a.ResultColumns.SequenceEqual(b.ResultColumns, StringComparer.Ordinal);
     }
 
     private static void ResolveDocument(JsonSerializerOptions options, Type type, bool required)

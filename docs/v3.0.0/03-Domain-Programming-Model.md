@@ -522,7 +522,7 @@ The generated module registers **only** what it found at compile time, with no a
 | SF0011 | Error | `[PersonalData]` is used in an event without a resolvable subject key (doc 10 §4). |
 | SF0012 | Error | A process manager handles an event without a correlation (no `CorrelateBy` and not a reply). |
 | SF0013 | Warning | `.AsIs()` publishes an event containing `[PersonalData]`. |
-| SF0014 | Error | A command type is both handled locally and routed remotely ([ADR-007](ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md)). The analyzer catches it when routing uses constant expressions in the same compilation. Startup validation always catches it. |
+| SF0014 | Error | A command type is both handled locally and routed remotely ([ADR-007](ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md)). The analyzer catches it when routing uses constant expressions and the aggregate or handler is declared in the same compilation; an aggregate from a referenced assembly is another service's, whose contracts this one uses. Startup validation always catches it. |
 | SF0015 | Error | `IQueryService` or `IAggregateReader` used inside `Decide`, `When`, `React` or projection code. CQRS separation (doc 14 Q-R1). |
 | SF0016 | Warning | `IQueryService` used in an `ICommandHandler`: the decision depends on eventually consistent reads. |
 | SF0017 | Warning | `[Queryable]` on a `[PersonalData]` member. It has no effect, because ciphertext can't be indexed. |

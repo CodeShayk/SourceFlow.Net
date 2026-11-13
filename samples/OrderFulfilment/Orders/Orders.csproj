@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    OrderFulfilment sample, Orders service (WP-S.13): takes orders and owns the order-fulfilment workflow
+    (Workflows/order-fulfilment.sfflow.yaml), which the generator compiles into a process manager here. The other services'
+    assemblies are referenced for their contracts (commands and events) only; their modules are not registered.
+  -->
+  <PropertyGroup>
+    <SourceFlowServiceName>orders</SourceFlowServiceName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <ProjectReference Include="..\Inventory\Inventory.csproj" />
+    <ProjectReference Include="..\Payments\Payments.csproj" />
+    <ProjectReference Include="..\Shipping\Shipping.csproj" />
+  </ItemGroup>
+</Project>

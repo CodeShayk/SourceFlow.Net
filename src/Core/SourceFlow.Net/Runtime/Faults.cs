@@ -20,6 +20,13 @@ public static class FaultPoints
     /// <summary>A command committed, and the result has not reached the caller: a retry must be absorbed by the inbox.</summary>
     public const string SessionAfterCommitBeforeAck = "session.afterCommitBeforeAck";
 
+    /// <summary>
+    /// A process manager or event handler reacted to a received message and is about to commit the reaction with its inbox
+    /// row (a workflow transition, its commands and timers): a crash here loses only the uncommitted reaction, and the
+    /// redelivered message runs it again.
+    /// </summary>
+    public const string ReactionBeforeCommit = "reaction.beforeCommit";
+
     /// <summary>The relay published a message and has not yet deleted its outbox row: the message is published again.</summary>
     public const string RelayAfterPublishBeforeDelete = "relay.afterPublishBeforeDelete";
 
@@ -35,7 +42,7 @@ public static class FaultPoints
     /// <summary>Every point, in pipeline order.</summary>
     public static IReadOnlyList<string> All { get; } =
     [
-        SessionBeforeCommit, SessionAfterCommitBeforeAck, RelayAfterPublishBeforeDelete,
+        SessionBeforeCommit, SessionAfterCommitBeforeAck, ReactionBeforeCommit, RelayAfterPublishBeforeDelete,
         SubscriptionAfterApplyBeforeCommit, LeaseBeforeRenew, ReceiverBeforeComplete,
     ];
 }

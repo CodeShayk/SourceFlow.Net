@@ -97,7 +97,7 @@ host.Outbox.Published<AccountOpenedV1>().ShouldHaveSingleItem();
 
 `IFaultInjector` (compiled into Debug builds and the `SourceFlow.Testing` adapters, a no-op in Release) exposes named points:
 
-`session.beforeCommit`, `session.afterCommitBeforeAck`, `relay.afterPublishBeforeDelete`, `subscription.afterApplyBeforeCommit`, `lease.beforeRenew`, `receiver.beforeComplete`.
+`session.beforeCommit`, `session.afterCommitBeforeAck`, `reaction.beforeCommit` (a process manager or event handler reaction, WP-S.13), `relay.afterPublishBeforeDelete`, `subscription.afterApplyBeforeCommit`, `lease.beforeRenew`, `receiver.beforeComplete`.
 
 Chaos scenarios (nightly, Testcontainers + Toxiproxy):
 
