@@ -4,7 +4,7 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 
 ## Progress summary
 
-Updated 2026-11-13. **50 of 63 work packages are done (79%)** and 13 not started. By estimated effort, 106.5 of 138.5 engineer-weeks are done (77%).
+Updated 2026-11-13. **51 of 63 work packages are done (81%)** and 12 not started. By estimated effort, 108.5 of 138.5 engineer-weeks are done (78%).
 
 | Milestone | Done | In progress | Todo | Effort done (ew) |
 |-----------|------|-------------|------|------------------|
@@ -14,7 +14,7 @@ Updated 2026-11-13. **50 of 63 work packages are done (79%)** and 13 not started
 | M3 Cloud transports | 7 | 0 | 0 | 19 of 19 |
 | M4 Tooling and operations | 7 | 0 | 0 | 16.5 of 16.5 |
 | M5 Security and migration | 5 | 0 | 0 | 11 of 11 |
-| Track S: Workflow DSL and Studio | 0 | 0 | 13 | 0 of 32 |
+| Track S: Workflow DSL and Studio | 1 | 0 | 12 | 2 of 32 |
 
 Completed in this round:
 
@@ -44,6 +44,7 @@ Completed in this round:
 - WP-5.2: crypto-shredding: `[PersonalData]` encrypted per subject in events and snapshots, and an eraser that destroys the key, deletes snapshots and scrubs documents.
 - WP-5.4: the v2 migration (`migrate v2 plan|scaffold|import|archive|verify`), which imports v2 current state as genesis events, and the AWS v2 wire bridge.
 - WP-3.R: v2 cloud providers retired; the v2 Azure provider branch is archived as `archive/azure-cloud`.
+- WP-S.1: the static service manifest (`[assembly: SourceFlowManifest]`) with `emits`/`rejects` from static analysis of `Decide`, and SF0019.
 - WP-5.5: fuzz harnesses for every untrusted-input parser (four contract breaks found and fixed), the security review against the threat model, an append-only runtime role script, and SBOMs, signing and provenance in the release pipeline.
 
 M2 (PostgreSQL), M3 (cloud transports) and M4 (operations, SQL Server, scale) are complete. M3's real-cloud exit evidence (5 green nights per cloud) comes from the nightly workflow.
@@ -54,7 +55,7 @@ M5 (security and migration) is built. Its exit criteria still need three things:
 - the signing certificate;
 - the maintainer's sign-off of `docs/v3.0.0/implementation/security-review.md`.
 
-Not started: the whole Studio track.
+Track S (Workflow DSL and Studio) is under way: WP-S.1 is done.
 
 | WP | Title | Estimate (ew) | Status | Notes |
 |----|-------|---------------|--------|-------|
@@ -108,7 +109,7 @@ Not started: the whole Studio track.
 | WP-5.3 | Redaction wiring | 0.5 | done | SourceFlow taxonomy (`SourceFlowTaxonomy.PersonalData`/`Secret`); `[PersonalData]` and `[Secret]` are `DataClassificationAttribute`s; `UseRedaction(...)` with Erasing as the default and HMAC as an option; `LogPayloads` (off by default) logs parked payloads with classified members redacted. UT-RED-01..06 |
 | WP-5.4 | v2 migration tool + v2 wire bridge | 3 | done | Core `SourceFlow.Migration`: `sf.MigrateFromV2(…)`, `V2Source` (plain SQL over a `DbDataSource`, PostgreSQL and SQL Server), `IV2Entity<TSelf>` rows with `V2Row` conversions, `IV2Import<TV2Entity, TAggregate, TId>` (`MapId`, `ToEvents`, `Compare`, optional `OwnsCommand`; the id type is a third type parameter), `V2Ids.FromLegacy` (UUIDv5). `dotnet sourceflow migrate v2 plan` (counts, GAP-20 id-0 and GAP-04 empty/declared commands, estimate, exit 1 for tables without an import), `scaffold` (row type and stub from `INFORMATION_SCHEMA`), `import` (keyset batches, one session per stream, `NoStream`, deterministic event ids, headers `migratedFrom`/`v2CommandCount`/`v2LastSequenceNo`/`v2Id`, encryption and inline projections, not published, `--limit` waves), `archive` (read-only `sourceflow_v2_archive.commands`), `verify` (exit 1 on mismatch). AWS bridge `AcceptV2Messages` (`V2MessageMap` allow-list, UUIDv5 message ids, SNS-wrapped events, unmapped parked as `UnknownMessageType`, off by default). Tests: MIG-01..09 on PostgreSQL and SQL Server, MIG-10..12 on LocalStack, UT-MIG-01..06, UT-AWS-31..33. Guide `docs/v3.0.0/guides/migrating-from-v2.md` |
 | WP-5.5 | Fuzzing + security review | 1.5 | done | `fuzz/SourceFlow.Fuzz` (SharpFuzz libFuzzer mode and an in-process mutator): 10 targets (CloudEvents binary/structured, AWS/Google Cloud/Azure wire decoders with the v2 bridge, registry lookup + deserialization, protected-payload decoder, personal-data markers, SFQL and SQL parsers with the request guard), seeds from the real encoders. Found and fixed: a malformed CloudEvents attribute escaped as `JsonException`/`OverflowException` and stopped receivers (F-01); generated id converters leaked `FormatException` (F-02); invalid UTF-8 and lone surrogates in personal data leaked `InvalidOperationException` (F-03); duplicate CloudEvents properties (F-04). About 100M inputs after the fixes, no findings. Security review `docs/v3.0.0/implementation/security-review.md` against doc 10 §1, §2 and §7: `db script --grants` append-only runtime role (PostgreSQL, F-05), operator identity on dead-letter audits (F-06), doc corrections (F-07, F-08), open items O-1..O-6. CI: `v3-weekly.yml` (2 h libFuzzer per target), `v3-release.yml` (CycloneDX SBOM per package, NuGet author signing, provenance attestation, protected nuget.org publishing), `v3-scorecard.yml`, dependency review in `v3-pr.yml`, `renovate.json`. Tests: UT-FUZZ-01..04 and 10..20, UT-AWS-34, SEC-REV-01..02. Pending maintainer action: review sign-off, signing certificate, first weekly run |
-| WP-S.1 | Static manifest emission | 2 | todo | |
+| WP-S.1 | Static manifest emission | 2 | done | The generator emits `[assembly: SourceFlowManifest(json)]` (`manifestVersion: 1`): messages with typed fields (JSON names, nullability, personal data), aggregates with each command's `emits`/`rejects`, handled events, command-handler commands, process managers (`handles`/`sends`/`schedules`) and projections. The static analysis is shared with SF0019 (helper-built events, computed codes, helper decisions), and `[Emits]`/`[Rejects]` fill the gaps. The Bank sample's manifests are exact with no SF0019. Tests: UT-MAN-01..08, GEN-51..55. The OrderFulfilment half of the acceptance comes with its sample (WP-S.13) |
 | WP-S.2 | Design-time manifest export + workspace | 1.5 | todo | |
 | WP-S.3 | DSL core: model, reader, schema, validator | 3.5 | todo | |
 | WP-S.4 | Simulator, path enumerator, spec generator, exporters | 3 | todo | |

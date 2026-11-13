@@ -1,0 +1,372 @@
+{
+  "manifestVersion": 1,
+  "assembly": "TestAssembly",
+  "sourceflowVersion": "<version>",
+  "messages": [
+    {
+      "type": "demo.audited",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Demo.Audited",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "demo.deposit",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Demo.Deposit",
+      "aggregate": "demo-account",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "demo.deposited",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Demo.Deposited",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "demo.open",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Demo.Open",
+      "aggregate": "demo-account",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "demo.opened",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Demo.Opened",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "demo.transfer-started",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Demo.TransferStarted",
+      "fields": [
+        {
+          "name": "transferId",
+          "type": "uuid"
+        },
+        {
+          "name": "from",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "demo.transfer-timeout",
+      "version": 1,
+      "kind": "timeout",
+      "clrType": "Demo.TransferTimedOut",
+      "fields": [
+        {
+          "name": "transferId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "demo.transfer",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Demo.Transfer",
+      "aggregate": "demo-account",
+      "fields": [
+        {
+          "name": "from",
+          "type": "uuid"
+        },
+        {
+          "name": "to",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "shop.cancel",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Shop.Cancel",
+      "aggregate": "shop-order",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "shop.cancelled",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Shop.Cancelled",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "shop.flagged",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Shop.Flagged",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "shop.paid",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Shop.Paid",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "shop.pay",
+      "version": 2,
+      "kind": "command",
+      "clrType": "Shop.Pay",
+      "aggregate": "shop-order",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "shop.place",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Shop.Place",
+      "aggregate": "shop-order",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "total",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "shop.placed",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Shop.Placed",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "total",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "shop.ship",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Shop.Ship",
+      "aggregate": "shop-order",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "shop.shipped",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Shop.Shipped",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    }
+  ],
+  "aggregates": [
+    {
+      "name": "demo-account",
+      "clrType": "Demo.Account",
+      "commands": [
+        {
+          "type": "demo.deposit",
+          "version": 1,
+          "emits": [
+            "demo.deposited.v1"
+          ],
+          "rejects": []
+        },
+        {
+          "type": "demo.open",
+          "version": 1,
+          "emits": [
+            "demo.opened.v1"
+          ],
+          "rejects": []
+        },
+        {
+          "type": "demo.transfer",
+          "version": 1,
+          "emits": [],
+          "rejects": []
+        }
+      ],
+      "events": [
+        "demo.deposited.v1",
+        "demo.opened.v1"
+      ]
+    },
+    {
+      "name": "shop-order",
+      "clrType": "Shop.Order",
+      "commands": [
+        {
+          "type": "shop.cancel",
+          "version": 1,
+          "emits": [
+            "shop.cancelled.v1"
+          ],
+          "rejects": [
+            "sourceflow.version_mismatch"
+          ]
+        },
+        {
+          "type": "shop.pay",
+          "version": 2,
+          "emits": [
+            "shop.paid.v1"
+          ],
+          "rejects": [
+            "order.not_placed",
+            "sourceflow.invalid_command"
+          ]
+        },
+        {
+          "type": "shop.place",
+          "version": 1,
+          "emits": [
+            "shop.flagged.v1",
+            "shop.placed.v1"
+          ],
+          "rejects": [
+            "order.empty",
+            "order.too_large"
+          ]
+        },
+        {
+          "type": "shop.ship",
+          "version": 1,
+          "emits": [
+            "shop.shipped.v1"
+          ],
+          "rejects": [
+            "order.unpaid"
+          ]
+        }
+      ],
+      "events": [
+        "shop.paid.v1",
+        "shop.placed.v1",
+        "shop.shipped.v1"
+      ]
+    }
+  ],
+  "processManagers": [
+    {
+      "name": "demo-transfer",
+      "clrType": "Demo.TransferProcess",
+      "handles": [
+        "demo.deposited.v1",
+        "demo.transfer-started.v1",
+        "demo.transfer-timeout.v1"
+      ],
+      "sends": [
+        "demo.deposit.v1"
+      ],
+      "schedules": []
+    }
+  ],
+  "projections": [
+    {
+      "name": "demo-summary",
+      "version": 3,
+      "clrType": "Demo.SummaryProjection",
+      "handles": [
+        "demo.deposited.v1",
+        "demo.opened.v1"
+      ]
+    }
+  ]
+}

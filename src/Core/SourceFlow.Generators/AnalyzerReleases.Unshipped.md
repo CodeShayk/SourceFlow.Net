@@ -19,3 +19,4 @@ SF0015 | SourceFlow.Query | Error | The query side is used in write-model code
 SF0016 | SourceFlow.Query | Warning | A command handler reads through the query side
 SF0017 | SourceFlow.Security | Warning | [Queryable] on personal data has no effect
 SF0018 | SourceFlow.Query | Error | Domain query is not valid
+SF0019 | SourceFlow.Manifest | Warning | Decide outcome can't be determined

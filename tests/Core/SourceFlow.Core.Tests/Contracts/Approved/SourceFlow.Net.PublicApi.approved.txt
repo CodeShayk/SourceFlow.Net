@@ -463,6 +463,12 @@ namespace SourceFlow
         public System.Collections.Generic.IReadOnlyDictionary<string, string>? Headers { get; init; }
         public string? IdempotencyKey { get; init; }
     }
+    [System.AttributeUsage(System.AttributeTargets.Assembly, Inherited=false)]
+    public sealed class SourceFlowManifestAttribute : System.Attribute
+    {
+        public SourceFlowManifestAttribute(string json) { }
+        public string Json { get; }
+    }
     [System.AttributeUsage(System.AttributeTargets.Class, Inherited=false)]
     public sealed class SourceFlowModuleAttribute : System.Attribute
     {

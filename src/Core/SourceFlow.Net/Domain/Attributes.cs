@@ -185,3 +185,22 @@ public sealed class RejectsAttribute : Attribute
     /// <summary>The rejection error code.</summary>
     public string Code { get; }
 }
+
+/// <summary>
+/// The static part of the assembly's service manifest (doc 15 §3): aggregates, commands with what they emit and
+/// reject, handled events, process managers and projections. Emitted by the generator; never write it by hand.
+/// <c>dotnet sourceflow manifest export</c> merges it with the routing configuration.
+/// </summary>
+[AttributeUsage(AttributeTargets.Assembly, Inherited = false)]
+public sealed class SourceFlowManifestAttribute : Attribute
+{
+    /// <summary>Records the manifest.</summary>
+    /// <param name="json">The manifest JSON (<c>manifestVersion: 1</c>).</param>
+    public SourceFlowManifestAttribute(string json)
+    {
+        Json = json;
+    }
+
+    /// <summary>The manifest JSON.</summary>
+    public string Json { get; }
+}

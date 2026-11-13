@@ -116,6 +116,70 @@ namespace SourceFlow.Generators
                         Emitters.Module(module, idModels, messageModels, aggregateModels, processModels, projectionModels, sessionProjectionModels, handlerModels.Distinct().ToImmutableArray(), queryModels));
                 }
             });
+
+            RegisterManifest(context);
+        }
+
+        // The static service manifest (doc 15 §3, WP-S.1). Its own models, so the dispatch outputs above stay cached
+        // when only a Decide body changes.
+        private static void RegisterManifest(IncrementalGeneratorInitializationContext context)
+        {
+            IncrementalValuesProvider<ManifestMessage> messages = context.SyntaxProvider
+                .ForAttributeWithMetadataName(KnownNames.MessageTypeAttribute, static (node, _) => node is TypeDeclarationSyntax, ManifestBuilder.Message)
+                .Where(static m => m is not null)!
+                .WithTrackingName("ManifestMessages")!;
+
+            IncrementalValuesProvider<ManifestAggregate> aggregates = context.SyntaxProvider
+                .ForAttributeWithMetadataName(KnownNames.AggregateAttribute, static (node, _) => node is TypeDeclarationSyntax, ManifestBuilder.Aggregate)
+                .Where(static m => m is not null)!
+                .WithTrackingName("ManifestAggregates")!;
+
+            IncrementalValuesProvider<ManifestProcess> processes = context.SyntaxProvider
+                .ForAttributeWithMetadataName(KnownNames.ProcessManagerAttribute, static (node, _) => node is TypeDeclarationSyntax, ManifestBuilder.Process)
+                .Where(static m => m is not null)!
+                .WithTrackingName("ManifestProcessManagers")!;
+
+            IncrementalValuesProvider<ManifestProjection> projections = context.SyntaxProvider
+                .ForAttributeWithMetadataName(KnownNames.ProjectionAttribute, static (node, _) => node is TypeDeclarationSyntax, ManifestBuilder.Projection)
+                .Where(static m => m is not null)!
+                .WithTrackingName("ManifestProjections")!;
+
+            IncrementalValuesProvider<ManifestHandler> handlers = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    static (node, _) => node is ClassDeclarationSyntax { BaseList: not null },
+                    static (ctx, ct) => ctx.SemanticModel.GetDeclaredSymbol((ClassDeclarationSyntax)ctx.Node, ct) is INamedTypeSymbol symbol
+                        ? ManifestBuilder.Handlers(symbol, ctx.SemanticModel.Compilation, ct).ToEquatableArray()
+                        : EquatableArray<ManifestHandler>.Empty)
+                .SelectMany(static (items, _) => items)
+                .WithTrackingName("ManifestHandlers");
+
+            IncrementalValueProvider<ManifestAssembly> assembly = context.CompilationProvider
+                .Select(ManifestBuilder.Assembly)
+                .WithTrackingName("ManifestAssembly");
+
+            var manifest = assembly
+                .Combine(messages.Collect())
+                .Combine(aggregates.Collect())
+                .Combine(handlers.Collect())
+                .Combine(processes.Collect())
+                .Combine(projections.Collect());
+
+            context.RegisterSourceOutput(manifest, static (spc, all) =>
+            {
+                ImmutableArray<ManifestProjection> projectionModels = all.Right;
+                ImmutableArray<ManifestProcess> processModels = all.Left.Right;
+                ImmutableArray<ManifestHandler> handlerModels = all.Left.Left.Right.Distinct().ToImmutableArray();
+                ImmutableArray<ManifestAggregate> aggregateModels = all.Left.Left.Left.Right;
+                ImmutableArray<ManifestMessage> messageModels = all.Left.Left.Left.Left.Right;
+                ManifestAssembly target = all.Left.Left.Left.Left.Left;
+                if (!target.CanEmit || !ManifestEmitter.HasContent(messageModels, aggregateModels, handlerModels, processModels, projectionModels))
+                {
+                    return;
+                }
+
+                string json = ManifestEmitter.Json(target, messageModels, aggregateModels, handlerModels, processModels, projectionModels);
+                spc.AddSource("SourceFlowManifest.g.cs", ManifestEmitter.Source(json));
+            });
         }
 
         private static IReadOnlyList<(string Command, string? Member)> Targeting(AggregateModel aggregate, ImmutableArray<MessageModel> messages)

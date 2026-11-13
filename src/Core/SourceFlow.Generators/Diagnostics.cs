@@ -67,6 +67,11 @@ namespace SourceFlow.Generators
             "Domain query '{0}': {1}",
             "SourceFlow.Query", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpBase);
 
+        public static readonly DiagnosticDescriptor UndeclaredOutcome = new(
+            "SF0019", "Decide outcome can't be determined",
+            "'{0}' for '{1}' {2}, so the service manifest can't list it (doc 15 §3.2)",
+            "SourceFlow.Manifest", DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpBase);
+
         public static readonly DiagnosticDescriptor NoOwner = new(
             "SF0006", "Command has no Decide or handler",
             "Command '{0}' targets '{1}' but has no Decide method and no ICommandHandler in this compilation; add one or route it (startup fails otherwise)",

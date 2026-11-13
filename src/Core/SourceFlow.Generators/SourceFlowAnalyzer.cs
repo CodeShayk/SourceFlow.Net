@@ -32,7 +32,8 @@ namespace SourceFlow.Generators
             Diagnostics.DomainQueryShape,
             Diagnostics.UnresolvableSubject,
             Diagnostics.PersonalDataPublishedAsIs,
-            Diagnostics.QueryablePersonalData);
+            Diagnostics.QueryablePersonalData,
+            Diagnostics.UndeclaredOutcome);
 
         /// <inheritdoc />
         public override void Initialize(AnalysisContext context)
@@ -104,6 +105,10 @@ namespace SourceFlow.Generators
                     {
                         context.ReportDiagnostic(Diagnostic.Create(Diagnostics.AsyncDecide, decide.Locations.FirstOrDefault() ?? location, type.Name));
                     }
+                    else if (decide.Parameters.Length == 2 && decide.Parameters[0].Type.Implements(KnownNames.Command))
+                    {
+                        AnalyzeOutcome(context, decide, type.Name + ".Decide", decide.Parameters[0].Type, location);
+                    }
                 }
 
                 foreach (IMethodSymbol when in type.GetMembers("When").OfType<IMethodSymbol>())
@@ -111,6 +116,19 @@ namespace SourceFlow.Generators
                     if (when.IsAsync)
                     {
                         context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ImpureWhen, when.Locations.FirstOrDefault() ?? location, type.Name, "it is async"));
+                    }
+                }
+            }
+
+            if (!type.IsAbstract)
+            {
+                foreach (INamedTypeSymbol contract in type.AllInterfaces.Where(i => SymbolExtensions.MetadataName(i) == KnownNames.CommandHandler))
+                {
+                    ITypeSymbol command = contract.TypeArguments[0];
+                    if (type.GetMembers("HandleAsync").OfType<IMethodSymbol>()
+                        .FirstOrDefault(m => m.Parameters.Length >= 1 && SymbolEqualityComparer.Default.Equals(m.Parameters[0].Type, command)) is { } handle)
+                    {
+                        AnalyzeOutcome(context, handle, type.Name + ".HandleAsync", command, location);
                     }
                 }
             }
@@ -407,6 +425,21 @@ namespace SourceFlow.Generators
             if (mutatesState)
             {
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ImpureWhen, context.Operation.Syntax.GetLocation(), method.ContainingType.Name, "it assigns state; return 'this with { … }' instead"));
+            }
+        }
+
+        // SF0019: a Decide (or command handler) whose events or rejection codes static analysis can't list.
+        private static void AnalyzeOutcome(SymbolAnalysisContext context, IMethodSymbol method, string name, ITypeSymbol command, Location fallback)
+        {
+            if (method.DeclaringSyntaxReferences.Length == 0)
+            {
+                return;
+            }
+
+            DecideOutcome outcome = ManifestAnalysis.Decide(method, context.Compilation, context.CancellationToken);
+            if (outcome.Unresolved is { } reason)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.UndeclaredOutcome, method.Locations.FirstOrDefault() ?? fallback, name, command.Name, reason));
             }
         }
 
