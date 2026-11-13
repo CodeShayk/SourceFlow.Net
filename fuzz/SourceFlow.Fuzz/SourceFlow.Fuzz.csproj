@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Fuzz harnesses (WP-5.5, doc 10 §7): every parser that reads untrusted bytes. libFuzzer mode through SharpFuzz (the
+    weekly workflow instruments the SourceFlow assemblies and runs each target for 2 hours), and an in-process mutation
+    mode for quick local runs. SourceFlow.Fuzz.Tests runs every target's seeds and mutations on each PR. See README.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1515;CA2007</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <ProjectReference Include="..\..\src\Cloud\SourceFlow.Cloud.Aws\SourceFlow.Cloud.Aws.csproj" />
+    <ProjectReference Include="..\..\src\Cloud\SourceFlow.Cloud.Gcp\SourceFlow.Cloud.Gcp.csproj" />
+    <ProjectReference Include="..\..\src\Cloud\SourceFlow.Cloud.Azure\SourceFlow.Cloud.Azure.csproj" />
+    <ProjectReference Include="..\..\samples\Bank\Bank.Contracts\Bank.Contracts.csproj" />
+    <ProjectReference Include="..\..\samples\Bank\Bank.Accounts\Bank.Accounts.csproj" />
+    <ProjectReference Include="..\..\samples\Bank\Bank.Transfers\Bank.Transfers.csproj" />
+    <PackageReference Include="SharpFuzz" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+</Project>

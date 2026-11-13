@@ -57,6 +57,9 @@
   <Folder Name="/tests/Architecture/">
     <Project Path="tests/Architecture/SourceFlow.Architecture.Tests/SourceFlow.Architecture.Tests.csproj" />
   </Folder>
+  <Folder Name="/tests/Fuzz/">
+    <Project Path="tests/Fuzz/SourceFlow.Fuzz.Tests/SourceFlow.Fuzz.Tests.csproj" />
+  </Folder>
   <Folder Name="/samples/Bank/">
     <Project Path="samples/Bank/Bank.Contracts/Bank.Contracts.csproj" />
     <Project Path="samples/Bank/Bank.Accounts/Bank.Accounts.csproj" />
@@ -69,6 +72,9 @@
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/SourceFlow.Benchmarks/SourceFlow.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/fuzz/">
+    <Project Path="fuzz/SourceFlow.Fuzz/SourceFlow.Fuzz.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/CoverageGate/CoverageGate.csproj" />

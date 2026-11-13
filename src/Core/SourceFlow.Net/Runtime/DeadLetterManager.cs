@@ -4,7 +4,7 @@ namespace SourceFlow.Runtime;
 
 /// <summary>
 /// Operator actions on parked messages (doc 04 §9.3): list and filter, show, replay, discard and purge. Replays and discards
-/// are audited with a note and counted (<c>sourceflow.deadletter.replayed</c>, <c>sourceflow.deadletter.discarded</c>).
+/// are audited with a note (prefixed with the actor: <c>by {actor}: {note}</c>) and counted (<c>sourceflow.deadletter.replayed</c>, <c>sourceflow.deadletter.discarded</c>).
 /// </summary>
 public interface IDeadLetterManager
 {
@@ -59,7 +59,7 @@ internal sealed class DeadLetterManager(SourceFlowRuntime runtime) : IDeadLetter
             await runtime.Transport.SendAsync(deadLetter.Destination, [deadLetter.Envelope], cancellationToken).ConfigureAwait(false);
         }
 
-        await runtime.Storage.DeadLetters.SetStatusAsync(id, DeadLetterStatus.Replayed, note, cancellationToken).ConfigureAwait(false);
+        await runtime.Storage.DeadLetters.SetStatusAsync(id, DeadLetterStatus.Replayed, Audited(note), cancellationToken).ConfigureAwait(false);
         runtime.Metrics.DeadLettersReplayed.Add(1, new KeyValuePair<string, object?>(Diagnostics.SourceFlowTelemetry.Tags.Consumer, deadLetter.Consumer));
     }
 
@@ -68,8 +68,19 @@ internal sealed class DeadLetterManager(SourceFlowRuntime runtime) : IDeadLetter
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         DeadLetter deadLetter = await runtime.Storage.DeadLetters.GetAsync(id, cancellationToken).ConfigureAwait(false)
             ?? throw new KeyNotFoundException($"Dead letter {id} does not exist.");
-        await runtime.Storage.DeadLetters.SetStatusAsync(id, DeadLetterStatus.Discarded, reason, cancellationToken).ConfigureAwait(false);
+        await runtime.Storage.DeadLetters.SetStatusAsync(id, DeadLetterStatus.Discarded, Audited(reason), cancellationToken).ConfigureAwait(false);
         runtime.Metrics.DeadLettersDiscarded.Add(1, new KeyValuePair<string, object?>(Diagnostics.SourceFlowTelemetry.Tags.Consumer, deadLetter.Consumer));
+    }
+
+    // Repudiation (doc 10 §1): the note records who replayed or discarded, from IActorAccessor (the CLI adds the operator).
+    private string? Audited(string? note)
+    {
+        if (runtime.Actor.Actor is not { Length: > 0 } actor || note?.StartsWith("by ", StringComparison.Ordinal) == true)
+        {
+            return note;
+        }
+
+        return string.IsNullOrWhiteSpace(note) ? "by " + actor : "by " + actor + ": " + note;
     }
 
     public ValueTask<DeadLetter?> GetAsync(Guid id, CancellationToken cancellationToken = default)

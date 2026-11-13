@@ -1,0 +1,81 @@
+# v3 weekly (implementation plan 08 §1): coverage-guided fuzzing of every parser that reads untrusted bytes, 2 hours per
+# target (doc 10 §7, WP-5.5). Mutation testing and the licence report join this workflow with their work packages.
+name: v3-weekly
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: "Fuzzing time per target, in seconds"
+        default: "7200"
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "true"
+  # libFuzzer driver for SharpFuzz, built from source at a pinned release (no prebuilt binary is downloaded).
+  LIBFUZZER_DOTNET_REF: v2025.05.02.0904
+  SHARPFUZZ_VERSION: 2.3.0
+
+jobs:
+  fuzz:
+    name: fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - cloudevents-binary
+          - cloudevents-structured
+          - aws-wire
+          - gcp-wire
+          - azure-wire
+          - registry
+          - protected-payload
+          - personal-data
+          - sfql
+          - sql
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build libfuzzer-dotnet
+        run: |
+          git clone --depth 1 --branch "$LIBFUZZER_DOTNET_REF" https://github.com/Metalnem/libfuzzer-dotnet.git "$RUNNER_TEMP/libfuzzer-dotnet"
+          clang -fsanitize=fuzzer "$RUNNER_TEMP/libfuzzer-dotnet/libfuzzer-dotnet.cc" -o "$RUNNER_TEMP/libfuzzer-dotnet/libfuzzer-dotnet"
+
+      - name: Publish and instrument the harness
+        run: |
+          dotnet tool install --global SharpFuzz.CommandLine --version "$SHARPFUZZ_VERSION"
+          dotnet publish fuzz/SourceFlow.Fuzz -c Release -o fuzz-bin
+          # Instrument SourceFlow and the sample domain only: the harness and SDK assemblies don't need coverage.
+          for dll in fuzz-bin/SourceFlow.*.dll fuzz-bin/Bank.*.dll; do
+            case "$dll" in *SourceFlow.Fuzz.dll|*SourceFlow.Generators.dll) continue ;; esac
+            sharpfuzz "$dll"
+          done
+          dotnet fuzz-bin/SourceFlow.Fuzz.dll corpus corpus
+
+      - name: Fuzz ${{ matrix.target }}
+        env:
+          SOURCEFLOW_FUZZ_TARGET: ${{ matrix.target }}
+        run: |
+          mkdir -p findings
+          "$RUNNER_TEMP/libfuzzer-dotnet/libfuzzer-dotnet" \
+            --target_path=dotnet --target_arg=fuzz-bin/SourceFlow.Fuzz.dll \
+            -max_total_time="${{ github.event.inputs.seconds || '7200' }}" -timeout=10 -rss_limit_mb=4096 \
+            -artifact_prefix=findings/ -dict="corpus/${{ matrix.target }}.dict" \
+            "corpus/${{ matrix.target }}"
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-findings-${{ matrix.target }}
+          path: findings/

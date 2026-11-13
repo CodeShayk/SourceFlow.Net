@@ -154,6 +154,7 @@ public sealed class CliTests
         Guid id = await ParkAsync(host);
 
         (int discarded, _, _) = await RunAsync(host, "dlq", "discard", id.ToString(), "--reason", "obsolete");
+        (await host.Store.GetAsync(id, Ct))!.StatusNote.ShouldBe($"by {Environment.UserName}@{Environment.MachineName}: obsolete");
         (int purged, string output, _) = await RunAsync(host, "dlq", "purge", "--before", host.Time.GetUtcNow().AddMinutes(1).ToString("O"));
 
         discarded.ShouldBe(0);
@@ -176,7 +177,8 @@ public sealed class CliTests
         code.ShouldBe(0);
         output.ShouldContain("Skipped the event at");
         (await host.Store.GetAsync(Summary, 0, Ct)).ShouldNotBe(GlobalPosition.Start);
-        (await host.Store.QueryAsync(new DeadLetterQuery(Status: DeadLetterStatus.Discarded), Ct)).ShouldHaveSingleItem().StatusNote.ShouldBe("skipped: bad data");
+        (await host.Store.QueryAsync(new DeadLetterQuery(Status: DeadLetterStatus.Discarded), Ct)).ShouldHaveSingleItem().StatusNote
+            .ShouldBe($"skipped: by {Environment.UserName}@{Environment.MachineName}: bad data");   // the operator is recorded (doc 10 §1)
     }
 
     [Fact]

@@ -131,10 +131,25 @@ public static class CloudEvents
     }
 
     /// <summary>Maps binary-mode attributes and a body back to an envelope.</summary>
-    /// <exception cref="FormatException">A required attribute is missing or invalid.</exception>
+    /// <exception cref="FormatException">
+    /// A required attribute is missing, or an attribute is invalid (the only exception for malformed input, so a receiver
+    /// that catches it can't be stopped by a crafted message).
+    /// </exception>
     public static MessageEnvelope FromAttributes(IReadOnlyDictionary<string, string> attributes, ReadOnlyMemory<byte> body)
     {
         ArgumentNullException.ThrowIfNull(attributes);
+        try
+        {
+            return DecodeAttributes(attributes, body);
+        }
+        catch (Exception e) when (IsMalformed(e))
+        {
+            throw new FormatException("The CloudEvents attributes are malformed: " + e.Message, e);
+        }
+    }
+
+    private static MessageEnvelope DecodeAttributes(IReadOnlyDictionary<string, string> attributes, ReadOnlyMemory<byte> body)
+    {
         var all = new Dictionary<string, string>(attributes, StringComparer.Ordinal);
         if (all.Remove(OverflowAttribute, out string? overflow))
         {
@@ -210,9 +225,31 @@ public static class CloudEvents
     }
 
     /// <summary>Reads a structured-mode CloudEvents JSON document.</summary>
+    /// <exception cref="FormatException">The document is not a valid CloudEvent (the only exception for malformed input).</exception>
     public static MessageEnvelope FromStructured(ReadOnlyMemory<byte> document)
     {
-        using JsonDocument json = JsonDocument.Parse(document);
+        try
+        {
+            return DecodeStructured(document);
+        }
+        catch (Exception e) when (IsMalformed(e))
+        {
+            throw new FormatException("The structured CloudEvent is malformed: " + e.Message, e);
+        }
+    }
+
+    // Wire JSON (doc 10 §2): a duplicated attribute ("type" twice) is rejected, not resolved by the last one winning.
+    private static readonly JsonDocumentOptions Strict = new() { AllowDuplicateProperties = false, MaxDepth = 64 };
+
+    // What System.Text.Json and the primitive parsers throw for malformed input (FormatException passes through).
+    private static bool IsMalformed(Exception e)
+    {
+        return e is JsonException or InvalidOperationException or OverflowException or (ArgumentException and not ArgumentNullException);
+    }
+
+    private static MessageEnvelope DecodeStructured(ReadOnlyMemory<byte> document)
+    {
+        using JsonDocument json = JsonDocument.Parse(document, Strict);
         var attributes = new Dictionary<string, string>(StringComparer.Ordinal);
         ReadOnlyMemory<byte> body = ReadOnlyMemory<byte>.Empty;
         foreach (JsonProperty property in json.RootElement.EnumerateObject())
@@ -266,7 +303,7 @@ public static class CloudEvents
 
     private static Dictionary<string, string> ReadObject(string json)
     {
-        using JsonDocument document = JsonDocument.Parse(json);
+        using JsonDocument document = JsonDocument.Parse(json, Strict);
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (JsonProperty property in document.RootElement.EnumerateObject())
         {

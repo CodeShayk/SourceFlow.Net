@@ -4,7 +4,7 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 
 ## Progress summary
 
-Updated 2026-11-13. **48 of 63 work packages are done (76%)**, 1 in progress and 14 not started. By estimated effort, 104.5 of 138.5 engineer-weeks are done (75%).
+Updated 2026-11-13. **49 of 63 work packages are done (78%)**, 1 in progress and 13 not started. By estimated effort, 106 of 138.5 engineer-weeks are done (77%).
 
 | Milestone | Done | In progress | Todo | Effort done (ew) |
 |-----------|------|-------------|------|------------------|
@@ -13,7 +13,7 @@ Updated 2026-11-13. **48 of 63 work packages are done (76%)**, 1 in progress and
 | M2 PostgreSQL | 11 | 0 | 0 | 19 of 19 |
 | M3 Cloud transports | 6 | 1 | 0 | 18.5 of 19 |
 | M4 Tooling and operations | 7 | 0 | 0 | 16.5 of 16.5 |
-| M5 Security and migration | 4 | 0 | 1 | 9.5 of 11 |
+| M5 Security and migration | 5 | 0 | 0 | 11 of 11 |
 | Track S: Workflow DSL and Studio | 0 | 0 | 13 | 0 of 32 |
 
 Completed in this round:
@@ -43,10 +43,17 @@ Completed in this round:
 - WP-5.1: payload protection (AES-256-GCM envelope encryption in the outbox and on the wire) with AWS KMS, Azure Key Vault and Google Cloud KMS key providers.
 - WP-5.2: crypto-shredding: `[PersonalData]` encrypted per subject in events and snapshots, and an eraser that destroys the key, deletes snapshots and scrubs documents.
 - WP-5.4: the v2 migration (`migrate v2 plan|scaffold|import|archive|verify`), which imports v2 current state as genesis events, and the AWS v2 wire bridge.
+- WP-5.5: fuzz harnesses for every untrusted-input parser (four contract breaks found and fixed), the security review against the threat model, an append-only runtime role script, and SBOMs, signing and provenance in the release pipeline.
 
 WP-3.R is in progress. M2 (PostgreSQL) is complete; M3 is under way: WP-3.1, all three cloud transports (WP-3.2..3.4), provisioning, export and IaC (WP-3.5) and the cross-service E2E per transport (WP-3.6) are done; retiring the v2 cloud providers (WP-3.R) is in progress: Google Cloud and AWS are retired, and archiving the `azure-cloud` branch waits on the maintainer. M4 (operations, SQL Server, scale) is complete.
 
-Not started: fuzzing and the security review (WP-5.5), and the whole Studio track.
+M5 (security and migration) is built. Its exit criteria still need three things:
+
+- the first 2-hour libFuzzer run per target in CI;
+- the signing certificate;
+- the maintainer's sign-off of `docs/v3.0.0/implementation/security-review.md`.
+
+Not started: the whole Studio track.
 
 | WP | Title | Estimate (ew) | Status | Notes |
 |----|-------|---------------|--------|-------|
@@ -99,7 +106,7 @@ Not started: fuzzing and the security review (WP-5.5), and the whole Studio trac
 | WP-5.2 | Crypto-shredding | 3 | done | Opt-in `s.EncryptPersonalData()`: `[PersonalData(Subject = …)]` members encrypted per subject (AES-256-GCM, `{"$pd":…}` markers, associated data `subject|path`) after serialization, in events and snapshots; DEKs wrapped by the key provider in `data_keys`, `subject_streams` recorded before the commit; decryption in the aggregate store, subscriptions, `IAggregateReader` and the SFQL fold; `IPersonalDataEraser` (shred the key, delete snapshots and evict cached states, scrub `[PersonalData]` members of document projections, append `PersonalDataErased`); erased members read `[erased]`/0/false/null, new data for an erased subject is stored erased. `IPersonalDataKeyStore` in the in-memory, PostgreSQL and SQL Server stores; `ISnapshotStore.DeleteAsync`. Analyzers SF0011, SF0013, SF0017. Tests: UT-PII-01..24 (core, key store conformance on three stores, analyzers), E2E-29..31 on PostgreSQL and SQL Server. SFQL `from events` returns encrypted fields as markers (doc 10 §4 as built) |
 | WP-5.3 | Redaction wiring | 0.5 | done | SourceFlow taxonomy (`SourceFlowTaxonomy.PersonalData`/`Secret`); `[PersonalData]` and `[Secret]` are `DataClassificationAttribute`s; `UseRedaction(...)` with Erasing as the default and HMAC as an option; `LogPayloads` (off by default) logs parked payloads with classified members redacted. UT-RED-01..06 |
 | WP-5.4 | v2 migration tool + v2 wire bridge | 3 | done | Core `SourceFlow.Migration`: `sf.MigrateFromV2(…)`, `V2Source` (plain SQL over a `DbDataSource`, PostgreSQL and SQL Server), `IV2Entity<TSelf>` rows with `V2Row` conversions, `IV2Import<TV2Entity, TAggregate, TId>` (`MapId`, `ToEvents`, `Compare`, optional `OwnsCommand`; the id type is a third type parameter), `V2Ids.FromLegacy` (UUIDv5). `dotnet sourceflow migrate v2 plan` (counts, GAP-20 id-0 and GAP-04 empty/declared commands, estimate, exit 1 for tables without an import), `scaffold` (row type and stub from `INFORMATION_SCHEMA`), `import` (keyset batches, one session per stream, `NoStream`, deterministic event ids, headers `migratedFrom`/`v2CommandCount`/`v2LastSequenceNo`/`v2Id`, encryption and inline projections, not published, `--limit` waves), `archive` (read-only `sourceflow_v2_archive.commands`), `verify` (exit 1 on mismatch). AWS bridge `AcceptV2Messages` (`V2MessageMap` allow-list, UUIDv5 message ids, SNS-wrapped events, unmapped parked as `UnknownMessageType`, off by default). Tests: MIG-01..09 on PostgreSQL and SQL Server, MIG-10..12 on LocalStack, UT-MIG-01..06, UT-AWS-31..33. Guide `docs/v3.0.0/guides/migrating-from-v2.md` |
-| WP-5.5 | Fuzzing + security review | 1.5 | todo | |
+| WP-5.5 | Fuzzing + security review | 1.5 | done | `fuzz/SourceFlow.Fuzz` (SharpFuzz libFuzzer mode and an in-process mutator): 10 targets (CloudEvents binary/structured, AWS/Google Cloud/Azure wire decoders with the v2 bridge, registry lookup + deserialization, protected-payload decoder, personal-data markers, SFQL and SQL parsers with the request guard), seeds from the real encoders. Found and fixed: a malformed CloudEvents attribute escaped as `JsonException`/`OverflowException` and stopped receivers (F-01); generated id converters leaked `FormatException` (F-02); invalid UTF-8 and lone surrogates in personal data leaked `InvalidOperationException` (F-03); duplicate CloudEvents properties (F-04). About 100M inputs after the fixes, no findings. Security review `docs/v3.0.0/implementation/security-review.md` against doc 10 §1, §2 and §7: `db script --grants` append-only runtime role (PostgreSQL, F-05), operator identity on dead-letter audits (F-06), doc corrections (F-07, F-08), open items O-1..O-6. CI: `v3-weekly.yml` (2 h libFuzzer per target), `v3-release.yml` (CycloneDX SBOM per package, NuGet author signing, provenance attestation, protected nuget.org publishing), `v3-scorecard.yml`, dependency review in `v3-pr.yml`, `renovate.json`. Tests: UT-FUZZ-01..04 and 10..20, UT-AWS-34, SEC-REV-01..02. Pending maintainer action: review sign-off, signing certificate, first weekly run |
 | WP-S.1 | Static manifest emission | 2 | todo | |
 | WP-S.2 | Design-time manifest export + workspace | 1.5 | todo | |
 | WP-S.3 | DSL core: model, reader, schema, validator | 3.5 | todo | |

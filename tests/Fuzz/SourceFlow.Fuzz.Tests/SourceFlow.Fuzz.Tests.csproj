@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- UT-FUZZ-10..19 (WP-5.5): every fuzz target's seeds and a bounded, seeded mutation run on each PR. The 2-hour
+       coverage-guided runs are libFuzzer in v3-weekly.yml (fuzz/README.md). -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\fuzz\SourceFlow.Fuzz\SourceFlow.Fuzz.csproj" />
+  </ItemGroup>
+</Project>

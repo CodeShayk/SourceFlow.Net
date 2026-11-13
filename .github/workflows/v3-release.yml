@@ -1,0 +1,144 @@
+# v3 release (implementation plan 08 §6, doc 10 §7, WP-5.5): pack, SBOM, sign, attest, publish.
+#   push to v3.0.0         3.0.0-alpha.<run> packages on GitHub Packages (signed when the certificate is configured)
+#   tag v3.0.0-rc.N, v3.*  GitHub Packages and nuget.org, and a GitHub release with the SBOMs; author signing is required
+# Secrets: NUGET_SIGNING_CERTIFICATE (base64 PFX) and NUGET_SIGNING_PASSWORD (repository); NUGET_API_KEY in the
+# protected 'nuget-release' environment, so publishing to nuget.org needs a release approver.
+name: v3-release
+
+on:
+  push:
+    branches: [ "v3.0.0" ]
+    tags: [ "v3.*" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write       # the GitHub release on tags
+  packages: write       # alpha packages on GitHub Packages
+  id-token: write       # Sigstore (keyless) attestations
+  attestations: write
+
+concurrency:
+  group: v3-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: "true"
+  CYCLONEDX_VERSION: 6.3.1
+  TIMESTAMPER: http://timestamp.digicert.com
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            version="3.0.0-alpha.${GITHUB_RUN_NUMBER}"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$([[ "$version" == *-* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      # Deterministic, CI (ContinuousIntegrationBuild, embedded untracked sources) and SourceLink builds: Directory.Build.props.
+      - name: Build
+        run: dotnet build SourceFlow.slnx -c Release -warnaserror -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Unit tests
+        run: >-
+          dotnet test --solution SourceFlow.slnx -c Release --no-build --ignore-exit-code 8
+          --filter-trait "Category=Unit" --filter-not-trait "Requires=Docker"
+
+      - name: Pack
+        run: dotnet pack SourceFlow.slnx -c Release --no-build -p:Version=${{ steps.version.outputs.version }} -o artifacts
+
+      - name: SBOM (CycloneDX, one per package)
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet tool install --global CycloneDX --version "$CYCLONEDX_VERSION"
+          mkdir -p artifacts/sbom
+          for project in $(find src -name '*.csproj' | sort); do
+            name=$(basename "$project" .csproj)
+            [[ -f "artifacts/$name.${{ steps.version.outputs.version }}.nupkg" ]] || continue   # only shipped packages
+            dotnet-CycloneDX "$project" -o artifacts/sbom -fn "$name.cdx.json" -F Json -st Library \
+              -sn "$name" -sv "${{ steps.version.outputs.version }}" -dpr
+          done
+          ls -l artifacts/sbom
+
+      - name: Author signing
+        shell: bash
+        env:
+          CERTIFICATE: ${{ secrets.NUGET_SIGNING_CERTIFICATE }}
+          PASSWORD: ${{ secrets.NUGET_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$CERTIFICATE" ]]; then
+            if [[ "${{ steps.version.outputs.release }}" == "true" ]]; then
+              echo "::error::Release tags need NUGET_SIGNING_CERTIFICATE (doc 10 §7: packages are author-signed)."
+              exit 1
+            fi
+            echo "::warning::NUGET_SIGNING_CERTIFICATE is not configured: alpha packages are unsigned (they still carry provenance attestations)."
+            exit 0
+          fi
+          echo "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/signing.pfx"
+          dotnet nuget sign artifacts/*.nupkg --certificate-path "$RUNNER_TEMP/signing.pfx" --certificate-password "$PASSWORD" --timestamper "$TIMESTAMPER" --overwrite
+          dotnet nuget verify --all artifacts/*.nupkg
+          rm -f "$RUNNER_TEMP/signing.pfx"
+
+      - name: Provenance attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "artifacts/*.nupkg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ steps.version.outputs.version }}
+          path: artifacts
+
+      - name: Publish to GitHub Packages
+        run: >-
+          dotnet nuget push "artifacts/*.nupkg" --skip-duplicate
+          --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+          --api-key "${{ secrets.GITHUB_TOKEN }}"
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+
+  publish:
+    # Release tags only: nuget.org and the GitHub release, behind the environment's required reviewers.
+    needs: release
+    if: needs.release.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    environment: nuget-release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-${{ needs.release.outputs.version }}
+          path: artifacts
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Publish to nuget.org
+        run: dotnet nuget push "artifacts/*.nupkg" --skip-duplicate --source https://api.nuget.org/v3/index.json --api-key "${{ secrets.NUGET_API_KEY }}"
+      - name: GitHub release with the SBOMs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          flags=(--repo "$GITHUB_REPOSITORY" --generate-notes --title "SourceFlow.Net ${{ needs.release.outputs.version }}")
+          [[ "${{ needs.release.outputs.prerelease }}" == "true" ]] && flags+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" artifacts/*.nupkg artifacts/*.snupkg artifacts/sbom/*.cdx.json "${flags[@]}"

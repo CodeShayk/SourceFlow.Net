@@ -1,0 +1,30 @@
+# OpenSSF Scorecard (doc 10 §7: target score ≥ 7). Results go to code scanning.
+name: v3-scorecard
+
+on:
+  schedule:
+    - cron: "30 4 * * 1"
+  push:
+    branches: [ "v3.0.0" ]
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # upload the SARIF
+      id-token: write          # publish the results
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ossf/scorecard-action@v2.4.0
+        with:
+          results_file: scorecard.sarif
+          results_format: sarif
+          publish_results: true
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: scorecard.sarif

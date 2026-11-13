@@ -22,6 +22,16 @@ env:
   TEST_ARGS: "-c Release --no-build --ignore-exit-code 8 --coverage --coverage-output-format cobertura --report-trx"
 
 jobs:
+  dependency-review:
+    # Doc 10 §7: new or updated dependencies with known vulnerabilities fail the PR.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+
   build:
     name: build (${{ matrix.os == 'ubuntu-latest' && 'ubuntu' || 'windows' }})
     strategy:

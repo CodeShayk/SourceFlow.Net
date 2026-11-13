@@ -97,6 +97,26 @@ public sealed class AwsV2BridgeTests
         (await receiver.ReceiveAsync(10, TimeSpan.Zero, CancellationToken.None)).ShouldBeEmpty();
     }
 
+    [Fact]
+    [Trait("Id", "UT-AWS-34")]
+    [Trait("Covers", "doc 10 1;doc 10 7")]
+    public async Task APoisonMessage_WithMalformedCloudEventsAttributes_DoesNotStopTheReceiver()
+    {
+        // WP-5.5 fuzzing: malformed JSON in ce_sfheaders escaped CloudEvents.FromAttributes as JsonException, so every
+        // receive that returned the message threw. It is now a FormatException: the message is left for the redrive policy.
+        var mocks = new AwsMocks("orders");
+        Message good = AwsMocks.Message(AwsMocks.Envelope());
+        Message poison = AwsMocks.Message(AwsMocks.Envelope());
+        poison.ReceiptHandle = "rh-poison";
+        poison.MessageAttributes["ce_sfheaders"] = new MessageAttributeValue { DataType = "String", StringValue = "{\"h\u001e\":" };
+        mocks.Deliver(poison, good);
+        await using ITransportReceiver receiver = await mocks.Transport.CreateReceiverAsync(new ReceiverOptions("orders", []), CancellationToken.None);
+
+        IReadOnlyList<ReceivedMessage> received = await receiver.ReceiveAsync(10, TimeSpan.Zero, CancellationToken.None);
+
+        received.ShouldHaveSingleItem().Envelope.MessageId.ShouldBe(AwsWire.Decode(good.MessageAttributes.ToDictionary(a => a.Key, a => a.Value.StringValue), good.Body).MessageId);
+    }
+
     private static Message V2Command(string id, string type, string body)
     {
         return new Message

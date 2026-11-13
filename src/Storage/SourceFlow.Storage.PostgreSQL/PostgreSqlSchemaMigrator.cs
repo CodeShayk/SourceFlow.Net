@@ -251,6 +251,44 @@ public sealed class PostgreSqlSchemaMigrator
         return sql.Append("COMMIT;\n").ToString();
     }
 
+    /// <summary>
+    /// Least-privilege grants for the runtime role (doc 10 §1, <c>db script --grants</c>): DML on the SourceFlow tables, but
+    /// <c>events</c> (and every events partition) is append-only, so the runtime can't edit or delete history. The
+    /// migration role (the owner) keeps the DDL. Run it after every migration that adds tables.
+    /// </summary>
+    /// <param name="role">The runtime role.</param>
+    /// <remarks>
+    /// With <c>PartitionEvents</c>, the runtime role can't create partitions: run <c>db partitions ensure</c> as the owner
+    /// on a schedule (the default privileges below make the new partitions append-only for the role as well).
+    /// </remarks>
+    public string GrantsScript(string role)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(role);
+        string r = "\"" + role.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+        string roleLiteral = role.Replace("'", "''", StringComparison.Ordinal);
+        return $"""
+            -- Least-privilege grants for the SourceFlow runtime role {r} on {Quoted} (doc 10 §1). Re-run after migrations.
+            BEGIN;
+            GRANT USAGE ON SCHEMA {Quoted} TO {r};
+            GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {Quoted} TO {r};
+            GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA {Quoted} TO {r};
+            GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA {Quoted} TO {r};
+            -- Events are append-only: no UPDATE, DELETE or TRUNCATE on the table or any of its partitions.
+            DO $sf$
+            DECLARE t regclass;
+            BEGIN
+              FOR t IN SELECT '{Quoted.Replace("'", "''", StringComparison.Ordinal)}.events'::regclass
+                       UNION SELECT inhrelid::regclass FROM pg_inherits WHERE inhparent = '{Quoted.Replace("'", "''", StringComparison.Ordinal)}.events'::regclass
+              LOOP
+                EXECUTE format('REVOKE UPDATE, DELETE, TRUNCATE ON %s FROM %I', t, '{roleLiteral}');
+              END LOOP;
+            END $sf$;
+            -- Tables the owner creates later (events partitions) are append-only for the role too.
+            ALTER DEFAULT PRIVILEGES IN SCHEMA {Quoted} GRANT SELECT, INSERT ON TABLES TO {r};
+            COMMIT;
+            """;
+    }
+
     // FORCE makes the policies apply to the table owner too; only superusers and BYPASSRLS roles skip them.
     private string? IsolationSql(IReadOnlyList<string> tables)
     {

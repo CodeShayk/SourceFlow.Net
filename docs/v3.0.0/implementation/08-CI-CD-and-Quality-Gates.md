@@ -70,7 +70,26 @@ flowchart LR
 
 All three move to `.github/emulators/<name>/` (WP-0.3). Tests prefer the Testcontainers modules where they exist and fall back to the compose files otherwise.
 
+**As built (WP-5.5).**
+
+- **`v3-weekly.yml`** runs the fuzzing job. Each target gets 2 hours of libFuzzer through SharpFuzz; `libfuzzer-dotnet` is built from source at a pinned release. Mutation testing and the licence report come with their own work packages.
+- **`v3-scorecard.yml`** runs the OpenSSF Scorecard.
+- **`v3-pr.yml`** adds a `dependency-review` job.
+
 ## 6. Release pipeline (`v3-release.yml`)
+
+**As built (WP-5.5).** One workflow with two jobs.
+
+- **`release`** runs on every push to `v3.0.0` and on `v3.*` tags.
+  - **Version.** A tag sets it; a push builds `3.0.0-alpha.<run>`.
+  - **Steps.** Build with `-warnaserror`, run the unit tests, then pack.
+  - **SBOMs.** One CycloneDX SBOM per package.
+  - **Signing.** NuGet author signing; release tags fail without the certificate.
+  - **Provenance.** A Sigstore provenance attestation for every package.
+  - **Publishing.** Packages go to GitHub Packages.
+- **`publish`** runs for tags only, in the protected `nuget-release` environment. It pushes to nuget.org and creates the GitHub release, with generated notes and the SBOMs.
+- **Versioning.** GitVersion is not used; the run number versions the alphas. The full PR gate runs in `v3-pr.yml` on the same push.
+
 
 | Stage | On `v3.0.0` push | On `v3.0.0-rc.*` tag | On `v3.0.0` tag (`master`, after cutover) |
 |-------|------------------|----------------------|-------------------------------------------|

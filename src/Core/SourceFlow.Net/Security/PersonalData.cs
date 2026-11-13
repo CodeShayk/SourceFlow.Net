@@ -196,6 +196,7 @@ public sealed class PersonalDataProtector : IDisposable
 
     /// <summary>Decrypts every personal data marker in a JSON body; erased subjects' members read as erased values.</summary>
     /// <exception cref="DecryptionFailedException">A marker is malformed or was altered.</exception>
+    /// <exception cref="JsonException">The body is not valid JSON (or not valid UTF-8).</exception>
     public async ValueTask<ReadOnlyMemory<byte>> UnprotectAsync(ReadOnlyMemory<byte> json, CancellationToken cancellationToken)
     {
         if (json.Span.IndexOf(MarkerBytes) < 0)
@@ -203,14 +204,28 @@ public sealed class PersonalDataProtector : IDisposable
             return json;   // the common case: no personal data, no parse
         }
 
-        JsonNode? root = JsonNode.Parse(json.Span);
-        if (root is null)
+        // JsonNode transcodes strings lazily, so invalid UTF-8 would surface later as InvalidOperationException (WP-5.5).
+        if (!System.Text.Unicode.Utf8.IsValid(json.Span))
         {
-            return json;
+            throw new JsonException("The body holding personal data is not valid UTF-8.");
         }
 
-        await RestoreAsync(root, [], cancellationToken).ConfigureAwait(false);
-        return Encoding.UTF8.GetBytes(root.ToJsonString());
+        try
+        {
+            JsonNode? root = JsonNode.Parse(json.Span);
+            if (root is null)
+            {
+                return json;
+            }
+
+            await RestoreAsync(root, [], cancellationToken).ConfigureAwait(false);
+            return Encoding.UTF8.GetBytes(root.ToJsonString());
+        }
+        catch (InvalidOperationException e)
+        {
+            // JsonNode reads strings lazily: an escape that isn't valid UTF-16 (a lone surrogate) surfaces here (WP-5.5).
+            throw new JsonException("The body holding personal data is not valid JSON: " + e.Message, e);
+        }
     }
 
     /// <summary>Unprotects a stored event's data.</summary>

@@ -291,6 +291,10 @@ These are additional to the SCK, which the in-memory store also runs.
 | UT-PII-01..18 | Core + generator | `[PersonalData]` encrypted per subject; erase → `[erased]`; `$personal-data.erased` event; document scrubbing; snapshot deletion via `subject_streams`; SF0011/13/17 | → `SensitiveDataMaskerTests` (concept moves) |
 | UT-RED-01..06 | Core | Taxonomy mapping; redactor per environment; `LogPayloads` gating | → `SensitiveDataMaskerTests` |
 | UT-MIG-01..06 | Core (`SourceFlow.Migration`) | v2 migration (WP-5.4): UUIDv5 id map; v2 type-name normalization; `V2Row` conversions across providers; the v2 message allow-list (deterministic ids, converters, unmapped marking); configuration errors | new |
+| UT-FUZZ-01..04 | Core + generator | Fuzzing regressions (WP-5.5): CloudEvents decoders reject malformed and duplicated attributes only with `FormatException`; generated id converters and the personal-data decoder reject malformed input with `JsonException` | new |
+| UT-FUZZ-10..20 | Fuzz | Every fuzz target's seeds and 25,000 seeded mutations (`tests/Fuzz/SourceFlow.Fuzz.Tests`); every target covered | new |
+| SEC-REV-01..02 | PostgreSQL, Core | Security review (WP-5.5): the runtime role from `db script --grants` can't edit events, plain or partitioned; dead-letter operations record the actor | new |
+| UT-AWS-34 | AmazonSqs | A poison message with a malformed CloudEvents attribute doesn't stop the receiver (F-01) | new |
 | UT-AWS-31..33 | AmazonSqs | v2 wire bridge (WP-5.4): reading the v2 attribute shape and SNS notifications; mapped and unmapped v2 messages on the receiver; off by default | new |
 
 > **As built (WP-3.2).** UT-AWS-04 (FIFO/standard compatibility, FIFO resources) and UT-AWS-05 (GAP-02) run on LocalStack (`Requires=LocalStack`); the rest use substitute SQS/SNS clients. The overflow attribute is `ce_sfext` (CloudEvents attributes are `ce_*`), and UT-AWS-29 covers the receiver's per-topic evaluation of filters SNS cannot express.

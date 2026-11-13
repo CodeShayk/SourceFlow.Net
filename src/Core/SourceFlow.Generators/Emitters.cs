@@ -81,17 +81,22 @@ namespace SourceFlow.Generators
             w.Line();
             w.Line($"/// <summary>Writes the id as a JSON scalar (GEN-19). Registered by the generated module.</summary>");
             w.Open($"public sealed class SourceFlowJsonConverter : global::System.Text.Json.Serialization.JsonConverter<{self}>");
+            // Malformed ids are JsonException, like any other malformed JSON: the receive pipeline parks them as
+            // DeserializationFailed (doc 10 §2), and no FormatException or InvalidOperationException escapes (WP-5.5 fuzzing).
             string read = model.Backing switch
             {
-                IdBackingKind.Int64 => "new(reader.GetInt64())",
-                IdBackingKind.String => $"Parse(reader.GetString() ?? throw new global::System.Text.Json.JsonException(\"{self} cannot be null.\"))",
-                _ => "reader.TryGetGuid(out global::System.Guid guid) ? new(guid) : Parse(reader.GetString() ?? throw new global::System.Text.Json.JsonException(\"" + self + " cannot be null.\"))",
+                IdBackingKind.Int64 => "reader.TokenType == global::System.Text.Json.JsonTokenType.Number && reader.TryGetInt64(out long number) ? new(number) : FromJson(ref reader)",
+                IdBackingKind.String => "FromJson(ref reader)",
+                _ => "reader.TokenType == global::System.Text.Json.JsonTokenType.String && reader.TryGetGuid(out global::System.Guid guid) ? new(guid) : FromJson(ref reader)",
             };
             string write = model.Backing == IdBackingKind.Int64 ? "writer.WriteNumberValue(value.Value);" : "writer.WriteStringValue(value.ToString());";
             w.Line($"public override {self} Read(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options) => {read};");
             w.Line($"public override void Write(global::System.Text.Json.Utf8JsonWriter writer, {self} value, global::System.Text.Json.JsonSerializerOptions options) => {write}");
-            w.Line($"public override {self} ReadAsPropertyName(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options) => Parse(reader.GetString()!);");
+            w.Line($"public override {self} ReadAsPropertyName(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options) => FromJson(ref reader);");
             w.Line($"public override void WriteAsPropertyName(global::System.Text.Json.Utf8JsonWriter writer, {self} value, global::System.Text.Json.JsonSerializerOptions options) => writer.WritePropertyName(value.ToString());");
+            w.Open($"private static {self} FromJson(ref global::System.Text.Json.Utf8JsonReader reader)");
+            w.Line($"if (reader.TokenType is global::System.Text.Json.JsonTokenType.String or global::System.Text.Json.JsonTokenType.PropertyName && TryParse(reader.GetString(), out {self} id)) return id;");
+            w.Line($"throw new global::System.Text.Json.JsonException(\"Expected a valid {self}.\");").Close();
             w.Close();
             w.Close();
             w.CloseNamespace(model.Namespace);

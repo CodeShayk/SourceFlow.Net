@@ -18,11 +18,28 @@ The assets are domain events (the system of record), command and integration mes
 | **Elevation of privilege** | A wire message instantiating arbitrary types (v2 GAP-10) | Registry allow-list: only `(type, version)` pairs registered at compile time are deserialisable. No polymorphic `$type` from the wire. Unknown types are parked unread. |
 | **Elevation of privilege** | Over-privileged runtime credentials (v2 GAP-12) | `ProvisioningMode.Validate` in Production needs describe-only rights. The runtime database role has DML only on SourceFlow tables. |
 
+**As built (WP-5.5 security review, [implementation/security-review.md](implementation/security-review.md)).**
+
+- **Events in the database.** The append-only runtime role comes from `dotnet sourceflow db script --grants <role>` (PostgreSQL).
+  - **Grants.** DML on the SourceFlow tables. `UPDATE`, `DELETE` and `TRUNCATE` are revoked on `events` and every partition, and default privileges keep new partitions append-only.
+  - **Partitions.** Partition maintenance then runs as the owner (`db partitions ensure`).
+  - **SQL Server.** The equivalent script is open (O-3).
+- **Dead letters.** Replay, discard and skip record the operator: the CLI writes `by <user>@<host>`, and `IDeadLetterManager` writes the `IActorAccessor` actor.
+- **Denial of service.**
+  - **Breakers.** There are no Polly circuit breakers. Outbound calls rely on SDK retries, per-message relay backoff, retry budgets and parking.
+  - **Body size.** Received bodies are bounded by the broker's limit, not by a per-type limit (3.x candidates O-4 and O-5).
+  - **Poison messages.** A malformed CloudEvents attribute no longer stops a receiver (F-01, found by fuzzing).
+
 ## 2. Deserialisation hardening
 
 - **Allow-list.** The registry is frozen at startup from generated registrations ([ADR-005](ADRs/ADR-005-logical-message-type-names-and-registry.md)). There is no `Type.GetType` on wire input.
 - **JSON options.** Source-generated contexts only. `MaxDepth = 64`. Duplicate properties are disallowed. Strict number handling. Unmapped members are ignored for stored events (tolerant reader) and configurable for wire messages.
 - **Limits.** Body size is checked against the registry and transport limits before parsing. Header count and size limits apply (doc 04 §2.3).
+
+**As built (WP-5.5).**
+
+- **Contracts.** Every parser now rejects malformed input only with its documented exception. The CloudEvents decoders throw `FormatException`; the generated id converters and the personal-data decoder throw `JsonException`.
+- **Duplicate attributes.** Structured CloudEvents and the `sfheaders`/`sfext` objects are parsed with duplicate properties disallowed.
 
 ## 3. Payload protection (in transit and at rest in the broker)
 
@@ -148,6 +165,20 @@ The analyzer SF0011 makes sure every `[PersonalData]` member has a resolvable su
 - **Scanning**: CodeQL (already in v2 CI), dependency review on PRs, Renovate for updates, and an OpenSSF Scorecard target of ≥ 7.
 - **Policy**: the [SECURITY.md](../../SECURITY.md) disclosure process carries over. Security fixes are backported to the latest 3.x minor and, for 12 months after 3.0 GA, to v2.
 - **Fuzzing**: SharpFuzz harnesses for the envelope parsers (CloudEvents binary and structured), the registry lookup, and the protected-payload decoder run nightly.
+
+**As built (WP-5.5).**
+
+- **Builds.** Deterministic CI builds with SourceLink. Symbols ship as `snupkg` rather than embedded PDBs.
+- **Release pipeline** (`v3-release.yml`):
+  - one CycloneDX SBOM per package, attached to each GitHub release;
+  - NuGet author signing with a timestamp, required for release tags;
+  - Sigstore provenance attestations;
+  - nuget.org publishing behind the protected `nuget-release` environment.
+- **Scanning.** Dependency review runs in `v3-pr.yml`, Renovate is configured in `renovate.json`, and the OpenSSF Scorecard runs in `v3-scorecard.yml`.
+- **Fuzzing.**
+  - **Targets.** `fuzz/SourceFlow.Fuzz` covers ten targets: the CloudEvents binary and structured parsers, the AWS, Google Cloud and Azure wire decoders with the v2 bridge, the registry lookup, the protected-payload decoder, personal-data markers, and both SFQL parsers with the request guard.
+  - **Schedule.** Coverage-guided libFuzzer runs weekly for 2 hours per target (`v3-weekly.yml`) rather than nightly. Every PR runs the seeds and 25,000 seeded mutations per target.
+  - **Results.** Fuzzing found F-01..F-04, which are fixed with regression tests.
 
 ## 8. Compliance mapping
 

@@ -22,6 +22,8 @@
     <PackageVersion Include="System.IO.Hashing" Version="10.0.0" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.1" />
+    <!-- Fuzzing (WP-5.5): libFuzzer mode for fuzz/SourceFlow.Fuzz. -->
+    <PackageVersion Include="SharpFuzz" Version="2.3.0" />
     <!-- Pinned above the vulnerable 9.0.x that Microsoft.Data.SqlClient brings transitively (GHSA-846f-f764-76mx). -->
     <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
     <PackageVersion Include="Testcontainers.MsSql" Version="4.16.0" />

@@ -91,16 +91,18 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
         }));
 
         var from = new Option<int>("--from") { Description = "Script migrations after this version.", DefaultValueFactory = _ => 0 };
-        var script = new Command("script", "Print the migration SQL (for DBA review).");
+        var grants = new Option<string?>("--grants") { Description = "Print least-privilege grants for this runtime role instead (events append-only, doc 10 §1); run as the owner after migrations." };
+        var script = new Command("script", "Print the migration SQL (for DBA review), or with --grants the runtime role's grants.");
         script.Options.Add(_schema);
         script.Options.Add(rls);
         script.Options.Add(partitionEvents);
         script.Options.Add(from);
+        script.Options.Add(grants);
         script.SetAction((r, _) => Guard(async () =>
         {
             var migrator = new PostgreSqlSchemaMigrator(Npgsql.NpgsqlDataSource.Create("Host=localhost"), r.GetValue(_schema)!,
                 r.GetValue(rls) ? TenantIsolation.RowLevelSecurity : TenantIsolation.Runtime, r.GetValue(partitionEvents));
-            await Out.WriteLineAsync(migrator.Script(r.GetValue(from)));
+            await Out.WriteLineAsync(r.GetValue(grants) is { } role ? migrator.GrantsScript(role) : migrator.Script(r.GetValue(from)));
             return 0;
         }));
 
@@ -276,12 +278,12 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
         {
             if (services?.GetService<IDeadLetterManager>() is { } manager)
             {
-                await manager.ReplayAsync(r.GetValue(id), r.GetValue(note), ct);
+                await manager.ReplayAsync(r.GetValue(id), Audited(r.GetValue(note)), ct);
             }
             else
             {
                 await using Ports ports = await PortsAsync(r, ct);
-                await ReplayThroughOutboxAsync(ports.Storage, r.GetValue(id), r.GetValue(note), r.GetValue(outboxPartitions), ct);
+                await ReplayThroughOutboxAsync(ports.Storage, r.GetValue(id), Audited(r.GetValue(note)), r.GetValue(outboxPartitions), ct);
             }
 
             await Out.WriteLineAsync("Replayed " + r.GetValue(id));
@@ -295,7 +297,7 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
         {
             await using Ports ports = await PortsAsync(r, ct);
             _ = await ports.Storage.DeadLetters.GetAsync(r.GetValue(id), ct) ?? throw new CliException("No such dead letter.");
-            await ports.Storage.DeadLetters.SetStatusAsync(r.GetValue(id), DeadLetterStatus.Discarded, r.GetValue(reasonRequired), ct);
+            await ports.Storage.DeadLetters.SetStatusAsync(r.GetValue(id), DeadLetterStatus.Discarded, Audited(r.GetValue(reasonRequired)), ct);
             await Out.WriteLineAsync("Discarded " + r.GetValue(id));
             return 0;
         }));
@@ -364,12 +366,12 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
             GlobalPosition skipped;
             if (services?.GetService<ISubscriptionAdmin>() is { } admin)
             {
-                skipped = await admin.SkipAsync(r.GetValue(subscription)!, r.GetValue(partition), r.GetValue(reason)!, ct);
+                skipped = await admin.SkipAsync(r.GetValue(subscription)!, r.GetValue(partition), Audited(r.GetValue(reason)), ct);
             }
             else
             {
                 await using Ports ports = await PortsAsync(r, ct);
-                skipped = await SkipAsync(ports.Storage, r.GetValue(subscription)!, r.GetValue(partition), r.GetValue(partitions), r.GetValue(reason)!, ct);
+                skipped = await SkipAsync(ports.Storage, r.GetValue(subscription)!, r.GetValue(partition), r.GetValue(partitions), Audited(r.GetValue(reason)), ct);
             }
 
             await Out.WriteLineAsync($"Skipped the event at {skipped}");
@@ -603,7 +605,7 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
                 FirstFailedAt = now,
                 ParkedAt = now,
             }, ct);
-            await storage.DeadLetters.SetStatusAsync(id, DeadLetterStatus.Discarded, "skipped: " + reason, ct);
+            await storage.DeadLetters.SetStatusAsync(id, DeadLetterStatus.Discarded, "skipped: " + reason, ct);   // reason is Audited by the caller
             await using IStorageSession session = await storage.Sessions.BeginAsync(stored.TenantId, ct);
             session.SaveCheckpoint(subscription, partition, stored.Position, lease);
             await session.CommitAsync(ct);
@@ -1019,6 +1021,13 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
     }
 
     // ================================================================ plumbing
+
+    // Repudiation (doc 10 §1): dead-letter replays, discards and skips record the operator who ran the command.
+    private static string Audited(string? note)
+    {
+        string who = "by " + Environment.UserName + "@" + Environment.MachineName;
+        return string.IsNullOrWhiteSpace(note) ? who : who + ": " + note;
+    }
 
     private Command Store(Command command, params Option[] options)
     {
