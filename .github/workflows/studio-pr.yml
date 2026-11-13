@@ -1,0 +1,47 @@
+# SourceFlow Studio checks (implementation plan 10 §4). WP-S.7 brings the core client; WP-S.8 onwards add the app,
+# linting, Playwright, accessibility and performance budgets to this workflow.
+name: studio-pr
+
+on:
+  pull_request:
+    branches: [ "v3.0.0" ]
+    paths: [ "studio/**", "src/Workflows/**", "schemas/**", "tests/workflow-golden/**", ".github/workflows/studio-pr.yml" ]
+  push:
+    branches: [ "v3.0.0" ]
+    paths: [ "studio/**", "src/Workflows/**", "schemas/**", "tests/workflow-golden/**", ".github/workflows/studio-pr.yml" ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  core-client:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.18"
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - run: npm ci
+      - name: Type check
+        run: npm run typecheck
+      # The core builds without the wasm-tools workload (no AOT or native relinking); it is trimmed on publish.
+      - name: Build the WebAssembly core
+        run: npm run build:wasm
+      - name: WASM-01..08 (Vitest against the WF-GOLD fixtures)
+        run: npm test

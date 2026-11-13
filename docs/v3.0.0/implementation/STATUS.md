@@ -4,7 +4,7 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 
 ## Progress summary
 
-Updated 2026-11-13. **56 of 63 work packages are done (89%)** and 7 not started. By estimated effort, 122 of 138.5 engineer-weeks are done (88%).
+Updated 2026-11-13. **57 of 63 work packages are done (90%)** and 6 not started. By estimated effort, 123.5 of 138.5 engineer-weeks are done (89%).
 
 | Milestone | Done | In progress | Todo | Effort done (ew) |
 |-----------|------|-------------|------|------------------|
@@ -14,7 +14,7 @@ Updated 2026-11-13. **56 of 63 work packages are done (89%)** and 7 not started.
 | M3 Cloud transports | 7 | 0 | 0 | 19 of 19 |
 | M4 Tooling and operations | 7 | 0 | 0 | 16.5 of 16.5 |
 | M5 Security and migration | 5 | 0 | 0 | 11 of 11 |
-| Track S: Workflow DSL and Studio | 6 | 0 | 7 | 15.5 of 32 |
+| Track S: Workflow DSL and Studio | 7 | 0 | 6 | 17 of 32 |
 
 Completed in this round:
 
@@ -50,6 +50,7 @@ Completed in this round:
 - WP-S.4: the workflow simulator, path enumerator with coverage, spec generator, and Mermaid and BPMN exporters.
 - WP-S.5: workflow code generation. The generator compiles `*.sfflow.yaml` into process managers that run the shared engine (SF0020/SF0021 at YAML positions), adds `WorkflowSpec`, and passes the differential test over 10,000 random outcome sequences.
 - WP-S.6: workflow operations. It adds transition metrics, spans and an alert, the `workflow-instances` read model with its gauge and domain query, `dotnet sourceflow workflow list|show|resume|retry-step|abort`, and a startup guard against removing a version that still has active instances.
+- WP-S.7: the Studio core in the browser. The DSL engine is compiled to WebAssembly (1.77 MB brotli) behind a JSON API, with the `@sourceflow/core-client` worker client; Vitest checks it against the golden files.
 - WP-5.5: fuzz harnesses for every untrusted-input parser (four contract breaks found and fixed), the security review against the threat model, an append-only runtime role script, and SBOMs, signing and provenance in the release pipeline.
 
 M2 (PostgreSQL), M3 (cloud transports) and M4 (operations, SQL Server, scale) are complete. M3's real-cloud exit evidence (5 green nights per cloud) comes from the nightly workflow.
@@ -60,7 +61,7 @@ M5 (security and migration) is built. Its exit criteria still need three things:
 - the signing certificate;
 - the maintainer's sign-off of `docs/v3.0.0/implementation/security-review.md`.
 
-Track S (Workflow DSL and Studio) is under way: WP-S.1 to WP-S.6 are done. S1 (manifests and the DSL core) and S2 (code generation and runtime support) are complete.
+Track S (Workflow DSL and Studio) is under way: WP-S.1 to WP-S.7 are done. S1 (manifests and the DSL core) and S2 (code generation and runtime support) are complete.
 
 | WP | Title | Estimate (ew) | Status | Notes |
 |----|-------|---------------|--------|-------|
@@ -120,7 +121,7 @@ Track S (Workflow DSL and Studio) is under way: WP-S.1 to WP-S.6 are done. S1 (m
 | WP-S.4 | Simulator, path enumerator, spec generator, exporters | 3 | done | `Dsl/Simulation`: a deterministic simulator of the doc 15 §5.3 table (explicit clock, one pending timer, retries per outcome, a reverse-order compensation stack, manual, resume, retry-step and abort) with UUIDv5 send ids equal to `MessageIds.CreateVersion5`. A path enumerator: bounded loops, retries at 0/1/max, guard branches, edge coverage, and a minimal cover (the §5.1 example has 437 paths, 6 in the cover). The spec generator writes `WorkflowSpec` tests (the API lands in WP-S.5), with a guard-solving start-data picker. Mermaid `stateDiagram-v2` and BPMN 2.0 (semantic model) exporters. Golden files per valid case: paths, Mermaid, BPMN; specs for the example. Tests: UT-WF-41..60. The specs compile once WP-S.5 adds `WorkflowSpec` and the generated workflow |
 | WP-S.5 | Workflow code generation + runtime abstractions | 4 | done | The generator reads `*.sfflow.yaml` (AdditionalFiles via `build/SourceFlow.Net.props`) with the linked portable DSL sources. It validates in partial mode against its own and the referenced static manifests (SF0020 at the YAML line and column; SF0021 for missing hooks) and generates a `[ProcessManager("name@v")]` partial record per workflow. The record runs the shared engine, which is injected as internal `SourceFlow.Workflows.Engine` types (none without workflows), with state as JSON. The module gets a `RegisterWorkflows` part and the manifest gets `workflows[]` entries with fingerprints. YamlDotNet is bundled in `analyzers/dotnet/cs`. Core: the `SourceFlow.Workflows` types, deterministic send ids (`Reaction.Send(command, MessageId)`) and `ReactionContext.Serializer`. Testing: `WorkflowSpec`. Tests: GEN-56..64; WF-DIFF-01..05 (the simulator equals the generated process manager in state and outbox after every move, over 10,000 random outcome sequences); the doc example in a `SourceFlowTestHost` (happy path, compensation with `$failure.code`, a timed retry). Deviations: one shared `WorkflowTimer` and `WorkflowControl`, and data as JSON (personal-data fields in workflow state are not crypto-shredded yet) |
 | WP-S.6 | Runtime support: metrics, CLI, version guard | 1.5 | done | **Transitions.** The engine reports transitions (`SimulationResult.Transitions`), and generated workflows add them to the reaction (`Reaction.AndRecord`). The runner records `sourceflow.workflow.transitions` and `.manual_intervention` after commit, and opens a `workflow {name} {step}` span per transition. **Read model.** The `workflow-instances@1` documents are written in the instance's transaction. They back the `sourceflow.workflow.active` gauge (`IStoreMonitor.CountActiveWorkflowsAsync`: in-memory, PostgreSQL, SQL Server; SCK-76) and the generated `<service>.workflow-instances` v1 domain query. **Operations.** The alert `SourceFlowWorkflowManualIntervention`; the CLI `workflow list|show|resume|retry-step|abort`, which sends `WorkflowControl` through the owner's outbox; `WorkflowVersionRemovedException` at startup. New instances start on the latest registered version only, and never for an instance another version owns. **Fixes found by the E2E tests.** Re-entered steps continue their attempt numbering, so re-sends get new ids and old timers stay stale. A stopping host releases its outbox partition leases, so the next node relays at once (UT-OUT-08). **Tests.** UT-WF-61..70, GEN-65, SCK-76, WF-E2E-09 (forward recovery after the pivot) and WF-E2E-10 (v2 alongside an in-flight v1; v1 removal blocked), on the in-memory host; the PostgreSQL run of WF-E2E-10 comes with the sample (WP-S.13) |
-| WP-S.7 | WASM core + TypeScript facade | 1.5 | todo | |
+| WP-S.7 | WASM core + TypeScript facade | 1.5 | done | **Core.** `StudioApi`: JSON in, envelope out, with `Parse`, `Validate`, `SimulateStep`, `EnumeratePaths`, `ToMermaid`, `ToBpmn`, `GenerateSpecs`. `SourceFlow.Studio.Wasm` exports it (`[JSExport]`) and compiles only the `Dsl/**` sources. It needs no `wasm-tools` workload and is 1.77 MB brotli published, against a 6 MB budget. **Client.** `studio/core-client`: `exports.d.ts` generated from the export signatures (drift-checked), typed requests and results, a module Web Worker host, and a client with lazy start, an LRU cache and `AbortSignal` cancellation. **Tests.** UT-WASM-01..05 (.NET), and WASM-01..08 (Vitest in Node on the published bundle: all 30 WF-GOLD diagnostics, paths, Mermaid, BPMN and specs byte-identical; simulation; a real worker thread with cancellation; the size budget). `studio-pr.yml` runs them. **Deviation.** An npm workspace instead of pnpm. |
 | WP-S.8 | Studio shell + local host | 2.5 | todo | |
 | WP-S.9 | Views: domain map, statechart, swimlane | 3.5 | todo | |
 | WP-S.10 | Editing and round trip | 3 | todo | |

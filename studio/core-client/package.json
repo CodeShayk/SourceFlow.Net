@@ -1,0 +1,22 @@
+{
+  "name": "@sourceflow/core-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Typed client for the SourceFlow Studio core (the C# DSL engine compiled to WebAssembly, run in a Web Worker).",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./worker": "./src/worker.ts"
+  },
+  "scripts": {
+    "build:wasm": "dotnet publish ../../src/Workflows/SourceFlow.Studio.Wasm -c Release -o ../../artifacts/studio-wasm",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  }
+}

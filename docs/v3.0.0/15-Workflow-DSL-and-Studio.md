@@ -463,6 +463,24 @@ Visual encodings never rely on colour alone. Each path type has a distinct line 
 
 Exports: SVG and PNG (client-side), Mermaid `stateDiagram-v2`, BPMN 2.0 XML (export only; product WQ2).
 
+**As built (WP-S.7): the shared core.**
+
+- **The API.** `SourceFlow.Studio.Dsl.Api.StudioApi` exposes the core as JSON:
+  - one request string in, one envelope out (`{ok, result}` or `{ok: false, error, diagnostics?}`); it never throws;
+  - operations `Version`, `Parse`, `Validate`, `SimulateStep`, `EnumeratePaths`, `ToMermaid`, `ToBpmn`, `GenerateSpecs`;
+  - they are pure. The simulator's state crosses as an opaque string, so the browser keeps no .NET objects.
+- **`SourceFlow.Studio.Wasm`** (`Microsoft.NET.Sdk.WebAssembly`, `browser-wasm`):
+  - It exports each method unchanged (`[JSExport]`).
+  - It compiles the `Dsl/**` sources directly, as the generator does, so the bundle has neither the core package nor the workspace loader.
+  - It builds without the `wasm-tools` workload (no AOT, no native relinking) and is trimmed on publish.
+  - The published bundle is 1.77 MB brotli, against the 6 MB budget.
+- **`studio/core-client`** (`@sourceflow/core-client`):
+  - `src/generated/exports.d.ts` is generated from the `[JSExport]` signatures (with their summaries) by a .NET test, which fails on drift.
+  - `types.ts` describes the requests and results, and `host.ts` loads `dotnet.js` once and checks the API version.
+  - `worker.ts` is the module Web Worker.
+  - `StudioCoreClient` starts the worker on the first call and caches results (LRU, 64 by default). It cancels a call with an `AbortSignal` by restarting the worker, since WebAssembly can't be interrupted, and re-sends the other calls in flight.
+- **Workspace and CI.** `studio/` is an npm workspace rather than pnpm (no extra tool to install), and `.github/workflows/studio-pr.yml` builds and tests it. The Vitest suite runs the published bundle in Node and gives the WF-GOLD outputs byte for byte (WASM-01..08).
+
 ### 6.4 Security and privacy
 
 - Works offline: no remote calls except optional observe mode to the configured service URL.

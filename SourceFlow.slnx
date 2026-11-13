@@ -31,6 +31,7 @@
   </Folder>
   <Folder Name="/src/Workflows/">
     <Project Path="src/Workflows/SourceFlow.Studio/SourceFlow.Studio.csproj" />
+    <Project Path="src/Workflows/SourceFlow.Studio.Wasm/SourceFlow.Studio.Wasm.csproj" />
   </Folder>
   <Folder Name="/tests/Core/">
     <Project Path="tests/Core/SourceFlow.Core.Tests/SourceFlow.Core.Tests.csproj" />
