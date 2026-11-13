@@ -9,6 +9,8 @@ export interface StateNodeData extends Record<string, unknown> {
   node: GraphNode;
   /** The lines shown in the node. */
   lines: string[];
+  /** Diagnostics on the step's lines (WP-S.10): shown as a badge. */
+  problems?: number;
 }
 
 export interface KindEdgeData extends Record<string, unknown> {

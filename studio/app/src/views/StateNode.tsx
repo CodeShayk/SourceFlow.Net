@@ -15,6 +15,9 @@ export function StateNode({ data }: NodeProps<StateFlowNode>) {
         </div>
       ))}
       {node.compensable ? <div className="state-badge" title="Compensated on failure">⟲ undoable</div> : null}
+      {data.problems !== undefined && data.problems > 0 ? (
+        <div className="state-problems">✕ {data.problems} problem{data.problems === 1 ? '' : 's'}</div>
+      ) : null}
       <Handle type="source" position={Position.Bottom} isConnectable={false} />
     </div>
   );

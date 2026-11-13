@@ -1,8 +1,10 @@
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeEach } from 'vitest';
+import { useEditor } from '../src/edit/editorStore.ts';
 import { useStudio } from '../src/store.ts';
 
 const initial = useStudio.getState();
+const initialEditor = useEditor.getState();
 
 // What React Flow needs from a browser that jsdom lacks (its documented test setup).
 class ResizeObserverStub {
@@ -42,6 +44,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   useStudio.setState({ ...initial, theme: 'system', keyboardMapOpen: false, selectedDiagnostic: -1, diagnosticCount: 0 });
+  useEditor.setState(initialEditor, true);
   window.localStorage.clear();
   delete document.documentElement.dataset.theme;
 });

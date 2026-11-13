@@ -203,7 +203,7 @@ describe('STU-CT-15 choreography highlight', () => {
     await userEvent.unhover(inventory);
     await waitFor(() => expect(flow.getAttribute('data-highlighted')).toBe('0'));
 
-    await userEvent.click(container.querySelector('.react-flow__node[data-id="aggregate:payments/payment"]') as HTMLElement);
+    fireEvent.click(container.querySelector('.react-flow__node[data-id="aggregate:payments/payment"]') as HTMLElement); // a click event only: jsdom's mousedown has no view for d3-zoom
     await waitFor(() => expect(flow.getAttribute('data-highlighted')).toBe('1'), { timeout: 3_000 });
     expect(container.querySelector('path.map-edge.highlighted')?.id).toBe('publishes:service:payments->topic:payments.events');
   });
@@ -227,13 +227,14 @@ describe('STU-CT-17 swimlane errors', () => {
 });
 
 describe('STU-CT-18 workflow view tabs', () => {
-  it('opens on the statechart and switches to the swimlane and the source', async () => {
+  it('opens on the statechart beside the properties, and switches to the swimlane and the YAML', async () => {
     const { container } = renderApp('/workflows/orders/workflows/order-fulfilment.sfflow.yaml');
     expect(await screen.findByRole('tab', { name: 'Statechart', selected: true })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Properties', selected: true })).toBeTruthy();
     await waitFor(() => expect(container.querySelector('[data-ready="true"]')).not.toBeNull(), { timeout: 10_000 });
     await userEvent.click(screen.getByRole('tab', { name: 'Swimlane' }));
     expect(await screen.findByRole('combobox', { name: 'Path' })).toBeTruthy();
-    await userEvent.click(screen.getByRole('tab', { name: 'Source' }));
-    expect(await screen.findByRole('list', { name: 'Source of order-fulfilment.sfflow.yaml' })).toBeTruthy();
+    await userEvent.click(screen.getByRole('tab', { name: 'YAML' }));
+    expect(await screen.findByRole('textbox', { name: 'YAML of order-fulfilment.sfflow.yaml' })).toBeTruthy();
   });
 });

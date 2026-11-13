@@ -10,6 +10,7 @@ import { Overview } from './routes/Overview.tsx';
 import { ServiceView } from './routes/ServiceView.tsx';
 import { WorkflowView } from './routes/WorkflowView.tsx';
 import { useValidation, useWorkflowText, useWorkspace } from './services.tsx';
+import { textOf, useEditor } from './edit/editorStore.ts';
 import { useStudio } from './store.ts';
 import { applyTheme, prefersDark, resolveTheme } from './theme.ts';
 import { ownerOf, sortDiagnostics, workflowPath } from './workspace.ts';
@@ -21,7 +22,9 @@ export function App() {
   const navigate = useNavigate();
   const path = location.pathname.startsWith('/workflows/') ? workflowPath(location.pathname.slice('/workflows/'.length)) : undefined;
   const text = useWorkflowText(path);
-  const validation = useValidation(text.data, workspace.data);
+  // The open workflow's live text (unsaved edits included) is what the core validates.
+  const live = useEditor((s) => (s.path === path && path !== undefined ? textOf(s) : undefined)) ?? text.data;
+  const validation = useValidation(live, workspace.data);
 
   const theme = useStudio((s) => s.theme);
   const [systemDark, setSystemDark] = useState(prefersDark);
@@ -55,6 +58,9 @@ export function App() {
         case 'previousDiagnostic': state.moveDiagnostic(-1); break;
         case 'toggleTheme': state.toggleTheme(resolved); break;
         case 'overview': void navigate('/'); break;
+        case 'save': window.dispatchEvent(new Event('sourceflow:save')); break;
+        case 'undo': useEditor.getState().undo(); break;
+        case 'redo': useEditor.getState().redo(); break;
       }
     };
     window.addEventListener('keydown', onKey);
@@ -106,7 +112,7 @@ export function App() {
             element={path === undefined || !data.services.some((s) => s.workflowFiles.includes(path)) ? (
               <NotFound what="workflow" />
             ) : (
-              <WorkflowView ref={editor} path={path} owner={ownerOf(data, path)} workspace={data} text={text.data} selected={sorted?.[selectedIndex]}
+              <WorkflowView ref={editor} path={path} owner={ownerOf(data, path)} workspace={data} stored={text.data} diagnostics={sorted} selected={sorted?.[selectedIndex]}
                 {...(text.isError ? { error: (text.error as Error).message } : {})} />
             )}
           />

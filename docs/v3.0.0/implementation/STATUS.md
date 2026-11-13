@@ -4,7 +4,7 @@ Updated in the PR that completes a work package (CONTRIBUTING.md). Status values
 
 ## Progress summary
 
-Updated 2026-11-13. **59 of 63 work packages are done (94%)** and 4 not started. By estimated effort, 129.5 of 138.5 engineer-weeks are done (94%).
+Updated 2026-11-13. **60 of 63 work packages are done (95%)** and 3 not started. By estimated effort, 132.5 of 138.5 engineer-weeks are done (96%).
 
 | Milestone | Done | In progress | Todo | Effort done (ew) |
 |-----------|------|-------------|------|------------------|
@@ -14,7 +14,7 @@ Updated 2026-11-13. **59 of 63 work packages are done (94%)** and 4 not started.
 | M3 Cloud transports | 7 | 0 | 0 | 19 of 19 |
 | M4 Tooling and operations | 7 | 0 | 0 | 16.5 of 16.5 |
 | M5 Security and migration | 5 | 0 | 0 | 11 of 11 |
-| Track S: Workflow DSL and Studio | 9 | 0 | 4 | 23 of 32 |
+| Track S: Workflow DSL and Studio | 10 | 0 | 3 | 26 of 32 |
 
 Completed in this round:
 
@@ -53,6 +53,7 @@ Completed in this round:
 - WP-S.7: the Studio core in the browser. The DSL engine is compiled to WebAssembly (1.77 MB brotli) behind a JSON API, with the `@sourceflow/core-client` worker client; Vitest checks it against the golden files.
 - WP-S.8: the Studio shell and `dotnet sourceflow studio`: a loopback-only host with a Host-header guard and workspace-limited writes, and the React app with explorer, diagnostics from the WebAssembly core, theming and a keyboard map.
 - WP-S.9: the domain map, statechart and swimlane views, with every transition kind drawn by line style, symbol and name, ELK layout in a worker, and accessibility and performance checks in the browser.
+- WP-S.10: editing. Visual edits are minimal text edits that keep every comment, beside Monaco on the same text, with a palette filtered by validity, undo and redo, the layout sidecar, and a byte-for-byte round trip on every golden file in the browser.
 - WP-5.5: fuzz harnesses for every untrusted-input parser (four contract breaks found and fixed), the security review against the threat model, an append-only runtime role script, and SBOMs, signing and provenance in the release pipeline.
 
 M2 (PostgreSQL), M3 (cloud transports) and M4 (operations, SQL Server, scale) are complete. M3's real-cloud exit evidence (5 green nights per cloud) comes from the nightly workflow.
@@ -63,7 +64,7 @@ M5 (security and migration) is built. Its exit criteria still need three things:
 - the signing certificate;
 - the maintainer's sign-off of `docs/v3.0.0/implementation/security-review.md`.
 
-Track S (Workflow DSL and Studio) is under way: WP-S.1 to WP-S.9 are done. S1 (manifests and the DSL core) and S2 (code generation and runtime support) are complete.
+Track S (Workflow DSL and Studio) is under way: WP-S.1 to WP-S.10 are done. S1 (manifests and the DSL core) and S2 (code generation and runtime support) are complete.
 
 | WP | Title | Estimate (ew) | Status | Notes |
 |----|-------|---------------|--------|-------|
@@ -126,7 +127,7 @@ Track S (Workflow DSL and Studio) is under way: WP-S.1 to WP-S.9 are done. S1 (m
 | WP-S.7 | WASM core + TypeScript facade | 1.5 | done | **Core.** `StudioApi`: JSON in, envelope out, with `Parse`, `Validate`, `SimulateStep`, `EnumeratePaths`, `ToMermaid`, `ToBpmn`, `GenerateSpecs`. `SourceFlow.Studio.Wasm` exports it (`[JSExport]`) and compiles only the `Dsl/**` sources. It needs no `wasm-tools` workload and is 1.77 MB brotli published, against a 6 MB budget. **Client.** `studio/core-client`: `exports.d.ts` generated from the export signatures (drift-checked), typed requests and results, a module Web Worker host, and a client with lazy start, an LRU cache and `AbortSignal` cancellation. **Tests.** UT-WASM-01..05 (.NET), and WASM-01..08 (Vitest in Node on the published bundle: all 30 WF-GOLD diagnostics, paths, Mermaid, BPMN and specs byte-identical; simulation; a real worker thread with cancellation; the size budget). `studio-pr.yml` runs them. **Deviation.** An npm workspace instead of pnpm. |
 | WP-S.8 | Studio shell + local host | 2.5 | done | **Host.** `dotnet sourceflow studio` (Kestrel on 127.0.0.1): a Host-header guard, an Origin and JSON check on writes, and CSP and security headers. The workspace REST API serves manifests, workflow and layout files (writes only inside a service's workflows folder, atomic, never through links) and a manifest export for a service's `project` (new optional key). `--read-only` refuses every write. It serves the SPA and the Brotli WebAssembly core from folders or from the tool's embedded copies. **App.** `studio/app` (React 19, Vite, React Router, TanStack Query, Zustand, Radix): explorer, overview, service and workflow views, a diagnostics panel fed by the core in a Web Worker, theming and a keyboard map. **Tests.** UT-STU-HOST-01..10, STU-UT-01..10, STU-CT-01..05 and STU-E2E-01..03 (Playwright against the real host and core). `studio-pr.yml` runs them. **Found by the E2E run.** `dotnet.js` treats a worker whose `onmessage` is already set as a pthread and hangs; the worker listens with `addEventListener`. |
 | WP-S.9 | Views: domain map, statechart, swimlane | 3.5 | done | **Core.** `StudioApi.Graph` (`WorkflowGraph`: kinded nodes and edges, symbol labels and descriptions; `expected.graph.json` golden files for .NET and WASM) and `StudioApi.Sequence` (`WorkflowSequence`: a path replayed into lanes from the manifests). **App.** React Flow nodes and edges with distinct line styles, symbols and names per kind, and a legend. ELK runs in a worker; the exit states are placed beside the flow, so 200 steps lay out in about 100 ms. The domain map is aggregated from manifests, with choreography highlighting on hover, click or Enter. The swimlane has a path picker. The workflow view has Statechart, Swimlane and Source tabs. **Tests.** UT-WASM-06..08, WASM graph and sequence, STU-UT-11..25, STU-CT-06..18, STU-E2E-04..06, STU-A11Y-01..03 (axe in both themes, keyboard names, reduced motion) and STU-PERF-01..02 (0.7 s and 1.4 s, against 1 s and 3 s budgets). **Deviation.** Playwright runs Chromium only so far (the plan names three browsers). |
-| WP-S.10 | Editing and round trip | 3 | todo | |
+| WP-S.10 | Editing and round trip | 3 | done | **Writer.** `yamlEdit.ts` splices only the characters an edit needs, using the `yaml` parser's offsets: values in place, missing keys in block or flow style, block lines with their comments, flow entries with their commas; YAML 1.2 quoting; a file that doesn't parse is refused for visual edits. **Editing.** Step forms (send/map, await, failures with retry and next, timeout, compensation, pivot, guard), renames that follow `next` and `goto`, a palette grouped by service and filtered at the step (WF-V02/V03), a shared 200-state undo history, the `*.sfflow.layout.json` sidecar, Save/Undo/Redo with `Ctrl+S/Z/Y`, problem badges on states. **Monaco** 0.57 with monaco-yaml 5.5, loaded lazily, editor API and YAML only (7.7 MB build instead of 18 MB), core diagnostics as markers. **Tests.** STU-UT-26..40, STU-CT-19..28, STU-E2E-07..10 against a writable host on a fresh copy of the golden workspace, with the add/save/undo/save byte-equality round trip on all 30 golden files. Diagnostics are mapped to steps with one parse (per-diagnostic parsing had taken PERF-01 to 9.6 s; now 0.8 s). |
 | WP-S.11 | Simulation, path explorer, spec generation UI | 2 | todo | |
 | WP-S.12 | Exports, static build, PR diagram action | 2 | todo | |
 | WP-S.13 | OrderFulfilment sample, docs, hardening | 2 | todo | |

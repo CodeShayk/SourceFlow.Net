@@ -31,8 +31,13 @@ test('STU-E2E-02 opens workflows: the WebAssembly core validates them in a worke
   await explorer.getByRole('link', { name: 'Workflow unknown-type' }).click();
   const error = diagnostics.getByRole('button', { name: /Error WF-V01/ }).first();
   await expect(error).toBeVisible({ timeout: 30_000 });
+  const line = /line (\d+)/.exec((await error.textContent()) ?? '')?.[1];
   await error.click();
-  await expect(page.getByRole('list', { name: 'Source of unknown-type.sfflow.yaml' }).locator('li[aria-current="location"]')).toHaveCount(1);
+  // The YAML tab opens in Monaco on the diagnostic's line, with the core's diagnostics as markers.
+  await expect(page.getByRole('tab', { name: 'YAML' })).toHaveAttribute('aria-selected', 'true');
+  const monaco = page.getByTestId('monaco');
+  await expect(monaco).toHaveAttribute('data-cursor-line', line ?? /\d+/, { timeout: 30_000 });
+  await expect(monaco.locator('.squiggly-error').first()).toBeAttached();
 
   await page.keyboard.press('Shift+?');
   await expect(page.getByRole('dialog', { name: 'Keyboard map' })).toBeVisible();

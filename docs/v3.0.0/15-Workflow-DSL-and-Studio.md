@@ -480,6 +480,30 @@ Visual encodings never rely on colour alone. Each path type has a distinct line 
 - Every edit is validated within 100 ms by the WASM core. Diagnostics appear on the canvas and in the editor.
 - Layout uses ELK (layered algorithm), with stable node positions stored in a sidecar file `*.sfflow.layout.json` (optional, ignored by the generator).
 
+**As built (WP-S.10).**
+
+- **The writer** (`studio/app/src/edit/yamlEdit.ts`) reads the file with the `yaml` parser's source offsets and changes only the characters an edit needs:
+  - `setValue` replaces a scalar or flow value in place, or adds a missing key to a block or flow map (creating parents, and `[…]` sequences for numeric path segments);
+  - `remove` takes out a block key with its lines (and its end-of-line comment), or a flow entry with its comma;
+  - `insertItem` adds a sequence item in the list's own style.
+  - Scalars are quoted only when YAML 1.2 needs it, so `on` stays bare.
+  - A file that doesn't parse is edited as text only: every visual edit is refused with "The YAML doesn't parse (line n): fix it in the YAML tab first", and nothing is spliced into it.
+  - Every golden file survives a set-then-restore of every scalar byte for byte (STU-UT-26..31).
+- **Step operations** (`edit/steps.ts`) read each step into a form (send and map, await with failures, retries, timeout, compensation, pivot, guard, next) and write each control as one minimal edit. Renaming a step renames the `next` and `goto` that point at it. New steps go after the selection with a unique id taken from the command.
+- **The palette** (`edit/palette.ts`) lists the commands of every service in the workspace, grouped by service in workspace order, with what each emits, rejects and carries, from the manifests. At a step, its choices are filtered by what is valid there (WF-V02/V03): success events are what the command emits, failures the rejections and events not yet handled, map fields the ones not yet mapped.
+- **Undo and redo** (`edit/history.ts`) keep up to 200 states of the text. Typing within 600 ms joins one entry; every visual edit is its own. Visual edits and typing share the history, because both change the same text.
+- **The layout sidecar** (`edit/layoutFile.ts`) stores moved nodes only, sorted, in whole pixels. Positions of steps that no longer exist are pruned on save, and the file is written only when it changed and holds a position.
+- **The workflow view** puts the Statechart and Swimlane tabs beside Properties and YAML tabs, with a Save / Undo / Redo toolbar (`Ctrl+S`, `Ctrl+Z`, `Ctrl+Y`; the last two are left to the editor while it has focus). The save status describes the text it saved: an edit or an undo after a save is "Unsaved changes" again.
+  - Selecting a state on the canvas (click, or Enter on a focused state) opens its properties. Dragging a state records its position.
+  - States with diagnostics show a "✕ n problems" badge, and their accessible name says so. Selecting a diagnostic opens the YAML tab at its line and selects the step it belongs to.
+- **Monaco** (0.57, with monaco-yaml 5.5) loads only when the YAML tab first opens. It imports the editor API, its editor features and the YAML language, not the package's main entry, which registers every language and its workers: the build is 7.7 MB instead of 18 MB, and the editor chunk is 1 MB gzipped. monaco-yaml takes completion and hover from `schemas/workflow-1.json` with its own validation off; the markers are the core's diagnostics. Components without Monaco (the tests, a host without it) get a textarea with the same contract.
+- **Performance.** Diagnostics are mapped to steps with one parse of the file, not one per diagnostic: per-diagnostic parsing took the 200-step workflow from 0.7 s to 9.6 s. It now renders in about 0.8 s, inside the 1 s budget.
+- **Tests.** STU-UT-26..40 (writer, step forms, palette, history, layout), STU-CT-19..28 (the editor against the golden order-fulfilment workflow), and STU-E2E-07..10 in the browser against a writable host on a fresh copy of the golden workspace (`e2e/generate.mjs editable-workspace`):
+  - an error typed in Monaco shows in the panel, as a badge on the state and as a marker, and a visual fix restores the file;
+  - visual fixes clear an invalid workflow's diagnostics;
+  - a retry and a compensation added visually save with every comment, and nothing outside the step changes;
+  - add, save, undo and save gives back every golden file byte for byte (the unparseable one refuses the edit).
+
 ### 6.3 Architecture (ADR-025)
 
 | Part | Technology | Notes |

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { StudioCoreClient, ValidateResult } from '@sourceflow/core-client';
 import { createContext, useContext, type ReactNode } from 'react';
 import type { WorkspaceApi, WorkspaceDto } from './api.ts';
+import { TextareaEditor, type CodeEditorComponent } from './edit/CodeEditor.tsx';
 import type { LayoutEngine } from './graph/layout.ts';
 import { manifests } from './workspace.ts';
 
@@ -14,6 +15,8 @@ export interface StudioServices {
   api: WorkspaceApi;
   core: StudioCore;
   layout: LayoutEngine;
+  /** The YAML editor: Monaco in the app; a textarea by default (tests, fallback). */
+  codeEditor?: CodeEditorComponent;
 }
 
 const ServicesContext = createContext<StudioServices | undefined>(undefined);
@@ -22,13 +25,13 @@ export function ServicesProvider({ services, children }: { services: StudioServi
   return <ServicesContext.Provider value={services}>{children}</ServicesContext.Provider>;
 }
 
-export function useServices(): StudioServices {
+export function useServices(): StudioServices & { codeEditor: CodeEditorComponent } {
   const services = useContext(ServicesContext);
   if (services === undefined) {
     throw new Error('useServices needs a <ServicesProvider>.');
   }
 
-  return services;
+  return { ...services, codeEditor: services.codeEditor ?? TextareaEditor };
 }
 
 export function useWorkspace() {

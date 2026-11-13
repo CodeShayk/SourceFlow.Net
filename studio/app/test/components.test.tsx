@@ -62,10 +62,11 @@ describe('STU-CT-03 shell and routing', () => {
     expect(core.validate).toHaveBeenCalledWith(expect.objectContaining({ yaml: expect.stringContaining('order-fulfilment'), manifests: expect.any(Array) }));
 
     await userEvent.click(screen.getAllByRole('button', { name: /Error WF-V01/ })[0]!);
-    expect(screen.getByRole('tab', { name: 'Source' }).getAttribute('aria-selected')).toBe('true');
-    const source = await screen.findByRole('list', { name: 'Source of order-fulfilment.sfflow.yaml' });
-    expect(within(source).getAllByRole('listitem')).toHaveLength(7);
-    expect(within(source).getAllByRole('listitem')[3]?.getAttribute('aria-current')).toBe('location');
+    expect(screen.getByRole('tab', { name: 'YAML' }).getAttribute('aria-selected')).toBe('true');
+    const yaml = (await screen.findByRole('textbox', { name: 'YAML of order-fulfilment.sfflow.yaml' })) as HTMLTextAreaElement;
+    expect(yaml.value.split('\n')).toHaveLength(7);
+    await waitFor(() => expect(yaml.dataset.cursorLine).toBe('4'));
+    expect(yaml.getAttribute('aria-invalid')).toBe('true');
   });
 
   it('shows not-found pages and a workspace that cannot load', async () => {

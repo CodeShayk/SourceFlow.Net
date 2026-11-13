@@ -1,6 +1,7 @@
 // The keyboard map: every shortcut in one table, shown by the keyboard-map dialog (`?`).
 
-export type Command = 'keyboardMap' | 'focusExplorer' | 'focusEditor' | 'focusDiagnostics' | 'nextDiagnostic' | 'previousDiagnostic' | 'toggleTheme' | 'overview';
+export type Command = 'keyboardMap' | 'focusExplorer' | 'focusEditor' | 'focusDiagnostics' | 'nextDiagnostic' | 'previousDiagnostic' | 'toggleTheme' | 'overview'
+  | 'save' | 'undo' | 'redo';
 
 export interface Shortcut {
   command: Command;
@@ -18,6 +19,9 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { command: 'previousDiagnostic', keys: 'Shift+F8', description: 'Previous diagnostic' },
   { command: 'toggleTheme', keys: 'Alt+T', description: 'Switch between light and dark' },
   { command: 'overview', keys: 'Alt+H', description: 'Go to the domain overview' },
+  { command: 'save', keys: 'Ctrl+S', description: 'Save the workflow (and its layout)' },
+  { command: 'undo', keys: 'Ctrl+Z', description: 'Undo the last edit (in the YAML editor: its own undo)' },
+  { command: 'redo', keys: 'Ctrl+Y', description: 'Redo' },
 ];
 
 interface KeyLike {
@@ -45,7 +49,8 @@ export function commandFor(event: KeyLike & { target?: EventTarget | null }): Co
   const editing = isEditable(event.target ?? null);
   for (const shortcut of SHORTCUTS) {
     const plain = !shortcut.keys.includes('Alt+') && !shortcut.keys.includes('Ctrl+') && !/^F\d+$/.test(shortcut.keys.replace('Shift+', ''));
-    if (editing && plain) {
+    // In a text field, plain keys type, and undo/redo belong to the field (Monaco and inputs have their own).
+    if (editing && (plain || shortcut.command === 'undo' || shortcut.command === 'redo')) {
       continue;
     }
 
