@@ -98,6 +98,25 @@ public sealed class SourceFlowBuilder
 
     internal Security.SecurityBuilder? SecuritySettings { get; private set; }
 
+    /// <summary>
+    /// Registers the v2 data migration (doc 12 §3): the v2 database and one <c>IV2Import</c> per entity type, run with
+    /// <c>dotnet sourceflow migrate v2 plan|scaffold|import|archive|verify</c> inside the service, or through
+    /// <see cref="Migration.V2Migration"/>.
+    /// </summary>
+    public SourceFlowBuilder MigrateFromV2(Action<Migration.V2MigrationBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        var settings = new Migration.V2MigrationBuilder();
+        configure(settings);
+        if (settings.Source is null)
+        {
+            throw new ArgumentException("MigrateFromV2 needs the v2 database: call From(new V2Source(…)).", nameof(configure));
+        }
+
+        Services.AddSingleton(sp => new Migration.V2Migration(settings, sp.GetRequiredService<SourceFlowRuntime>(), sp));
+        return this;
+    }
+
     internal Dictionary<Type, SubscriptionFailurePolicy> ProjectionPolicies { get; } = [];
 
     internal List<MiddlewareRegistration> Middleware { get; } = [];

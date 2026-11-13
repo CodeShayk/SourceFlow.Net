@@ -221,3 +221,21 @@ The TCK is an abstract test suite in `SourceFlow.Testing`. Each transport test p
 ## 8. Migration bridge from v2 wire formats (optional)
 
 `sf.UseAmazonSqs(aws => aws.AcceptV2Messages(map => map.Type("MyApp.Commands.CreateAccount, MyApp", "bank.account.open", 1)))` adds a receive-side translator. It reads v2's `CommandType`/`EventType` assembly-qualified-name attributes **through an explicit allow-list mapping**, converts the v2 JSON to the v3 record, and assigns a deterministic `MessageId` (UUIDv5 of the v2 `MessageId`). This lets v2 and v3 services coexist during migration. It is planned for removal in 4.0.
+
+**As built (WP-5.4).**
+
+- **Option.** It is an option of the AWS transport: `sf.UseAwsTransport(o => o.AcceptV2Messages(map => map.Type(v2Type, type, version, convert?)))`. It is off by default.
+- **Where it runs.** `AwsReceiver` tries it when a message is not a SourceFlow CloudEvent.
+- **What it reads.**
+  - Commands: `CommandType`, `EntityId` and `SequenceNo` attributes on the SQS message.
+  - Events: an `EventType` attribute, raw on SQS or inside an SNS notification.
+  - The v2 message id is the SQS message id; for an SNS notification, it is the SNS `MessageId`.
+- **Matching.** Types match without assembly version, culture or public key token.
+- **Body.** The converter (`Func<V2Message, JsonNode?>`) builds the v3 JSON; without one, the v2 `payload` object is used.
+- **Envelope.**
+  - `MessageId` is UUIDv5 of the v2 message id, and the source is `sourceflow-v2`.
+  - Headers: `sourceflow-v2-type` and `sourceflow-v2-message-id`.
+- **Unmapped types.** An unmapped v2 type keeps its normalized name and raw body, and is marked `sourceflow-v2-unmapped`. The receive pipeline parks it as `UnknownMessageType`.
+- **Left on the queue.** A mapped message whose body isn't JSON, like any undecodable message, is left for the redrive policy.
+- **Core part.** The allow-list and translation (`V2MessageMap`) live in the core's `SourceFlow.Migration`; only the attribute reading (`AwsV2Bridge`) is AWS-specific.
+- **Tests.** UT-AWS-31..33 (mocked SQS) and MIG-10..12 on LocalStack.

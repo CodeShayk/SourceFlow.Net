@@ -13,6 +13,11 @@ namespace SourceFlow.Cloud.Tests.Aws;
 internal sealed class AwsMocks
 {
     public AwsMocks(params string[] queues)
+        : this(null, queues)
+    {
+    }
+
+    public AwsMocks(AwsTransportOptions? options, params string[] queues)
     {
         Sqs.GetQueueUrlAsync(Arg.Any<GetQueueUrlRequest>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
@@ -27,7 +32,7 @@ internal sealed class AwsMocks
             Batches.Add(request);
             return new SendMessageBatchResponse { Successful = [.. request.Entries.Select(e => new SendMessageBatchResultEntry { Id = e.Id })], Failed = [] };
         });
-        Transport = new AwsTransport(Sqs, Sns, new AwsTransportOptions());
+        Transport = new AwsTransport(Sqs, Sns, options ?? new AwsTransportOptions());
     }
 
     public IAmazonSQS Sqs { get; } = Substitute.For<IAmazonSQS>();

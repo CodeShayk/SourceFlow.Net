@@ -49,7 +49,7 @@ public static class SourceFlowCli
     }
 }
 
-internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWriter error)
+internal sealed partial class Cli(IServiceProvider? services, TextWriter output, TextWriter error)
 {
     private const string CliOwner = "sourceflow-cli";
 
@@ -63,7 +63,7 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
 
     public RootCommand Root()
     {
-        var root = new RootCommand("SourceFlow.Net operations: database, dead letters, projections, topology, queries and schemas.");
+        var root = new RootCommand("SourceFlow.Net operations: database, dead letters, projections, topology, queries, schemas and v2 migration.");
         root.Subcommands.Add(Db());
         root.Subcommands.Add(Dlq());
         root.Subcommands.Add(Projection());
@@ -71,6 +71,7 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
         root.Subcommands.Add(QueryCommand());
         root.Subcommands.Add(Schema());
         root.Subcommands.Add(ObservabilityCommand());
+        root.Subcommands.Add(MigrateCommand());
         return root;
     }
 
@@ -1084,7 +1085,7 @@ internal sealed class Cli(IServiceProvider? services, TextWriter output, TextWri
             await Err.WriteLineAsync(e.Message);
             return 1;
         }
-        catch (Exception e) when (e is InvalidOperationException or NotSupportedException or KeyNotFoundException or Npgsql.NpgsqlException or EventPartitionException)
+        catch (Exception e) when (e is InvalidOperationException or NotSupportedException or KeyNotFoundException or System.Data.Common.DbException or EventPartitionException)
         {
             await Err.WriteLineAsync($"{e.GetType().Name}: {e.Message}");
             return 1;

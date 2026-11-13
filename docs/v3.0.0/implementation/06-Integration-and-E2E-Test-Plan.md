@@ -152,6 +152,11 @@ v2 suites **not** carried into the TCK: the LocalStack harness self-tests, the C
 
 A fixture creates a **v2 database** with the v2 `CommandRecord` DDL and entity tables, seeded by replaying the v2 E2E account scenario rows as SQL (no v2 code reference).
 
+As built (WP-5.4), the tests live with the fixtures they need, not in `SourceFlow.Tooling.Tests`:
+
+- MIG-01..09 run in `SourceFlow.Storage.Tests` (`Migration/`) on both PostgreSQL and SQL Server.
+- MIG-10..12 run in `SourceFlow.EndToEnd.Tests` (`V2BridgeScenarios`) on LocalStack.
+
 | ID | Case |
 |----|------|
 | MIG-01..02 | `plan` counts entities and commands; reports commands lost to GAP-04 (no parameterless ctor) and GAP-20 (id 0) |

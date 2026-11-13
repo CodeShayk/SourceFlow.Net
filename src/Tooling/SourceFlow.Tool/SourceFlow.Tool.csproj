@@ -2,7 +2,7 @@
   <!--
     dotnet sourceflow (WP-4.1, ADR-031): store-level commands run from the global tool with a connection string; commands
     that need the service's model run inside the service (dotnet run, then: sourceflow ...) through SourceFlowCli.RunAsync.
-    migrate v2 comes with WP-5.4 and the Studio commands with track S.
+    migrate v2 (WP-5.4) reads the v2 database on PostgreSQL or SQL Server; the Studio commands come with track S.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -15,5 +15,7 @@
     <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
     <ProjectReference Include="..\..\Storage\SourceFlow.Storage.PostgreSQL\SourceFlow.Storage.PostgreSQL.csproj" />
     <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
   </ItemGroup>
 </Project>

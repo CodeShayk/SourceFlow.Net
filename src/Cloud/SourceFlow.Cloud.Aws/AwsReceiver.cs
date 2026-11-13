@@ -66,12 +66,17 @@ internal sealed class AwsReceiver : ITransportReceiver
                 }
             }
 
-            MessageEnvelope envelope;
+            MessageEnvelope? envelope;
             try
             {
                 envelope = AwsWire.Decode(attributes, message.Body ?? string.Empty);
             }
             catch (FormatException)
+            {
+                envelope = TranslateV2(attributes, message);
+            }
+
+            if (envelope is null)
             {
                 // Not a SourceFlow CloudEvent. On an endpoint it reappears after the lock until the redrive policy moves
                 // it to the dead-letter queue; there, it is hidden for the longest visibility so the ingestor moves on.
@@ -117,6 +122,27 @@ internal sealed class AwsReceiver : ITransportReceiver
             {
                 // Best effort: the lock expires on its own.
             }
+        }
+    }
+
+    // The v2 wire bridge (doc 07 §8), off unless AcceptV2Messages was called: a v2 message on an endpoint becomes a v3
+    // envelope (mapped) or an envelope the pipeline parks (unmapped). A mapped message whose body isn't JSON is left for
+    // the redrive policy, like any message that can't be decoded.
+    private MessageEnvelope? TranslateV2(Dictionary<string, string> attributes, Message message)
+    {
+        if (DeadLetters || _transport.Options.V2Messages is not { } map || string.IsNullOrEmpty(message.MessageId)
+            || !AwsV2Bridge.TryRead(attributes, message.Body ?? string.Empty, message.MessageId, out Migration.V2Message? v2))
+        {
+            return null;
+        }
+
+        try
+        {
+            return map.Translate(v2, TimeProvider.System);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
         }
     }
 

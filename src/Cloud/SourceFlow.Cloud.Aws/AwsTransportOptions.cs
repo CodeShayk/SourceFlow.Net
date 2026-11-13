@@ -45,6 +45,24 @@ public sealed class AwsTransportOptions
     /// <summary>How long messages wait on a queue before SQS drops them (<c>MessageRetentionPeriod</c>, 60 s to 14 days).</summary>
     public TimeSpan MessageRetention { get; set; } = TimeSpan.FromDays(14);
 
+    /// <summary>The v2 wire bridge's allow-list, or null when the bridge is off (the default).</summary>
+    public Migration.V2MessageMap? V2Messages { get; private set; }
+
+    /// <summary>
+    /// Turns on the v2 wire bridge (doc 07 §8): messages in the v2 SourceFlow.Cloud.AWS format (a <c>CommandType</c> or
+    /// <c>EventType</c> attribute with an assembly-qualified name, directly on SQS or in an SNS notification) are
+    /// translated through an explicit allow-list, with a deterministic id (UUIDv5 of the v2 message id). Unmapped v2
+    /// messages are parked as unknown types. Off by default; planned for removal in 4.0.
+    /// </summary>
+    /// <param name="map">Maps v2 types: <c>map.Type("MyApp.Commands.CreateAccount, MyApp", "bank.account.open", 1)</c>.</param>
+    public AwsTransportOptions AcceptV2Messages(Action<Migration.V2MessageMap> map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        V2Messages ??= new Migration.V2MessageMap();
+        map(V2Messages);
+        return this;
+    }
+
     /// <summary>Validates the options; the host fails at startup when one cannot be honoured.</summary>
     /// <exception cref="ArgumentException">An option is out of range.</exception>
     public void Validate()

@@ -767,6 +767,7 @@ namespace SourceFlow.Hosting
             where TModule : SourceFlow.ISourceFlowModule { }
         public SourceFlow.Hosting.SourceFlowBuilder Configure(System.Action<SourceFlow.Runtime.SourceFlowOptions> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder Errors(System.Action<SourceFlow.Pipeline.ErrorClassifier> configure) { }
+        public SourceFlow.Hosting.SourceFlowBuilder MigrateFromV2(System.Action<SourceFlow.Migration.V2MigrationBuilder> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder Projections(System.Action<SourceFlow.Hosting.ProjectionsBuilder> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder Routing(System.Action<SourceFlow.Runtime.RoutingBuilder> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder Security(System.Action<SourceFlow.Security.SecurityBuilder> configure) { }
@@ -953,6 +954,226 @@ namespace SourceFlow.Messaging
         public UnknownMessageTypeException(string type, int version, string? message = null) { }
         public string Type { get; }
         public int Version { get; }
+    }
+}
+namespace SourceFlow.Migration
+{
+    public interface IV2Entity<TSelf>
+        where TSelf : SourceFlow.Migration.IV2Entity<TSelf>
+    {
+        int Id { get; }
+        string TableName { get; }
+        TSelf Read(SourceFlow.Migration.V2Row row);
+    }
+    public interface IV2Import<TV2Entity, TAggregate, TId>
+        where TV2Entity : SourceFlow.Migration.IV2Entity<TV2Entity>
+        where TAggregate :  class, SourceFlow.IAggregateRuntime<TAggregate, TId>
+        where TId :  struct, SourceFlow.IStronglyTypedId<TId>
+    {
+        System.Collections.Generic.IEnumerable<string> Compare(TV2Entity entity, TAggregate state);
+        TId MapId(TV2Entity entity);
+        bool OwnsCommand(string commandType);
+        System.Collections.Generic.IEnumerable<SourceFlow.IEvent> ToEvents(TV2Entity entity, SourceFlow.Migration.V2ImportContext context);
+    }
+    public sealed class V2ArchiveResult : System.IEquatable<SourceFlow.Migration.V2ArchiveResult>
+    {
+        public V2ArchiveResult(long Copied, long Archived, long Source) { }
+        public long Archived { get; init; }
+        public long Copied { get; init; }
+        public long Source { get; init; }
+    }
+    public sealed class V2Column : System.IEquatable<SourceFlow.Migration.V2Column>
+    {
+        public V2Column(string Name, string DataType, bool Nullable) { }
+        public string DataType { get; init; }
+        public string Name { get; init; }
+        public bool Nullable { get; init; }
+    }
+    public enum V2Dialect
+    {
+        PostgreSql = 0,
+        SqlServer = 1,
+    }
+    public static class V2Ids
+    {
+        public static readonly System.Guid Namespace;
+        public static System.Guid FromLegacy(int id, string? scope = null) { }
+        public static TId FromLegacy<TId>(int id, string? scope = null)
+            where TId :  struct, SourceFlow.IStronglyTypedId<TId> { }
+    }
+    public sealed class V2ImportContext : System.IEquatable<SourceFlow.Migration.V2ImportContext>
+    {
+        public V2ImportContext() { }
+        public required int CommandCount { get; init; }
+        public required System.DateTimeOffset ImportedAt { get; init; }
+        public required int LastSequenceNo { get; init; }
+        public required string TenantId { get; init; }
+        public required int V2Id { get; init; }
+    }
+    public sealed class V2ImportOptions : System.IEquatable<SourceFlow.Migration.V2ImportOptions>
+    {
+        public V2ImportOptions() { }
+        public int BatchSize { get; init; }
+        public long? Limit { get; init; }
+        public string? TenantId { get; init; }
+    }
+    public sealed class V2ImportResult : System.IEquatable<SourceFlow.Migration.V2ImportResult>
+    {
+        public V2ImportResult(System.Collections.Generic.IReadOnlyList<SourceFlow.Migration.V2ImportTableResult> Tables, bool Complete) { }
+        public bool Complete { get; init; }
+        public long Imported { get; }
+        public long Skipped { get; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Migration.V2ImportTableResult> Tables { get; init; }
+    }
+    public sealed class V2ImportTableResult : System.IEquatable<SourceFlow.Migration.V2ImportTableResult>
+    {
+        public V2ImportTableResult(string Table, string Aggregate, long Imported, long Skipped) { }
+        public string Aggregate { get; init; }
+        public long Imported { get; init; }
+        public long Skipped { get; init; }
+        public string Table { get; init; }
+    }
+    public sealed class V2Message
+    {
+        public V2Message() { }
+        public required string Body { get; init; }
+        public int? EntityId { get; init; }
+        public string? EventName { get; init; }
+        public bool IsEvent { get; init; }
+        public System.Text.Json.Nodes.JsonNode? Json { get; }
+        public required string MessageId { get; init; }
+        public System.Text.Json.Nodes.JsonNode? Payload { get; }
+        public int? SequenceNo { get; init; }
+        public required string V2Type { get; init; }
+    }
+    public sealed class V2MessageMap
+    {
+        public const string Source = "sourceflow-v2";
+        public const string UnmappedHeader = "sourceflow-v2-unmapped";
+        public const string V2MessageIdHeader = "sourceflow-v2-message-id";
+        public const string V2TypeHeader = "sourceflow-v2-type";
+        public V2MessageMap() { }
+        public System.Collections.Generic.IReadOnlyCollection<SourceFlow.Migration.V2MessageMapping> Mappings { get; }
+        public SourceFlow.Messaging.MessageEnvelope Translate(SourceFlow.Migration.V2Message message, System.TimeProvider time) { }
+        public bool TryGet(string v2TypeName, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out SourceFlow.Migration.V2MessageMapping? mapping) { }
+        public SourceFlow.Migration.V2MessageMap Type(string v2TypeName, string type, int version, System.Func<SourceFlow.Migration.V2Message, System.Text.Json.Nodes.JsonNode?>? convert = null) { }
+        public static SourceFlow.MessageId MessageIdOf(string v2MessageId) { }
+    }
+    public sealed class V2MessageMapping : System.IEquatable<SourceFlow.Migration.V2MessageMapping>
+    {
+        public V2MessageMapping(string V2Type, string Type, int Version, System.Func<SourceFlow.Migration.V2Message, System.Text.Json.Nodes.JsonNode?>? Convert) { }
+        public System.Func<SourceFlow.Migration.V2Message, System.Text.Json.Nodes.JsonNode?>? Convert { get; init; }
+        public string Type { get; init; }
+        public string V2Type { get; init; }
+        public int Version { get; init; }
+    }
+    public sealed class V2Migration
+    {
+        public const string Actor = "sourceflow-migrate-v2";
+        public const string CommandCountHeader = "v2CommandCount";
+        public const string LastSequenceNoHeader = "v2LastSequenceNo";
+        public const string MigratedFromHeader = "migratedFrom";
+        public const string V2IdHeader = "v2Id";
+        public System.Collections.Generic.IReadOnlyList<string> ImportedTables { get; }
+        public SourceFlow.Migration.V2Source Source { get; }
+        public System.Threading.Tasks.Task<SourceFlow.Migration.V2ArchiveResult> ArchiveAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<SourceFlow.Migration.V2ImportResult> ImportAsync(SourceFlow.Migration.V2ImportOptions? options = null, System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<SourceFlow.Migration.V2Plan> PlanAsync(System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<SourceFlow.Migration.V2ScaffoldFile>> ScaffoldAsync(System.Collections.Generic.IEnumerable<string>? tables = null, string namespaceName = "V2Migration", System.Threading.CancellationToken cancellationToken = default) { }
+        public System.Threading.Tasks.Task<SourceFlow.Migration.V2VerifyReport> VerifyAsync(string? tenantId = null, int batchSize = 1000, System.Threading.CancellationToken cancellationToken = default) { }
+        public static SourceFlow.Migration.V2Migration ForSource(SourceFlow.Migration.V2Source source, System.Action<SourceFlow.Migration.V2MigrationBuilder>? configure = null) { }
+    }
+    public sealed class V2MigrationBuilder
+    {
+        public V2MigrationBuilder() { }
+        public double EstimatedStreamsPerSecond { get; set; }
+        public SourceFlow.Migration.V2MigrationBuilder From(SourceFlow.Migration.V2Source source) { }
+        public SourceFlow.Migration.V2MigrationBuilder Ignore(params string[] tables) { }
+        public SourceFlow.Migration.V2MigrationBuilder Import<TV2Entity, TAggregate, TId>(SourceFlow.Migration.IV2Import<TV2Entity, TAggregate, TId> import)
+            where TV2Entity : SourceFlow.Migration.IV2Entity<TV2Entity>
+            where TAggregate :  class, SourceFlow.IAggregateRuntime<TAggregate, TId>
+            where TId :  struct, SourceFlow.IStronglyTypedId<TId> { }
+        public SourceFlow.Migration.V2MigrationBuilder NotRebuildable(params string[] commandTypes) { }
+    }
+    public sealed class V2Mismatch : System.IEquatable<SourceFlow.Migration.V2Mismatch>
+    {
+        public V2Mismatch(string Table, int V2Id, string Stream, System.Collections.Generic.IReadOnlyList<string> Differences) { }
+        public System.Collections.Generic.IReadOnlyList<string> Differences { get; init; }
+        public string Stream { get; init; }
+        public string Table { get; init; }
+        public int V2Id { get; init; }
+    }
+    public sealed class V2Plan : System.IEquatable<SourceFlow.Migration.V2Plan>
+    {
+        public V2Plan(System.Collections.Generic.IReadOnlyList<SourceFlow.Migration.V2PlanEntity> Entities, System.Collections.Generic.IReadOnlyList<SourceFlow.Migration.V2PlanCommandType> CommandTypes, long Commands, long EntityIdZero, long NotRebuildable, System.Collections.Generic.IReadOnlyList<string> TablesWithoutImport, System.TimeSpan EstimatedDuration) { }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Migration.V2PlanCommandType> CommandTypes { get; init; }
+        public long Commands { get; init; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Migration.V2PlanEntity> Entities { get; init; }
+        public long EntityIdZero { get; init; }
+        public System.TimeSpan EstimatedDuration { get; init; }
+        public long NotRebuildable { get; init; }
+        public bool Ready { get; }
+        public System.Collections.Generic.IReadOnlyList<string> TablesWithoutImport { get; init; }
+    }
+    public sealed class V2PlanCommandType : System.IEquatable<SourceFlow.Migration.V2PlanCommandType>
+    {
+        public V2PlanCommandType(string CommandType, long Commands, long EntityIdZero, long NotRebuildable) { }
+        public string CommandType { get; init; }
+        public long Commands { get; init; }
+        public long EntityIdZero { get; init; }
+        public long NotRebuildable { get; init; }
+    }
+    public sealed class V2PlanEntity : System.IEquatable<SourceFlow.Migration.V2PlanEntity>
+    {
+        public V2PlanEntity(string Table, string Aggregate, string Import, long Rows, long Commands) { }
+        public string Aggregate { get; init; }
+        public long Commands { get; init; }
+        public string Import { get; init; }
+        public long Rows { get; init; }
+        public string Table { get; init; }
+    }
+    public sealed class V2Row
+    {
+        public V2Row(System.Data.Common.DbDataReader reader) { }
+        public bool Boolean(string column) { }
+        public byte[]? Bytes(string column) { }
+        public System.DateTime DateTime(string column) { }
+        public decimal Decimal(string column) { }
+        public double Double(string column) { }
+        public bool Has(string column) { }
+        public int Int32(string column) { }
+        public long Int64(string column) { }
+        public bool IsNull(string column) { }
+        public string? String(string column) { }
+        public object? Value(string column) { }
+    }
+    public sealed class V2ScaffoldFile : System.IEquatable<SourceFlow.Migration.V2ScaffoldFile>
+    {
+        public V2ScaffoldFile(string FileName, string Content) { }
+        public string Content { get; init; }
+        public string FileName { get; init; }
+    }
+    public sealed class V2Source
+    {
+        public const string ArchiveTable = "commands";
+        public const string DefaultArchiveSchema = "sourceflow_v2_archive";
+        public V2Source(System.Data.Common.DbDataSource dataSource, SourceFlow.Migration.V2Dialect dialect) { }
+        public string ArchiveSchema { get; init; }
+        public string CommandTable { get; init; }
+        public System.Data.Common.DbDataSource DataSource { get; }
+        public SourceFlow.Migration.V2Dialect Dialect { get; }
+        public string? Schema { get; init; }
+    }
+    public static class V2TypeNames
+    {
+        public static string Normalize(string assemblyQualifiedName) { }
+    }
+    public sealed class V2VerifyReport : System.IEquatable<SourceFlow.Migration.V2VerifyReport>
+    {
+        public V2VerifyReport(long Checked, System.Collections.Generic.IReadOnlyList<SourceFlow.Migration.V2Mismatch> Mismatches) { }
+        public long Checked { get; init; }
+        public System.Collections.Generic.IReadOnlyList<SourceFlow.Migration.V2Mismatch> Mismatches { get; init; }
+        public bool Passed { get; }
     }
 }
 namespace SourceFlow.Pipeline

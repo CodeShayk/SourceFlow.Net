@@ -66,10 +66,44 @@ public sealed class BankAccountImport : IV2Import<V2BankAccount, BankAccount>
 
 Known limitations: v2 commands lost by GAP-04 or GAP-20 (logged under id 0, or not rebuildable) can't be recovered as history, but the current state *is* migrated. The plan step reports them.
 
+**As built (WP-5.4).** See also the guide [guides/migrating-from-v2.md](guides/migrating-from-v2.md).
+
+- **API.** `SourceFlow.Migration` in the core:
+  - **Registration.** `sf.MigrateFromV2(v2 => v2.From(new V2Source(dataSource, V2Dialect.PostgreSql|SqlServer)).Import(…).Ignore(…).NotRebuildable(…))`.
+  - **Import contract.** `IV2Import<TV2Entity, TAggregate, TId>` has a third type parameter for the aggregate id, which C# can't infer from the aggregate. Its members: `MapId`, `ToEvents`, `Compare`, and an optional `OwnsCommand` that attributes commands when several v2 entity types share the command table.
+  - **Row types.** v2 rows are `IV2Entity<TSelf>` records with a static `TableName` and `Read(V2Row)`. `V2Row` converts the column types v2 wrote on each provider.
+  - **Ids.** `V2Ids.FromLegacy<TId>(id, scope?)` is UUIDv5 in a fixed namespace.
+- **Reading v2.** The v2 database is read with plain SQL through a `DbDataSource`, on PostgreSQL or SQL Server. No v2 code is referenced.
+- **CLI.** `dotnet sourceflow migrate v2 plan|scaffold|import|archive|verify`.
+  - **Where it runs.** Inside the service, with the registered migration. `plan`, `scaffold` and `archive` also run from the global tool with `--v2-connection`, `--v2-provider`, `--v2-schema`, `--v2-command-table` and `--v2-archive-schema`.
+  - **Exit codes.** `plan` exits 1 while a v2 table has neither an import nor `Ignore`; `verify` exits 1 on any mismatch.
+- **Plan.**
+  - **Counts.** Commands per type, entity rows, and the commands each import owns.
+  - **GAP-20.** Commands logged under `EntityId = 0`.
+  - **GAP-04.** Commands with an empty payload, plus the types declared with `NotRebuildable`. The tool can't load v2 types, so it can't detect a missing parameterless constructor itself.
+  - **Estimate.** At `EstimatedStreamsPerSecond` (200 by default).
+- **Scaffold.** Generates the row type from `INFORMATION_SCHEMA.COLUMNS` and an import stub. A v3 aggregate named like the table is filled in; otherwise the stub has placeholders and a `#warning`.
+- **Import.**
+  - **Ordering.** Keyset pages by v2 id (`--batch`). `--limit` caps a wave.
+  - **Writes.** One storage session per stream, `ExpectedVersion.NoStream`. An existing stream is skipped, so re-runs resume and repeat nothing.
+  - **Events.** Deterministic ids (UUIDv5 of tenant, stream and version) and actor `sourceflow-migrate-v2`.
+  - **Headers.** `migratedFrom`, `v2CommandCount`, `v2LastSequenceNo` and `v2Id` are event headers.
+  - **Like any append.** Personal data is encrypted, and inline projections apply the events.
+  - **Not published.** Imported events are not published to integration topics.
+- **Archive.** Copies the command table into `sourceflow_v2_archive.commands` in the v2 database, with the same columns and its own primary key.
+  - **Read-only.** PostgreSQL uses a `BEFORE UPDATE OR DELETE OR TRUNCATE` trigger; SQL Server uses `INSTEAD OF UPDATE, DELETE`.
+  - **Re-runs** copy only new rows.
+- **Verify.** Loads each aggregate through `IAggregateReader` and calls `Compare`. A stream with no events is a mismatch.
+- **Tests.**
+  - **MIG-01..09** run on PostgreSQL and on SQL Server (`tests/Storage/.../Migration`). Each test seeds a v2 database from the v2 `CommandRecord` DDL and the v2 E2E account rows, then imports into the Bank sample's account aggregate.
+  - **MIG-10..12** are the AWS bridge on LocalStack (`tests/EndToEnd/V2BridgeScenarios.cs`).
+  - **Unit tests:** UT-MIG-01..06 (core) and UT-AWS-31..33 (the AWS receiver).
+
 ## 4. Coexistence
 
 - **Strangler by bounded context.** Migrate one service at a time. The v3 service accepts v2 wire messages through the explicit allow-list bridge (doc 07 §8).
 - **v3 → v2 direction**: v3 publishes CloudEvents. A v2 consumer can't read them, so publish a v2-shaped integration event (`.As(v2Shape)`, routed to the legacy topic) until the consumer is migrated.
+- **As built (WP-5.4).** The v2 → v3 bridge exists for AWS (doc 07 §8), the only v2 cloud provider on `master`. The v2 Azure provider lives on the `azure-cloud` branch (WP-3.R) and has no bridge.
 
 ## 5. Delivery plan
 
