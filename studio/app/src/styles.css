@@ -859,3 +859,145 @@ kbd {
   color: var(--warning);
   font-size: 12px;
 }
+
+/* Simulation and paths (WP-S.11) */
+
+.state.active {
+  box-shadow: 0 0 0 3px var(--edge-success);
+}
+
+.state-active {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.simulation h2,
+.paths h2 {
+  font-size: 15px;
+  margin: 0 0 0.5rem;
+}
+
+.sim-part h3 {
+  font-size: 13px;
+  margin: 0 0 0.25rem;
+}
+
+.field.stacked {
+  grid-template-columns: 1fr;
+}
+
+.field textarea {
+  font: 12px/1.4 var(--mono);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.25rem 0.375rem;
+  resize: vertical;
+}
+
+.sim-state {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: 0.125rem 0.5rem;
+  margin: 0 0 0.75rem;
+}
+
+.sim-state dt {
+  color: var(--muted);
+}
+
+.sim-state dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.sim-next {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.sim-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.sim-data,
+.specs-preview {
+  font: 12px/1.4 var(--mono);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.5rem;
+  margin: 0;
+  max-height: 16rem;
+  overflow: auto;
+  white-space: pre;
+}
+
+.toolbar.wrap {
+  flex-wrap: wrap;
+  margin: 0.5rem 0;
+}
+
+.path-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  max-height: 50vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.path {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.25rem 0.5rem;
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.path:last-child {
+  border-bottom: 0;
+}
+
+.path-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.path-text {
+  grid-column: 1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.path .button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.path-cover {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.end-Completed .path-end {
+  color: var(--edge-success);
+}
+
+.end-Compensated .path-end {
+  color: var(--edge-compensation);
+}
+
+.end-ManualIntervention .path-end {
+  color: var(--edge-manual);
+}

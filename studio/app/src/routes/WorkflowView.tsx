@@ -10,6 +10,10 @@ import { palette as paletteOf } from '../edit/palette.ts';
 import { PalettePanel } from '../edit/PalettePanel.tsx';
 import { StepProperties } from '../edit/StepProperties.tsx';
 import { stepAtLine, stepLocator, stepsOf } from '../edit/steps.ts';
+import { PathExplorer } from '../simulate/PathExplorer.tsx';
+import { activeNode } from '../simulate/simulation.ts';
+import { SimulationPanel } from '../simulate/SimulationPanel.tsx';
+import { useSimulation } from '../simulate/simulationStore.ts';
 import { useServices } from '../services.tsx';
 import { StatechartView } from '../views/StatechartView.tsx';
 import { SwimlaneView } from '../views/SwimlaneView.tsx';
@@ -31,7 +35,8 @@ interface Props {
  * model: visual edits are minimal text edits, typing in the editor is the same text, and undo covers both.
  */
 export const WorkflowView = forwardRef<HTMLElement, Props>(function WorkflowView({ path, owner, workspace, stored, diagnostics, selected, error }, ref) {
-  const { api, codeEditor: CodeEditor } = useServices();
+  const { api, core, codeEditor: CodeEditor } = useServices();
+  const simulation = useSimulation();
   const queries = useQueryClient();
   const editor = useEditor();
   const layoutFile = useQuery({
@@ -123,6 +128,7 @@ export const WorkflowView = forwardRef<HTMLElement, Props>(function WorkflowView
   });
 
   const name = path.slice(path.lastIndexOf('/') + 1);
+  const simulated = simulation.file === path && simulation.yaml === text ? activeNode(simulation.moves.at(-1)?.result) : undefined;
   const selectedStep = steps.find((s) => s.id === editor.selected);
   return (
     <article ref={ref} className="view workflow" aria-labelledby="workflow-title" tabIndex={-1}>
@@ -163,10 +169,23 @@ export const WorkflowView = forwardRef<HTMLElement, Props>(function WorkflowView
                     layout: editor.layout,
                     onMove: (id, x, y) => editor.move(id, x, y),
                     problems,
+                    ...(simulated !== undefined ? { active: simulated } : {}),
                   }} />
                 ),
               },
               { id: 'swimlane', label: 'Swimlane', content: () => <SwimlaneView text={text} workspace={workspace} name={name} /> },
+              {
+                id: 'paths', label: 'Paths', content: () => (
+                  <PathExplorer path={path} text={text} name={name} owner={owner} readOnly={readOnly} dirty={dirty}
+                    selected={simulation.file === path ? simulation.selectedPaths : undefined}
+                    onSelect={(ids) => { simulation.open(path, text); simulation.setSelectedPaths(ids); }}
+                    onSimulate={(p) => {
+                      simulation.open(path, text);
+                      setRight('simulate');
+                      void simulation.replay(core, text, p, steps.map((s) => s.id));
+                    }} />
+                ),
+              },
             ]} />
           </div>
           <div className="pane side">
@@ -191,6 +210,7 @@ export const WorkflowView = forwardRef<HTMLElement, Props>(function WorkflowView
                   </Suspense>
                 ),
               },
+              { id: 'simulate', label: 'Simulate', content: () => <SimulationPanel path={path} text={text} steps={steps} /> },
             ]} />
           </div>
         </div>

@@ -119,7 +119,7 @@ tests/
 | GEN-56..64 | Generator: workflows | Snapshot of the generated process manager for order fulfilment; SF0020 at the YAML line and column for each WF-V rule class; SF0021 missing hook; AdditionalFiles discovery via build props; side-by-side `@1`/`@2`; bundling (the generator's linked DSL code + YamlDotNet load from the analyzer folder) |
 | **WF-DIFF-01..05** | Differential / property (CsCheck) | Random outcome sequences: the simulator trace ≡ the generated process manager run in `SourceFlowTestHost` (state sequence, outbox messages, timers, terminal status), for each sample workflow; shrinks to a minimal counterexample |
 | WF-GOLD-01..30 | Golden suite | `(workflow.yaml, manifests) → diagnostics.json, paths.json, mermaid.mmd`, run by both .NET and WASM test runners |
-| UT-STU-HOST-01..10 | Local host | Loopback bind; non-loopback Host header refused; writes limited to workflow and layout paths; read-only mode; manifest export trigger |
+| UT-STU-HOST-01..12 | Local host | Loopback bind; non-loopback Host header refused; writes limited to workflow and layout paths; read-only mode; manifest export trigger; specs generated into the owner's test project (11) and refused outside it (12, WP-S.11) |
 
 ### 3.2 End to end (`SourceFlow.EndToEnd.Tests`, `Category=Workflow`, OrderFulfilment sample)
 

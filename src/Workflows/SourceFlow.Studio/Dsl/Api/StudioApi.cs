@@ -135,7 +135,16 @@ namespace SourceFlow.Studio.Dsl.Api
                     w.Begin().Key("paths").Array(paths.Paths, (a, p) =>
                     {
                         a.Begin().Prop("id", p.Id).Prop("number", p.Number).Prop("text", p.ToString()).Prop("end", p.End.ToString());
-                        a.Key("moves").Array(p.Moves, (m, move) => m.Begin().Prop("step", move.Step).Prop("outcome", move.Outcome).Prop("edge", move.Edge).Prop("retryEdge", move.RetryEdge).End());
+                        a.Key("moves").Array(p.Moves, (m, move) =>
+                        {
+                            m.Begin().Prop("step", move.Step).Prop("outcome", move.Outcome).Prop("edge", move.Edge).Prop("retryEdge", move.RetryEdge);
+                            if (move.Input is { } input)
+                            {
+                                InputJson(m.Key("input"), input);
+                            }
+
+                            m.End();
+                        });
                         a.Key("guards").Begin();
                         foreach (KeyValuePair<string, bool> guard in p.Guards.OrderBy(g => g.Key, StringComparer.Ordinal))
                         {
@@ -416,6 +425,59 @@ namespace SourceFlow.Studio.Dsl.Api
                     return SimulationInput.Abort(input["reason"]?.AsString ?? "aborted in the simulator", input["compensate"]?.AsBoolean ?? false);
                 default:
                     throw new ApiException("Unknown input kind '" + kind + "'.");
+            }
+        }
+
+        // A move's input in the shape SimulateStep reads, so a client can replay a path one move at a time.
+        private static void InputJson(WorkflowJson.Writer w, SimulationInput input)
+        {
+            w.Begin();
+            switch (input)
+            {
+                case SimulationInput.Outcome { Kind: "success" } success:
+                    w.Prop("kind", "succeed");
+                    Data(w, success.Data);
+                    break;
+                case SimulationInput.Outcome { Kind: "rejected" } rejected:
+                    w.Prop("kind", "reject").Prop("code", rejected.Value).Prop("message", rejected.Message);
+                    break;
+                case SimulationInput.Outcome failure:
+                    w.Prop("kind", "fail").Prop("event", failure.Value);
+                    Data(w, failure.Data);
+                    break;
+                case SimulationInput.TimerInput timer:
+                    w.Prop("kind", "timer").Prop("timer", timer.Kind).Prop("step", timer.Step);
+                    if (timer.Attempt is { } attempt)
+                    {
+                        w.Prop("attempt", attempt);
+                    }
+
+                    break;
+                case SimulationInput.Received received:
+                    w.Prop("kind", "receive").Prop("type", received.Type);
+                    Data(w, received.Data);
+                    break;
+                case SimulationInput.Rejection rejection:
+                    w.Prop("kind", "rejected").Prop("command", rejection.Command).Prop("code", rejection.Code).Prop("message", rejection.Message);
+                    break;
+                case SimulationInput.Operator { Action: "abort" } abort:
+                    w.Prop("kind", "abort").Prop("reason", abort.Argument).Prop("compensate", abort.Compensate);
+                    break;
+                case SimulationInput.Operator other:
+                    w.Prop("kind", other.Action).Prop("step", other.Argument);
+                    break;
+                default:
+                    throw new ApiException("A path move has an input the API can't describe: " + input + ".");
+            }
+
+            w.End();
+
+            static void Data(WorkflowJson.Writer w, IReadOnlyDictionary<string, object?>? data)
+            {
+                if (data is { Count: > 0 })
+                {
+                    w.Key("data").Raw(SimulationStateJson.ToJson(data));
+                }
             }
         }
 

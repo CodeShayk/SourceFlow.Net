@@ -86,7 +86,7 @@ public sealed class DomainWorkspace
                     .Select(f => System.IO.Path.GetRelativePath(root, f).Replace('\\', '/'))
                     .Order(StringComparer.Ordinal)]
                 : [];
-            services.Add(new WorkspaceService(entry.Name!, entry.Manifest!, manifest, workflows is null ? null : entry.Workflows, files) { ProjectLocation = entry.Project });
+            services.Add(new WorkspaceService(entry.Name!, entry.Manifest!, manifest, workflows is null ? null : entry.Workflows, files) { ProjectLocation = entry.Project, TestsLocation = entry.Tests, ModuleType = entry.Module });
         }
 
         return new DomainWorkspace(file, definition.Domain!, definition.Description, services);
@@ -160,7 +160,7 @@ public sealed class DomainWorkspace
     {
         if (node is not YamlMappingNode mapping)
         {
-            throw Error(file, node, "a service is a mapping with 'name', 'manifest' and optionally 'workflows' and 'project'");
+            throw Error(file, node, "a service is a mapping with 'name', 'manifest' and optionally 'workflows', 'project', 'tests' and 'module'");
         }
 
         var entry = new WorkspaceFile.ServiceEntry();
@@ -180,8 +180,14 @@ public sealed class DomainWorkspace
                 case "project":
                     entry.Project = Scalar(file, value);
                     break;
+                case "tests":
+                    entry.Tests = Scalar(file, value);
+                    break;
+                case "module":
+                    entry.Module = Scalar(file, value);
+                    break;
                 default:
-                    throw Error(file, key, $"unknown key '{((YamlScalarNode)key).Value}' (expected name, manifest, workflows or project)");
+                    throw Error(file, key, $"unknown key '{((YamlScalarNode)key).Value}' (expected name, manifest, workflows, project, tests or module)");
             }
         }
 
@@ -259,6 +265,15 @@ public sealed record WorkspaceService(string Name, string ManifestLocation, Serv
 {
     /// <summary>The service's project (a .csproj or its folder) as written, or null: Studio can then re-export its manifest (WP-S.8).</summary>
     public string? ProjectLocation { get; init; }
+
+    /// <summary>
+    /// The service's test project folder as written, or null: Studio writes the specs it generates for the service's
+    /// workflows there (WP-S.11).
+    /// </summary>
+    public string? TestsLocation { get; init; }
+
+    /// <summary>The full name of the service's module type (for example <c>Orders.OrdersModule</c>), or null; the generated specs use it.</summary>
+    public string? ModuleType { get; init; }
 }
 
 /// <summary>How a workspace is loaded.</summary>
@@ -310,5 +325,9 @@ internal sealed class WorkspaceFile
         public string? Workflows { get; set; }
 
         public string? Project { get; set; }
+
+        public string? Tests { get; set; }
+
+        public string? Module { get; set; }
     }
 }

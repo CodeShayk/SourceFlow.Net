@@ -10,6 +10,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SourceFlow.Studio.Dsl;
+using SourceFlow.Studio.Dsl.Specs;
+using SourceFlow.Studio.Dsl.Validation;
 using SourceFlow.Studio.Workspace;
 
 namespace SourceFlow.Tool.Studio;
@@ -128,7 +131,11 @@ internal sealed class StudioHost : IAsyncDisposable
             foreach (WorkspaceService service in workspace.Services)
             {
                 string manifest = await ReadManifestAsync(workspace, service, context.RequestAborted);
-                services.Add(new ServiceDto(service.Name, service.ManifestLocation, manifest, service.WorkflowsLocation, service.ProjectLocation, service.WorkflowFiles));
+                services.Add(new ServiceDto(service.Name, service.ManifestLocation, manifest, service.WorkflowsLocation, service.ProjectLocation, service.WorkflowFiles)
+                {
+                    Tests = service.TestsLocation,
+                    Module = service.ModuleType,
+                });
             }
 
             return Results.Json(new WorkspaceDto(workspace.Domain, workspace.Description, Path.GetFileName(workspace.Path), options.ReadOnly, services), StudioJson.Default.WorkspaceDto);
@@ -203,7 +210,119 @@ internal sealed class StudioHost : IAsyncDisposable
             return Results.Json(new ExportedDto(service, entry.ManifestLocation), StudioJson.Default.ExportedDto);
         });
 
+        // Generates the specs of one workflow for its owner's test project; a dry run returns them without writing (it is
+        // allowed read-only, so the preview is exactly what a write would give).
+        app.MapPost("/api/services/{service}/specs", async (HttpContext context, string service) =>
+        {
+            DomainWorkspace workspace = await DomainWorkspace.LoadAsync(workspaceFile, cancellationToken: context.RequestAborted);
+            if (workspace.Service(service) is not { } entry)
+            {
+                return Results.Json(new ProblemDto("No service '" + service + "' in the workspace."), StudioJson.Default.ProblemDto, statusCode: StatusCodes.Status404NotFound);
+            }
+
+            SpecsWriteDto? body = await context.Request.ReadFromJsonAsync(StudioJson.Default.SpecsWriteDto, context.RequestAborted);
+            if (body?.Workflow is not { } workflowPath || !entry.WorkflowFiles.Contains(workflowPath, StringComparer.Ordinal)
+                || Resolve(workspace, workflowPath, forWrite: false) is not { } workflowFile)
+            {
+                return Results.Json(new ProblemDto("The body is {\"workflow\": \"<one of " + service + "'s workflow files>\", \"paths\"?: [\"P01\"], \"allPaths\"?: true, \"dryRun\"?: true}."),
+                    StudioJson.Default.ProblemDto, statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            if (options.ReadOnly && !body.DryRun)
+            {
+                return ReadOnly();
+            }
+
+            if (SpecsTarget(workspace, entry) is { } refusal)
+            {
+                return refusal;
+            }
+
+            WorkflowAnalysisResult analysis = WorkflowAnalysis.Analyze(await File.ReadAllTextAsync(workflowFile, context.RequestAborted), new WorkflowEnvironment(workspace.Manifests));
+            if (analysis.Workflow is not { } workflow || analysis.HasErrors)
+            {
+                return Results.Json(new ProblemDto("'" + workflowPath + "' has errors; fix them before generating specs."), StudioJson.Default.ProblemDto, statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            string tests = Path.GetFullPath(Path.Combine(workspace.Root, entry.TestsLocation!));
+            string project = Path.GetFileNameWithoutExtension(Directory.EnumerateFiles(tests, "*.csproj").Order(StringComparer.Ordinal).First());
+            string module = entry.ModuleType!;
+            string typeName = SpecGenerator.WorkflowTypeName(workflow);
+            string text = SpecGenerator.Generate(workflow, new WorkflowEnvironment(workspace.Manifests), new SpecOptions
+            {
+                Namespace = project + ".Workflows",
+                ModuleType = module,
+                WorkflowType = (module.Contains('.', StringComparison.Ordinal) ? module[..module.LastIndexOf('.')] + "." : string.Empty) + typeName,
+                AllPaths = body.AllPaths,
+                PathIds = body.Paths is { Count: > 0 } ids ? [.. ids] : null,
+            });
+
+            // OrderFulfilmentWorkflowV1 → Workflows/OrderFulfilmentV1PathTests.cs, after the generated class.
+            string version = workflow.Version.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            string file = Path.Combine(tests, "Workflows", typeName[..typeName.LastIndexOf("WorkflowV", StringComparison.Ordinal)] + "V" + version + "PathTests.cs");
+            if (ThroughLink(workspace.Root, file))
+            {
+                return Refused(entry.TestsLocation);
+            }
+
+            if (File.Exists(file) && !(await File.ReadAllTextAsync(file, context.RequestAborted)).StartsWith(SpecGenerator.Header, StringComparison.Ordinal))
+            {
+                return Results.Json(new ProblemDto("'" + Relative(workspace, file) + "' isn't a file Studio generated, so it is left alone; move or delete it to generate the specs."),
+                    StudioJson.Default.ProblemDto, statusCode: StatusCodes.Status409Conflict);
+            }
+
+            int count = text.Split("[Fact", StringSplitOptions.None).Length - 1;
+            if (body.DryRun)
+            {
+                return Results.Json(new SpecsWrittenDto(Relative(workspace, file), count, Encoding.UTF8.GetByteCount(text)) { Text = text, Written = false }, StudioJson.Default.SpecsWrittenDto);
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            string temporary = file + ".tmp-" + Path.GetRandomFileName();
+            await File.WriteAllTextAsync(temporary, text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), context.RequestAborted);
+            File.Move(temporary, file, overwrite: true);
+            return Results.Json(new SpecsWrittenDto(Relative(workspace, file), count, Encoding.UTF8.GetByteCount(text)), StudioJson.Default.SpecsWrittenDto);
+        });
+
         app.Map("/api/{**rest}", (string? rest) => Results.Json(new ProblemDto("No API '/api/" + rest + "'."), StudioJson.Default.ProblemDto, statusCode: StatusCodes.Status404NotFound));
+    }
+
+    // Where a service's specs may go: its 'tests' folder, inside the workspace, not through a link, holding a project; the
+    // specs also need the service's 'module'. Null when they can be written, otherwise the refusal.
+    private static IResult? SpecsTarget(DomainWorkspace workspace, WorkspaceService service)
+    {
+        string domainFile = Path.GetFileName(workspace.Path);
+        if (service.TestsLocation is not { } location)
+        {
+            return Results.Json(new ProblemDto("Service '" + service.Name + "' has no 'tests' in " + domainFile + ": add its test project's folder, where Studio writes the specs."),
+                StudioJson.Default.ProblemDto, statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        if (service.ModuleType is null)
+        {
+            return Results.Json(new ProblemDto("Service '" + service.Name + "' has no 'module' in " + domainFile + ": add the full name of its module type (for example Orders.OrdersModule), which the specs register."),
+                StudioJson.Default.ProblemDto, statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        string tests = Path.GetFullPath(Path.Combine(workspace.Root, location));
+        if (Path.IsPathRooted(location) || !Inside(workspace.Root, tests) || ThroughLink(workspace.Root, tests))
+        {
+            return Results.Json(new ProblemDto("Service '" + service.Name + "': Studio writes specs only inside the workspace folder; refused 'tests: " + location + "'."),
+                StudioJson.Default.ProblemDto, statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        if (!Directory.Exists(tests) || !Directory.EnumerateFiles(tests, "*.csproj").Any())
+        {
+            return Results.Json(new ProblemDto("Service '" + service.Name + "': '" + location + "' is not a project folder (no .csproj)."),
+                StudioJson.Default.ProblemDto, statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        return null;
+    }
+
+    private static string Relative(DomainWorkspace workspace, string full)
+    {
+        return Path.GetRelativePath(workspace.Root, full).Replace('\\', '/');
     }
 
     private static async Task<string> ReadManifestAsync(DomainWorkspace workspace, WorkspaceService service, CancellationToken cancellationToken)
@@ -407,7 +526,25 @@ internal sealed class StudioHost : IAsyncDisposable
 
 internal sealed record WorkspaceDto(string Domain, string? Description, string File, bool ReadOnly, IReadOnlyList<ServiceDto> Services);
 
-internal sealed record ServiceDto(string Name, string Manifest, string ManifestJson, string? Workflows, string? Project, IReadOnlyList<string> WorkflowFiles);
+internal sealed record ServiceDto(string Name, string Manifest, string ManifestJson, string? Workflows, string? Project, IReadOnlyList<string> WorkflowFiles)
+{
+    /// <summary>The test project folder the specs go to, as written in the workspace file.</summary>
+    public string? Tests { get; init; }
+
+    /// <summary>The module type the specs register.</summary>
+    public string? Module { get; init; }
+}
+
+internal sealed record SpecsWriteDto(string? Workflow, IReadOnlyList<string>? Paths, bool AllPaths, bool DryRun);
+
+internal sealed record SpecsWrittenDto(string Path, int Tests, int Bytes)
+{
+    /// <summary>Whether the file was written (false for a dry run).</summary>
+    public bool Written { get; init; } = true;
+
+    /// <summary>The generated text, for a dry run.</summary>
+    public string? Text { get; init; }
+}
 
 internal sealed record FileWriteDto(string? Content);
 
@@ -421,6 +558,8 @@ internal sealed record ProblemDto(string Error);
 [JsonSerializable(typeof(FileWriteDto))]
 [JsonSerializable(typeof(FileWrittenDto))]
 [JsonSerializable(typeof(ExportedDto))]
+[JsonSerializable(typeof(SpecsWriteDto))]
+[JsonSerializable(typeof(SpecsWrittenDto))]
 [JsonSerializable(typeof(ProblemDto))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 internal sealed partial class StudioJson : JsonSerializerContext;

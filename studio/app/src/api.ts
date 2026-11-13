@@ -10,7 +10,30 @@ export interface ServiceDto {
   workflows?: string;
   /** The service's project, when Studio can re-export its manifest. */
   project?: string;
+  /** The service's test project folder, where Studio writes the specs of its workflows. */
+  tests?: string;
+  /** The service's module type, which the specs register. */
+  module?: string;
   workflowFiles: string[];
+}
+
+/** What to generate specs for: one of the service's workflow files and the paths (none: the minimal cover). */
+export interface SpecsRequest {
+  workflow: string;
+  paths?: readonly string[];
+  allPaths?: boolean;
+  /** Generate without writing: the preview. */
+  dryRun?: boolean;
+}
+
+export interface SpecsResult {
+  /** The file, relative to the workspace. */
+  path: string;
+  tests: number;
+  bytes: number;
+  written: boolean;
+  /** The generated C#, for a dry run. */
+  text?: string;
 }
 
 export interface WorkspaceDto {
@@ -37,6 +60,8 @@ export interface WorkspaceApi {
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
   exportManifest(service: string): Promise<void>;
+  /** Generates (and unless `dryRun`, writes) the specs of a workflow into its owner's test project. */
+  specs(service: string, request: SpecsRequest): Promise<SpecsResult>;
 }
 
 /** The API of the host that served this page (`base` defaults to the page's origin). */
@@ -71,6 +96,14 @@ export function hostApi(base = '', fetcher: typeof fetch = (input, init) => fetc
     },
     async exportManifest(service) {
       await request('/api/services/' + encodeURIComponent(service) + '/manifest/export', { method: 'POST' });
+    },
+    async specs(service, body) {
+      const response = await request('/api/services/' + encodeURIComponent(service) + '/specs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return (await response.json()) as SpecsResult;
     },
   };
 }

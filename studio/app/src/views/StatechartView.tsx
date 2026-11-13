@@ -22,6 +22,8 @@ export interface StatechartEditing {
   onMove?: (node: string, x: number, y: number) => void;
   /** Problems per step id. */
   problems?: ReadonlyMap<string, number>;
+  /** The node the simulated instance is at. */
+  active?: string;
 }
 
 /** The statechart of a workflow (doc 15 §6.1, WFD-30): the core's graph, laid out by ELK, drawn by React Flow. */
@@ -65,15 +67,15 @@ function LaidOut({ graph, name, editing }: { graph: GraphResult; name: string; e
         const step = n.data.node.kind === 'step' || n.data.node.kind === 'pivot';
         return {
           ...n,
-          data: { ...n.data, problems },
+          data: { ...n.data, problems, active: editing?.active === n.id },
           selected: editing?.selected === n.id,
           draggable: editing?.editable === true && n.data.node.kind !== 'compensating',
-          ariaLabel: n.ariaLabel + (problems > 0 ? `, ${problems} problem${problems === 1 ? '' : 's'}` : '') + (step && editing?.editable ? ', press Enter to edit' : ''),
+          ariaLabel: n.ariaLabel + (problems > 0 ? `, ${problems} problem${problems === 1 ? '' : 's'}` : '') + (editing?.active === n.id ? ', simulated here' : '') + (step && editing?.editable ? ', press Enter to edit' : ''),
         };
       }),
       edges: edges.map((e) => ({ ...e, markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 } })),
     };
-  }, [graph, positions.data, editing?.layout, editing?.problems, editing?.selected, editing?.editable]);
+  }, [graph, positions.data, editing?.layout, editing?.problems, editing?.selected, editing?.editable, editing?.active]);
   const counts = useMemo(() => edgeCounts(graph), [graph]);
 
   // Controlled nodes: drags move them here; the drop is reported to the layout sidecar.

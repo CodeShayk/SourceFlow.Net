@@ -116,12 +116,22 @@ export interface PathsRequest {
   maxMoves?: number;
 }
 
+/** One move of a path: the statechart edge it covers, and the input that takes it (none for a skipped step). */
+export interface PathMove {
+  step: string;
+  outcome: string;
+  edge: string;
+  retryEdge?: string;
+  /** Pass to `simulateStep` (with the path's guards) to replay the path. */
+  input?: Exclude<SimulationInput, { kind: 'start' }>;
+}
+
 export interface WorkflowPath {
   id: string;
   number: number;
   text: string;
   end: 'Completed' | 'Compensated' | 'ManualIntervention';
-  moves: Array<{ step: string; outcome: string; edge: string; retryEdge?: string }>;
+  moves: PathMove[];
   guards: Record<string, boolean>;
 }
 

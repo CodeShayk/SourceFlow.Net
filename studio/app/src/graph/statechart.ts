@@ -11,6 +11,8 @@ export interface StateNodeData extends Record<string, unknown> {
   lines: string[];
   /** Diagnostics on the step's lines (WP-S.10): shown as a badge. */
   problems?: number;
+  /** The simulated instance is here (WP-S.11). */
+  active?: boolean;
 }
 
 export interface KindEdgeData extends Record<string, unknown> {

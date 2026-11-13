@@ -7,7 +7,7 @@ export function StateNode({ data }: NodeProps<StateFlowNode>) {
   const { node, lines } = data;
   const encoding = NODE_ENCODINGS[node.kind];
   return (
-    <div className={`state state-${node.kind} shape-${encoding.shape}${node.compensable ? ' compensable' : ''}`} data-kind={node.kind}>
+    <div className={`state state-${node.kind} shape-${encoding.shape}${node.compensable ? ' compensable' : ''}${data.active === true ? ' active' : ''}`} data-kind={node.kind} data-active={data.active === true ? 'true' : undefined}>
       <Handle type="target" position={Position.Top} isConnectable={false} />
       {lines.map((line, index) => (
         <div key={index} className={index === 0 ? 'state-title' : 'state-detail'}>
@@ -15,6 +15,7 @@ export function StateNode({ data }: NodeProps<StateFlowNode>) {
         </div>
       ))}
       {node.compensable ? <div className="state-badge" title="Compensated on failure">⟲ undoable</div> : null}
+      {data.active === true ? <div className="state-active">▶ simulated here</div> : null}
       {data.problems !== undefined && data.problems > 0 ? (
         <div className="state-problems">✕ {data.problems} problem{data.problems === 1 ? '' : 's'}</div>
       ) : null}

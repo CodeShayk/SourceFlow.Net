@@ -89,6 +89,24 @@ describe('WASM-06 simulation', () => {
     next = await client.simulateStep({ yaml, state: next.state, input: { kind: 'succeed', data: { paymentId: 'p' } }, guards });
     expect(next.step).toBe('review-large-order');
   });
+
+  it('replays an enumerated path from the inputs on its moves', async () => {
+    const { client } = inProcessClient(0);
+    const yaml = workflow('01-order-fulfilment');
+    const paths = await client.enumeratePaths({ yaml });
+    const compensated = paths.paths.find((p) => p.end === 'Compensated' && p.moves.some((m) => m.retryEdge !== undefined))!;
+    const parsed = await client.parse({ yaml });
+    const guards: Record<string, boolean> = { $start: true, ...Object.fromEntries(parsed.workflow!.steps.map((s) => [`$success:${s.id}`, true])), ...compensated.guards };
+    let step = await client.simulateStep({ yaml, input: { kind: 'start', data: { orderId: 'instance-1' } }, guards });
+    for (const move of compensated.moves) {
+      if (move.input !== undefined) {
+        step = await client.simulateStep({ yaml, state: step.state, input: move.input, guards });
+      }
+    }
+
+    expect(step.status).toBe('Compensated');
+    expect(compensated.moves.find((m) => m.outcome === 'retry')?.input).toEqual({ kind: 'timer' });
+  });
 });
 
 describe('client loading and cache', () => {

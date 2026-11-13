@@ -1,6 +1,6 @@
 // What the app talks to: the local host's API, the WebAssembly core and the ELK layout engine. Injected so tests can
 // replace them.
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { StudioCoreClient, ValidateResult } from '@sourceflow/core-client';
 import { createContext, useContext, type ReactNode } from 'react';
 import type { WorkspaceApi, WorkspaceDto } from './api.ts';
@@ -9,7 +9,7 @@ import type { LayoutEngine } from './graph/layout.ts';
 import { manifests } from './workspace.ts';
 
 /** The part of the core client the app uses. */
-export type StudioCore = Pick<StudioCoreClient, 'validate' | 'graph' | 'enumeratePaths' | 'sequence'>;
+export type StudioCore = Pick<StudioCoreClient, 'validate' | 'graph' | 'enumeratePaths' | 'sequence' | 'simulateStep'>;
 
 export interface StudioServices {
   api: WorkspaceApi;
@@ -63,7 +63,8 @@ export function useGraph(text: string | undefined) {
 
 export function usePaths(text: string | undefined) {
   const { core } = useServices();
-  return useQuery({ queryKey: ['paths', text], queryFn: () => core.enumeratePaths({ yaml: text! }), enabled: text !== undefined, retry: false });
+  // While an edit is re-enumerated, the previous paths stay (as the statechart keeps its layout).
+  return useQuery({ queryKey: ['paths', text], queryFn: () => core.enumeratePaths({ yaml: text! }), enabled: text !== undefined, retry: false, placeholderData: keepPreviousData });
 }
 
 export function useSequence(text: string | undefined, workspace: WorkspaceDto | undefined, path: string | undefined) {

@@ -65,6 +65,9 @@ public sealed class WorkspaceTests : IDisposable
               - name: orders
                 manifest: ../services/orders/artifacts/sourceflow.manifest.json
                 workflows: ../services/orders/workflows
+                project: ../services/orders/src
+                tests: ../services/orders/tests
+                module: Orders.OrdersModule
               - name: payments
                 manifest: ../services/payments/artifacts/sourceflow.manifest.json
               - name: shipping
@@ -82,6 +85,11 @@ public sealed class WorkspaceTests : IDisposable
             "../services/orders/workflows/order-fulfilment.sfflow.yaml",
             "../services/orders/workflows/returns/refund.sfflow.yaml",
         ]);
+        workspace.Service("orders")!.ProjectLocation.ShouldBe("../services/orders/src");
+        workspace.Service("orders")!.TestsLocation.ShouldBe("../services/orders/tests");
+        workspace.Service("orders")!.ModuleType.ShouldBe("Orders.OrdersModule");
+        workspace.Service("payments")!.TestsLocation.ShouldBeNull();
+        workspace.Service("payments")!.ModuleType.ShouldBeNull();
         workspace.Service("payments")!.WorkflowsLocation.ShouldBeNull();
         workspace.Service("payments")!.WorkflowFiles.ShouldBeEmpty();
         workspace.Service("payments")!.Manifest.Aggregates.Single().Name.ShouldBe("payment");

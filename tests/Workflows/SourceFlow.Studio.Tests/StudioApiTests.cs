@@ -133,6 +133,45 @@ public sealed class StudioApiTests
         paths["truncated"]!.GetValue<bool>().ShouldBeFalse();
         Ok(StudioApi.EnumeratePaths(Request(new JsonObject { ["yaml"] = yaml, ["maxPaths"] = 3, ["maxStepEntries"] = 1, ["maxMoves"] = 50 })))["truncated"]!.GetValue<bool>().ShouldBeTrue();
 
+        // Each move carries the input that takes it, so a client replays a path one SimulateStep at a time (WP-S.11).
+        foreach (JsonNode path in paths["paths"]!.AsArray().Select(p => p!))
+        {
+            var guards = new JsonObject { ["$start"] = true };
+            foreach (var step in workflow.Steps)
+            {
+                guards["$success:" + step.Id] = true;
+            }
+
+            foreach ((string step, JsonNode? decision) in path["guards"]!.AsObject())
+            {
+                guards[step] = decision!.GetValue<bool>();
+            }
+
+            JsonNode state = Ok(StudioApi.SimulateStep(Request(new JsonObject
+            {
+                ["yaml"] = yaml,
+                ["input"] = new JsonObject { ["kind"] = "start", ["data"] = new JsonObject { ["orderId"] = "instance-1" } },
+                ["guards"] = guards.DeepClone(),
+            })));
+            foreach (JsonNode move in path["moves"]!.AsArray().Select(m => m!).Where(m => m["input"] is not null))
+            {
+                state = Ok(StudioApi.SimulateStep(Request(new JsonObject
+                {
+                    ["yaml"] = yaml,
+                    ["state"] = state["state"]!.GetValue<string>(),
+                    ["input"] = move["input"]!.DeepClone(),
+                    ["guards"] = guards.DeepClone(),
+                })));
+            }
+
+            state["status"]!.GetValue<string>().ShouldBe(path["end"]!.GetValue<string>(), path["text"]!.GetValue<string>());
+        }
+
+        JsonNode first = paths["paths"]![0]!["moves"]![0]!;
+        first["input"]!.ToJsonString().ShouldBe("""{"kind":"succeed"}""");
+        paths["paths"]!.AsArray().SelectMany(p => p!["moves"]!.AsArray()).Select(m => m!["input"]?["kind"]?.GetValue<string>())
+            .Where(k => k is not null).Distinct().Order(StringComparer.Ordinal).ShouldBe(["fail", "reject", "succeed", "timer"]);
+
         Ok(StudioApi.ToMermaid(Request(new JsonObject { ["yaml"] = yaml })))["text"]!.GetValue<string>().ShouldBe(MermaidExporter.Export(workflow));
         Ok(StudioApi.ToBpmn(Request(new JsonObject { ["yaml"] = yaml })))["text"]!.GetValue<string>().ShouldBe(BpmnExporter.Export(workflow));
         string specs = Ok(StudioApi.GenerateSpecs(Request(new JsonObject
