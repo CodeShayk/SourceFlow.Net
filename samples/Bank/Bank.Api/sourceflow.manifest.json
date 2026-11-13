@@ -1,0 +1,527 @@
+{
+  "manifestVersion": 1,
+  "service": "bank",
+  "endpoint": "bank",
+  "sourceflowVersion": "3.0.0",
+  "messages": [
+    {
+      "type": "accounts.account-opened",
+      "version": 1,
+      "kind": "integration-event",
+      "clrType": "Bank.Contracts.AccountOpenedV1",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        },
+        {
+          "name": "openedAt",
+          "type": "date-time"
+        }
+      ]
+    },
+    {
+      "type": "bank.account.close",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bank.Accounts.CloseAccount",
+      "aggregate": "bank-account",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "bank.account.closed",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bank.Accounts.AccountClosed",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        },
+        {
+          "name": "closedAt",
+          "type": "date-time"
+        }
+      ]
+    },
+    {
+      "type": "bank.account.deposit",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bank.Accounts.Deposit",
+      "aggregate": "bank-account",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "bank.account.deposited",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bank.Accounts.MoneyDeposited",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        },
+        {
+          "name": "balanceAfter",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "bank.account.open",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bank.Accounts.OpenAccount",
+      "aggregate": "bank-account",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        },
+        {
+          "name": "holder",
+          "type": "string"
+        },
+        {
+          "name": "initialDeposit",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "bank.account.opened",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bank.Accounts.AccountOpened",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        },
+        {
+          "name": "holder",
+          "type": "string",
+          "personalData": true
+        },
+        {
+          "name": "initialDeposit",
+          "type": "number"
+        },
+        {
+          "name": "openedAt",
+          "type": "date-time"
+        }
+      ]
+    },
+    {
+      "type": "bank.account.withdraw",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bank.Accounts.Withdraw",
+      "aggregate": "bank-account",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "bank.account.withdrawn",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bank.Accounts.MoneyWithdrawn",
+      "fields": [
+        {
+          "name": "accountId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        },
+        {
+          "name": "balanceAfter",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "bank.transfer.complete",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bank.Transfers.CompleteTransfer",
+      "aggregate": "bank-transfer",
+      "fields": [
+        {
+          "name": "transferId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "bank.transfer.completed",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bank.Transfers.TransferCompleted",
+      "fields": [
+        {
+          "name": "transferId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "bank.transfer.fail",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bank.Transfers.FailTransfer",
+      "aggregate": "bank-transfer",
+      "fields": [
+        {
+          "name": "transferId",
+          "type": "uuid"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "bank.transfer.failed",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bank.Transfers.TransferFailed",
+      "fields": [
+        {
+          "name": "transferId",
+          "type": "uuid"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "bank.transfer.request",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bank.Transfers.RequestTransfer",
+      "aggregate": "bank-transfer",
+      "fields": [
+        {
+          "name": "transferId",
+          "type": "uuid"
+        },
+        {
+          "name": "from",
+          "type": "uuid"
+        },
+        {
+          "name": "to",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "bank.transfer.requested",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bank.Transfers.TransferRequested",
+      "fields": [
+        {
+          "name": "transferId",
+          "type": "uuid"
+        },
+        {
+          "name": "from",
+          "type": "uuid"
+        },
+        {
+          "name": "to",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "bank.transfer.timed-out",
+      "version": 1,
+      "kind": "timeout",
+      "clrType": "Bank.Transfers.TransferTimedOut",
+      "fields": [
+        {
+          "name": "transferId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "notifications.statement.request",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bank.Notifications.RequestStatement",
+      "aggregate": "customer-inbox",
+      "fields": [
+        {
+          "name": "customerId",
+          "type": "uuid"
+        },
+        {
+          "name": "period",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "notifications.statement.sent",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bank.Notifications.StatementSent",
+      "fields": [
+        {
+          "name": "customerId",
+          "type": "uuid"
+        },
+        {
+          "name": "period",
+          "type": "string"
+        },
+        {
+          "name": "at",
+          "type": "date-time"
+        }
+      ]
+    },
+    {
+      "type": "notifications.welcome.send",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bank.Notifications.SendWelcome",
+      "aggregate": "customer-inbox",
+      "fields": [
+        {
+          "name": "customerId",
+          "type": "uuid"
+        },
+        {
+          "name": "openedAt",
+          "type": "date-time"
+        }
+      ]
+    },
+    {
+      "type": "notifications.welcome.sent",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bank.Notifications.WelcomeSent",
+      "fields": [
+        {
+          "name": "customerId",
+          "type": "uuid"
+        },
+        {
+          "name": "at",
+          "type": "date-time"
+        }
+      ]
+    }
+  ],
+  "aggregates": [
+    {
+      "name": "bank-account",
+      "clrType": "Bank.Accounts.BankAccount",
+      "commands": [
+        {
+          "type": "bank.account.close",
+          "version": 1,
+          "emits": [
+            "bank.account.closed.v1"
+          ],
+          "rejects": [
+            "account.not_open"
+          ]
+        },
+        {
+          "type": "bank.account.deposit",
+          "version": 1,
+          "emits": [
+            "bank.account.deposited.v1"
+          ],
+          "rejects": [
+            "account.amount_must_be_positive",
+            "account.not_open"
+          ]
+        },
+        {
+          "type": "bank.account.open",
+          "version": 1,
+          "emits": [
+            "bank.account.opened.v1"
+          ],
+          "rejects": [
+            "account.already_open",
+            "account.initial_deposit_required"
+          ]
+        },
+        {
+          "type": "bank.account.withdraw",
+          "version": 1,
+          "emits": [
+            "bank.account.withdrawn.v1"
+          ],
+          "rejects": [
+            "account.amount_must_be_positive",
+            "account.insufficient_funds",
+            "account.not_open"
+          ]
+        }
+      ],
+      "events": [
+        "bank.account.closed.v1",
+        "bank.account.deposited.v1",
+        "bank.account.opened.v1",
+        "bank.account.withdrawn.v1"
+      ]
+    },
+    {
+      "name": "bank-transfer",
+      "clrType": "Bank.Transfers.Transfer",
+      "commands": [
+        {
+          "type": "bank.transfer.complete",
+          "version": 1,
+          "emits": [
+            "bank.transfer.completed.v1"
+          ],
+          "rejects": []
+        },
+        {
+          "type": "bank.transfer.fail",
+          "version": 1,
+          "emits": [
+            "bank.transfer.failed.v1"
+          ],
+          "rejects": []
+        },
+        {
+          "type": "bank.transfer.request",
+          "version": 1,
+          "emits": [
+            "bank.transfer.requested.v1"
+          ],
+          "rejects": [
+            "transfer.amount_must_be_positive",
+            "transfer.same_account"
+          ]
+        }
+      ],
+      "events": [
+        "bank.transfer.completed.v1",
+        "bank.transfer.failed.v1",
+        "bank.transfer.requested.v1"
+      ]
+    },
+    {
+      "name": "customer-inbox",
+      "clrType": "Bank.Notifications.CustomerInbox",
+      "commands": [
+        {
+          "type": "notifications.statement.request",
+          "version": 1,
+          "emits": [
+            "notifications.statement.sent.v1"
+          ],
+          "rejects": []
+        },
+        {
+          "type": "notifications.welcome.send",
+          "version": 1,
+          "emits": [
+            "notifications.welcome.sent.v1"
+          ],
+          "rejects": []
+        }
+      ],
+      "events": [
+        "notifications.statement.sent.v1",
+        "notifications.welcome.sent.v1"
+      ]
+    }
+  ],
+  "processManagers": [
+    {
+      "name": "money-transfer",
+      "clrType": "Bank.Transfers.MoneyTransfer",
+      "handles": [
+        "bank.account.deposited.v1",
+        "bank.account.withdraw.rejected.v1",
+        "bank.account.withdrawn.v1",
+        "bank.transfer.requested.v1",
+        "bank.transfer.timed-out.v1"
+      ],
+      "sends": [
+        "bank.account.deposit.v1",
+        "bank.account.withdraw.v1",
+        "bank.transfer.complete.v1",
+        "bank.transfer.fail.v1"
+      ],
+      "schedules": [
+        "bank.transfer.timed-out.v1"
+      ]
+    }
+  ],
+  "projections": [
+    {
+      "name": "account-summary",
+      "version": 1,
+      "clrType": "Bank.Accounts.AccountSummaryProjection",
+      "handles": []
+    }
+  ],
+  "publishes": [],
+  "subscribes": [],
+  "commandRoutes": [],
+  "workflows": [],
+  "schemas": "catalog://bank"
+}

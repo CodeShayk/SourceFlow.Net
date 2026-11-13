@@ -99,6 +99,22 @@ Manifests are build artifacts. CI regenerates them, and a drift check fails if a
 - **SF0019.** It warns when an event comes from a helper, a code is computed, or a decision comes from a helper method, until `[Emits]`/`[Rejects]` declares it. The declarations are added to the manifest.
 - **Not here.** `service`, `endpoint`, `publishes`, `subscribes`, `commandRoutes` and `replyOnReject` are configuration; `manifest export` adds them (WP-S.2).
 
+**As built (WP-S.2): the export.**
+
+- **Design-time mode.** With `SOURCEFLOW_DESIGN_TIME=1`, `AddSourceFlow` doesn't register the SourceFlow host. It listens for the generic host's `HostBuilt` diagnostic event, which `HostBuilder`, `HostApplicationBuilder` and `WebApplicationBuilder` all raise.
+  - **On `HostBuilt`.** It writes the manifest to `SOURCEFLOW_MANIFEST_OUT` (or standard output) and ends the process.
+  - **What runs.** The application's configuration runs, but the host never starts. No hosted service, provisioning, storage or transport call runs. Code after `Build()` doesn't run either.
+  - **Requirement.** Applications must use the generic host.
+- **`dotnet sourceflow manifest export`.**
+  - **`--project <csproj>`.** Builds the project, then runs `dotnet run --no-build --no-launch-profile` in design-time mode. Arguments after `--` go to the application, for example a placeholder connection string. The default output is `<project>/artifacts/sourceflow.manifest.json`.
+  - **Inside a service.** `dotnet run -- sourceflow manifest export` exports from the service's own provider.
+  - **`--check`.** Compares with the committed file, ignoring CRLF, and fails on drift with the first differing line.
+- **Merge rules.** The runtime model decides membership; the static manifests (§3.2) supply emits, rejects and fields. Only the messages, aggregates, process managers and projections the service registers are listed.
+  - **`commandRoutes`.** Carries `replyOnReject`. It is a property of the sender's route, so it belongs there rather than on the owner's command as in the §3.1 example.
+  - **`subscribes`.** Entries are objects `{ topic, only?, where? }`, not plain topic names.
+  - **Output.** Indented JSON with LF line endings, sorted. Repeated runs are byte-identical.
+- **CI.** The Bank sample's manifest is committed as `samples/Bank/Bank.Api/sourceflow.manifest.json`, outside the ignored `artifacts/` folder. `v3-pr.yml` checks it for drift.
+
 ## 4. Business domain workspace (WFD-10)
 
 ```yaml
@@ -118,6 +134,14 @@ services:
 ```
 
 The workspace only **reads** other services' manifests. Workflows are always stored in, and compiled by, the **owning** service. That keeps product Q2 (ownership and boundaries) and ADR-007.
+
+**As built (WP-S.2).** `DomainWorkspace.LoadAsync` (in `SourceFlow.Studio`) takes the file or a folder that holds it.
+
+- **Paths.** Relative paths resolve against the workspace file's folder.
+- **Errors.** Unknown keys are errors that give the line and column. So are a missing `domain`, an empty or duplicated service list, a missing or invalid manifest, and a manifest whose `service` differs from the entry's `name`.
+- **Remote manifests.** Manifests given as URLs are refused unless the caller supplies a fetcher, so the workspace works offline (§6.4).
+- **Workflow files.** `*.sfflow.yaml` files under `workflows` are listed recursively, sorted.
+- **Manifest model.** `ServiceManifest` and its JSON reader live under `Dsl/` so the generator can compile them too (WP-S.5).
 
 ## 5. Workflow DSL (`sourceflow.workflow/1`)
 

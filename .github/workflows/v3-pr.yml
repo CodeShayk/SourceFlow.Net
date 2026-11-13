@@ -270,6 +270,13 @@ jobs:
         run: >-
           dotnet test --solution SourceFlow.slnx -c Release --no-build --ignore-exit-code 8
           --filter-trait "Category=PublicApi" --filter-trait "Category=Architecture"
+      - name: Service manifest drift check (doc 15 §3.2, WP-S.2)
+        # Design-time export: the host is built but never started, so the unreachable connection string is never used.
+        run: >-
+          dotnet src/Tooling/SourceFlow.Tool/bin/Release/net10.0/SourceFlow.Tool.dll manifest export
+          --project samples/Bank/Bank.Api -c Release --no-build --check
+          --output samples/Bank/Bank.Api/sourceflow.manifest.json
+          -- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
 
   pack:
     needs: coverage

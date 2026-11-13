@@ -22,6 +22,15 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddSourceFlow(this IServiceCollection services, Action<SourceFlowBuilder> configure)
     {
+        return AddSourceFlow(services, configure, SourceFlowDesignTime.FromEnvironment());
+    }
+
+    /// <summary>
+    /// Adds a SourceFlow service; with <paramref name="designTime"/>, in design-time mode (doc 15 §3.2): the manifest is
+    /// written when the host is built, and the host's background service is not registered.
+    /// </summary>
+    internal static IServiceCollection AddSourceFlow(this IServiceCollection services, Action<SourceFlowBuilder> configure, DesignTimeExport? designTime)
+    {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configure);
         var builder = new SourceFlowBuilder(services);
@@ -67,6 +76,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ITenantResolver, NullTenantResolver>();
         services.AddSingleton(model);
         services.AddSingleton(routing);
+        services.AddSingleton(new SourceFlowServiceName(builder.ServiceName));
         services.AddSingleton(builder.ErrorRules);
         ProvisioningMode? provisioning = builder.Provisioning;
         SourceFlowRoles roles = builder.Roles;
@@ -156,6 +166,14 @@ public static class ServiceCollectionExtensions
             sp.GetRequiredService<HostSettings>(),
             sp.GetRequiredService<SourceFlowMonitor>(),
             sp.GetService<Query.IQueryService>() as Query.QueryService));
+        if (designTime is not null)
+        {
+            // Design-time mode: nothing starts; the hook exports when the host is built (WP-S.2).
+            services.AddSingleton(designTime);
+            DesignTimeHook.Install();
+            return services;
+        }
+
         services.AddHostedService(sp => sp.GetRequiredService<SourceFlowHost>());
         return services;
     }

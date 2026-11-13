@@ -34,5 +34,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="SourceFlow.Testing" />
+    <InternalsVisibleTo Include="SourceFlow.Core.Tests" />
   </ItemGroup>
 </Project>

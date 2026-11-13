@@ -63,7 +63,7 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
 
     public RootCommand Root()
     {
-        var root = new RootCommand("SourceFlow.Net operations: database, dead letters, projections, topology, queries, schemas and v2 migration.");
+        var root = new RootCommand("SourceFlow.Net operations: database, dead letters, projections, topology, queries, schemas, v2 migration and service manifests.");
         root.Subcommands.Add(Db());
         root.Subcommands.Add(Dlq());
         root.Subcommands.Add(Projection());
@@ -72,6 +72,7 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
         root.Subcommands.Add(Schema());
         root.Subcommands.Add(ObservabilityCommand());
         root.Subcommands.Add(MigrateCommand());
+        root.Subcommands.Add(ManifestCommand());
         return root;
     }
 

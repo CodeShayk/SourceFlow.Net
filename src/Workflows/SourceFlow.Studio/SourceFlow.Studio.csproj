@@ -1,9 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Scaffold (WP-0.2). Implemented in WP-S.3; packable once implemented. -->
+  <!--
+    SourceFlow Studio core (doc 15 §8, plan 10): service manifests and the business domain workspace (WP-S.2), the
+    workflow DSL model, reader, validator, simulator and exporters (WP-S.3, S.4). The Dsl/** sources are also compiled
+    into SourceFlow.Generators (netstandard2.0, ADR-027 §6), so they use only APIs available there.
+  -->
   <PropertyGroup>
-    <Description>SourceFlow.Net v3: SourceFlow Studio core: workflow DSL model, validator, simulator and exporters behind the visual designer (track S).</Description>
-    <IsPackable>false</IsPackable>
+    <Description>SourceFlow.Net v3: SourceFlow Studio core: service manifests, domain workspace, workflow DSL model, validator, simulator and exporters.</Description>
+    <ImplicitUsings>disable</ImplicitUsings>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
   </ItemGroup>
