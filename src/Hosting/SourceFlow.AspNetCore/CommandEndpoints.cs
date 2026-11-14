@@ -25,7 +25,8 @@ public static class CommandEndpointRouteBuilderExtensions
 {
     /// <summary>
     /// Maps <c>POST {pattern}</c> to <typeparamref name="TCommand"/>. The JSON body and the route values are bound to the
-    /// command (route values fill members missing from the body). <c>Idempotency-Key</c> becomes the idempotency key and
+    /// command (route values fill members missing from the body; a body member that differs from its route value is a
+    /// 400). <c>Idempotency-Key</c> becomes the idempotency key and
     /// <c>If-Match</c> the expected stream version. Responses: 200 with <c>ETag</c> and <c>SourceFlow-Consistency</c>,
     /// 202 when dispatched to a remote owner, 422 ProblemDetails for rejections, 409 for conflicts (412 with
     /// <c>If-Match</c>), 400 for unreadable bodies.
@@ -85,17 +86,34 @@ public static class CommandEndpointRouteBuilderExtensions
         JsonNode? body = http.Request.ContentLength is 0 ? null : await JsonNode.ParseAsync(http.Request.Body, cancellationToken: http.RequestAborted).ConfigureAwait(false);
         JsonObject json = body as JsonObject ?? (body is null ? [] : throw new JsonException("The request body must be a JSON object."));
         JsonNamingPolicy naming = type.JsonTypeInfo.Options.PropertyNamingPolicy ?? JsonNamingPolicy.CamelCase;
+        // The route identifies the aggregate (doc 03 §5.1): a body member that names a different one is refused, so an
+        // authorization check on the route can't be sidestepped by the body (CR-06). A missing member takes the route value.
         foreach (KeyValuePair<string, object?> route in http.Request.RouteValues)
         {
+            if (route.Value is not string value)
+            {
+                continue;
+            }
+
             string name = naming.ConvertName(route.Key);
-            if (route.Value is string value && !json.Any(p => string.Equals(p.Key, name, StringComparison.OrdinalIgnoreCase)))
+            KeyValuePair<string, JsonNode?> member = json.FirstOrDefault(p => string.Equals(p.Key, name, StringComparison.OrdinalIgnoreCase));
+            if (member.Key is null)
             {
                 json[name] = value;
+            }
+            else if (!string.Equals(Text(member.Value), value, StringComparison.Ordinal))
+            {
+                throw new ArgumentException($"The body's '{member.Key}' differs from the route value '{route.Key}'.");
             }
         }
 
         return JsonSerializer.Deserialize(json, type.JsonTypeInfo) as TCommand
             ?? throw new JsonException($"The body could not be read as {typeof(TCommand).Name}.");
+
+        static string? Text(JsonNode? node)
+        {
+            return node is JsonValue scalar && scalar.GetValueKind() == JsonValueKind.String ? scalar.GetValue<string>() : node?.ToJsonString();
+        }
     }
 
     private static IResult ToResult(HttpContext http, CommandResult result, bool conditional)

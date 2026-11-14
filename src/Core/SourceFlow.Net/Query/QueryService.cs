@@ -333,6 +333,7 @@ internal sealed class QueryService : IQueryService
         IReadOnlyList<QuerySourceConsistency> consistency = await WaitAsync(plan.Query, probe, collections, cancellationToken).ConfigureAwait(false);
 
         int limit = Count(probe, plan.Query.Ast.Limit) ?? int.MaxValue;
+        cursor?.Validate(plan.Query, limit);
         int remaining = cursor?.Remaining ?? limit;
         int pageSize = Math.Clamp(options.PageSize ?? _settings.Limits.PageSize, 1, Math.Max(1, _settings.Limits.MaxRows));
         int take = Math.Min(pageSize, remaining);
@@ -882,6 +883,46 @@ internal sealed class QueryService : IQueryService
             {
                 throw Invalid();
             }
+        }
+
+        /// <summary>
+        /// A token is caller input (doc 14 §7.4, §12): it must fit the plan before the engines see it. One key per sort item,
+        /// each of its sort item's type, and the rows remaining present and within the query's limit, so a forged token
+        /// can't lift the limit or reach a compiler with keys of the wrong shape (a database error, CR-36).
+        /// </summary>
+        public void Validate(BoundQuery query, int limit)
+        {
+            if (Keys.Count != query.OrderBy.Count)
+            {
+                throw Invalid();
+            }
+
+            if (limit != int.MaxValue && (Remaining is not { } remaining || remaining <= 0 || remaining > limit))
+            {
+                throw Invalid();
+            }
+
+            for (int i = 0; i < Keys.Count; i++)
+            {
+                if (Keys[i] is { } key && !Fits(query.TypeOf(query.OrderBy[i].Expression), key))
+                {
+                    throw Invalid();
+                }
+            }
+        }
+
+        private static bool Fits(QueryType type, object key)
+        {
+            return type switch
+            {
+                QueryType.String or QueryType.Uuid => key is string,
+                QueryType.Integer or QueryType.Decimal => key is long or decimal,
+                QueryType.Boolean => key is bool,
+                QueryType.Timestamp => key is DateTimeOffset,
+                QueryType.Duration => key is TimeSpan,
+                QueryType.Position => key is GlobalPosition,
+                _ => true,   // dynamic or structured values: the engines compare them as they come
+            };
         }
 
         private static QueryException Invalid()

@@ -421,7 +421,9 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   (subqueries are policy-checked; per-query authorization for domain queries), WP-C.2 (row-level security on every
   events partition and on `data_keys`; the partition detach check sees every tenant), WP-C.3 (`[PersonalData]` on
   positional parameters and inside collections; unsupported shapes fail startup; a bounded key cache for erasure across
-  nodes; the erasure audit records the actor; `LocalKeyProvider` needs `AllowLocalKeyProvider()` outside Development).
+  nodes; the erasure audit records the actor; `LocalKeyProvider` needs `AllowLocalKeyProvider()` outside Development),
+  WP-C.4 (`MapCommand` refuses a body that contradicts the route; continuation tokens are validated; no request text in
+  SQL; query API status codes as doc 14 §9.1: 413, 503 with `Retry-After`, 429; Studio host file checks).
 
 ### Other notes
 

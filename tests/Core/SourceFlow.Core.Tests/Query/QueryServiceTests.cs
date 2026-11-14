@@ -1,4 +1,5 @@
 using Bank.Accounts;
+using CsCheck;
 using Microsoft.Extensions.DependencyInjection;
 using SourceFlow.Query;
 using SourceFlow.Runtime;
@@ -197,6 +198,54 @@ public sealed class QueryServiceTests : IAsyncLifetime
             await Queries.QueryPageAsync(Summary + " | project holder | order by holder desc", continuation: first.Continuation, cancellationToken: Ct))).Code.ShouldBe(QueryCodes.Continuation);
         (await Should.ThrowAsync<QueryException>(async () =>
             await Queries.QueryPageAsync(Summary + " | project holder | order by holder", continuation: "not-a-token", cancellationToken: Ct))).Code.ShouldBe(QueryCodes.Continuation);
+    }
+
+    [Fact]
+    [Trait("Id", "QRY-62")]
+    [Trait("Covers", "doc 14 7.4;doc 14 12")]
+    public async Task ForgedContinuationTokens_AreRejected_NeverAnotherError()
+    {
+        const string Limited = Summary + " | project holder, balance | order by holder | take 3";
+        var paged = new QueryOptions { PageSize = 2 };
+        string token = (await Queries.QueryPageAsync(Limited, options: paged, cancellationToken: Ct)).Continuation!;
+
+        async Task<string?> RunAsync(string forged)
+        {
+            try
+            {
+                await Queries.QueryPageAsync(Limited, continuation: forged, options: paged, cancellationToken: Ct);
+                return null;
+            }
+            catch (QueryException e)
+            {
+                return e.Code;
+            }
+        }
+
+        // Lifting the limit, dropping a sort key, or a key of another type than its sort item: refused (CR-36).
+        (await RunAsync(Forge(token, t => t.Remove("r")))).ShouldBe(QueryCodes.Continuation);
+        (await RunAsync(Forge(token, t => t["r"] = 1_000_000))).ShouldBe(QueryCodes.Continuation);
+        (await RunAsync(Forge(token, t => t["k"]!.AsArray().RemoveAt(0)))).ShouldBe(QueryCodes.Continuation);
+        (await RunAsync(Forge(token, t => t["k"]![0] = new System.Text.Json.Nodes.JsonArray("l", "5")))).ShouldBe(QueryCodes.Continuation);
+        (await RunAsync(token)).ShouldBeNull("the real token still works");
+
+        // Any key, of any tag and value: either a page or SFQ0601, never another exception.
+        string[] tags = ["n", "l", "d", "b", "t", "u", "p", "s", "x"];
+        await Gen.Select(Gen.Int[0, tags.Length - 1], Gen.String[0, 12], Gen.Int[0, 2])
+            .SampleAsync(async sample =>
+            {
+                (int tag, string value, int position) = sample;
+                string forged = Forge(token, t => t["k"]![Math.Min(position, t["k"]!.AsArray().Count - 1)] = new System.Text.Json.Nodes.JsonArray(tags[tag], value));
+                string? code = await RunAsync(forged);
+                (code is null or QueryCodes.Continuation).ShouldBeTrue(code);
+            }, iter: 200);
+    }
+
+    private static string Forge(string token, Action<System.Text.Json.Nodes.JsonObject> change)
+    {
+        var root = System.Text.Json.Nodes.JsonNode.Parse(System.Buffers.Text.Base64Url.DecodeFromChars(token))!.AsObject();
+        change(root);
+        return System.Buffers.Text.Base64Url.EncodeToString(System.Text.Encoding.UTF8.GetBytes(root.ToJsonString()));
     }
 
     [Fact]

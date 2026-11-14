@@ -144,8 +144,10 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
 - **Deliverables:**
   - **`MapCommand` route values:** when a route value and a body member disagree, the request is refused with 400.
     When the body omits a member, the route value fills it, as today.
-  - **Continuation tokens:** signed with an HMAC from a data-protection key, and checked against the plan's sort keys
-    (count and types). A forged or mismatched token returns 400 `SFQ0105`, never a database error.
+  - **Continuation tokens:** checked against the plan: one key per sort item, each of its sort item's type, and the rows
+    remaining present and within the limit. A forged or mismatched token returns 409 `SFQ0601`, never a database error.
+    *As built:* no HMAC signature. Tokens must work on every node behind a load balancer, which would need a shared
+    key; a forged position only moves the cursor, which the caller can do with a filter anyway.
   - **No request text in SQL:** opaque JSON paths in `exists` and `is null` are bound as parameters (`text[]` with `#>`
     on PostgreSQL, a path parameter on SQL Server). The compilers' comments are corrected.
   - **Status codes:** SFQ0602 returns 503 with `Retry-After`, SFQ0103 returns 413, and the concurrency limit returns 429

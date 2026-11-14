@@ -368,6 +368,52 @@ public sealed class StudioHostTests : IAsyncLifetime
         File.Exists(hand).ShouldBeFalse();
     }
 
+    [Fact]
+    [Trait("Id", "UT-STU-HOST-13")]
+    [Trait("Covers", "WFD-NFR-5")]
+    public void Containment_NeedsASeparator_ASiblingNamedLikeTheFolderIsOutside()
+    {
+        string dist = Path.Combine(_root, "dist");
+
+        StudioHost.Inside(dist, Path.Combine(_root, "dist", "app.js")).ShouldBeTrue();
+        StudioHost.Inside(dist, Path.Combine(_root, "dist-other", "secret.js")).ShouldBeFalse("'dist' must not admit 'dist-other' (CR-48)");
+        StudioHost.Inside(dist, dist).ShouldBeFalse("the folder itself is not a file inside it");
+    }
+
+    [Fact]
+    [Trait("Id", "UT-STU-HOST-14")]
+    [Trait("Covers", "WFD-NFR-5")]
+    public async Task ManifestExport_NeverWritesThroughALink()
+    {
+        string outside = Path.Combine(Path.GetTempPath(), "sourceflow-outside-" + Guid.CreateVersion7().ToString("N") + ".json");
+        string manifest = Path.Combine(_root, "manifests", "orders.manifest.json");
+        string original = File.ReadAllText(manifest);   // the workspace reads it at start: the link must lead to a valid manifest
+        File.WriteAllText(outside, original);
+        File.Delete(manifest);
+        try
+        {
+            File.CreateSymbolicLink(manifest, outside);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            File.Delete(outside);
+            Assert.Skip("Creating a symbolic link needs Developer Mode or administrator rights here: " + e.Message);
+        }
+
+        try
+        {
+            await using StudioHost host = await Start();
+            using HttpClient client = Client(host);
+
+            (await client.PostAsync("api/services/orders/manifest/export", null, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+            File.ReadAllText(outside).ShouldBe(original, "nothing was written through the link");
+        }
+        finally
+        {
+            File.Delete(outside);
+        }
+    }
+
     // ================================================================ helpers
 
     private Task<StudioHost> Start(bool readOnly = false, string? assets = null, string? framework = null)

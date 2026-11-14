@@ -362,6 +362,17 @@ public sealed class PostgreSqlQueryTests(PostgreSqlServer server) : PostgreSqlTe
                 compiled.Sql.ShouldNotContain(marker);
                 compiled.Parameters.ShouldContain(p => Equals(p.Value, marker));
             }, iter: 200);
+
+        // Opaque paths on untyped events come from the request too: the path is bound, never inlined (CR-37).
+        Gen.String[Gen.Char.AlphaNumeric, 6, 24].Sample(literal =>
+        {
+            string marker = "zq" + literal;
+            foreach (string text in new[] { $"from events | where sfcorrelationid = @c and exists data.{marker}.inner", $"from events | where sfcorrelationid = @c and data.{marker} is null" })
+            {
+                CompiledQuery compiled = Compile(text, new Dictionary<string, object?> { ["c"] = "x" });
+                compiled.Sql.ShouldNotContain(marker, customMessage: text);
+            }
+        }, iter: 100);
     }
 
     // ================================================================ helpers

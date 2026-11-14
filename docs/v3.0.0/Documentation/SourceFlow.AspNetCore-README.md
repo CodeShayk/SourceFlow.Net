@@ -122,7 +122,9 @@ public static IEndpointConventionBuilder MapCommand<TCommand>(this IEndpointRout
 1. The body is read as a JSON object. An empty body (`Content-Length: 0`) counts as `{}`.
 2. Every route value is added to the object **when the body does not already have that member**. Route keys are
    converted with the command's JSON naming policy (camelCase by default), and the comparison with body members ignores
-   case. So `/bookings/{bookingId}` fills `bookingId`, and a body that already carries `bookingId` wins.
+   case. So `/bookings/{bookingId}` fills `bookingId`. A body that carries `bookingId` too must carry the same value:
+   one that names another booking is refused with `400`, so an authorization check on the route can't be sidestepped
+   by the body.
 3. The object is deserialised with the command's source-generated `JsonTypeInfo` from the message type registry: the
    same contract the runtime uses, with no reflection.
 
@@ -398,12 +400,12 @@ caller's query or parameter values.
 | `401` | Not authenticated (from your authentication scheme) | |
 | `403` | The caller lacks the endpoint's permission or a source permission (SFQ0501) | `query-forbidden` |
 | `404` | Unknown domain query name or version | `query-invalid` |
-| `409` | The continuation token does not belong to this query or schema (SFQ0601) | `query-invalid` |
-| `413` | Body larger than `MaxBodyBytes` (SFQ0103) | `query-invalid` |
+| `409` | The continuation token does not belong to this query or schema, or doesn't fit its sort keys or limit (SFQ0601) | `query-invalid` |
+| `413` | Body larger than `MaxBodyBytes`, or a query over a size limit such as `take` above `MaxRows` (SFQ0103) | `query-invalid` |
 | `415` | Content type other than `application/json` | `query-invalid` |
-| `429` | Rate limit (SFQ0502) or per-principal concurrency limit (SFQ0503), with `Retry-After` | `query-throttled` |
-| `503` | Service-wide concurrency limit (SFQ0503), with `Retry-After` | `query-throttled` |
-| `504` | Statement timeout (`code` = `QueryTimeout`) or an `at_least` consistency wait that timed out (SFQ0602) | `query-timeout` |
+| `429` | Rate limit (SFQ0502), or the per-principal or service-wide concurrency limit (SFQ0503), with `Retry-After` | `query-throttled` |
+| `503` | An `at_least` consistency wait that timed out with `on_timeout = 'fail'` (SFQ0602), with `Retry-After` | `query-not-consistent-yet` |
+| `504` | Statement timeout (`code` = `QueryTimeout`) | `query-timeout` |
 
 ### Callers, permissions and tenants
 

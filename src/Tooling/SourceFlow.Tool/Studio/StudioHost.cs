@@ -200,13 +200,17 @@ internal sealed class StudioHost : IAsyncDisposable
             }
 
             string target = Path.GetFullPath(Path.Combine(workspace.Root, entry.ManifestLocation));
-            if (!Inside(workspace.Root, target))
+            if (!Inside(workspace.Root, target) || ThroughLink(workspace.Root, target))
             {
                 return Refused(entry.ManifestLocation);
             }
 
+            // Written like the workflow and spec files: never through a link, and atomically (doc 15 §6.4, CR-48).
             string json = await export(Path.GetFullPath(Path.Combine(workspace.Root, project)), context.RequestAborted);
-            await File.WriteAllTextAsync(target, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), context.RequestAborted);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            string temporary = target + ".tmp-" + Path.GetRandomFileName();
+            await File.WriteAllTextAsync(temporary, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), context.RequestAborted);
+            File.Move(temporary, target, overwrite: true);
             return Results.Json(new ExportedDto(service, entry.ManifestLocation), StudioJson.Default.ExportedDto);
         });
 
@@ -364,7 +368,7 @@ internal sealed class StudioHost : IAsyncDisposable
         return full;
     }
 
-    private static bool Inside(string root, string full)
+    internal static bool Inside(string root, string full)
     {
         string prefix = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)) + Path.DirectorySeparatorChar;
         return full.StartsWith(prefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
@@ -461,8 +465,9 @@ internal sealed class StudioHost : IAsyncDisposable
             bool compressed = false;
             if (directory is not null)
             {
+                // Inside() compares with a trailing separator: 'dist' must not admit its sibling 'dist-other' (CR-48).
                 string full = Path.GetFullPath(Path.Combine(directory, relative));
-                if (!full.StartsWith(Path.GetFullPath(directory), StringComparison.OrdinalIgnoreCase))
+                if (!Inside(directory, full))
                 {
                     return false;
                 }

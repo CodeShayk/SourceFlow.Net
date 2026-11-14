@@ -133,6 +133,26 @@ public sealed class CommandEndpointTests : IAsyncLifetime
             .ShouldBe(Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy);
     }
 
+    [Fact]
+    [Trait("Id", "UT-ASP-42")]
+    [Trait("Covers", "doc 03 5.1")]
+    public async Task ABodyNamingAnotherAggregateThanTheRoute_Is400_AndTheBodyCanRepeatTheRouteValue()
+    {
+        var route = AccountId.New();
+        var other = AccountId.New();
+        await Post($"/accounts/{route}", new { holder = "Ada", initialDeposit = 10 });
+        await Post($"/accounts/{other}", new { holder = "Eve", initialDeposit = 10 });
+
+        // The route identifies the aggregate: a body that names another one must not redirect the command (CR-06).
+        HttpResponseMessage redirected = await Post($"/accounts/{route}/deposits", new { accountId = other.ToString(), amount = 5 });
+        HttpResponseMessage repeated = await Post($"/accounts/{route}/deposits", new { accountId = route.ToString(), amount = 5 });
+
+        redirected.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await redirected.Content.ReadAsStringAsync()).ShouldNotContain(other.ToString(), customMessage: "the error doesn't echo the values");
+        repeated.StatusCode.ShouldBe(HttpStatusCode.OK);
+        repeated.Headers.ETag!.Tag.ShouldBe("\"2\"");
+    }
+
     private async Task<HttpResponseMessage> Post(string path, object body, params (string Name, string Value)[] headers)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(body) };

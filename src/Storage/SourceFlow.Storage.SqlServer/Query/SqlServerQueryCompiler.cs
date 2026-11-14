@@ -635,8 +635,10 @@ internal sealed class SqlServerQueryCompiler
             throw Unsupported("exists() on this path");
         }
 
-        // A present member, including one holding JSON null (as the interpreter's exists()).
-        return $"EXISTS (SELECT 1 FROM OPENJSON({resolved.Alias}.data, {Path(resolved.Column.Path.Take(resolved.Column.Path.Count - 1).ToList())}) j WHERE j.[key] = {Parameter(resolved.Column.Path[^1].ToString()!, SqlDbType.NVarChar)}{Bin2})";
+        // A present member, including one holding JSON null (as the interpreter's exists()). The path can come from the
+        // request (exists on untyped events), so both the parent path and the key are parameters (I-3, QRY-60).
+        string parent = PathText(resolved.Column.Path.Take(resolved.Column.Path.Count - 1).ToList());
+        return $"EXISTS (SELECT 1 FROM OPENJSON({resolved.Alias}.data, {Parameter(parent, SqlDbType.NVarChar)}) j WHERE j.[key] = {Parameter(resolved.Column.Path[^1].ToString()!, SqlDbType.NVarChar)}{Bin2})";
     }
 
     private string HasTag(CallExpr call, Scope scope)
@@ -857,7 +859,14 @@ internal sealed class SqlServerQueryCompiler
     }
 
     // A JSON path literal: keys from this service's catalog, never from the request; quoted and escaped regardless.
+    // A JSON path as an N'…' constant: catalog paths only (the expression text must match across SELECT and GROUP BY).
     private static string Path(IReadOnlyList<object> path)
+    {
+        return "N'" + PathText(path).Replace("'", "''", StringComparison.Ordinal) + "'";
+    }
+
+    // The JSON path text, for example $."home"."street".
+    private static string PathText(IReadOnlyList<object> path)
     {
         var sb = new StringBuilder("$");
         foreach (object segment in path)
@@ -877,7 +886,7 @@ internal sealed class SqlServerQueryCompiler
             sb.Append(".\"").Append(key.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal)).Append('"');
         }
 
-        return "N'" + sb.ToString().Replace("'", "''", StringComparison.Ordinal) + "'";
+        return sb.ToString();
     }
 
     private Resolved Resolve(ColumnExpr expr, Scope scope)

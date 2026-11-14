@@ -221,7 +221,7 @@ internal sealed class QueryApiLimiter(SourceFlowQueryApiOptions options)
         {
             service.Dispose();
             mine.Dispose();
-            return (null, StatusCodes.Status503ServiceUnavailable, QueryCodes.ConcurrencyLimited, 1);
+            return (null, StatusCodes.Status429TooManyRequests, QueryCodes.ConcurrencyLimited, 1);   // doc 14 §9.1: 429 for every limit
         }
 
         return (new Leases(mine, service), 200, null, null);
@@ -442,7 +442,7 @@ internal static class QueryApi
             }
             catch (QueryException e)
             {
-                await ProblemAsync(http, StatusOf(e.Code), "The query was rejected.", e.Code, e.Diagnostics).ConfigureAwait(false);
+                await RejectedAsync(http, e, "The query was rejected.").ConfigureAwait(false);
             }
             catch (TimeoutException)
             {
@@ -485,7 +485,7 @@ internal static class QueryApi
             }
             catch (QueryException e)
             {
-                await ProblemAsync(http, StatusOf(e.Code), "The query is not valid.", e.Code, e.Diagnostics).ConfigureAwait(false);
+                await RejectedAsync(http, e, "The query is not valid.").ConfigureAwait(false);
             }
             catch (TimeoutException)
             {
@@ -807,7 +807,8 @@ internal static class QueryApi
             writer.WriteString("type", "https://sourceflow.net/problems/" + (status switch
             {
                 StatusCodes.Status403Forbidden => "query-forbidden",
-                StatusCodes.Status429TooManyRequests or StatusCodes.Status503ServiceUnavailable => "query-throttled",
+                StatusCodes.Status429TooManyRequests => "query-throttled",
+                StatusCodes.Status503ServiceUnavailable => "query-not-consistent-yet",
                 StatusCodes.Status504GatewayTimeout => "query-timeout",
                 _ => "query-invalid",
             }));
@@ -833,15 +834,27 @@ internal static class QueryApi
         return ProblemAsync(http, status, "Too many queries; retry later.", code, []);
     }
 
+    // The status table of doc 14 §9.1 (CR-38).
     private static int StatusOf(string code)
     {
         return code switch
         {
             QueryCodes.PermissionDenied => StatusCodes.Status403Forbidden,
             QueryCodes.Continuation => StatusCodes.Status409Conflict,
-            QueryCodes.ConsistencyTimeout => StatusCodes.Status504GatewayTimeout,
+            QueryCodes.Limit => StatusCodes.Status413PayloadTooLarge,
+            QueryCodes.ConsistencyTimeout => StatusCodes.Status503ServiceUnavailable,
             _ => StatusCodes.Status400BadRequest,
         };
+    }
+
+    private static Task RejectedAsync(HttpContext http, QueryException e, string title)
+    {
+        if (e.Code == QueryCodes.ConsistencyTimeout)
+        {
+            http.Response.Headers.RetryAfter = "1";   // the read model is catching up: try again shortly
+        }
+
+        return ProblemAsync(http, StatusOf(e.Code), title, e.Code, e.Diagnostics);
     }
 
     private static async Task WriteJsonAsync(HttpContext http, int status, Action<Utf8JsonWriter> write, bool problem = false)

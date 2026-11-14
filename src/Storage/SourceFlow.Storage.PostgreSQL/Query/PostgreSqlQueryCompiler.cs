@@ -492,6 +492,7 @@ internal sealed class PostgreSqlQueryCompiler
             NpgsqlDbType.TimestampTz => "timestamptz",
             NpgsqlDbType.Interval => "interval",
             NpgsqlDbType.Xid8 => "xid8",
+            NpgsqlDbType.Array | NpgsqlDbType.Text => "text[]",
             _ => throw Unsupported("a parameter type"),
         };
         return $"${_parameters.Count.ToString(CultureInfo.InvariantCulture)}::{cast}";
@@ -692,7 +693,11 @@ internal sealed class PostgreSqlQueryCompiler
 
         if (column.VersionPaths is not { } versions)
         {
-            return Extract(a, column.Path, type);
+            // An opaque path (exists / is null on untyped events) comes from the request: bind it as one text[] parameter,
+            // so no request text reaches the statement (I-3, QRY-60). Catalog paths stay constants: expression indexes match them.
+            return resolved.Source.Kind is SourceKind.Events or SourceKind.Stream && resolved.Source.EventTypes.Count == 0 && column.Kind == ColumnKind.Data
+                ? $"({a}.data #> {Parameter(column.Path.Select(p => Convert.ToString(p, CultureInfo.InvariantCulture)!).ToArray(), NpgsqlDbType.Array | NpgsqlDbType.Text)})::jsonb"
+                : Extract(a, column.Path, type);
         }
 
         var distinct = versions.Values.Where(p => p is not null).Select(p => string.Join('\u001F', p!)).Distinct().ToList();
@@ -738,7 +743,7 @@ internal sealed class PostgreSqlQueryCompiler
         };
     }
 
-    // JSON keys come from this service's catalog, never from the request; quoted as SQL string constants regardless.
+    // JSON keys of catalog paths (never the request's: opaque paths are parameters); quoted as SQL string constants regardless.
     private static string JsonKey(string key)
     {
         foreach (char c in key)
