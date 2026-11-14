@@ -801,6 +801,11 @@ namespace SourceFlow.Hosting
         public SourceFlow.Hosting.SourceFlowBuilder UseRedaction(System.Action<Microsoft.Extensions.Compliance.Redaction.IRedactionBuilder> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder UseStorage(System.Func<System.IServiceProvider, SourceFlow.Runtime.StoragePorts> factory) { }
         public SourceFlow.Hosting.SourceFlowBuilder UseTransport(System.Func<System.IServiceProvider, SourceFlow.Transport.ITransport> factory) { }
+        public SourceFlow.Hosting.SourceFlowBuilder When(bool condition, System.Action<SourceFlow.Hosting.SourceFlowBuilder> configure) { }
+        public SourceFlow.Hosting.SourceFlowBuilder WithHealthChecks(string prefix = "sourceflow") { }
+        public SourceFlow.Hosting.SourceFlowBuilder WithProvisioning(SourceFlow.Transport.ProvisioningMode provisioning) { }
+        public SourceFlow.Hosting.SourceFlowBuilder WithRoles(SourceFlow.Hosting.SourceFlowRoles roles) { }
+        public SourceFlow.Hosting.SourceFlowBuilder WithServiceName(string serviceName) { }
     }
     public static class SourceFlowDesignTime
     {

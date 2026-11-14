@@ -129,6 +129,58 @@ public sealed class SourceFlowBuilder
 
     internal Func<IServiceProvider, ITransport>? TransportFactory { get; private set; }
 
+    /// <summary>Sets <see cref="ServiceName"/>: the service's endpoint name, telemetry service and inbox consumer prefix.</summary>
+    public SourceFlowBuilder WithServiceName(string serviceName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
+        ServiceName = serviceName;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets <see cref="Roles"/>: what this node runs besides the API (receivers, the outbox relay, subscriptions). For
+    /// example <see cref="SourceFlowRoles.Api"/> for a node that only accepts commands and queries.
+    /// </summary>
+    public SourceFlowBuilder WithRoles(SourceFlowRoles roles)
+    {
+        Roles = roles;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="Provisioning"/>: how transport resources are provisioned at startup (ADR-017).</summary>
+    public SourceFlowBuilder WithProvisioning(ProvisioningMode provisioning)
+    {
+        Provisioning = provisioning;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds the SourceFlow health checks (doc 08 §5) to the service's health checks: <c>{prefix}.ready</c>, <c>.store</c>,
+    /// <c>.transport</c>, <c>.outbox</c>, <c>.subscriptions</c>, <c>.leases</c> and <c>.keys</c>; the first three carry the
+    /// <c>ready</c> tag. Map them with <c>MapSourceFlowHealthChecks()</c> (SourceFlow.AspNetCore) or <c>MapHealthChecks</c>.
+    /// </summary>
+    public SourceFlowBuilder WithHealthChecks(string prefix = "sourceflow")
+    {
+        Services.AddHealthChecks().AddSourceFlow(prefix);
+        return this;
+    }
+
+    /// <summary>
+    /// Applies <paramref name="configure"/> when <paramref name="condition"/> holds, so a feature can be switched on from
+    /// configuration without leaving the chain:
+    /// <c>sf.When(configuration.GetValue&lt;bool&gt;("Features:QueryApi"), s =&gt; s.WithQueryApi())</c>.
+    /// </summary>
+    public SourceFlowBuilder When(bool condition, Action<SourceFlowBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        if (condition)
+        {
+            configure(this);
+        }
+
+        return this;
+    }
+
     /// <summary>Adds a generated module (no assembly scanning).</summary>
     public SourceFlowBuilder AddModule<TModule>()
         where TModule : ISourceFlowModule
