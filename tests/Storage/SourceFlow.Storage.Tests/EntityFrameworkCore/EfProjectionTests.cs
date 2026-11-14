@@ -186,8 +186,11 @@ public sealed class EfProjectionTests(PostgreSqlServer server) : PostgreSqlTest(
             await EventuallyAsync(async () => (await ActivityAsync(id)) is { Balance: 15m, Version: 2 }, $"activity of {id}");
         }
 
+        // Streams are spread over the two partitions by hash: six random accounts can all land in one of them, so the
+        // checkpoint of at least one partition moved, in the same transaction as the rows it wrote.
         PostgreSqlStore store = host.Services.GetRequiredService<PostgreSqlStore>();
-        (await store.GetAsync("projection:account-activity@1", 0, Ct)).ShouldBeGreaterThan(GlobalPosition.Start);
+        GlobalPosition[] checkpoints = [await store.GetAsync("projection:account-activity@1", 0, Ct), await store.GetAsync("projection:account-activity@1", 1, Ct)];
+        checkpoints.ShouldContain(c => c > GlobalPosition.Start);
     }
 
     [Fact]

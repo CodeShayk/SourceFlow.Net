@@ -535,7 +535,7 @@ public static class TransportConformance
         string? violation = null;
         DateTimeOffset deadline = TimeProvider.System.GetUtcNow() + (f.ReceiveTimeout * 20);
 
-        async Task ConsumeAsync()
+        async Task ConsumeAsync(int consumer)
         {
             await using ITransportReceiver receiver = await f.Transport.CreateReceiverAsync(new ReceiverOptions(topology.Endpoint, []), ct).ConfigureAwait(false);
             while (Volatile.Read(ref received) < sent.Length && TimeProvider.System.GetUtcNow() < deadline)
@@ -555,7 +555,8 @@ public static class TransportConformance
                     int previous = lastByKey.GetValueOrDefault(key, -1);
                     if (position <= previous)
                     {
-                        violation ??= $"{key}: position {position} after {previous}";
+                        // The delivery count tells a redelivery (2+, a lock that lapsed) from a message the broker held back (1).
+                        violation ??= $"{key}: position {position} after {previous} (consumer {consumer}, delivery {message.DeliveryCount})";
                     }
 
                     lastByKey[key] = position;
@@ -565,7 +566,7 @@ public static class TransportConformance
             }
         }
 
-        await Task.WhenAll(ConsumeAsync(), ConsumeAsync(), ConsumeAsync()).ConfigureAwait(false);
+        await Task.WhenAll(ConsumeAsync(1), ConsumeAsync(2), ConsumeAsync(3)).ConfigureAwait(false);
 
         Check.Null(violation, "per-key order across 3 consumers");
         Check.Equal(sent.Length, received, "every message delivered");
