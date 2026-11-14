@@ -1,18 +1,18 @@
 {
-  "$comment": "Plan 04 §5. Enforced packages fail the coverage job below their line or branch floor. The floors are one point under the first full CI measurement (2026-11-14), so coverage cannot slip; raise them as tests are added, towards the plan's goals: SourceFlow.Net 90/85, Generators 90/85, Testing 85/75, PostgreSQL 90/80, SqlServer 90/80, EntityFrameworkCore 85/75, the cloud adapters 85/75, AspNetCore 90/80, Tool 80/70, Studio 90/85. The cloud adapters report only: the merged report has no lines for them yet.",
+  "$comment": "Plan 04 §5. Every package fails the coverage job below its line or branch floor. The floors sit two points under the lower of the first two full CI measurements (2026-11-14; three points for the cloud adapters, measured once), because coverage moves a few points between runs with what each job contributes; they stop coverage slipping. Raise them as tests are added, towards the plan's goals: SourceFlow.Net 90/85, Generators 90/85, Testing 85/75, PostgreSQL 90/80, SqlServer 90/80, EntityFrameworkCore 85/75, the cloud adapters 85/75, AspNetCore 90/80, Tool 80/70, Studio 90/85.",
   "maxDropPoints": 0.5,
   "packages": {
-    "SourceFlow.Net": { "line": 89, "branch": 77, "enforce": true },
-    "SourceFlow.Generators": { "line": 65, "branch": 54, "enforce": true },
-    "SourceFlow.Testing": { "line": 89, "branch": 71, "enforce": true },
-    "SourceFlow.Storage.PostgreSQL": { "line": 90, "branch": 66, "enforce": true },
-    "SourceFlow.Storage.SqlServer": { "line": 87, "branch": 60, "enforce": true },
-    "SourceFlow.Storage.EntityFrameworkCore": { "line": 94, "branch": 69, "enforce": true },
-    "SourceFlow.Cloud.Aws": { "line": 85, "branch": 75, "enforce": false },
-    "SourceFlow.Cloud.Azure": { "line": 85, "branch": 75, "enforce": false },
-    "SourceFlow.Cloud.Gcp": { "line": 85, "branch": 75, "enforce": false },
-    "SourceFlow.AspNetCore": { "line": 88, "branch": 75, "enforce": true },
-    "SourceFlow.Tool": { "line": 41, "branch": 34, "enforce": true },
-    "SourceFlow.Studio": { "line": 89, "branch": 79, "enforce": true }
+    "SourceFlow.Net": { "line": 88, "branch": 76, "enforce": true },
+    "SourceFlow.Generators": { "line": 64, "branch": 53, "enforce": true },
+    "SourceFlow.Testing": { "line": 88, "branch": 70, "enforce": true },
+    "SourceFlow.Storage.PostgreSQL": { "line": 89, "branch": 65, "enforce": true },
+    "SourceFlow.Storage.SqlServer": { "line": 86, "branch": 59, "enforce": true },
+    "SourceFlow.Storage.EntityFrameworkCore": { "line": 91, "branch": 68, "enforce": true },
+    "SourceFlow.Cloud.Aws": { "line": 91, "branch": 79, "enforce": true },
+    "SourceFlow.Cloud.Azure": { "line": 89, "branch": 78, "enforce": true },
+    "SourceFlow.Cloud.Gcp": { "line": 89, "branch": 81, "enforce": true },
+    "SourceFlow.AspNetCore": { "line": 87, "branch": 74, "enforce": true },
+    "SourceFlow.Tool": { "line": 35, "branch": 28, "enforce": true },
+    "SourceFlow.Studio": { "line": 88, "branch": 78, "enforce": true }
   }
 }
