@@ -1,18 +1,18 @@
 {
-  "$comment": "Plan 04 §5. Set enforce=true for a package when its milestone exits; before that the gate only reports.",
+  "$comment": "Plan 04 §5. Enforced packages fail the coverage job below their line or branch floor. The floors are one point under the first full CI measurement (2026-11-14), so coverage cannot slip; raise them as tests are added, towards the plan's goals: SourceFlow.Net 90/85, Generators 90/85, Testing 85/75, PostgreSQL 90/80, SqlServer 90/80, EntityFrameworkCore 85/75, the cloud adapters 85/75, AspNetCore 90/80, Tool 80/70, Studio 90/85. The cloud adapters report only: the merged report has no lines for them yet.",
   "maxDropPoints": 0.5,
   "packages": {
-    "SourceFlow.Net": { "line": 90, "branch": 85, "enforce": false },
-    "SourceFlow.Generators": { "line": 90, "branch": 85, "enforce": false },
-    "SourceFlow.Testing": { "line": 85, "branch": 75, "enforce": false },
-    "SourceFlow.Storage.PostgreSQL": { "line": 90, "branch": 80, "enforce": false },
-    "SourceFlow.Storage.SqlServer": { "line": 90, "branch": 80, "enforce": false },
-    "SourceFlow.Storage.EntityFrameworkCore": { "line": 85, "branch": 75, "enforce": false },
+    "SourceFlow.Net": { "line": 89, "branch": 77, "enforce": true },
+    "SourceFlow.Generators": { "line": 65, "branch": 54, "enforce": true },
+    "SourceFlow.Testing": { "line": 89, "branch": 71, "enforce": true },
+    "SourceFlow.Storage.PostgreSQL": { "line": 90, "branch": 66, "enforce": true },
+    "SourceFlow.Storage.SqlServer": { "line": 87, "branch": 60, "enforce": true },
+    "SourceFlow.Storage.EntityFrameworkCore": { "line": 94, "branch": 69, "enforce": true },
     "SourceFlow.Cloud.Aws": { "line": 85, "branch": 75, "enforce": false },
     "SourceFlow.Cloud.Azure": { "line": 85, "branch": 75, "enforce": false },
     "SourceFlow.Cloud.Gcp": { "line": 85, "branch": 75, "enforce": false },
-    "SourceFlow.AspNetCore": { "line": 90, "branch": 80, "enforce": false },
-    "SourceFlow.Tool": { "line": 80, "branch": 70, "enforce": false },
-    "SourceFlow.Studio": { "line": 90, "branch": 85, "enforce": false }
+    "SourceFlow.AspNetCore": { "line": 88, "branch": 75, "enforce": true },
+    "SourceFlow.Tool": { "line": 41, "branch": 34, "enforce": true },
+    "SourceFlow.Studio": { "line": 89, "branch": 79, "enforce": true }
   }
 }

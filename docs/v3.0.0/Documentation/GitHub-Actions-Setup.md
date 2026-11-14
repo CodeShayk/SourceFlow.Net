@@ -298,7 +298,7 @@ No long-lived cloud credential is stored: the cloud identities are federated wit
 | Public API approved, traceability, manifests without drift | `api-traceability` | Enforced |
 | Packages contain the generator and only `net10.0` libraries | `pack` | Enforced |
 | No vulnerable new dependencies | `dependency-review` | Enforced (moderate or worse) |
-| Coverage thresholds per package | `coverage` | **Reports only**: every package in `thresholds.json` has `"enforce": false`, and the "no drop over 0.5 points" rule needs a baseline report the workflow does not pass yet |
+| Coverage floors per package | `coverage` | **Enforced** for the core, generators, testing, storage, ASP.NET Core, tool and Studio packages: each fails below its line or branch floor in `tools/CoverageGate/thresholds.json`, set one point under the first full CI measurement (2026-11-14) and raised towards the plan 04 goals. The cloud adapters report only (no lines in the merged report yet). The "no drop over 0.5 points" rule needs a baseline report the workflow does not pass yet |
 | Micro-benchmark regressions | — | Not wired: benchmarks run nightly and upload results only |
 | Nightly green, real-cloud TCK green, chaos green | `v3-nightly.yml` | Milestone and release sign-off, not merge |
 | Studio tests green | `studio-pr.yml` | Enforced on Studio paths |
