@@ -105,6 +105,9 @@ internal sealed class OrderFulfilmentSystem : IAsyncDisposable
     /// <summary>Deliveries per service and CloudEvents type, and how many of them the inbox found to be duplicates.</summary>
     public ConcurrentDictionary<(string Service, string Type), (int Deliveries, int Duplicates)> Received { get; } = new();
 
+    /// <summary>Deliveries per service lost to its outage.</summary>
+    public ConcurrentDictionary<string, int> Refused { get; } = new(StringComparer.Ordinal);
+
     public static async Task<OrderFulfilmentSystem> StartAsync(Servers servers, Store store, Broker broker, OrderFulfilmentOptions? options = null)
     {
         if (store == Store.PostgreSql)
@@ -235,6 +238,14 @@ internal sealed class OrderFulfilmentSystem : IAsyncDisposable
                 && (attempt is null || (int?)last["attempt"] == attempt);
         }, what ?? $"{step} {phase} attempt {attempt}", null, () => last?.ToJsonString() ?? "no state");
     }
+
+    /// <summary>
+    /// Waits until <paramref name="service"/> has lost <paramref name="count"/> deliveries to its outage. The workflow
+    /// records a send before the relay delivers it, so an outage must not end before the delivery it is meant to lose.
+    /// </summary>
+    public Task WaitRefusedAsync(string service, int count, string what) =>
+        EventuallyAsync(() => Task.FromResult(Refused.GetValueOrDefault(service) >= count), what, null,
+            () => $"{Refused.GetValueOrDefault(service)} refused");
 
     /// <summary>Moves the orders service's clock forward, so the timers due by then fire.</summary>
     public void Advance(TimeSpan by)
@@ -369,6 +380,7 @@ internal sealed class OrderFulfilmentSystem : IAsyncDisposable
         {
             if (system._outages.GetValueOrDefault(service))
             {
+                system.Refused.AddOrUpdate(service, 1, (_, n) => n + 1);
                 throw new PermanentException($"{service} is down.");
             }
 

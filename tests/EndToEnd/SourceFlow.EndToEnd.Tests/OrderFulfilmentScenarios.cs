@@ -308,6 +308,7 @@ public sealed class OrderFulfilmentScenarios(PostgreSqlServer postgreSql, LocalS
 
         await system.PlaceAsync(order, 120m);
         await system.WaitForPhaseAsync(order, "charge-payment", "Awaiting", 1, "the charge to be sent while payments is down");
+        await system.WaitRefusedAsync(PaymentsService.Name, 1, "the charge to be lost");   // else it may arrive once payments is up
         system.Outage(Inventory.InventoryService.Name);   // from now on, inventory loses what it receives
         system.Outage(PaymentsService.Name, down: false);
         system.Advance(TimeSpan.FromMinutes(2) + Second);   // the lost charge times out and is sent again: fraud is suspected
