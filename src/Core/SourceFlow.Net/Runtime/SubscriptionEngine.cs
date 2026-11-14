@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Diagnostics;
 using SourceFlow.Messaging;
+using SourceFlow.Pipeline;
 using SourceFlow.Storage;
 
 namespace SourceFlow.Runtime;
@@ -494,9 +495,30 @@ internal sealed class SubscriptionEngine
             await prefetch(projections, [.. relevant.Select(r => (r.Event, r.Stored.ToContext()))], cancellationToken).ConfigureAwait(false);
         }
 
+        bool project = _runtime.Pipeline.Has(PipelineStage.Project);
         foreach ((IEvent @event, StoredEvent stored) in relevant)
         {
-            await definition.Apply(new SubscriptionContext(session, @event, stored, scope.ServiceProvider, projections, cancellationToken)).ConfigureAwait(false);
+            var apply = new SubscriptionContext(session, @event, stored, scope.ServiceProvider, projections, cancellationToken);
+            if (!project)
+            {
+                await definition.Apply(apply).ConfigureAwait(false);
+                continue;
+            }
+
+            // The Project stage (ADR-012, CR-46): middleware sees the event and the subscription's session; one that doesn't
+            // call the next step skips the event.
+            var context = new MessageContext(PipelineStage.Project, stored.ToEnvelope(), scope.ServiceProvider, cancellationToken)
+            {
+                Message = @event,
+                TypeInfo = _runtime.Model.Registry.TryGet(@event.GetType(), out MessageTypeInfo? info) ? info : null,
+                Session = session,
+            };
+            context.Items["sourceflow.subscription"] = definition.Name;
+            await _runtime.Pipeline.InvokeAsync(context, async ctx =>
+            {
+                await definition.Apply(apply).ConfigureAwait(false);
+                ctx.Outcome = HandlingOutcome.Completed;
+            }).ConfigureAwait(false);
         }
 
         // Session projections (EF Core) save before the fenced checkpoint, in the same transaction (doc 05 §10).
@@ -572,26 +594,21 @@ internal sealed class SubscriptionEngine
     private async ValueTask<bool> ApplyIsolatedAsync(SubscriptionDefinition definition, int partition, LeaseToken lease, StoredEvent stored, CancellationToken cancellationToken)
     {
         Exception? last = null;
-        for (int attempt = 0; attempt <= _runtime.Options.ImmediateRetries; attempt++)
+        try
         {
-            try
-            {
-                await ApplyAsync(definition, partition, lease, stored.TenantId, [stored], cancellationToken).ConfigureAwait(false);
-                _stalls.TryRemove((definition.Name, partition), out _);
-                return true;
-            }
-            catch (LeaseLostException)
-            {
-                throw;
-            }
-            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-            {
-                last = exception;
-                if (_runtime.Classifier.Classify(exception) == Pipeline.HandlingOutcome.Permanent)
-                {
-                    break;
-                }
-            }
+            // Immediate retries of a transient failure, through the immediate pipeline (ADR-013, CR-39); a permanent one stops.
+            await _runtime.Resilience.Immediate.ExecuteAsync(
+                async ct => await ApplyAsync(definition, partition, lease, stored.TenantId, [stored], ct).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+            _stalls.TryRemove((definition.Name, partition), out _);
+            return true;
+        }
+        catch (LeaseLostException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            last = exception;
         }
 
         (string, int) key = (definition.Name, partition);
@@ -654,7 +671,7 @@ internal sealed class SubscriptionEngine
 
     private SubscriptionStall Stall(string subscription, int partition, StoredEvent stored, Exception error, int attempts, DateTimeOffset? since, TimeSpan? delay = null)
     {
-        TimeSpan backoff = delay ?? TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2, Math.Min(attempts - 1, 9))));
+        TimeSpan backoff = delay ?? Backoff.Exponential(attempts, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(5), jitter: false);
         DateTimeOffset now = _runtime.Time.GetUtcNow();
         return new SubscriptionStall(subscription, partition, stored.Position, stored.EventId, stored.Type, attempts, error.GetType().Name, error.Message, now + backoff)
         {

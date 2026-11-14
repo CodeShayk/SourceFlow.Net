@@ -447,7 +447,10 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   WP-C.12 (a query the store's SQL engine can't express is refused with SFQ0410 instead of scanning the log in memory,
   and interpreted queries are time-boxed and capped; SQL Server `LIKE` escapes and trailing spaces match the other
   providers; queries run on a read-only connection and `db script --query-role` prints SELECT-only grants), WP-C.13
-  (an existing AWS queue policy keeps its other statements; encryption at rest is validated on AWS and Google Cloud).
+  (an existing AWS queue policy keeps its other statements; encryption at rest is validated on AWS and Google Cloud),
+  WP-C.14 (every retry runs through a Polly v8 pipeline, `sf.Resilience(...)` customises them, and the outbox relay has
+  a circuit breaker per destination), WP-C.15 (the Handle, Publish and Project middleware stages run, Handle for remote
+  commands too, and Receive middleware sees the deserialised message).
 
 ### Other notes
 

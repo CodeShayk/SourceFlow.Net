@@ -18,12 +18,12 @@ internal sealed class MessageDispatcher(SourceFlowRuntime runtime, CommandProces
     public async ValueTask DispatchAsync(MessageContext context)
     {
         MessageEnvelope envelope = context.Envelope;
-        MessageTypeInfo type = runtime.Model.Registry.TryGet(envelope.Type, envelope.TypeVersion, out MessageTypeInfo? info)
-            ? info
-            : throw new UnknownMessageTypeException(envelope.Type, envelope.TypeVersion);
-        context.TypeInfo = type;
-        object message = runtime.Serializer.Deserialize(envelope.Body, type); // wire messages are never upcast
-        context.Message = message;
+        if (context.Message is null)
+        {
+            DeserializationMiddleware.Deserialize(runtime, context);
+        }
+
+        object message = context.Message!;
 
         if (message is ICommand command)
         {
@@ -98,5 +98,28 @@ internal sealed class MessageDispatcher(SourceFlowRuntime runtime, CommandProces
         StreamId stream = envelope.Subject is { Length: > 0 } subject ? new StreamId(subject) : new StreamId(envelope.Source + "-" + envelope.MessageId.Value.ToString("N"));
         return new EventContext(envelope.MessageId, stream, new StreamVersion(envelope.StreamVersion ?? 0), GlobalPosition.Start, envelope.Time,
             envelope.CorrelationId, envelope.CausationId, envelope.TenantId == MessageEnvelope.DefaultTenant ? null : envelope.TenantId);
+    }
+}
+
+/// <summary>
+/// Built-in Receive middleware (ADR-012, CR-46): resolves the type and deserialises the body, after payload protection has
+/// decrypted it and before user middleware, which therefore sees <see cref="MessageContext.Message"/>.
+/// </summary>
+internal sealed class DeserializationMiddleware(SourceFlowRuntime runtime) : IMessageMiddleware
+{
+    public ValueTask InvokeAsync(MessageContext context, MessageDelegate next)
+    {
+        Deserialize(runtime, context);
+        return next(context);
+    }
+
+    public static void Deserialize(SourceFlowRuntime runtime, MessageContext context)
+    {
+        MessageEnvelope envelope = context.Envelope;
+        MessageTypeInfo type = runtime.Model.Registry.TryGet(envelope.Type, envelope.TypeVersion, out MessageTypeInfo? info)
+            ? info
+            : throw new UnknownMessageTypeException(envelope.Type, envelope.TypeVersion);
+        context.TypeInfo = type;
+        context.Message = runtime.Serializer.Deserialize(envelope.Body, type);   // wire messages are never upcast
     }
 }

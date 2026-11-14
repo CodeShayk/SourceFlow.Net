@@ -50,6 +50,7 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
             new LoggingScopeMiddleware(_logger),
             new ErrorClassificationMiddleware(runtime.Classifier),
             .. runtime.Protector is { } protector ? [new Security.PayloadProtectionMiddleware(protector, runtime.Routing.Endpoint)] : Array.Empty<IMessageMiddleware>(),
+            new DeserializationMiddleware(runtime),   // user Receive middleware sees the message (ADR-012, CR-46)
         ];
     }
 
@@ -290,11 +291,15 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
     private async Task<TimeSpan?> HandleLockedAsync(ReceivedMessage message, CancellationToken cancellationToken)
     {
         MessageContext context;
-        int immediate = 0;
         AsyncServiceScope? scope = null;
+        Polly.ResilienceContext resilience = Polly.ResilienceContextPool.Shared.Get(cancellationToken);
         try
         {
-            while (true)
+            // A transient outcome is retried at once, in a new scope, through the immediate pipeline (ADR-013, CR-39).
+            resilience.Properties.Set(SourceFlowPipelines.OnImmediateRetry, (_, _) => _runtime.Metrics.RetryAttempts.Add(1,
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Stage, "receive"),
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.RetryKind, "immediate")));
+            context = await _runtime.Resilience.Immediate.ExecuteAsync(async (_, _) =>
             {
                 if (scope is { } previous)
                 {
@@ -303,17 +308,10 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
 
                 AsyncServiceScope current = _scopes.CreateAsyncScope();
                 scope = current;
-                context = new MessageContext(PipelineStage.Receive, message.Envelope, current.ServiceProvider, cancellationToken);
-                await InvokeAsync(context).ConfigureAwait(false);
-                if (context.Outcome != HandlingOutcome.Transient || immediate >= _runtime.Options.ImmediateRetries || cancellationToken.IsCancellationRequested)
-                {
-                    break;
-                }
-
-                immediate++;
-                _runtime.Metrics.RetryAttempts.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Stage, "receive"),
-                    new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.RetryKind, "immediate"));
-            }
+                var attempt = new MessageContext(PipelineStage.Receive, message.Envelope, current.ServiceProvider, cancellationToken);
+                await InvokeAsync(attempt).ConfigureAwait(false);
+                return attempt;
+            }, resilience, 0).ConfigureAwait(false);
 
             // Settled inside the last attempt's scope: parking may resolve services from it (CR-10).
             try
@@ -329,6 +327,7 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
         }
         finally
         {
+            Polly.ResilienceContextPool.Shared.Return(resilience);
             if (scope is { } last)
             {
                 await last.DisposeAsync().ConfigureAwait(false);

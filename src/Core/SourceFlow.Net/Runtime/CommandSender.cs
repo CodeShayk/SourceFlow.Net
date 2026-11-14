@@ -53,7 +53,7 @@ internal sealed class CommandSender(SourceFlowRuntime runtime, CommandProcessor 
             MessageEnvelope envelope = runtime.CreateEnvelope(command, messageId: id, correlation: options.CorrelationId,
                 subject: runtime.TrySubjectOf(command), headers: options.Headers);
             await using AsyncServiceScope scope = scopes.CreateAsyncScope();
-            var context = new MessageContext(PipelineStage.Send | PipelineStage.Handle, envelope, scope.ServiceProvider, cancellationToken)
+            var context = new MessageContext(PipelineStage.Send, envelope, scope.ServiceProvider, cancellationToken)
             {
                 Message = command,
                 TypeInfo = runtime.Model.Registry.Get(type),

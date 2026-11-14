@@ -263,6 +263,14 @@ public sealed class SourceFlowRuntime
     /// <summary>Where each process manager's new subscription starts (by process type); absent means the head (CR-34).</summary>
     internal IReadOnlyDictionary<Type, Hosting.SubscriptionStart> ProcessManagerStarts { get; set; } = new Dictionary<Type, Hosting.SubscriptionStart>();
 
+    /// <summary>The customisations of the resilience pipelines (<c>sf.Resilience(...)</c>).</summary>
+    internal IReadOnlyDictionary<string, List<Action<Polly.ResiliencePipelineBuilder>>> ResilienceConfigurations { get; set; } = new Dictionary<string, List<Action<Polly.ResiliencePipelineBuilder>>>();
+
+    private SourceFlowPipelines? _resilience;
+
+    /// <summary>The resilience pipelines, built on first use from the options (ADR-013, CR-39).</summary>
+    internal SourceFlowPipelines Resilience => _resilience ??= new SourceFlowPipelines(Options, Classifier, ResilienceConfigurations);
+
     // The partition count each subscription runs with: the stored count once this node has matched it (doc 06 §3, CR-18).
     internal System.Collections.Concurrent.ConcurrentDictionary<string, int> SubscriptionPartitionCounts { get; } = new(StringComparer.Ordinal);
 

@@ -123,6 +123,8 @@ public sealed class SourceFlowBuilder
 
     internal Dictionary<Type, SubscriptionStart> ProcessManagerStarts { get; } = [];
 
+    internal ResilienceBuilder ResilienceSettings { get; } = new();
+
     internal List<MiddlewareRegistration> Middleware { get; } = [];
 
     internal ErrorClassifier ErrorRules { get; } = new();
@@ -206,6 +208,17 @@ public sealed class SourceFlowBuilder
     {
         ArgumentNullException.ThrowIfNull(configure);
         configure(RoutingRules);
+        return this;
+    }
+
+    /// <summary>
+    /// Customises SourceFlow's Polly resilience pipelines (ADR-013, doc 12 §3): re-decide, immediate retries, the outbox
+    /// circuit breaker and the dead-letter ingestor (<see cref="SourceFlowResilience"/>).
+    /// </summary>
+    public SourceFlowBuilder Resilience(Action<ResilienceBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        configure(ResilienceSettings);
         return this;
     }
 

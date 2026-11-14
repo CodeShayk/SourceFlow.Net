@@ -807,7 +807,7 @@ Register `IActorAccessor` (who is acting, for audit) and `ITenantResolver` (the 
 |--------|---------|------------|---------|
 | `ServiceName` | from `sf.ServiceName` | required, `^[a-z][a-z0-9-]{0,62}$` | Set through the builder |
 | `DefaultTenant` | `"-"` | required | Tenant when no `ITenantResolver` supplies one |
-| `MaxConcurrencyRetries` | `5` | 0–50 | Re-decides after a concurrency conflict |
+| `MaxConcurrencyRetries` | `5` | 0–50 | Re-decides after a concurrency conflict, through the `sourceflow.concurrency` Polly pipeline (jittered 5–50 ms). `sf.Resilience(r => r.Configure(SourceFlowResilience.…, b => …))` adds strategies to any of the pipelines. |
 | `OutboxPartitions` | `16` | 1–1024 | Outbox partitions (ordering and relay parallelism) |
 | `OutboxBatchSize` | `100` | 1–10,000 | Rows per outbox claim |
 | `OutboxMaxAttempts` | `10` | 1–1000 | Publish attempts before an outbox row is parked |

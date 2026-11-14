@@ -22,8 +22,6 @@ internal sealed class DeadLetterIngestor(SourceFlowRuntime runtime) : IAsyncDisp
     /// <summary>The most messages taken from the dead-letter queue per check.</summary>
     public const int BatchSize = 10;
 
-    private static readonly TimeSpan FirstBackoff = TimeSpan.FromSeconds(1);
-
     private readonly ILogger _logger = runtime.Logger<DeadLetterIngestor>();
     private ITransportReceiver? _receiver;
 
@@ -31,40 +29,44 @@ internal sealed class DeadLetterIngestor(SourceFlowRuntime runtime) : IAsyncDisp
     public async Task RunAsync(CancellationToken stopping)
     {
         TimeSpan interval = runtime.Options.DeadLetterIngestInterval;
-        TimeSpan backoff = TimeSpan.Zero;
-        while (!stopping.IsCancellationRequested)
+        Polly.ResilienceContext context = Polly.ResilienceContextPool.Shared.Get(stopping);
+        try
         {
-            TimeSpan wait;
-            try
+            // A failed poll is retried through the ingest pipeline (exponential from 1 s up to the interval, ADR-013, CR-39),
+            // after the receiver is reset; the system clock, so a fake business clock doesn't stop the loop.
+            context.Properties.Set(SourceFlowPipelines.OnIngestRetry, async (error, delay) =>
             {
-                int moved = await RunOnceAsync(stopping).ConfigureAwait(false);
-                backoff = TimeSpan.Zero;
-                wait = moved > 0 ? TimeSpan.Zero : interval;
-            }
-            catch (OperationCanceledException) when (stopping.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception exception)
-            {
-                backoff = backoff == TimeSpan.Zero ? Min(FirstBackoff, interval) : Min(backoff * 2, interval);
-                wait = backoff;
-                Log.BrokerDeadLetterIngestFailed(_logger, exception, runtime.Routing.Endpoint, wait);
+                Log.BrokerDeadLetterIngestFailed(_logger, error!, runtime.Routing.Endpoint, delay);
                 await ResetAsync().ConfigureAwait(false);
-            }
-
-            if (wait > TimeSpan.Zero)
+            });
+            while (!stopping.IsCancellationRequested)
             {
+                int moved;
                 try
                 {
-                    // The system clock: a fake business clock must not stop the loop.
-                    await Task.Delay(wait, TimeProvider.System, stopping).ConfigureAwait(false);
+                    moved = await runtime.Resilience.Ingest.ExecuteAsync(async (ctx, _) => await RunOnceAsync(ctx.CancellationToken).ConfigureAwait(false), context, 0).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (stopping.IsCancellationRequested)
                 {
                     return;
                 }
+
+                if (moved == 0)
+                {
+                    try
+                    {
+                        await Task.Delay(interval, TimeProvider.System, stopping).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                }
             }
+        }
+        finally
+        {
+            Polly.ResilienceContextPool.Shared.Return(context);
         }
     }
 
@@ -127,10 +129,5 @@ internal sealed class DeadLetterIngestor(SourceFlowRuntime runtime) : IAsyncDisp
         {
             // A broken receiver may fail to close; a new one is created on the next check.
         }
-    }
-
-    private static TimeSpan Min(TimeSpan a, TimeSpan b)
-    {
-        return a < b ? a : b;
     }
 }

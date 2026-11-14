@@ -6,6 +6,7 @@ ARCH-03,ADR-027,Adapters reference the core only
 ARCH-05,plan 06 9,No reflection activation in runtime packages
 ARCH-07,plan 06 9,Public adapter classes are sealed
 ARCH-08,plan 04 7,Traceability ids are covered
+ARCH-10,ADR-013,No hand-written backoff outside the resilience engine
 ADR-027,ADRs,Single core package with extensibility SPIs
 ADR-003,ADRs,Aggregates as pure deciders
 ADR-004,ADRs,Source generation instead of reflection

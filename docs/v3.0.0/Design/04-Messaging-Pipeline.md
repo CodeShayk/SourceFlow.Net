@@ -154,6 +154,16 @@ Composition: for each `(stage, message type)` the runtime builds the delegate ch
 | 8 | `InboxMiddleware` | Receive, Handle when keyed | Duplicate check and record in the same session |
 | 9 | Terminal | — | Command processor, event handler, process manager, or projection apply |
 
+> **As built (WP-C.15, CR-46).** Every stage runs where this section puts it:
+> - **Send.** `ICommandSender`: around the outbox write, or around the local processor call.
+> - **Handle.** Inside `CommandProcessor`, for commands sent here and commands received from other services alike, so an authorisation middleware sees every command this service decides. A middleware that doesn't call the next step must set `MessageContext.Result`.
+> - **Receive.** The receive endpoint's built-ins (telemetry, the log scope, error classification, payload protection) run first. `DeserializeMiddleware` then resolves the type and deserialises, so user middleware sees `MessageContext.Message`.
+> - **Publish.** The outbox relay runs it before each broker call. Middleware may change the envelope (`MessageContext.Items["sourceflow.destination"]` names the topic or queue). One that doesn't call the next step drops the message, and the row completes. One that throws fails that row.
+> - **Project.** The subscription engine runs it around each applied event, with `MessageContext.Session` set to the subscription's session (`Items["sourceflow.subscription"]` names it). Not calling the next step skips the event.
+> - **The log scope** opens around every stage. Receive opens its own in the endpoint.
+> - **Publish and Project run only when middleware is registered for them** (`MessagePipeline.Has`), so the relay and the subscriptions pay nothing otherwise. Chains are composed once per stage.
+> - **Deviations.** Telemetry stays the Receive built-in: the other stages have their own spans (`send`, the command span, the subscription span). The transaction, inbox and retry steps stay inside the terminal step rather than becoming separate middleware. Filters remain per message (`Func<MessageContext, bool>`): evaluating them once at composition would need a type-only filter, an API change left for a later version.
+
 ## 5. Receive pipeline
 
 ```mermaid
@@ -228,6 +238,20 @@ loop:
 | **Exhausted** | A transient failure after every delayed retry | Park |
 
 The exception→class mapping is configurable through `sf.Errors(e => e.Treat<MyGatewayDownException>().AsTransient())`.
+
+> **As built (WP-C.14, CR-39, CR-45).** Every in-process retry goes through a Polly v8 `ResiliencePipeline` (`Polly.Core`), named by `SourceFlowResilience`. Infrastructure timing uses the system clock.
+>
+> | Pipeline | Used by | Behaviour |
+> |---|---|---|
+> | `sourceflow.concurrency` | the command processor's re-decide | retries a `ConcurrencyException` `MaxConcurrencyRetries` times, exponential with jitter, 5–50 ms (ADR-008) |
+> | `sourceflow.immediate` | receive and subscriptions | retries a transient outcome or failure `ImmediateRetries` times, at once; a permanent failure or a lost lease isn't retried |
+> | `sourceflow.outbox` | the outbox relay, one per destination | a circuit breaker: after 20 transient failures in a row within 30 s, the relay leaves that destination alone for 15 s. The rows wait without spending attempts, and a trial call then closes it (F-07) |
+> | `sourceflow.ingest` | the broker dead-letter ingestor | retries a failed poll, exponential from 1 s up to `DeadLetterIngestInterval` |
+>
+> - **Stored retries.** These outlive the process: an outbox row's next attempt, exponential from 2 s with equal jitter up to 5 min; and a stalled subscription's next try, from 1 s doubling up to 5 min. They come from one `Backoff` function. The delayed-retry schedule stays the `DelayedRetries` list.
+> - **Customising.** `sf.Resilience(r => r.Configure(SourceFlowResilience.Outbox, b => b.AddTimeout(...)))` adds strategies inside SourceFlow's own.
+> - **ARCH-10.** No exponent, jitter or retry `Task.Delay` exists outside the engine.
+> - **Deviations.** Immediate retries don't wait (the table's 50–500 ms jitter was never built), as before. The pipelines are built in the core rather than registered through `Microsoft.Extensions.Resilience`, which would add Polly.Extensions and the telemetry packages.
 
 ### 9.2 Delayed retries
 

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using SourceFlow.Diagnostics;
 using SourceFlow.Messaging;
+using SourceFlow.Pipeline;
 using SourceFlow.Storage;
 
 namespace SourceFlow.Runtime;
@@ -35,11 +36,39 @@ public sealed class CommandProcessor
     /// <param name="expectedVersion">An optional caller-side version check.</param>
     /// <param name="services">The per-message DI scope (command handlers).</param>
     /// <param name="cancellationToken">Cancellation.</param>
+    /// <remarks>
+    /// The Handle stage of the pipeline wraps it, for commands sent here and commands received from other services alike
+    /// (ADR-012, CR-46): an authorisation middleware sees every command this service decides. A middleware that doesn't call
+    /// the next step must set <see cref="MessageContext.Result"/>.
+    /// </remarks>
     public async ValueTask<CommandResult> ProcessAsync(
         ICommand command, MessageEnvelope envelope, bool keyed, StreamVersion? expectedVersion, IServiceProvider services, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(envelope);
+        ArgumentNullException.ThrowIfNull(services);
+        var context = new MessageContext(Pipeline.PipelineStage.Handle, envelope, services, cancellationToken)
+        {
+            Message = command,
+            TypeInfo = _runtime.Model.Registry.TryGet(command.GetType(), out MessageTypeInfo? info) ? info : null,
+        };
+        await _runtime.Pipeline.InvokeAsync(context, async ctx =>
+        {
+            CommandResult result = await DecideAsync(command, ctx.Envelope, keyed, expectedVersion, ctx.Services, ctx.CancellationToken).ConfigureAwait(false);
+            ctx.Result = result;
+            ctx.Outcome = result.Status switch
+            {
+                CommandStatus.Rejected => Pipeline.HandlingOutcome.Rejected,
+                CommandStatus.Duplicate => Pipeline.HandlingOutcome.Duplicate,
+                _ => Pipeline.HandlingOutcome.Completed,
+            };
+        }).ConfigureAwait(false);
+        return context.Result ?? throw new InvalidOperationException("A Handle-stage middleware short-circuited without setting MessageContext.Result.");
+    }
+
+    private async ValueTask<CommandResult> DecideAsync(
+        ICommand command, MessageEnvelope envelope, bool keyed, StreamVersion? expectedVersion, IServiceProvider services, CancellationToken cancellationToken)
+    {
         Type commandType = command.GetType();
         AggregateDescriptor aggregate = _runtime.Model.CommandOwners.TryGetValue(commandType, out AggregateDescriptor? owner)
             ? owner
@@ -61,49 +90,51 @@ public sealed class CommandProcessor
         activity?.SetTag(SourceFlowTelemetry.Tags.StreamId, stream.Value);
         long started = Stopwatch.GetTimestamp();
         CommandResult result = default;
-        int attempt = 0;
+        int attempts = 0;
+        Polly.ResilienceContext context = Polly.ResilienceContextPool.Shared.Get(cancellationToken);
         try
         {
-            for (; ; attempt++)
+            // ADR-008 (CR-39): a conflict re-decides on fresh state, through the concurrency pipeline (full jitter, 5–50 ms).
+            context.Properties.Set(SourceFlowPipelines.OnConcurrencyRetry, (attempt, _) => Log.ConcurrencyRetry(_logger, stream.Value, attempt + 1));
+            result = await _runtime.Resilience.Concurrency.ExecuteAsync(async (ctx, _) =>
             {
+                attempts++;
                 try
                 {
-                    result = await AttemptAsync(command, envelope, keyed, expectedVersion, services, aggregate, handler, stream, cancellationToken).ConfigureAwait(false);
-                    return result;
-                }
-                catch (ConcurrencyException) when (attempt < _runtime.Options.MaxConcurrencyRetries)
-                {
-                    _aggregates.Invalidate(envelope.TenantId, stream);
-                    _runtime.Metrics.ConcurrencyConflicts.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name));
-                    Log.ConcurrencyRetry(_logger, stream.Value, attempt + 1);
-                    await Backoff(attempt, cancellationToken).ConfigureAwait(false);
+                    return await AttemptAsync(command, envelope, keyed, expectedVersion, services, aggregate, handler, stream, ctx.CancellationToken).ConfigureAwait(false);
                 }
                 catch (ConcurrencyException)
                 {
                     _aggregates.Invalidate(envelope.TenantId, stream);
                     _runtime.Metrics.ConcurrencyConflicts.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name));
-                    Log.ConcurrencyExhausted(_logger, stream.Value, attempt + 1);
-                    result = new CommandResult(CommandStatus.Conflict, StreamVersion.None, Error.ConcurrencyConflict, ConsistencyToken.None);
-                    return result;
+                    throw;
                 }
-                catch (DuplicateMessageException) when (keyed)
-                {
-                    // A concurrent duplicate committed first: return its stored result.
-                    _runtime.Metrics.InboxDuplicates.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.ConsumerGroup, Consumer));
-                    result = await StoredResultAsync(envelope, cancellationToken).ConfigureAwait(false);
-                    return result;
-                }
-            }
+            }, context, 0).ConfigureAwait(false);
+            return result;
+        }
+        catch (ConcurrencyException)
+        {
+            Log.ConcurrencyExhausted(_logger, stream.Value, attempts);
+            result = new CommandResult(CommandStatus.Conflict, StreamVersion.None, Error.ConcurrencyConflict, ConsistencyToken.None);
+            return result;
+        }
+        catch (DuplicateMessageException) when (keyed)
+        {
+            // A concurrent duplicate committed first: return its stored result.
+            _runtime.Metrics.InboxDuplicates.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.ConsumerGroup, Consumer));
+            result = await StoredResultAsync(envelope, cancellationToken).ConfigureAwait(false);
+            return result;
         }
         finally
         {
+            Polly.ResilienceContextPool.Shared.Return(context);
             string outcome = result.Status == default ? "failed" : result.Status.ToString().ToLowerInvariant();   // default: an exception (the availability SLO counts these)
             _runtime.Metrics.CommandDuration.Record(
                 Stopwatch.GetElapsedTime(started).TotalSeconds,
                 new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.CommandType, commandType.Name),
                 new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Outcome, outcome));
             activity?.SetTag(SourceFlowTelemetry.Tags.Outcome, outcome);
-            activity?.SetTag(SourceFlowTelemetry.Tags.ConcurrencyRetries, attempt);
+            activity?.SetTag(SourceFlowTelemetry.Tags.ConcurrencyRetries, Math.Max(0, attempts - 1));
             Log.CommandHandled(_logger, commandType.Name, stream.Value, outcome, result.Version.Value);
         }
     }
@@ -342,11 +373,4 @@ public sealed class CommandProcessor
         };
     }
 
-    private Task Backoff(int attempt, CancellationToken cancellationToken)
-    {
-        // Jittered exponential backoff: 2^attempt ms scaled by a random factor, capped at 200 ms. This is infrastructure
-        // timing, not business time, so it uses the system clock: a test's fake clock must not stall re-decides.
-        double milliseconds = Math.Min(200, Math.Pow(2, attempt) * (0.5 + Random.Shared.NextDouble()));
-        return attempt == 0 ? Task.CompletedTask : Task.Delay(TimeSpan.FromMilliseconds(milliseconds), TimeProvider.System, cancellationToken);
-    }
 }

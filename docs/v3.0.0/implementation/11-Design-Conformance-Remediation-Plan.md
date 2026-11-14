@@ -482,6 +482,15 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
   Circuit breakers close security-review finding F-07 (CR-45).
 - **Tests:** UT-RES-01..06 (one per pipeline: delays, jitter bounds, attempt counts on a fake clock); ARCH-10 (no
   hand-written backoff: banned-API checks on `Task.Delay` inside retry loops).
+- **As built:**
+  - The pipelines are plain `Polly.Core` 8.7 pipelines built by the runtime (`SourceFlowPipelines`), not keyed
+    registrations through `Microsoft.Extensions.Resilience`, which would bring Polly.Extensions and the telemetry
+    stack into the core.
+  - Retries that are stored rather than slept (an outbox row's next attempt, a subscription stall) use one `Backoff`
+    function, because Polly computes no delay outside a pipeline. The delayed-retry schedule remains the
+    `DelayedRetries` list.
+  - ARCH-10 scans IL with Cecil, as ARCH-09 does: exponents and `Random` appear only in `Backoff`, and `Task.Delay`
+    appears only in the listed polling loops.
 
 #### WP-C.15 Middleware stages (ADR-012) · 2 ew · depends: WP-C.5 · finding CR-46
 - **Design restored:** ADR-012 (stages Send, Handle, Receive, Publish, Project; built-ins are middleware; one pipeline
@@ -496,6 +505,13 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
   - **Interim, if the package slips:** registering middleware for a stage that isn't built yet fails startup.
 - **Tests:** UT-MW-21..27: one per stage; a Handle-stage authorisation middleware sees remote commands; Receive
   middleware sees the deserialised message.
+- **As built:**
+  - All five stages run. Publish and Project run only when middleware is registered for them, so the hot paths don't
+    change.
+  - Still outside the middleware chain: telemetry (each stage has its own span), and the inbox, transaction and retry
+    steps, which stay in the terminal step.
+  - Filters stay per message; a type-keyed composition would need a type-only filter API.
+  - No interim startup check was needed.
 
 #### WP-C.16 Telemetry conventions (ADR-019, doc 08) · 1 ew · finding CR-47
 - **Deliverables:**

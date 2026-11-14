@@ -125,11 +125,58 @@ public sealed class DependencyRuleTests
                 .SelectMany(t => t.Methods.Where(m => m.HasBody).Select(m => (Type: t, Method: m)))
                 .Where(c => c.Method.Body.Instructions.Any(i => i.Operand is Mono.Cecil.MethodReference called
                     && called.DeclaringType.FullName == "SourceFlow.Transport.ITransport" && called.Name is "SendAsync" or "PublishAsync"))
-                .Select(c => (c.Type.DeclaringType ?? c.Type).FullName)
+                .Select(c => Outermost(c.Type).FullName)
                 .Distinct(),
         ];
 
         callers.ShouldBe(["SourceFlow.Runtime.OutboxRelay"], "only the outbox relay may send to the transport (ARCH-09)");
+    }
+
+    [Fact]
+    [Trait("Id", "ARCH-10")]
+    [Trait("Covers", "ARCH-10;ADR-013")]
+    public void No_hand_written_backoff_outside_the_resilience_engine()
+    {
+        // ADR-013 (CR-39): retries go through the Polly pipelines; a stored retry's delay comes from Backoff. Exponents and
+        // jitter anywhere else are a hand-written policy, and a Task.Delay outside the polling loops listed here is a retry
+        // loop that bypasses the engine.
+        using Mono.Cecil.AssemblyDefinition core = Mono.Cecil.AssemblyDefinition.ReadAssembly(Packages.Load(Packages.Core).Location);
+        (string Type, string Called)[] calls =
+        [
+            .. core.MainModule.GetTypes()
+                .SelectMany(t => t.Methods.Where(m => m.HasBody).Select(m => (Type: t, Method: m)))
+                .SelectMany(c => c.Method.Body.Instructions
+                    .Select(i => i.Operand as Mono.Cecil.MethodReference)
+                    .Where(called => called is not null)
+                    .Select(called => (Type: Outermost(c.Type).FullName, Called: called!.DeclaringType.FullName + "::" + called.Name)))
+                .Distinct(),
+        ];
+
+        calls.Where(c => c.Called is "System.Math::Pow" || c.Called.StartsWith("System.Random::", StringComparison.Ordinal))
+            .Select(c => c.Type).Distinct().ShouldBe(["SourceFlow.Runtime.Backoff"], "exponents and jitter live in Backoff only (ARCH-10)");
+
+        string[] polling =
+        [
+            "SourceFlow.Hosting.SourceFlowHost",          // the host's polling, heartbeat and retention loops
+            "SourceFlow.Runtime.DeadLetterIngestor",      // the idle wait between polls (failures retry through the ingest pipeline)
+            "SourceFlow.Runtime.ReceiveEndpoint",         // the idle wait of an empty receive
+            "SourceFlow.Runtime.SubscriptionEngine",      // the wait for new events
+            "SourceFlow.Runtime.SourceFlowMonitor",       // the sampling interval
+            "SourceFlow.Query.QueryService",              // the consistency wait for a read model to reach a token
+            "SourceFlow.Storage.InMemory.InMemoryFaults", // the in-memory store's injected latency (tests)
+        ];
+        calls.Where(c => c.Called == "System.Threading.Tasks.Task::Delay").Select(c => c.Type).Distinct()
+            .Where(t => !polling.Contains(t)).ShouldBeEmpty("Task.Delay outside the polling loops is a hand-written retry (ARCH-10)");
+    }
+
+    private static Mono.Cecil.TypeDefinition Outermost(Mono.Cecil.TypeDefinition type)
+    {
+        while (type.DeclaringType is { } outer)
+        {
+            type = outer;
+        }
+
+        return type;
     }
 
     private static string Describe(NetArchTest.Rules.TestResult result)

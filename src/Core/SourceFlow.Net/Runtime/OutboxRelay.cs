@@ -15,13 +15,17 @@ namespace SourceFlow.Runtime;
 public sealed class OutboxRelay
 {
     private readonly SourceFlowRuntime _runtime;
+    private readonly Microsoft.Extensions.DependencyInjection.IServiceScopeFactory? _scopes;
     private readonly ILogger _logger;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<int, LeaseToken> _leases = new();
 
     /// <summary>Creates the relay.</summary>
-    public OutboxRelay(SourceFlowRuntime runtime)
+    /// <param name="runtime">The runtime.</param>
+    /// <param name="scopes">The scopes the Publish-stage middleware is created in (ADR-012); null runs it with no services.</param>
+    public OutboxRelay(SourceFlowRuntime runtime, Microsoft.Extensions.DependencyInjection.IServiceScopeFactory? scopes = null)
     {
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+        _scopes = scopes;
         _logger = runtime.Logger<OutboxRelay>();
     }
 
@@ -106,6 +110,11 @@ public sealed class OutboxRelay
                     {
                         if (failures.TryGetValue(row.Sequence, out Exception? failure))
                         {
+                            if (failure is Polly.CircuitBreaker.BrokenCircuitException)
+                            {
+                                continue;   // the destination's breaker is open (F-07): the row waits, its attempts unspent
+                            }
+
                             await HandleFailureAsync(lease, row, failure, cancellationToken).ConfigureAwait(false);
                         }
                         else
@@ -161,17 +170,32 @@ public sealed class OutboxRelay
 
         var failures = new Dictionary<long, Exception>();
         long started = Stopwatch.GetTimestamp();
+        OutboxRecord[] sending = rows;
         try
         {
             MessageEnvelope[] envelopes = [.. rows.Select(r => r.Message.Envelope)];
-            if (kind == OutboxKind.Publish)
+            if (_runtime.Pipeline.Has(Pipeline.PipelineStage.Publish))
             {
-                await _runtime.Transport.PublishAsync(destination, envelopes, cancellationToken).ConfigureAwait(false);
+                (sending, envelopes) = await PublishStageAsync(rows, failures, cancellationToken).ConfigureAwait(false);
+                if (sending.Length == 0)
+                {
+                    return failures;
+                }
             }
-            else
+
+            // Through the destination's circuit breaker (F-07, CR-45): a broker that keeps failing is left alone for a while.
+            Polly.ResiliencePipeline breaker = _runtime.Resilience.Outbox((kind == OutboxKind.Publish ? "topic:" : "queue:") + destination);
+            await breaker.ExecuteAsync(async ct =>
             {
-                await _runtime.Transport.SendAsync(destination, envelopes, cancellationToken).ConfigureAwait(false);
-            }
+                if (kind == OutboxKind.Publish)
+                {
+                    await _runtime.Transport.PublishAsync(destination, envelopes, ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    await _runtime.Transport.SendAsync(destination, envelopes, ct).ConfigureAwait(false);
+                }
+            }, cancellationToken).ConfigureAwait(false);
         }
         catch (TransportSendException partial) when (!cancellationToken.IsCancellationRequested)
         {
@@ -186,7 +210,7 @@ public sealed class OutboxRelay
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            foreach (OutboxRecord row in rows)
+            foreach (OutboxRecord row in sending)
             {
                 failures[row.Sequence] = exception;
             }
@@ -219,6 +243,59 @@ public sealed class OutboxRelay
         }
 
         return failures;
+    }
+
+    // The Publish stage (ADR-012, CR-46): middleware sees each outbound message and may change its envelope before the broker
+    // call. One that throws fails that row; one that doesn't call the next step drops the message (the row completes).
+    private async ValueTask<(OutboxRecord[] Sending, MessageEnvelope[] Envelopes)> PublishStageAsync(OutboxRecord[] rows, Dictionary<long, Exception> failures, CancellationToken cancellationToken)
+    {
+        var sending = new List<OutboxRecord>(rows.Length);
+        var envelopes = new List<MessageEnvelope>(rows.Length);
+        Microsoft.Extensions.DependencyInjection.AsyncServiceScope? scope = _scopes is null ? null : Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.CreateAsyncScope(_scopes);
+        try
+        {
+            IServiceProvider services = scope?.ServiceProvider ?? EmptyServices.Instance;
+            foreach (OutboxRecord row in rows)
+            {
+                var context = new Pipeline.MessageContext(Pipeline.PipelineStage.Publish, row.Message.Envelope, services, cancellationToken);
+                context.Items["sourceflow.destination"] = row.Message.Destination;
+                try
+                {
+                    bool reached = false;
+                    await _runtime.Pipeline.InvokeAsync(context, ctx =>
+                    {
+                        reached = true;
+                        ctx.Outcome = Pipeline.HandlingOutcome.Completed;
+                        return ValueTask.CompletedTask;
+                    }).ConfigureAwait(false);
+                    if (reached)
+                    {
+                        sending.Add(row);
+                        envelopes.Add(context.Envelope);
+                    }
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+                {
+                    failures[row.Sequence] = exception;
+                }
+            }
+        }
+        finally
+        {
+            if (scope is { } created)
+            {
+                await created.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+
+        return ([.. sending], [.. envelopes]);
+    }
+
+    private sealed class EmptyServices : IServiceProvider
+    {
+        public static readonly EmptyServices Instance = new();
+
+        public object? GetService(Type serviceType) => null;
     }
 
     // When to renew a partition lease during a drain: a third of the TTL on either the business clock or the system clock.
@@ -272,7 +349,7 @@ public sealed class OutboxRelay
             return;
         }
 
-        TimeSpan delay = TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2, attempt)));
+        TimeSpan delay = Backoff.Exponential(attempt, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(5), jitter: true);   // CR-39
         DateTimeOffset retryAt = _runtime.Time.GetUtcNow() + delay;
         Log.OutboxRetry(_logger, error, row.Message.Destination, attempt, retryAt);
         _runtime.Metrics.RetryAttempts.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Stage, "publish"),

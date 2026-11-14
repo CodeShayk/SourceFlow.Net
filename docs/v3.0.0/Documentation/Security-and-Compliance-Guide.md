@@ -787,7 +787,7 @@ database credentials. Status is from the [WP-5.5 security review](../implementat
 | Item | Status in 3.0 |
 |------|---------------|
 | Envelope signatures (`sfsig`) | Not built; 3.x candidate |
-| Circuit breaker on the outbox relay | Not built (F-07, O-4); SDK retries, relay back-off, retry budgets and parking instead |
+| Circuit breaker on the outbox relay | Built (F-07, WP-C.14): a Polly circuit breaker per destination; while it is open, rows wait without spending their attempts |
 | Per-type body size limits on receive | Not built (F-08, O-5); broker limits apply |
 | SQL Server append-only grants script | Open (O-3) |
 | SQL Server row-level security | Not in 3.0 |

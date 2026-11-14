@@ -816,6 +816,7 @@ namespace SourceFlow.Hosting
         public SourceFlow.Hosting.SourceFlowBuilder ProcessManager<TProcess>(System.Action<SourceFlow.Hosting.ProcessManagerBuilder> configure)
             where TProcess :  class { }
         public SourceFlow.Hosting.SourceFlowBuilder Projections(System.Action<SourceFlow.Hosting.ProjectionsBuilder> configure) { }
+        public SourceFlow.Hosting.SourceFlowBuilder Resilience(System.Action<SourceFlow.Runtime.ResilienceBuilder> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder Routing(System.Action<SourceFlow.Runtime.RoutingBuilder> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder Security(System.Action<SourceFlow.Security.SecurityBuilder> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder UseInMemoryStorage(SourceFlow.Storage.InMemory.InMemoryStore? store = null) { }
@@ -1290,7 +1291,8 @@ namespace SourceFlow.Pipeline
     public delegate System.Threading.Tasks.ValueTask MessageDelegate(SourceFlow.Pipeline.MessageContext context);
     public sealed class MessagePipeline
     {
-        public MessagePipeline(System.Collections.Generic.IEnumerable<SourceFlow.Pipeline.MiddlewareRegistration> registrations) { }
+        public MessagePipeline(System.Collections.Generic.IEnumerable<SourceFlow.Pipeline.MiddlewareRegistration> registrations, Microsoft.Extensions.Logging.ILogger? logger = null) { }
+        public bool Has(SourceFlow.Pipeline.PipelineStage stage) { }
         public System.Threading.Tasks.ValueTask InvokeAsync(SourceFlow.Pipeline.MessageContext context, SourceFlow.Pipeline.MessageDelegate terminal) { }
     }
     public sealed class MiddlewareRegistration : System.IEquatable<SourceFlow.Pipeline.MiddlewareRegistration>
@@ -2160,7 +2162,7 @@ namespace SourceFlow.Runtime
     }
     public sealed class OutboxRelay
     {
-        public OutboxRelay(SourceFlow.Runtime.SourceFlowRuntime runtime) { }
+        public OutboxRelay(SourceFlow.Runtime.SourceFlowRuntime runtime, Microsoft.Extensions.DependencyInjection.IServiceScopeFactory? scopes = null) { }
         public System.Threading.Tasks.ValueTask ReleaseAllAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<int> RunOnceAsync(System.Threading.CancellationToken cancellationToken) { }
     }
@@ -2214,6 +2216,10 @@ namespace SourceFlow.Runtime
         public System.Threading.Tasks.ValueTask DrainAsync(System.TimeSpan timeout) { }
         public System.Threading.Tasks.Task RunAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask StartAsync(System.Threading.CancellationToken cancellationToken) { }
+    }
+    public sealed class ResilienceBuilder
+    {
+        public SourceFlow.Runtime.ResilienceBuilder Configure(string pipeline, System.Action<Polly.ResiliencePipelineBuilder> configure) { }
     }
     public sealed class RoutingBuilder
     {
@@ -2365,6 +2371,13 @@ namespace SourceFlow.Runtime
     {
         public SourceFlowOptionsValidator() { }
         public Microsoft.Extensions.Options.ValidateOptionsResult Validate(string? name, SourceFlow.Runtime.SourceFlowOptions options) { }
+    }
+    public static class SourceFlowResilience
+    {
+        public const string Concurrency = "sourceflow.concurrency";
+        public const string Immediate = "sourceflow.immediate";
+        public const string Ingest = "sourceflow.ingest";
+        public const string Outbox = "sourceflow.outbox";
     }
     public sealed class SourceFlowRuntime
     {

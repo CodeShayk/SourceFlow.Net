@@ -27,6 +27,7 @@
     <PackageReference Include="Microsoft.Extensions.Compliance.Redaction" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <PackageReference Include="System.IO.Hashing" />
+    <PackageReference Include="Polly.Core" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SourceFlow.Generators\SourceFlow.Generators.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />

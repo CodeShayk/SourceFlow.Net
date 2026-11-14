@@ -32,7 +32,7 @@ v3 is a **new major version**. It is neither source- nor binary-compatible with 
 | `bus.Subscribe.To.Topic("x")` | `r.Subscribe("x")` | One subscription per service |
 | `IdempotencyConfigurationBuilder` / `IIdempotencyService` | Built-in inbox (always on) | |
 | `IDeadLetterStore` / `AwsDeadLetterMonitor` | Built-in parking + `dotnet sourceflow dlq …` | |
-| `ICircuitBreaker` / `CircuitBreakerOptions` | Polly `ResiliencePipeline` (`sf.Resilience(...)`) | |
+| `ICircuitBreaker` / `CircuitBreakerOptions` | Polly `ResiliencePipeline` (`sf.Resilience(r => r.Configure(SourceFlowResilience.Outbox, …))`) | As built (WP-C.14): the outbox has a circuit breaker per destination |
 | `IMessageEncryption` / `AwsKmsMessageEncryption` | `sf.Security(s => s.UseAwsKms(...))` | |
 | `[SensitiveData]` / `SensitiveDataMasker` | `[PersonalData]` + M.E.Compliance.Redaction + crypto-shredding | |
 | `AddSourceFlowTelemetry(...)` / `DomainObservabilityOptions` | Always on. `AddSource(SourceFlowTelemetry.ActivitySourceName)` / `AddMeter(SourceFlowTelemetry.MeterName)` on the OTel builders | |

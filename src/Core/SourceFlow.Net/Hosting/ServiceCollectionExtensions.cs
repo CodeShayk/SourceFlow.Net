@@ -83,7 +83,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(sp => new HostSettings(roles, provisioning ?? DefaultProvisioning(sp.GetService<IHostEnvironment>(), sp.GetRequiredService<ITransport>())));
         services.AddSingleton<SourceFlowMetrics>();
         services.AddSingleton<IMessageSerializer, SystemTextJsonMessageSerializer>();
-        services.AddSingleton(new MessagePipeline(builder.Middleware));
+        services.AddSingleton(sp => new MessagePipeline(builder.Middleware, sp.GetService<Microsoft.Extensions.Logging.ILoggerFactory>()?.CreateLogger("SourceFlow.Pipeline")));
         Func<IServiceProvider, StoragePorts> storage = builder.StorageFactory ?? throw new InvalidOperationException("No storage is configured. Call UseInMemoryStorage() or a storage package's Use* method.");
         if (builder.SecuritySettings?.KeyProvider is { } keyFactory)
         {
@@ -163,6 +163,7 @@ public static class ServiceCollectionExtensions
             runtime.ProjectionPolicies = builder.ProjectionPolicies.ToDictionary();
             runtime.ProjectionPartitions = builder.ProjectionPartitions.ToDictionary();
             runtime.ProcessManagerStarts = builder.ProcessManagerStarts.ToDictionary();
+            runtime.ResilienceConfigurations = builder.ResilienceSettings.Configurations.ToDictionary(StringComparer.Ordinal);
             string[] missing = [.. model.Projections.Select(p => p.MissingDependency(sp)).OfType<string>()];
             if (missing.Length > 0)
             {

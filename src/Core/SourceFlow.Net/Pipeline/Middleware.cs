@@ -127,11 +127,24 @@ public sealed class MessagePipeline
 {
     private readonly IReadOnlyList<MiddlewareRegistration> _registrations;
     private readonly ConcurrentDictionary<PipelineStage, MiddlewareRegistration[]> _byStage = new();
+    private readonly LoggingScopeMiddleware? _scope;
 
     /// <summary>Creates the pipeline from the ordered registrations (outermost first).</summary>
-    public MessagePipeline(IEnumerable<MiddlewareRegistration> registrations)
+    /// <param name="registrations">The user middleware, outermost first.</param>
+    /// <param name="logger">
+    /// The logger of the built-in log scope (message id, type, correlation and tenant), opened around every stage but
+    /// Receive, whose endpoint opens its own (ADR-012, CR-46). Null opens none.
+    /// </param>
+    public MessagePipeline(IEnumerable<MiddlewareRegistration> registrations, ILogger? logger = null)
     {
         _registrations = [.. registrations];
+        _scope = logger is null ? null : new LoggingScopeMiddleware(logger);
+    }
+
+    /// <summary>True when user middleware is registered for <paramref name="stage"/>: the Publish and Project stages run only then.</summary>
+    public bool Has(PipelineStage stage)
+    {
+        return Chain(stage).Length > 0;
     }
 
     /// <summary>Runs <paramref name="terminal"/> wrapped by every middleware registered for the context's stage.</summary>
@@ -139,8 +152,16 @@ public sealed class MessagePipeline
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(terminal);
-        MiddlewareRegistration[] chain = _byStage.GetOrAdd(context.Stage, stage => [.. _registrations.Where(r => (r.Stages & stage) != 0)]);
-        return Invoke(chain, 0, context, terminal);
+        MiddlewareRegistration[] chain = Chain(context.Stage);
+        return _scope is not null && context.Stage != PipelineStage.Receive
+            ? _scope.InvokeAsync(context, ctx => Invoke(chain, 0, ctx, terminal))
+            : Invoke(chain, 0, context, terminal);
+    }
+
+    // The chain of a stage, composed once (doc 04 §4.1).
+    private MiddlewareRegistration[] Chain(PipelineStage stage)
+    {
+        return _byStage.GetOrAdd(stage, s => [.. _registrations.Where(r => (r.Stages & s) != 0)]);
     }
 
     private static ValueTask Invoke(MiddlewareRegistration[] chain, int index, MessageContext context, MessageDelegate terminal)
