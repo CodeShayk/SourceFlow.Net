@@ -140,6 +140,7 @@ The schema is defined by versioned SQL scripts embedded in the package ([`Schema
 | `V004__read_model_generations` | `previous` and `building` columns on `collection_aliases` (blue/green rebuilds, ADR-032). |
 | `V005__outbox_first_due` | `outbox.first_due_at`, so the outbox age keeps growing while a broker is down. |
 | `V006__data_keys_per_tenant` | `data_keys.tenant_id`, keyed by `(tenant_id, subject_id)`: erasing a subject in one tenant leaves the same subject id in another tenant intact. Existing keys move to the default tenant `-`. |
+| `V007__data_keys_policy` | The `tenant_isolation` policy on `data_keys`, which becomes a tenant table under row-level security. |
 
 `PostgreSqlSchemaMigrator` ([source](../../../src/Storage/SourceFlow.Storage.PostgreSQL/PostgreSqlSchemaMigrator.cs)) applies them:
 
@@ -272,7 +273,7 @@ Leases and fencing use the database clock (`now()`), so instance clock skew cann
 
 ## Multi-tenancy and row-level security
 
-Every tenant-scoped table (`streams`, `events`, `snapshots`, `documents`, `process_instances`, `subject_streams`) has a `tenant_id` column, and every query filters on it. With `TenantIsolation.RowLevelSecurity` the database enforces it as well ([ADR-022](../ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)):
+Every tenant-scoped table (`streams`, `events`, `snapshots`, `documents`, `process_instances`, `subject_streams`, `data_keys`) has a `tenant_id` column, and every query filters on it. With `TenantIsolation.RowLevelSecurity` the database enforces it as well ([ADR-022](../ADRs/ADR-022-conjoined-multi-tenancy-with-row-level-security.md)):
 
 ```csharp
 sf.UsePostgreSql(o =>
@@ -284,12 +285,13 @@ sf.UsePostgreSql(o =>
 ```
 
 - The migrator **enables and forces** row-level security on the tenant tables. Forcing makes the `tenant_isolation` policies apply to the table owner too; only superusers and `BYPASSRLS` roles skip them.
+- With `PartitionEvents`, every events partition gets the `tenant_isolation` policy and the parent's row-level security state, including `events_initial` and the partitions the maintenance job creates later. PostgreSQL applies a policy from the table a query names, so without this a query on `events_2026_11` would read every tenant's events. Each migration repairs a partition that lost its policy.
 - Each session runs `set_config('sourceflow.tenant', tenant, true)` at `BeginAsync`, so custom SQL and EF Core writes on `session.Connection` are scoped too. This adds one round trip per session.
 - Tenant-scoped reads outside a session send the setting in the same batch.
 - Without the setting, the application role sees no rows.
 - The global log is read through `SystemConnectionString` or `SystemDataSource`, because it spans tenants.
 - `inbox`, `outbox`, `checkpoints`, `leases` and `dead_letters` hold no tenant payload and have no policy.
-- Startup verification fails if the database's row-level security state differs from the configured isolation. Migrate with `db migrate --rls` to match.
+- Startup verification fails if the database's row-level security state differs from the configured isolation, on any tenant table or events partition, or if one lacks the policy. Migrate with `db migrate --rls` to match.
 
 Tenant resolution, the security model and the threat model are in [Architecture/10 Security and Multi-Tenancy](Architecture/10-Security-and-Multi-Tenancy.md) and the [Security and Compliance Guide](Security-and-Compliance-Guide.md).
 
@@ -317,7 +319,7 @@ sf.UsePostgreSql(connectionString, o =>
 | `db partitions ensure` | `EnsureEventPartitionsAsync()` | Create the partitions ahead now |
 | `db partitions detach <name>` | `DetachEventPartitionAsync(name)` | Detach an old partition (owner rights) |
 
-**Archiving and detaching.** `IEventStore.ArchiveStreamAsync` marks a stream archived: it rejects appends, stays loadable, and is left out of projection subscriptions and of SFQL `from events` unless `options (include_archived = true)`. Archiving is permanent. A partition can be detached only when its range has ended and every stream with events in it is archived or deleted; otherwise `EventPartitionException` explains why. The detached table keeps its rows for archiving (for example `pg_dump -t`), and the operator drops it afterwards. Its events then leave stream reads, the global log and queries.
+**Archiving and detaching.** `IEventStore.ArchiveStreamAsync` marks a stream archived: it rejects appends, stays loadable, and is left out of projection subscriptions and of SFQL `from events` unless `options (include_archived = true)`. Archiving is permanent. A partition can be detached only when its range has ended and every stream with events in it is archived or deleted; otherwise `EventPartitionException` explains why. The open-stream check reads every tenant's rows through the system data source, with `row_security` off: under row-level security a role that can't bypass the policies gets an error instead of a count of zero. The detached table keeps its rows for archiving (for example `pg_dump -t`), and the operator drops it afterwards. Its events then leave stream reads, the global log and queries.
 
 ## Blue/green read-model generations
 

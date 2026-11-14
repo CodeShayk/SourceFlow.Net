@@ -91,18 +91,10 @@ public sealed partial class PostgreSqlStore
 
         // The partition name was checked against event_partitions and the pattern above: safe as a quoted identifier.
         string table = $"{Quoted}.\"{name}\"";
-        await using (var open = new NpgsqlCommand(
-            $"""
-            SELECT count(*) FROM (SELECT DISTINCT e.tenant_id, e.stream_id FROM {table} e) e
-              LEFT JOIN {Quoted}.streams s ON s.tenant_id = e.tenant_id AND s.stream_id = e.stream_id
-             WHERE s.stream_id IS NULL OR NOT (s.is_archived OR s.is_deleted)
-            """, connection, transaction))
+        long streams = await OpenStreamsInAsync(table, cancellationToken).ConfigureAwait(false);
+        if (streams > 0)
         {
-            long streams = (long)(await open.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
-            if (streams > 0)
-            {
-                throw new EventPartitionException($"The events partition '{name}' holds events of {streams} stream(s) that are neither archived nor deleted. Archive them first (IEventStore.ArchiveStreamAsync).");
-            }
+            throw new EventPartitionException($"The events partition '{name}' holds events of {streams} stream(s) that are neither archived nor deleted. Archive them first (IEventStore.ArchiveStreamAsync).");
         }
 
         await using (var detach = new NpgsqlCommand(
@@ -113,6 +105,31 @@ public sealed partial class PostgreSqlStore
         }
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    // The open streams of a partition, across every tenant (CR-03). Row-level security would hide other tenants' rows and
+    // make a partition with live streams look empty, so the count runs on the system (BYPASSRLS) data source with
+    // row_security off: a role that can't bypass the policies gets an error, never a count of zero.
+    private async Task<long> OpenStreamsInAsync(string table, CancellationToken cancellationToken)
+    {
+        await using NpgsqlConnection connection = await SystemDataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var batch = new NpgsqlBatch(connection)
+        {
+            BatchCommands =
+            {
+                new NpgsqlBatchCommand("SELECT set_config('row_security', 'off', true)"),
+                new NpgsqlBatchCommand(
+                    $"""
+                    SELECT count(*) FROM (SELECT DISTINCT e.tenant_id, e.stream_id FROM {table} e) e
+                      LEFT JOIN {Quoted}.streams s ON s.tenant_id = e.tenant_id AND s.stream_id = e.stream_id
+                     WHERE s.stream_id IS NULL OR NOT (s.is_archived OR s.is_deleted)
+                    """),
+            },
+        };
+        await using NpgsqlDataReader reader = await batch.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        await reader.NextResultAsync(cancellationToken).ConfigureAwait(false);
+        await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        return reader.GetInt64(0);
     }
 
     private string Quoted => "\"" + Options.Schema + "\"";

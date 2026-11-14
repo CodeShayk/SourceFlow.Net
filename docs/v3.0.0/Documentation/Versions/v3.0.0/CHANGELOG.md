@@ -418,7 +418,8 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
 - the M6 hardening and release-candidate programme (beyond the 63 work packages);
 - Track C, the design-conformance remediation ([plan 11](../../../implementation/11-Design-Conformance-Remediation-Plan.md)):
   the P0 security packages before the release candidate, P1 before GA, P2 before Studio 1.0. Done so far: WP-C.1
-  (subqueries are policy-checked; per-query authorization for domain queries).
+  (subqueries are policy-checked; per-query authorization for domain queries), WP-C.2 (row-level security on every
+  events partition and on `data_keys`; the partition detach check sees every tenant).
 
 ### Other notes
 

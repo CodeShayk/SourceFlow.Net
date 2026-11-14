@@ -65,8 +65,11 @@ public sealed class PostgreSqlSchemaMigrator
         Scripts = [.. scripts.OrderBy(s => s.Version)];
     }
 
-    /// <summary>The tables protected by the <c>tenant_isolation</c> policy (V002).</summary>
-    public static IReadOnlyList<string> TenantTables { get; } = ["streams", "events", "snapshots", "documents", "process_instances", "subject_streams"];
+    /// <summary>
+    /// The tables protected by the <c>tenant_isolation</c> policy (V002, <c>data_keys</c> since V007). With partitioned
+    /// events, every partition of <c>events</c> carries the policy and the parent's state too.
+    /// </summary>
+    public static IReadOnlyList<string> TenantTables { get; } = ["streams", "events", "snapshots", "documents", "process_instances", "subject_streams", "data_keys"];
 
     /// <summary>The scripts embedded in this package, ordered by version.</summary>
     public static IReadOnlyList<MigrationScript> EmbeddedScripts { get; } = LoadEmbedded();
@@ -124,13 +127,15 @@ public sealed class PostgreSqlSchemaMigrator
         // tables whose row-level security differs, so a node starting next to busy ones does not queue behind them.
         if (_isolation is { } wanted)
         {
-            IReadOnlyList<string> differ = await MismatchedIsolationAsync(connection, transaction, wanted == TenantIsolation.RowLevelSecurity, cancellationToken).ConfigureAwait(false);
+            IReadOnlyList<string> differ = await MismatchedIsolationAsync(connection, transaction, wanted == TenantIsolation.RowLevelSecurity, partitions: false, cancellationToken).ConfigureAwait(false);
             if (IsolationSql(differ) is { } isolation)
             {
                 await ExecuteAsync(connection, transaction, isolation, cancellationToken).ConfigureAwait(false);
             }
         }
 
+        // Partitions follow the parent's state, whatever set it (CR-02): a direct query on a partition uses its own policy.
+        await ExecuteAsync(connection, transaction, Render(PostgreSqlPartitioning.SecurePartitions), cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         return done;
     }
@@ -179,26 +184,34 @@ public sealed class PostgreSqlSchemaMigrator
     // A mismatch silently breaks tenancy: RLS on without the tenant setting shows nothing; RLS off loses the guard.
     private async Task VerifyIsolationAsync(NpgsqlConnection connection, bool expected, CancellationToken cancellationToken)
     {
-        IReadOnlyList<string> mismatched = await MismatchedIsolationAsync(connection, null, expected, cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<string> mismatched = await MismatchedIsolationAsync(connection, null, expected, partitions: true, cancellationToken).ConfigureAwait(false);
         if (mismatched.Count > 0)
         {
-            string state = expected ? "enabled and forced" : "disabled";
+            string state = expected ? "enabled and forced, with the tenant_isolation policy," : "disabled";
             string mode = expected ? "RowLevelSecurity" : "Runtime";
             throw new SchemaMigrationException(
                 $"Row-level security must be {state} for TenantIsolation.{mode}, but is not on {string.Join(", ", mismatched.Order(StringComparer.Ordinal))} in schema '{_schema}'. Run 'dotnet sourceflow db migrate' with the same TenantIsolation.");
         }
     }
 
-    // The tenant tables whose row-level security is not in the expected state (enabled and forced, or neither).
-    private async Task<IReadOnlyList<string>> MismatchedIsolationAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, bool expected, CancellationToken cancellationToken)
+    // The tenant tables (and, with partitions, every attached events partition) whose row-level security is not in the
+    // expected state: enabled and forced with the tenant_isolation policy, or disabled.
+    private async Task<IReadOnlyList<string>> MismatchedIsolationAsync(NpgsqlConnection connection, NpgsqlTransaction? transaction, bool expected, bool partitions, CancellationToken cancellationToken)
     {
         await using var command = new NpgsqlCommand(
-            "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
-            + "WHERE n.nspname = @schema AND c.relname = ANY(@tables) AND (c.relrowsecurity, c.relforcerowsecurity) <> (@expected, @expected)",
+            """
+            SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE n.nspname = @schema
+               AND (c.relname = ANY(@tables) OR (@partitions AND c.oid IN (SELECT i.inhrelid FROM pg_inherits i WHERE i.inhparent = to_regclass(@events))))
+               AND ((c.relrowsecurity, c.relforcerowsecurity) <> (@expected, @expected)
+                    OR (@expected AND NOT EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid AND p.polname = 'tenant_isolation')))
+            """,
             connection, transaction);
         command.Parameters.Add(new NpgsqlParameter<string>("schema", _schema));
         command.Parameters.Add(new NpgsqlParameter<string[]>("tables", [.. TenantTables]));
         command.Parameters.Add(new NpgsqlParameter<bool>("expected", expected));
+        command.Parameters.Add(new NpgsqlParameter<bool>("partitions", partitions));
+        command.Parameters.Add(new NpgsqlParameter<string>("events", Quoted + ".events"));
         await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         var mismatched = new List<string>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -238,16 +251,18 @@ public sealed class PostgreSqlSchemaMigrator
             sql.Append(CultureInfo.InvariantCulture, $"INSERT INTO {Quoted}.schema_history (version, name, checksum) VALUES ({script.Version}, '{script.Name}', '{script.Checksum}');\n");
         }
 
-        if (IsolationSql(TenantTables) is { } isolation)
-        {
-            sql.Append("\n-- tenant isolation (ADR-022)\n").Append(isolation);
-        }
-
+        // The same order as MigrateAsync (CR-26): the conversion renames events, so isolation must follow it.
         if (_partitionEvents)
         {
             sql.Append("\n-- partitioned events (doc 05 §9): converts once, then creates the partitions ahead\n").Append(PartitionSql());
         }
 
+        if (IsolationSql(TenantTables) is { } isolation)
+        {
+            sql.Append("\n-- tenant isolation (ADR-022)\n").Append(isolation);
+        }
+
+        sql.Append("\n-- every events partition follows the parent's row-level security (ADR-022)\n").Append(Render(PostgreSqlPartitioning.SecurePartitions).TrimEnd()).Append('\n');
         return sql.Append("COMMIT;\n").ToString();
     }
 
@@ -308,6 +323,7 @@ public sealed class PostgreSqlSchemaMigrator
     private string PartitionSql()
     {
         return Render(PostgreSqlPartitioning.Convert).TrimEnd() + "\n"
+            + Render(PostgreSqlPartitioning.EnsureFunction).TrimEnd() + "\n"
             + $"SELECT {Quoted}.sf_ensure_event_partitions(now(), {PostgreSqlPartitioning.MigratorMonthsAhead});\n";
     }
 

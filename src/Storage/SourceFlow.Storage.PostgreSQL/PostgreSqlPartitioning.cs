@@ -108,32 +108,82 @@ internal static class PostgreSqlPartitioning
               INTO boundary FROM {schema}.events_initial;
             EXECUTE format('ALTER TABLE {schema}.events ATTACH PARTITION {schema}.events_initial FOR VALUES FROM (MINVALUE) TO (%L)', boundary);
             INSERT INTO {schema}.event_partitions (name, from_at, to_at) VALUES ('events_initial', NULL, boundary);
-
-            CREATE FUNCTION {schema}.sf_ensure_event_partitions(as_of timestamptz, ahead int) RETURNS int
-                LANGUAGE plpgsql
-                AS $ensure$
-            DECLARE
-                horizon timestamptz := (date_trunc('month', as_of AT TIME ZONE 'UTC') + make_interval(months => ahead + 1)) AT TIME ZONE 'UTC';
-                lower_bound timestamptz;
-                upper_bound timestamptz;
-                part text;
-                created int := 0;
-            BEGIN
-                PERFORM pg_advisory_xact_lock(hashtextextended('sourceflow.partitions:{schema}', 0));
-                SELECT max(to_at) INTO lower_bound FROM {schema}.event_partitions;
-                WHILE lower_bound < horizon LOOP
-                    upper_bound := ((lower_bound AT TIME ZONE 'UTC') + interval '1 month') AT TIME ZONE 'UTC';
-                    part := 'events_' || to_char(lower_bound AT TIME ZONE 'UTC', 'YYYY_MM');
-                    EXECUTE format('CREATE TABLE {schema}.%I PARTITION OF {schema}.events FOR VALUES FROM (%L) TO (%L)', part, lower_bound, upper_bound);
-                    INSERT INTO {schema}.event_partitions (name, from_at, to_at) VALUES (part, lower_bound, upper_bound);
-                    lower_bound := upper_bound;
-                    created := created + 1;
-                END LOOP;
-                RETURN created;
-            END
-            $ensure$;
         END
         $convert$;
+        """;
+
+    /// <summary>
+    /// Creates the monthly partitions ahead (replaced on every migration, so existing schemas get the current body). A
+    /// partition is a table of its own: PostgreSQL applies row-level security from the table a query names, so a query
+    /// on <c>events_2026_11</c> would skip the parent's policy. Every partition gets the <c>tenant_isolation</c> policy
+    /// and the parent's row-level security state (ADR-022).
+    /// </summary>
+    public const string EnsureFunction = """
+        CREATE OR REPLACE FUNCTION {schema}.sf_ensure_event_partitions(as_of timestamptz, ahead int) RETURNS int
+            LANGUAGE plpgsql
+            AS $ensure$
+        DECLARE
+            horizon timestamptz := (date_trunc('month', as_of AT TIME ZONE 'UTC') + make_interval(months => ahead + 1)) AT TIME ZONE 'UTC';
+            lower_bound timestamptz;
+            upper_bound timestamptz;
+            part text;
+            created int := 0;
+            rls boolean;
+            forced boolean;
+        BEGIN
+            PERFORM pg_advisory_xact_lock(hashtextextended('sourceflow.partitions:{schema}', 0));
+            SELECT c.relrowsecurity, c.relforcerowsecurity INTO rls, forced FROM pg_class c WHERE c.oid = '{schema}.events'::regclass;
+            SELECT max(to_at) INTO lower_bound FROM {schema}.event_partitions;
+            WHILE lower_bound < horizon LOOP
+                upper_bound := ((lower_bound AT TIME ZONE 'UTC') + interval '1 month') AT TIME ZONE 'UTC';
+                part := 'events_' || to_char(lower_bound AT TIME ZONE 'UTC', 'YYYY_MM');
+                EXECUTE format('CREATE TABLE {schema}.%I PARTITION OF {schema}.events FOR VALUES FROM (%L) TO (%L)', part, lower_bound, upper_bound);
+                EXECUTE format('CREATE POLICY tenant_isolation ON {schema}.%I USING (tenant_id = current_setting(''sourceflow.tenant'', true)) WITH CHECK (tenant_id = current_setting(''sourceflow.tenant'', true))', part);
+                IF rls THEN
+                    EXECUTE format('ALTER TABLE {schema}.%I ENABLE ROW LEVEL SECURITY', part);
+                END IF;
+                IF forced THEN
+                    EXECUTE format('ALTER TABLE {schema}.%I FORCE ROW LEVEL SECURITY', part);
+                END IF;
+                INSERT INTO {schema}.event_partitions (name, from_at, to_at) VALUES (part, lower_bound, upper_bound);
+                lower_bound := upper_bound;
+                created := created + 1;
+            END LOOP;
+            RETURN created;
+        END
+        $ensure$;
+        """;
+
+    /// <summary>
+    /// Gives every attached partition the <c>tenant_isolation</c> policy and the parent's row-level security state,
+    /// altering only the partitions that differ (ALTER TABLE takes an ACCESS EXCLUSIVE lock). It covers partitions
+    /// created before <see cref="EnsureFunction"/> secured them, and <c>events_initial</c> after the conversion. Without
+    /// a partitioned events table it does nothing.
+    /// </summary>
+    public const string SecurePartitions = """
+        DO $secure$
+        DECLARE
+            parent record;
+            part record;
+        BEGIN
+            SELECT c.relrowsecurity AS rls, c.relforcerowsecurity AS forced INTO parent FROM pg_class c WHERE c.oid = to_regclass('{schema}.events');
+            FOR part IN
+                SELECT c.oid::regclass AS name, c.relrowsecurity AS rls, c.relforcerowsecurity AS forced
+                  FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+                 WHERE i.inhparent = to_regclass('{schema}.events')
+            LOOP
+                IF NOT EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = part.name AND p.polname = 'tenant_isolation') THEN
+                    EXECUTE format('CREATE POLICY tenant_isolation ON %s USING (tenant_id = current_setting(''sourceflow.tenant'', true)) WITH CHECK (tenant_id = current_setting(''sourceflow.tenant'', true))', part.name);
+                END IF;
+                IF part.rls <> parent.rls THEN
+                    EXECUTE format('ALTER TABLE %s %s ROW LEVEL SECURITY', part.name, CASE WHEN parent.rls THEN 'ENABLE' ELSE 'DISABLE' END);
+                END IF;
+                IF part.forced <> parent.forced THEN
+                    EXECUTE format('ALTER TABLE %s %s ROW LEVEL SECURITY', part.name, CASE WHEN parent.forced THEN 'FORCE' ELSE 'NO FORCE' END);
+                END IF;
+            END LOOP;
+        END
+        $secure$;
         """;
 
     public const string IsPartitioned = """

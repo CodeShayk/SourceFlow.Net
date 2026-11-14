@@ -43,7 +43,7 @@ public sealed class PostgreSqlOptionsTests
     [Trait("Id", "UT-PG-03")]
     public void EmbeddedScripts_AreVersionedAndChecksummed_IndependentOfLineEndings()
     {
-        PostgreSqlSchemaMigrator.EmbeddedScripts.Select(s => $"V{s.Version:D3}__{s.Name}").ShouldBe(["V001__initial", "V002__tenant_policies", "V003__commit_assertions", "V004__read_model_generations", "V005__outbox_first_due", "V006__data_keys_per_tenant"]);
+        PostgreSqlSchemaMigrator.EmbeddedScripts.Select(s => $"V{s.Version:D3}__{s.Name}").ShouldBe(["V001__initial", "V002__tenant_policies", "V003__commit_assertions", "V004__read_model_generations", "V005__outbox_first_due", "V006__data_keys_per_tenant", "V007__data_keys_policy"]);
         MigrationScript initial = PostgreSqlSchemaMigrator.EmbeddedScripts[0];
         initial.Version.ShouldBe(1);
         initial.Name.ShouldBe("initial");

@@ -208,6 +208,160 @@ public sealed class PostgreSqlPartitionTests(PostgreSqlServer server) : PostgreS
         script.ShouldContain("SELECT \"sales\".sf_ensure_event_partitions(now(), 3);");
     }
 
+    // ================================================================ row-level security on partitions (WP-C.2)
+
+    [Fact]
+    [Trait("Id", "SCK-77")]
+    [Trait("Covers", "ADR-022;doc 05 9")]
+    public async Task RowLevelSecurity_CoversEveryPartition_EvenWhenQueriedDirectly()
+    {
+        string schema = PostgreSqlServer.NewSchema("rlsp");
+        var time = new SettableTime(TimeProvider.System.GetUtcNow());
+        var migrator = new PostgreSqlSchemaMigrator(Server.DataSource, schema, TenantIsolation.RowLevelSecurity, partitionEvents: true);
+        await migrator.MigrateAsync(Ct);
+        await using var owner = new PostgreSqlStore(new PostgreSqlStorageOptions { DataSource = Server.DataSource, Schema = schema, PartitionEvents = true }, time);
+        DateTimeOffset boundary = (await owner.ListEventPartitionsAsync(Ct))[0].To;
+        time.SetUtcNow(boundary.AddMonths(5));
+        (await owner.EnsureEventPartitionsAsync(Ct)).ShouldBeGreaterThan(0);   // partitions created by the maintenance job too
+        await Server.GrantAsync(schema);
+        PostgreSqlStorageOptions appOptions = Server.RowLevelSecurityOptions(schema);
+        appOptions.PartitionEvents = true;
+        await using var app = new PostgreSqlStore(appOptions, time);
+
+        string[] partitions = ["events_initial", PartitionName(boundary), PartitionName(boundary.AddMonths(5))];
+        DateTimeOffset[] at = [boundary.AddDays(-1), boundary.AddDays(1), boundary.AddMonths(5).AddDays(1)];
+        for (int i = 0; i < at.Length; i++)
+        {
+            time.SetUtcNow(at[i]);
+            foreach (string tenant in new[] { "t1", "t2" })
+            {
+                await using IStorageSession session = await app.BeginAsync(tenant, Ct);
+                session.Append(new StreamId($"rls-{tenant}-{i}"), "rls-test", ExpectedVersion.NoStream, [StorageConformance.Event() with { CreatedAt = at[i] }]);
+                await session.CommitAsync(Ct);
+            }
+        }
+
+        await using NpgsqlDataSource appRole = NpgsqlDataSource.Create(Server.ConnectionStringFor(Server.AppRole));
+        foreach (string partition in partitions)
+        {
+            (await TenantsInAsync(appRole, schema, partition, "t1")).ShouldBe(["t1"], partition);
+            (await TenantsInAsync(appRole, schema, partition, null)).ShouldBeEmpty($"{partition}: no tenant setting, no rows");
+        }
+
+        await migrator.VerifyAsync(Ct);
+
+        // A partition that lost its protection is found by verification and repaired by the next migration.
+        await Server.ExecuteAsync($"ALTER TABLE \"{schema}\".\"{partitions[1]}\" NO FORCE ROW LEVEL SECURITY, DISABLE ROW LEVEL SECURITY; DROP POLICY tenant_isolation ON \"{schema}\".\"{partitions[1]}\"");
+        (await Should.ThrowAsync<SchemaMigrationException>(() => migrator.VerifyAsync(Ct))).Message.ShouldContain(partitions[1]);
+        await migrator.MigrateAsync(Ct);
+        await migrator.VerifyAsync(Ct);
+        (await TenantsInAsync(appRole, schema, partitions[1], "t2")).ShouldBe(["t2"]);
+    }
+
+    [Fact]
+    [Trait("Id", "SCK-78")]
+    [Trait("Covers", "ADR-022;doc 05 9")]
+    public async Task Detach_UnderRowLevelSecurity_SeesEveryTenantsOpenStreams()
+    {
+        // The upgrade path: row-level security first, partitioning later. events_initial keeps its forced policy, and the
+        // schema owner is an ordinary role, so a check that ran under the policy would see no rows and allow the detach.
+        string schema = PostgreSqlServer.NewSchema("rlsd");
+        string ownerRole = "sf_owner_" + Guid.CreateVersion7().ToString("N")[..12];
+        await Server.ExecuteAsync($"CREATE ROLE \"{ownerRole}\" LOGIN PASSWORD '{ownerRole}'; DO $g$ BEGIN EXECUTE format('GRANT CREATE ON DATABASE %I TO %I', current_database(), '{ownerRole}'); END $g$");
+        await using NpgsqlDataSource ownerSource = NpgsqlDataSource.Create(Server.ConnectionStringFor(ownerRole));
+        await new PostgreSqlSchemaMigrator(ownerSource, schema, TenantIsolation.RowLevelSecurity).MigrateAsync(Ct);
+        await Server.GrantAsync(schema);
+
+        var time = new SettableTime(TimeProvider.System.GetUtcNow());
+        PostgreSqlStorageOptions appOptions = Server.RowLevelSecurityOptions(schema);
+        appOptions.PartitionEvents = false;
+        await using (var app = new PostgreSqlStore(appOptions, time))
+        {
+            await using IStorageSession session = await app.BeginAsync("t1", Ct);
+            session.Append(new StreamId("open-1"), "rls-test", ExpectedVersion.NoStream, [StorageConformance.Event() with { CreatedAt = time.GetUtcNow() }]);
+            await session.CommitAsync(Ct);
+        }
+
+        await new PostgreSqlSchemaMigrator(ownerSource, schema, TenantIsolation.RowLevelSecurity, partitionEvents: true).MigrateAsync(Ct);
+        await Server.GrantAsync(schema);
+        await using var owner = new PostgreSqlStore(new PostgreSqlStorageOptions
+        {
+            DataSource = ownerSource,
+            SystemConnectionString = Server.ConnectionStringFor(Server.SystemRole),
+            Schema = schema,
+            TenantIsolation = TenantIsolation.RowLevelSecurity,
+            PartitionEvents = true,
+        }, time);
+        time.SetUtcNow((await owner.ListEventPartitionsAsync(Ct))[0].To.AddDays(1));
+
+        (await Should.ThrowAsync<EventPartitionException>(() => owner.DetachEventPartitionAsync("events_initial", Ct))).Message.ShouldContain("1 stream(s)");
+        (await owner.ListEventPartitionsAsync(Ct))[0].DetachedAt.ShouldBeNull();
+    }
+
+    [Fact]
+    [Trait("Id", "SCK-M08")]
+    [Trait("Covers", "doc 05 11;ADR-022")]
+    public async Task DbScript_AndDbMigrate_GiveTheSameSecurity()
+    {
+        string scripted = PostgreSqlServer.NewSchema("scr");
+        string migrated = PostgreSqlServer.NewSchema("mig");
+        await Server.ExecuteAsync(new PostgreSqlSchemaMigrator(Server.DataSource, scripted, TenantIsolation.RowLevelSecurity, partitionEvents: true).Script());
+        await new PostgreSqlSchemaMigrator(Server.DataSource, migrated, TenantIsolation.RowLevelSecurity, partitionEvents: true).MigrateAsync(Ct);
+
+        IReadOnlyList<string> fromScript = await SecurityOfAsync(scripted);
+        IReadOnlyList<string> fromMigrate = await SecurityOfAsync(migrated);
+
+        fromScript.ShouldBe(fromMigrate);
+        fromScript.ShouldContain("events_initial rls=True forced=True policy=True");
+        fromScript.ShouldContain("events rls=True forced=True policy=True");
+        fromScript.ShouldContain("data_keys rls=True forced=True policy=True");
+        await new PostgreSqlSchemaMigrator(Server.DataSource, scripted, TenantIsolation.RowLevelSecurity, partitionEvents: true).VerifyAsync(Ct);
+    }
+
+    private static async Task<string[]> TenantsInAsync(NpgsqlDataSource role, string schema, string table, string? tenant)
+    {
+        await using NpgsqlConnection connection = await role.OpenConnectionAsync(Ct);
+        await using var batch = new NpgsqlBatch(connection)
+        {
+            BatchCommands =
+            {
+                new NpgsqlBatchCommand("SELECT set_config('sourceflow.tenant', @t, true)") { Parameters = { new NpgsqlParameter<string>("t", tenant ?? string.Empty) } },
+                new NpgsqlBatchCommand($"SELECT DISTINCT tenant_id FROM \"{schema}\".\"{table}\" ORDER BY tenant_id"),
+            },
+        };
+        await using NpgsqlDataReader reader = await batch.ExecuteReaderAsync(Ct);
+        await reader.NextResultAsync(Ct);
+        var tenants = new List<string>();
+        while (await reader.ReadAsync(Ct))
+        {
+            tenants.Add(reader.GetString(0));
+        }
+
+        return [.. tenants];
+    }
+
+    // Every table of the schema with its row-level security state and whether it has the tenant_isolation policy.
+    private async Task<IReadOnlyList<string>> SecurityOfAsync(string schema)
+    {
+        await using NpgsqlCommand command = Server.DataSource.CreateCommand(
+            """
+            SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity,
+                   EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid AND p.polname = 'tenant_isolation')
+              FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE n.nspname = @schema AND c.relkind IN ('r', 'p')
+             ORDER BY c.relname
+            """);
+        command.Parameters.Add(new NpgsqlParameter<string>("schema", schema));
+        await using NpgsqlDataReader reader = await command.ExecuteReaderAsync(Ct);
+        var rows = new List<string>();
+        while (await reader.ReadAsync(Ct))
+        {
+            rows.Add($"{reader.GetString(0)} rls={reader.GetBoolean(1)} forced={reader.GetBoolean(2)} policy={reader.GetBoolean(3)}");
+        }
+
+        return rows;
+    }
+
     // ================================================================ helpers
 
     private async Task<(PostgreSqlStore Store, SettableTime Time, DateTimeOffset Boundary)> PartitionedAsync(Action<PostgreSqlStorageOptions>? configure = null)
