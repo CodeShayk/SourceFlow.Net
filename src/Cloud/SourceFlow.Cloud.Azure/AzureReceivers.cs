@@ -309,18 +309,7 @@ internal sealed class SessionSlot(ServiceBusSessionReceiver receiver)
     public void Release()
     {
         Interlocked.Decrement(ref _held);
-        Touch();
     }
-
-    /// <summary>When the session last delivered or settled a message (UTC ticks).</summary>
-    public DateTimeOffset LastActive => new(Interlocked.Read(ref _lastActiveTicks), TimeSpan.Zero);
-
-    public void Touch()
-    {
-        Interlocked.Exchange(ref _lastActiveTicks, TimeProvider.System.GetUtcNow().UtcTicks);
-    }
-
-    private long _lastActiveTicks = TimeProvider.System.GetUtcNow().UtcTicks;
 }
 
 /// <summary>
@@ -334,11 +323,6 @@ internal sealed class AzureSessionReceiver(AzureTransport transport, string endp
 {
     private static readonly TimeSpan SessionReceiveWait = TimeSpan.FromMilliseconds(100);
 
-    // How long a session may stay without a delivery before it is released. One empty receive is not enough: under load a
-    // short receive can come back empty while the session still has messages, and a session released and accepted again
-    // by another instance in that window can see a message that was in flight on the closed link come back after later
-    // ones of its key (seen on the Service Bus emulator, TCK-13).
-    private static readonly TimeSpan SessionIdleRelease = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan RenewMargin = TimeSpan.FromSeconds(2);
 
@@ -387,15 +371,14 @@ internal sealed class AzureSessionReceiver(AzureTransport transport, string endp
 
                 if (messages.Count == 0)
                 {
-                    if (lost || slot.Receiver.IsClosed || TimeProvider.System.GetUtcNow() - slot.LastActive >= SessionIdleRelease)
+                    if (lost || slot.Receiver.IsClosed || await IsDrainedAsync(slot, cancellationToken).ConfigureAwait(false))
                     {
-                        await ReleaseAsync(slot).ConfigureAwait(false);   // idle: let another instance (or a later accept) have it
+                        await ReleaseAsync(slot).ConfigureAwait(false);   // empty: let another instance (or a later accept) have it
                     }
 
                     continue;
                 }
 
-                slot.Touch();
                 foreach (ServiceBusReceivedMessage message in messages)
                 {
                     if (await AcceptAsync(slot.Receiver, message, slot, cancellationToken).ConfigureAwait(false) is { } delivery)
@@ -518,6 +501,22 @@ internal sealed class AzureSessionReceiver(AzureTransport transport, string endp
         {
             _acceptError = e;
             return null;
+        }
+    }
+
+    // True when the session holds no message, locked or not. An empty receive alone is not enough: under load a short
+    // receive can come back empty while the session still has messages, and a message already on its way to a link that
+    // is then closed stays locked until its lock expires, while another instance takes the session and handles the key's
+    // later messages first (seen on the Service Bus emulator, TCK-13). Peeking sees locked messages too.
+    private async Task<bool> IsDrainedAsync(SessionSlot slot, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await AzureErrors.CallAsync(Destination, () => slot.Receiver.PeekMessageAsync(cancellationToken: cancellationToken)).ConfigureAwait(false) is null;
+        }
+        catch (Exception e) when ((e is TransportException && AzureErrors.IsLockLost(e)) || e is ObjectDisposedException)
+        {
+            return true;   // the session is no longer ours: release the slot
         }
     }
 
