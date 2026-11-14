@@ -31,6 +31,7 @@ Engineers (or coding agents) pick up a work package, create a `v3/<wp-id>-<slug>
 | 08 | [CI/CD Pipelines and Quality Gates](08-CI-CD-and-Quality-Gates.md) | Workflows for the `v3.0.0` branch, emulators, nightly real-cloud runs, gates, release |
 | 09 | [Definition of Done, Risks and Tracking](09-Definition-of-Done-Risks-and-Tracking.md) | PR and milestone gates, implementation risks, tracking board, cutover to `master` |
 | 10 | [Track S: Workflow DSL and SourceFlow Studio](10-Studio-Workflow-Track-Plan.md) | **New requirement** (product doc 07): 13 work packages (32 ew) for the saga DSL, code generation, React designer, tests and CI. Separate Studio 1.0 release train |
+| 11 | [Track C: Design conformance remediation](11-Design-Conformance-Remediation-Plan.md) | The fixes for the 2026-11-14 design-conformance review: 60 findings in 18 work packages (about 31 ew), by priority P0 (security) to P4 (design debt), with release gates |
 
 ## Conventions
 
@@ -38,6 +39,7 @@ Engineers (or coding agents) pick up a work package, create a `v3/<wp-id>-<slug>
 |--------|---------|------------|
 | `WP-m.n` | Work package *n* of milestone *m* (`WP-1.6`). `WP-m.R` is a retirement package. | 03 |
 | `WP-S.n` | Track S work package (workflow DSL and Studio) | 10 |
+| `WP-C.n`, `CR-nn` | Track C work package and design-conformance finding | 11 |
 | `UT-WF`, `UT-MAN`, `WF-GOLD`, `WF-DIFF`, `WF-E2E`, `STU-*`, `WASM-*` | Track S tests | 10 §3 |
 | `UT-<area>-nn` | Unit test case | 05 |
 | `GEN-nn` | Generator or analyzer test | 05 |

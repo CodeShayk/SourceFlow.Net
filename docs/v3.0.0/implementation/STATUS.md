@@ -141,6 +141,33 @@ Track S (Workflow DSL and Studio) is complete: WP-S.1 to WP-S.13 are done, which
 | WP-S.12 | Exports, static build, PR diagram action | 2 | done | **Exports.** One pure SVG renderer (`graph/svg.ts`: shapes, line styles, symbols and words per kind, titles for every state and transition, light and dark), used by the SVG and PNG downloads, the static site and the action. Mermaid and BPMN downloads are the core's golden outputs. **Static site.** `npx @sourceflow/studio build` (the app package is now `@sourceflow/studio`) writes the app, the core files `dotnet.js` loads, and a workspace snapshot; static mode reads the snapshot, uses hash routes and loads the core from its folder. The app is built with a relative base and `<base href="/">` for the host (CSP `base-uri 'self'`). **Action.** `studio/action`: git range → core graphs (new `core-client/node` in-process client) → diff (`graph/diff.ts`) → marked SVGs and one PR comment (changes, Mermaid with marks, artifact link), updated on each push; bundled to `dist/` for Node 24; this repository runs it from source (`workflow-diff.yml`). **Tests.** SVG, diff, export buttons, CLI and static API (Vitest), the action against a fixture repository (real git and core, fake GitHub API), STU-E2E-14..15. **Deviations.** SVGs reach the PR as the run's artifact (GitHub shows no `data:` images); publishing `sourceflow/workflow-diff` and `@sourceflow/studio` is a release step. |
 | WP-S.13 | OrderFulfilment sample, docs, hardening | 2 | done | **Sample.** `tests/Fixtures/OrderFulfilment`: Orders, Inventory (warehouse port), Payments (gateway port) and Shipping, each with a contracts module and an `Add…Service` method shared by the host (`OrderFulfilment.Host --Service=…`), the export and the tests; the §5.1 workflow plus the delivery address and the refund's order; `sourceflow.domain.yaml` with four exported manifests (drift-checked in CI); six Studio-generated specs in `Orders.Tests`. **Framework fixes found by it.** The owner's module registers the other services' contracts (the specs failed without them); SF0014 ignores aggregates of referenced assemblies (GEN-36); the same domain query contract registered twice is one query, so workflow versions can live in two assemblies (UT-QL-96); new fault point `reaction.beforeCommit`. **Tests.** WF-E2E-01..12 (`OrderFulfilmentScenarios`: four hosts per scenario, a shifting clock for orders, a scripted gateway, outages; 01..03 on PostgreSQL over the in-memory broker and the three emulators, 04..09 on the in-memory store and PostgreSQL, 10 on PostgreSQL with version 2 in `OrderFulfilment.NextRelease`, 11 with duplicate delivery on the emulators, 12 chaos at five fault points); UT-MAN-16, UT-WF-71..73; STU-E2E-01 on the sample, STU-A11Y-04 (contrast in Vitest and in the browser; `--control-border` fixes 1.5:1 control outlines), STU-A11Y-05 (keyboard-only editing), STU-PERF-03 (validation round trip, median 8 ms). **Docs.** `guides/workflows.md`, and `guides/workflow-dsl-reference.md` generated from the schema (now describing every key). **Deviation.** A service's command contracts stay in its assembly (commands are typed by the owner's aggregate), registered through its contracts module, instead of separate contract packages. |
 
+## Track C: design conformance remediation
+
+The 2026-11-14 design-conformance review found 60 issues (CR-01..60). [Plan 11](11-Design-Conformance-Remediation-Plan.md)
+groups them into 18 work packages by priority, with release gates: P0 before the next release candidate, P1 for 3.0.0
+GA, P2 for Studio 1.0.
+
+| WP | Title | Priority | Estimate (ew) | Status | Findings |
+|----|-------|----------|---------------|--------|----------|
+| WP-C.1 | Query policy covers subqueries | P0 | 1 | planned | CR-01, CR-25 |
+| WP-C.2 | Row-level security on every tenant table | P0 | 1 | planned | CR-02, CR-03, CR-26, CR-49 |
+| WP-C.3 | Personal data: discovery, erasure and audit | P0 | 2 | planned | CR-04, CR-05, CR-27, CR-55 |
+| WP-C.4 | API and Studio host hardening | P0 | 1 | planned | CR-06, CR-36, CR-37, CR-38, CR-48 |
+| WP-C.5 | Every outbound message goes through the outbox | P1 | 2 | planned | CR-07, CR-28, CR-40 |
+| WP-C.6 | Receive path: order, settlement, shutdown, retention | P1 | 2.5 | planned | CR-08..13, CR-42, CR-43 |
+| WP-C.7 | Storage fencing and upsert atomicity | P1 | 1.5 | planned | CR-14, CR-15, CR-29, CR-50 |
+| WP-C.8 | Stored formats: ids, fingerprints, backing types | P1 | 3 | planned | CR-16, CR-17, CR-30, CR-31 |
+| WP-C.9 | Per-subscription partition count | P1 | 1.5 | planned | CR-18 |
+| WP-C.10 | Workflow timers and the pivot | P2 | 2 | planned | CR-19, CR-20 |
+| WP-C.11 | Workflow replies, versions and correlation | P2 | 2 | planned | CR-32..35, CR-44 |
+| WP-C.12 | Query semantics across providers and least privilege | P3 | 2 | planned | CR-21, CR-22, CR-23 |
+| WP-C.13 | Transport parity | P3 | 1 | planned | CR-24, CR-41 |
+| WP-C.14 | One resilience engine (ADR-013) | P4 | 2 | planned | CR-39, CR-45 |
+| WP-C.15 | Middleware stages (ADR-012) | P4 | 2 | planned | CR-46 |
+| WP-C.16 | Telemetry conventions | P4 | 1 | planned | CR-47 |
+| WP-C.17 | Analyzers and generator consistency | P4 | 2 | planned | CR-51..54, CR-56, CR-57 |
+| WP-C.18 | Boundaries, options and documentation alignment | P4 | 1.5 | planned | CR-58, CR-59, CR-60 |
+
 ## Notes
 
 - WP-0.4: the benchmark harness lands with the first measurable code (WP-1.3 serializer benchmarks); the coverage gate is `tools/CoverageGate` with `thresholds.json`.
