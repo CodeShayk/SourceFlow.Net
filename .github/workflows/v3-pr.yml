@@ -19,7 +19,8 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "true"
   # Microsoft.Testing.Platform returns 8 when a filtered run selects no tests in a project
   # (categories that have no tests yet). Real failures still fail the job.
-  TEST_ARGS: "-c Release --no-build --ignore-exit-code 8 --coverage --coverage-output-format cobertura --report-trx"
+  # tests/CodeCoverage.settings.xml leaves out sample modules (child processes) and generated sources.
+  TEST_ARGS: "-c Release --no-build --ignore-exit-code 8 --coverage --coverage-output-format cobertura --coverage-settings ${{ github.workspace }}/tests/CodeCoverage.settings.xml --report-trx"
 
 jobs:
   dependency-review:

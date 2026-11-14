@@ -6,6 +6,7 @@ using SourceFlow.Messaging;
 using SourceFlow.Runtime;
 using SourceFlow.Storage.PostgreSQL;
 using SourceFlow.Tool;
+using SourceFlow.Workflows;
 
 namespace SourceFlow.Storage.Tests.PostgreSql;
 
@@ -159,6 +160,83 @@ public sealed class PostgreSqlCliTests(PostgreSqlServer server) : PostgreSqlTest
         (int refused, _, string conflict) = await RunAsync(runtime.Services, "db", "migrate", "--rls");
         refused.ShouldBe(1);
         conflict.ShouldContain("--rls conflicts");
+    }
+
+    [Fact]
+    [Trait("Id", "E2E-25")]
+    [Trait("Covers", "doc 06 3;doc 15 5.6")]
+    public async Task GlobalTool_SkipsAStoppedSubscriptionsEvent_AndSendsWorkflowControlThroughTheOutbox()
+    {
+        string schema = PostgreSqlServer.NewSchema("cli");
+        string[] target = ["--connection", Server.ConnectionString, "--schema", schema];
+        using (IHost host = await StartAsync(schema))
+        {
+            var id = AccountId.New();
+            await host.Services.GetRequiredService<ICommandSender>().SendAsync(new OpenAccount(id, "Ada", 5m), null, Ct);
+            await EventuallyAsync(host, id, exists: true);
+            await host.StopAsync(Ct);
+        }
+
+        // A subscription no service runs starts at the beginning of the log: the tool skips its next event, then the
+        // one after, until the partition has none left.
+        const string Stopped = "projection:archive@1";
+        (int skipped, string skip, string skipError) = await RunAsync(null, ["projection", "skip", Stopped, "--reason", "bad data", .. target]);
+        skipped.ShouldBe(0, skipError);
+        skip.ShouldContain("Skipped the event at");
+        string error = string.Empty;
+        for (int i = 0; i < 20 && !error.Contains("no event to skip", StringComparison.Ordinal); i++)
+        {
+            (_, _, error) = await RunAsync(null, ["projection", "skip", Stopped, "--reason", "drain", .. target]);
+        }
+
+        error.ShouldContain("The partition has no event to skip.");
+        (int listed, string discarded, _) = await RunAsync(null, ["dlq", "list", "--status", "discarded", "--consumer", Stopped, .. target]);
+        listed.ShouldBe(0);
+        discarded.ShouldContain("Skipped");
+
+        // An instance in manual intervention: without the service, the control message goes to the owner's endpoint
+        // through the outbox, which the service's relay sends.
+        await using var store = new PostgreSqlStore(new PostgreSqlStorageOptions { DataSource = Server.DataSource, Schema = schema });
+        DateTimeOffset now = TimeProvider.System.GetUtcNow();
+        var summary = new WorkflowInstanceSummary("trip-booking", 1, "booking-1", nameof(WorkflowStatus.ManualIntervention), "confirm-reservation", 1,
+            "hotels.hold_lost", "The hold expired.", "confirm-reservation", 1, now, now);
+        await using (IStorageSession session = await store.BeginAsync(MessageEnvelope.DefaultTenant, Ct))
+        {
+            session.Documents.Upsert(WorkflowInstanceSummary.Collection, WorkflowInstanceSummary.DocumentId(summary.ProcessName, summary.Instance), 1, WorkflowRuntime.SerializeSummary(summary));
+            await session.CommitAsync(Ct);
+        }
+
+        (int noEndpoint, _, string endpointError) = await RunAsync(null, ["workflow", "resume", "trip-booking@1", "booking-1", .. target]);
+        (int resumed, string sent, string resumeError) = await RunAsync(null, ["workflow", "resume", "trip-booking@1", "booking-1", "--endpoint", "bookings", "--note", "rebooked", .. target]);
+
+        noEndpoint.ShouldBe(1);
+        endpointError.ShouldContain("--endpoint");
+        resumed.ShouldBe(0, resumeError);
+        sent.ShouldContain("Sent resume to trip-booking@1 booking-1");
+        (await store.DueOutboxCountAsync(Ct)).ShouldBe(1);
+    }
+
+    [Fact]
+    [Trait("Id", "E2E-27")]
+    [Trait("Covers", "doc 14 7.2;doc 05 9")]
+    public async Task InsideTheService_IndexSyncPlansThenApplies_AndPartitionCommandsNeedAPartitionedTable()
+    {
+        using IHost host = await StartAsync(PostgreSqlServer.NewSchema("cli"));
+
+        (int planned, string plan, _) = await RunAsync(host.Services, "db", "index", "sync");
+        (int applied, string apply, string applyError) = await RunAsync(host.Services, "db", "index", "sync", "--apply");
+        (int again, string inSync, _) = await RunAsync(host.Services, "db", "index", "sync");
+        (int partitions, _, string notPartitioned) = await RunAsync(host.Services, "db", "partitions", "list");
+
+        planned.ShouldBe(0);
+        plan.ShouldContain("create  ");
+        applied.ShouldBe(0, applyError);
+        apply.ShouldContain("created  ");
+        again.ShouldBe(0);
+        inSync.ShouldNotContain("create");
+        inSync.ShouldNotContain("0 unchanged");
+        partitions.ShouldBe(1);
+        notPartitioned.ShouldContain("not partitioned");
     }
 
     private async Task<IHost> StartAsync(string schema, TenantIsolation isolation = TenantIsolation.Runtime)

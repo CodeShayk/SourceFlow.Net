@@ -488,6 +488,66 @@ public sealed class CliTests
         Directory.Delete(directory, recursive: true);
     }
 
+    // ================================================================ refusals and empty results
+
+    [Fact]
+    [Trait("Id", "UT-CLI-35")]
+    public async Task Refusals_SayWhatToDoInstead()
+    {
+        await using SourceFlowTestHost host = await BankAsync(loops: false);
+        string missingBaseline = Path.Combine(Path.GetTempPath(), $"no-such-lock-{Guid.CreateVersion7():N}.json");
+
+        // The global tool can't see the projection: repartitioning re-applies events, so it asks for --idempotent first.
+        (int unconfirmed, _, string confirm) = await RunAsync(null, "projection", "repartition", Summary, "--from", "1", "--to", "2", "--connection", "Host=localhost;Port=1");
+        (int foreign, _, string guard) = await RunAsync(host, "projection", "repartition", "projection:other@1", "--from", "1", "--to", "2");
+        (int status, _, string unknownStatus) = await RunAsync(host, "dlq", "list", "--status", "lost");
+        (int parameter, _, string badParameter) = await RunAsync(host, "query", "from readmodel \"account-summary\" | where balance > @min", "--param", "min");
+        (int format, _, string badFormat) = await RunAsync(host, "schema", "export", "--format", "xml");
+        (int baseline, _, string noBaseline) = await RunAsync(host, "schema", "check", "--baseline", missingBaseline);
+
+        unconfirmed.ShouldBe(1);
+        confirm.ShouldContain("--idempotent");
+        foreign.ShouldBe(1);
+        guard.ShouldContain("isn't a document projection");
+        status.ShouldBe(1);
+        unknownStatus.ShouldContain("Unknown status 'lost'");
+        parameter.ShouldBe(1);
+        badParameter.ShouldContain("must be name=value");
+        format.ShouldBe(1);
+        badFormat.ShouldContain("Unknown format 'xml'");
+        baseline.ShouldBe(1);
+        noBaseline.ShouldContain("doesn't exist");
+    }
+
+    [Fact]
+    [Trait("Id", "UT-CLI-36")]
+    public async Task EmptyResults_StatusFilters_AndJsonSchemas()
+    {
+        await using SourceFlowTestHost host = await BankAsync(loops: false);
+        Guid parked = await ParkAsync(host);
+        Guid discarded = await ParkAsync(host);
+        await RunAsync(host, "dlq", "discard", discarded.ToString(), "--reason", "obsolete");
+
+        (int generations, string noAliases, _) = await RunAsync(host, "projection", "generations");
+        (int queried, string noRows, _) = await RunAsync(host, "query", "from readmodel \"account-summary\" | project holder");
+        (_, string all, _) = await RunAsync(host, "dlq", "list", "--status", "all");
+        (_, string onlyDiscarded, _) = await RunAsync(host, "dlq", "list", "--status", "discarded");
+        (_, string replayed, _) = await RunAsync(host, "dlq", "list", "--status", "replayed");
+        (int exported, string schemas, _) = await RunAsync(host, "schema", "export", "--format", "jsonschema");
+
+        generations.ShouldBe(0);
+        noAliases.ShouldContain("No read-model aliases yet.");
+        queried.ShouldBe(0);
+        noRows.ShouldContain("(no rows)");
+        all.ShouldContain(parked.ToString());
+        all.ShouldContain("2 dead letter(s)");
+        onlyDiscarded.ShouldContain(discarded.ToString());
+        onlyDiscarded.ShouldNotContain(parked.ToString());
+        replayed.ShouldContain("0 dead letter(s)");
+        exported.ShouldBe(0);
+        JsonNode.Parse(schemas)!.AsArray().Count.ShouldBeGreaterThan(5);
+    }
+
     // ================================================================ helpers
 
     private const string Summary = "projection:account-summary@1";

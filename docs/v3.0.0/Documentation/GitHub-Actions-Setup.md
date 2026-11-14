@@ -95,8 +95,17 @@ flowchart LR
 | `pack` | ubuntu | `dotnet pack SourceFlow.slnx -o artifacts`, then checks that `SourceFlow.Net` contains `analyzers/dotnet/cs/SourceFlow.Generators.dll` and that no package has a `lib/` folder other than `lib/net10.0/`. Uploads the packages as the `packages` artifact (nothing is published). |
 
 Test runs share these arguments: `-c Release --no-build --ignore-exit-code 8 --coverage --coverage-output-format cobertura
---report-trx`. Exit code 8 means "this filter selected no tests in a project", which is expected for projects without
-tests of that category. Every test job uploads its `TestResults` folder.
+--coverage-settings tests/CodeCoverage.settings.xml --report-trx`. Exit code 8 means "this filter selected no tests in a
+project", which is expected for projects without tests of that category. Every test job uploads its `TestResults`
+folder.
+
+`tests/CodeCoverage.settings.xml` leaves two things out of coverage:
+
+- **Modules loaded from `samples/`.** The design-time manifest export test runs a sample host as a child process, and
+  that process loads its own copy of `SourceFlow.Tool`. On Linux the child's report replaced the test process's hits
+  for the module instead of adding to them, which hid most of the CLI's tests.
+- **Generated sources under `obj/`**, such as the `System.Text.Json` and regex source generators' output. Coverage
+  measures the code written by hand.
 
 **Emulator environment.** The `transports` and `e2e` jobs set `AWS_ENDPOINT_URL=http://localhost:4566` (with test
 credentials and `AWS_REGION=eu-west-1`), `PUBSUB_EMULATOR_HOST=localhost:8085`, `SERVICEBUS_EMULATOR_CONNECTION` and
@@ -386,6 +395,8 @@ dotnet run -c Release --project fuzz/SourceFlow.Fuzz -- mutate aws-wire 300
 Coverage, as the `coverage` job does it:
 
 ```bash
+dotnet test --solution SourceFlow.slnx -c Release --ignore-exit-code 8 \
+  --coverage --coverage-output-format cobertura --coverage-settings "$PWD/tests/CodeCoverage.settings.xml"
 dotnet tool install -g dotnet-reportgenerator-globaltool
 reportgenerator -reports:"**/TestResults/**/*.cobertura.xml" -targetdir:coverage -reporttypes:Cobertura
 dotnet run --project tools/CoverageGate/CoverageGate.csproj -c Release -- coverage/Cobertura.xml tools/CoverageGate/thresholds.json
