@@ -100,4 +100,62 @@ public sealed class AwsProvisioningTests(LocalStackServer localStack)
         received.Select(e => e.CloudEventType).Order().ShouldBe(["accounts.opened.v1", "notifications.send.v1", "transfers.completed.v1"]);
         received.ShouldBe([command, opened, moved], ignoreOrder: true);
     }
+    [Fact]
+    [Trait("Id", "UT-AWS-35")]
+    [Trait("Covers", "doc 07 5")]
+    public async Task AnExistingQueuePolicyStatement_SurvivesCreateIfMissing()
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        await using AwsTransportFixture f = await AwsTransportFixture.LocalStackAsync(localStack);
+        string endpoint = f.Prefix + ".shared";
+        string topic = f.Prefix + ".shared-events";
+        await f.Transport.ProvisionAsync(new TransportTopology(endpoint, [], [], []), ProvisioningMode.CreateIfMissing, ct);
+        AwsTransport aws = f.Aws;
+        string queueUrl = (await aws.Sqs.GetQueueUrlAsync(AwsNaming.Queue("", endpoint, ordered: false), ct)).QueueUrl;
+        string queueArn = (await aws.Sqs.GetQueueAttributesAsync(queueUrl, ["QueueArn"], ct)).Attributes["QueueArn"];
+
+        // Another team's grant, made outside SourceFlow: a different account may send to the queue.
+        string crossAccount = $$"""{"Version":"2012-10-17","Statement":[{"Sid":"partner-account","Effect":"Allow","Principal":{"AWS":"arn:aws:iam::111122223333:root"},"Action":"sqs:SendMessage","Resource":"{{queueArn}}"}]}""";
+        await aws.Sqs.SetQueueAttributesAsync(queueUrl, new Dictionary<string, string> { ["Policy"] = crossAccount }, ct);
+
+        // CR-24: subscribing adds the SourceFlow statement by its Sid and keeps the other one.
+        await f.Transport.ProvisionAsync(new TransportTopology(endpoint, [], [topic], []), ProvisioningMode.CreateIfMissing, ct);
+        string policy = (await aws.Sqs.GetQueueAttributesAsync(queueUrl, ["Policy"], ct)).Attributes["Policy"];
+        System.Text.Json.Nodes.JsonArray statements = System.Text.Json.Nodes.JsonNode.Parse(policy)!["Statement"]!.AsArray();
+        statements.Select(s => (string?)s!["Sid"]).Order(StringComparer.Ordinal).ShouldBe(["partner-account", "sourceflow-sns-to-sqs"]);
+        policy.ShouldContain("arn:aws:iam::111122223333:root");
+        await f.Transport.ProvisionAsync(new TransportTopology(endpoint, [], [topic], []), ProvisioningMode.Validate, ct);
+
+        // A second topic replaces the SourceFlow statement; the partner's stays.
+        string second = f.Prefix + ".more-events";
+        await f.Transport.ProvisionAsync(new TransportTopology(endpoint, [], [topic, second], []), ProvisioningMode.CreateIfMissing, ct);
+        statements = System.Text.Json.Nodes.JsonNode.Parse((await aws.Sqs.GetQueueAttributesAsync(queueUrl, ["Policy"], ct)).Attributes["Policy"])!["Statement"]!.AsArray();
+        statements.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    [Trait("Id", "UT-AWS-36")]
+    [Trait("Covers", "ADR-017;doc 07 5")]
+    public async Task RequireEncryption_ValidateReportsUnencryptedQueuesAndTopics_AndCreateEncrypts()
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        await using AwsTransportFixture f = await AwsTransportFixture.LocalStackAsync(localStack);
+        string plain = f.Prefix + ".plain";
+        string plainTopic = f.Prefix + ".plain-events";
+        var plainTopology = new TransportTopology(plain, [plainTopic], [], []);
+        await f.Transport.ProvisionAsync(plainTopology, ProvisioningMode.CreateIfMissing, ct);
+        string queueUrl = (await f.Aws.Sqs.GetQueueUrlAsync(AwsNaming.Queue("", plain, ordered: false), ct)).QueueUrl;
+        await f.Aws.Sqs.SetQueueAttributesAsync(queueUrl, new Dictionary<string, string> { ["SqsManagedSseEnabled"] = "false" }, ct);
+
+        // CR-41: resources made without encryption are reported, not changed.
+        var strict = new AwsTransport(f.Aws.Sqs, f.Aws.Sns, new AwsTransportOptions { RequireEncryption = true });
+        TopologyValidationException error = await Should.ThrowAsync<TopologyValidationException>(() => strict.ProvisionAsync(plainTopology, ProvisioningMode.Validate, ct).AsTask());
+        error.Problems.ShouldContain(p => p.Kind == TopologyProblemKind.Unencrypted && p.Resource == plain);
+        error.Problems.ShouldContain(p => p.Kind == TopologyProblemKind.Unencrypted && p.Resource == plainTopic && p.Detail.Contains("no key", StringComparison.Ordinal));
+
+        // Created with the requirement, they are encrypted and validate.
+        var encrypted = new TransportTopology(f.Prefix + ".sealed", [f.Prefix + ".sealed-events"], [], []);
+        await strict.ProvisionAsync(encrypted, ProvisioningMode.CreateIfMissing, ct);
+        await strict.ProvisionAsync(encrypted, ProvisioningMode.Validate, ct);
+    }
 }

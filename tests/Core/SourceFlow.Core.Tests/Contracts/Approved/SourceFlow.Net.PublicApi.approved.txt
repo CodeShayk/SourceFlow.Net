@@ -3192,6 +3192,7 @@ namespace SourceFlow.Transport
         MissingDeadLetter = 4,
         FilterDrift = 5,
         Misconfigured = 6,
+        Unencrypted = 7,
     }
     public abstract class TopologyProvisioner
     {

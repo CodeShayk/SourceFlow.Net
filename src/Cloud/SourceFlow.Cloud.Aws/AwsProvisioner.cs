@@ -111,6 +111,15 @@ internal sealed class AwsProvisioner : TopologyProvisioner
             attributes["FifoQueue"] = "true";
         }
 
+        if (_transport.Options.KmsKeyId is { } key)
+        {
+            attributes["KmsMasterKeyId"] = key;
+        }
+        else if (_transport.Options.RequireEncryption)
+        {
+            attributes["SqsManagedSseEnabled"] = "true";
+        }
+
         return AwsErrors.CallAsync(destination, async () =>
             (await _transport.Sqs.CreateQueueAsync(new CreateQueueRequest { QueueName = name, Attributes = attributes }, ct).ConfigureAwait(false)).QueueUrl);
     }
@@ -129,6 +138,11 @@ internal sealed class AwsProvisioner : TopologyProvisioner
             attributes["FifoTopic"] = "true";
         }
 
+        if (_transport.Options.KmsKeyId is not null || _transport.Options.RequireEncryption)
+        {
+            attributes["KmsMasterKeyId"] = _transport.Options.KmsKeyId ?? "alias/aws/sns";
+        }
+
         string arn = await AwsErrors.CallAsync(topic, async () =>
             (await _transport.Sns.CreateTopicAsync(new CreateTopicRequest { Name = name, Attributes = attributes }, ct).ConfigureAwait(false)).TopicArn).ConfigureAwait(false);
         var reference = new TopicRef(arn, name, ordered);
@@ -145,25 +159,52 @@ internal sealed class AwsProvisioner : TopologyProvisioner
             return;
         }
 
-        string policy = new JsonObject
+        var statement = new JsonObject
         {
-            ["Version"] = "2012-10-17",
-            ["Statement"] = new JsonArray(new JsonObject
-            {
-                ["Sid"] = PolicySid,
-                ["Effect"] = "Allow",
-                ["Principal"] = new JsonObject { ["Service"] = "sns.amazonaws.com" },
-                ["Action"] = "sqs:SendMessage",
-                ["Resource"] = queueArn,
-                ["Condition"] = new JsonObject { ["ArnEquals"] = new JsonObject { ["aws:SourceArn"] = new JsonArray([.. topicArns.Order(StringComparer.Ordinal).Select(a => (JsonNode)JsonValue.Create(a))]) } },
-            }),
-        }.ToJsonString();
+            ["Sid"] = PolicySid,
+            ["Effect"] = "Allow",
+            ["Principal"] = new JsonObject { ["Service"] = "sns.amazonaws.com" },
+            ["Action"] = "sqs:SendMessage",
+            ["Resource"] = queueArn,
+            ["Condition"] = new JsonObject { ["ArnEquals"] = new JsonObject { ["aws:SourceArn"] = new JsonArray([.. topicArns.Order(StringComparer.Ordinal).Select(a => (JsonNode)JsonValue.Create(a))]) } },
+        };
+        string policy = MergePolicy(current, statement);
 
         await AwsErrors.CallAsync(endpoint, () => _transport.Sqs.SetQueueAttributesAsync(new SetQueueAttributesRequest
         {
             QueueUrl = queue.Url,
             Attributes = new Dictionary<string, string>(StringComparer.Ordinal) { ["Policy"] = policy },
         }, ct)).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// doc 07 §5 (CR-24): existing resources are never changed, so a queue policy keeps every statement it has; only the
+    /// SourceFlow statement (by its Sid) is added or replaced.
+    /// </summary>
+    internal static string MergePolicy(string? current, JsonObject statement)
+    {
+        JsonObject policy = current is { Length: > 0 } && JsonNode.Parse(current) is JsonObject existing
+            ? existing
+            : new JsonObject { ["Version"] = "2012-10-17" };
+        var statements = new JsonArray();
+        IEnumerable<JsonNode?> present = policy["Statement"] switch
+        {
+            JsonArray array => array,
+            JsonObject single => [single],
+            _ => [],
+        };
+        foreach (JsonNode? existingStatement in present)
+        {
+            if (existingStatement is not null && (string?)existingStatement["Sid"] != PolicySid)
+            {
+                statements.Add(existingStatement.DeepClone());
+            }
+        }
+
+        statements.Add((JsonNode)statement);
+        policy["Statement"] = statements;
+        policy["Version"] ??= "2012-10-17";
+        return policy.ToJsonString();
     }
 
     // ================================================================ validate
@@ -184,6 +225,11 @@ internal sealed class AwsProvisioner : TopologyProvisioner
             else if (found.Ordered != ordered)
             {
                 problems.Add(new TopologyProblem(TopologyProblemKind.OrderingMismatch, topic, $"expected ordered={ordered}, found the {Kind(found.Ordered)} topic '{found.Name}'"));
+            }
+
+            if (found is not null)
+            {
+                await CheckTopicEncryptionAsync(found, topic, problems, ct).ConfigureAwait(false);
             }
         }
 
@@ -208,6 +254,11 @@ internal sealed class AwsProvisioner : TopologyProvisioner
             if (found.Ordered != queue.Ordered)
             {
                 problems.Add(new TopologyProblem(TopologyProblemKind.OrderingMismatch, resource, $"the {Kind(found.Ordered)} topic '{found.Name}' cannot deliver to the {Kind(queue.Ordered)} queue '{queue.Name}'"));
+            }
+
+            if (!topology.PublishedTopics.Contains(topic, StringComparer.Ordinal))
+            {
+                await CheckTopicEncryptionAsync(found, topic, problems, ct).ConfigureAwait(false);
             }
 
             string? subscription = await FindSubscriptionAsync(found.Arn, queueArn, topic, ct).ConfigureAwait(false);
@@ -275,7 +326,50 @@ internal sealed class AwsProvisioner : TopologyProvisioner
             problems.Add(new TopologyProblem(TopologyProblemKind.MissingDeadLetter, topology.Endpoint, $"expected max deliveries {topology.MaxDeliveries}, found maxReceiveCount {maxReceiveCount?.ToString(CultureInfo.InvariantCulture) ?? "(none)"}"));
         }
 
+        await CheckQueueEncryptionAsync(queue, topology.Endpoint, problems, ct).ConfigureAwait(false);
+        if (target is not null && await Resources.QueueUrlAsync(AwsNaming.NameOfArn(target), topology.Endpoint, ct).ConfigureAwait(false) is { } deadLetterUrl)
+        {
+            await CheckQueueEncryptionAsync(new QueueRef(deadLetterUrl, AwsNaming.NameOfArn(target), queue.Ordered), topology.Endpoint, problems, ct).ConfigureAwait(false);
+        }
+
         return queue;
+    }
+
+    // ADR-017, doc 07 §5 (CR-41): with RequireEncryption, every queue has SSE (SQS-managed or KMS, the configured key when set).
+    private async Task CheckQueueEncryptionAsync(QueueRef queue, string destination, List<TopologyProblem> problems, CancellationToken ct)
+    {
+        if (!_transport.Options.RequireEncryption)
+        {
+            return;
+        }
+
+        Dictionary<string, string> attributes = await AwsErrors.CallAsync(destination, async () =>
+            (await _transport.Sqs.GetQueueAttributesAsync(new GetQueueAttributesRequest { QueueUrl = queue.Url, AttributeNames = ["KmsMasterKeyId", "SqsManagedSseEnabled"] }, ct).ConfigureAwait(false)).Attributes ?? []).ConfigureAwait(false);
+        string? key = attributes.GetValueOrDefault("KmsMasterKeyId") is { Length: > 0 } k ? k : null;
+        bool managed = string.Equals(attributes.GetValueOrDefault("SqsManagedSseEnabled"), "true", StringComparison.OrdinalIgnoreCase);
+        if (_transport.Options.KmsKeyId is { } expected ? key != expected : key is null && !managed)
+        {
+            problems.Add(new TopologyProblem(TopologyProblemKind.Unencrypted, destination,
+                $"the queue '{queue.Name}' is encrypted with {(key ?? (managed ? "SQS-managed SSE" : "no key"))}; expected {_transport.Options.KmsKeyId ?? "SSE (SQS-managed or KMS)"}"));
+        }
+    }
+
+    // ADR-017, doc 07 §5 (CR-41): with RequireEncryption, every topic has a KMS key (the configured one when set).
+    private async Task CheckTopicEncryptionAsync(TopicRef topic, string resource, List<TopologyProblem> problems, CancellationToken ct)
+    {
+        if (!_transport.Options.RequireEncryption)
+        {
+            return;
+        }
+
+        Dictionary<string, string> attributes = await AwsErrors.CallAsync(resource, async () =>
+            (await _transport.Sns.GetTopicAttributesAsync(new GetTopicAttributesRequest { TopicArn = topic.Arn }, ct).ConfigureAwait(false)).Attributes ?? []).ConfigureAwait(false);
+        string? key = attributes.GetValueOrDefault("KmsMasterKeyId") is { Length: > 0 } k ? k : null;
+        if (_transport.Options.KmsKeyId is { } expected ? key != expected : key is null)
+        {
+            problems.Add(new TopologyProblem(TopologyProblemKind.Unencrypted, resource,
+                $"the topic '{topic.Name}' is encrypted with {key ?? "no key"}; expected {_transport.Options.KmsKeyId ?? "a KMS key"}"));
+        }
     }
 
     private Task<string?> QueueAttributeAsync(QueueRef queue, string destination, string name, CancellationToken ct)

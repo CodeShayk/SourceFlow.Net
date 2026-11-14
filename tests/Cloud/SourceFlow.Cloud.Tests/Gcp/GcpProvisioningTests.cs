@@ -111,4 +111,25 @@ public sealed class GcpProvisioningTests(PubSubEmulatorServer emulator)
             Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", previous);
         }
     }
+    [Fact]
+    [Trait("Id", "UT-GCP-26")]
+    [Trait("Covers", "ADR-017;doc 07 5")]
+    public async Task WithACmek_ValidateReportsTopicsWithoutIt()
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        await using GcpTransportFixture f = await GcpTransportFixture.EmulatorAsync(emulator);
+        string endpoint = f.Prefix + ".ledger";
+        string topic = f.Prefix + ".ledger-events";
+        var topology = new TransportTopology(endpoint, [topic], [], []);
+        await f.Transport.ProvisionAsync(topology, ProvisioningMode.CreateIfMissing, ct);   // Google-managed encryption
+
+        // CR-41: with a CMEK required, every topic made without it is reported (and left as it is).
+        const string key = "projects/sourceflow-tests/locations/global/keyRings/sf/cryptoKeys/transport";
+        var strict = new GcpTransport(f.Gcp.Publisher, f.Gcp.Subscriber, new GcpTransportOptions { ProjectId = PubSubEmulatorServer.ProjectId, MaxRpcRetries = 0, KmsKeyName = key });
+        TopologyValidationException error = await Should.ThrowAsync<TopologyValidationException>(() => strict.ProvisionAsync(topology, ProvisioningMode.Validate, ct).AsTask());
+        TopologyProblem[] unencrypted = [.. error.Problems.Where(p => p.Kind == TopologyProblemKind.Unencrypted)];
+        unencrypted.Select(p => p.Resource).ShouldBe([endpoint, endpoint, topic], ignoreOrder: true);   // dead letters, commands, the published topic
+        unencrypted.ShouldAllBe(p => p.Detail.Contains(key, StringComparison.Ordinal));
+        await f.Transport.ProvisionAsync(topology, ProvisioningMode.Validate, ct);   // without the requirement it validates
+    }
 }

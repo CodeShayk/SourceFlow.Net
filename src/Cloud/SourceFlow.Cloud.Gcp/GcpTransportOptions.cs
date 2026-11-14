@@ -50,6 +50,13 @@ public sealed partial class GcpTransportOptions
     /// </summary>
     public string NamePrefix { get; set; } = string.Empty;
 
+    /// <summary>
+    /// The Cloud KMS key that topics are encrypted with (CMEK, ADR-017, doc 07 §5, CR-41), as
+    /// <c>projects/{p}/locations/{l}/keyRings/{r}/cryptoKeys/{k}</c>: <c>CreateIfMissing</c> creates topics with it and
+    /// <c>Validate</c> reports every topic without it. Null leaves Google-managed encryption.
+    /// </summary>
+    public string? KmsKeyName { get; set; }
+
     /// <summary>How long a subscription keeps unacknowledged messages (<c>message_retention_duration</c>, 10 minutes to 7 days).</summary>
     public TimeSpan MessageRetention { get; set; } = TimeSpan.FromDays(7);
 

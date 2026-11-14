@@ -311,6 +311,9 @@ These are additional to the SCK, which the in-memory store also runs.
 | UT-FUZZ-01..04 | Core + generator | Fuzzing regressions (WP-5.5): CloudEvents decoders reject malformed and duplicated attributes only with `FormatException`; generated id converters and the personal-data decoder reject malformed input with `JsonException` | new |
 | UT-FUZZ-10..20 | Fuzz | Every fuzz target's seeds and 25,000 seeded mutations (`tests/Fuzz/SourceFlow.Fuzz.Tests`); every target covered | new |
 | SEC-REV-01..02 | PostgreSQL, Core | Security review (WP-5.5): the runtime role from `db script --grants` can't edit events, plain or partitioned; dead-letter operations record the actor | new |
+| UT-AWS-35 | AmazonSqs | A cross-account statement in an existing queue policy survives `CreateIfMissing`, which adds or replaces only its own statement (by Sid) | doc 07 §5, CR-24 | new (WP-C.13) |
+| UT-AWS-36 | AmazonSqs | With `RequireEncryption`, Validate reports an unencrypted queue and a topic without a KMS key; resources created with it validate | ADR-017, doc 07 §5, CR-41 | new (WP-C.13) |
+| UT-GCP-26 | GooglePubSub | With `KmsKeyName`, Validate reports every topic without that CMEK | ADR-017, doc 07 §5, CR-41 | new (WP-C.13) |
 | UT-AWS-34 | AmazonSqs | A poison message with a malformed CloudEvents attribute doesn't stop the receiver (F-01) | new |
 | UT-AWS-31..33 | AmazonSqs | v2 wire bridge (WP-5.4): reading the v2 attribute shape and SNS notifications; mapped and unmapped v2 messages on the receiver; off by default | new |
 

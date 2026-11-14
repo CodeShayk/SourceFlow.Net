@@ -460,6 +460,11 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
 - **Tests:**
   - UT-AWS-35: an existing cross-account statement survives `CreateIfMissing`.
   - UT-AWS-36, UT-ASB-26, UT-GCP-26: Validate reports a missing key.
+- **As built:**
+  - The requirement is adopted for AWS (`RequireEncryption`, `KmsKeyId`) and Google Cloud (`KmsKeyName`) as transport
+    options, not a `TransportTopology` field. A new problem kind `Unencrypted` reports it.
+  - For Azure, doc 07 §5 and ADR-017 are amended instead: a Premium namespace's customer-managed key is visible only
+    through Azure Resource Manager, which the Service Bus client can't read. UT-ASB-26 is therefore not written.
 
 ### P4 — Design debt and hygiene
 

@@ -446,7 +446,8 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   through the process-manager runner, and `ProcessManagerSpec` is created with `For<TProcess, TId, TModule>()`),
   WP-C.12 (a query the store's SQL engine can't express is refused with SFQ0410 instead of scanning the log in memory,
   and interpreted queries are time-boxed and capped; SQL Server `LIKE` escapes and trailing spaces match the other
-  providers; queries run on a read-only connection and `db script --query-role` prints SELECT-only grants).
+  providers; queries run on a read-only connection and `db script --query-role` prints SELECT-only grants), WP-C.13
+  (an existing AWS queue policy keeps its other statements; encryption at rest is validated on AWS and Google Cloud).
 
 ### Other notes
 

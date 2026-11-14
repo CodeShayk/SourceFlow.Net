@@ -116,6 +116,8 @@ The capabilities the transport declares to the core (`AwsTransport.AwsCapabiliti
 | `ReceiveWaitTime` | `TimeSpan` | 20 seconds | Caps `ReceiveMessageRequest.WaitTimeSeconds` (long polling); 0 to 20 seconds. Sub-second waits are short polls. |
 | `NamePrefix` | `string` | `""` | Prepended to every physical queue and topic name, usually the environment (`prod-`). Letters, digits, `-` and `_` only; at most 40 characters. |
 | `MessageRetention` | `TimeSpan` | 14 days | `MessageRetentionPeriod` of endpoint queues the transport creates; 1 minute to 14 days. |
+| `RequireEncryption` | `bool` | `false` | `Validate` reports every queue without SSE and every topic without a KMS key (`Unencrypted`); `CreateIfMissing` creates them encrypted. |
+| `KmsKeyId` | `string?` | `null` | The KMS key for queues and topics the transport creates; with `RequireEncryption`, `Validate` requires exactly this key. Null: SQS-managed SSE and `alias/aws/sns`. |
 | `V2Messages` | `V2MessageMap?` | `null` | Read-only; set by `AcceptV2Messages(...)`. |
 
 | Method | Purpose |

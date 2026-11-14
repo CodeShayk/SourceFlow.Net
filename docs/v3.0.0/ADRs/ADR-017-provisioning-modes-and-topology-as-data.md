@@ -19,6 +19,12 @@ Routing produces a `Topology` model (endpoints, topics, subscriptions, dead-lett
 
 `dotnet sourceflow topology export --format json` writes the model out for IaC.
 
+**Amendment (WP-C.13, CR-41).**
+- **Encryption is a transport option.** It isn't part of the topology model. On AWS, `RequireEncryption` and `KmsKeyId` apply; on Google Cloud, `KmsKeyName`.
+- **Validate checks it there.** It reports `Unencrypted` resources, and `CreateIfMissing` creates them encrypted.
+- **Azure Service Bus is not checked.** Its customer-managed key is a namespace property that only Azure Resource Manager shows, so it is required at deployment instead, with Azure Policy or the IaC modules.
+- **Existing resources are never changed.** On AWS, a queue policy keeps every statement except SourceFlow's own, which is merged by its Sid (CR-24).
+
 ## Consequences
 
 (+) Least privilege, and drift is detected at startup. (−) Production teams must create resources through IaC or a release step.

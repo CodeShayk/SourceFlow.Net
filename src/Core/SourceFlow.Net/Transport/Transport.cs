@@ -188,6 +188,9 @@ public enum TopologyProblemKind
 
     /// <summary>A provider-specific setting differs (for example SNS raw message delivery).</summary>
     Misconfigured,
+
+    /// <summary>A resource isn't encrypted at rest with the key the transport requires (ADR-017, doc 07 §5, CR-41).</summary>
+    Unencrypted,
 }
 
 /// <summary>One difference between the topology and the broker.</summary>

@@ -109,7 +109,13 @@ internal sealed class GcpProvisioner : TopologyProvisioner
         {
             try
             {
-                await _transport.Publisher.CreateTopicAsync(new Topic { TopicName = _transport.TopicName(id) }, _transport.Call(ct)).ConfigureAwait(false);
+                var topic = new Topic { TopicName = _transport.TopicName(id) };
+                if (_transport.Options.KmsKeyName is { } key)
+                {
+                    topic.KmsKeyName = key;
+                }
+
+                await _transport.Publisher.CreateTopicAsync(topic, _transport.Call(ct)).ConfigureAwait(false);
             }
             catch (Grpc.Core.RpcException e) when (GcpErrors.IsAlreadyExists(e))
             {
@@ -145,8 +151,9 @@ internal sealed class GcpProvisioner : TopologyProvisioner
         var problems = new List<TopologyProblem>();
         string endpoint = topology.Endpoint;
         string deadLetters = GcpNaming.DeadLetter(Prefix, endpoint);
-        bool deadLetterTopic = await _transport.GetTopicAsync(deadLetters, endpoint, ct).ConfigureAwait(false) is not null;
-        if (!deadLetterTopic)
+        Topic? deadLetterTopic = await _transport.GetTopicAsync(deadLetters, endpoint, ct).ConfigureAwait(false);
+        CheckKey(deadLetterTopic, endpoint, problems);
+        if (deadLetterTopic is null)
         {
             problems.Add(new TopologyProblem(TopologyProblemKind.MissingDeadLetter, endpoint, $"the dead-letter topic '{deadLetters}' does not exist"));
         }
@@ -157,7 +164,9 @@ internal sealed class GcpProvisioner : TopologyProvisioner
 
         string commands = GcpNaming.EndpointTopic(Prefix, endpoint);
         string endpointId = GcpNaming.EndpointSubscription(Prefix, endpoint);
-        if (await _transport.GetTopicAsync(commands, endpoint, ct).ConfigureAwait(false) is null)
+        Topic? commandTopic = await _transport.GetTopicAsync(commands, endpoint, ct).ConfigureAwait(false);
+        CheckKey(commandTopic, endpoint, problems);
+        if (commandTopic is null)
         {
             problems.Add(new TopologyProblem(TopologyProblemKind.MissingEndpoint, endpoint, $"the command topic '{commands}' does not exist"));
         }
@@ -175,7 +184,9 @@ internal sealed class GcpProvisioner : TopologyProvisioner
         foreach (string topic in topology.PublishedTopics.Distinct(StringComparer.Ordinal))
         {
             string topicId = GcpNaming.Topic(Prefix, topic);
-            if (await _transport.GetTopicAsync(topicId, topic, ct).ConfigureAwait(false) is null)
+            Topic? published = await _transport.GetTopicAsync(topicId, topic, ct).ConfigureAwait(false);
+            CheckKey(published, topic, problems);
+            if (published is null)
             {
                 problems.Add(new TopologyProblem(TopologyProblemKind.MissingTopic, topic, $"the Pub/Sub topic '{topicId}' does not exist"));
             }
@@ -185,10 +196,16 @@ internal sealed class GcpProvisioner : TopologyProvisioner
         {
             string resource = $"{topic} → {endpoint}";
             string topicId = GcpNaming.Topic(Prefix, topic);
-            if (await _transport.GetTopicAsync(topicId, topic, ct).ConfigureAwait(false) is null)
+            Topic? subscribed = await _transport.GetTopicAsync(topicId, topic, ct).ConfigureAwait(false);
+            if (subscribed is null)
             {
                 problems.Add(new TopologyProblem(TopologyProblemKind.MissingTopic, topic, $"the subscribed Pub/Sub topic '{topicId}' does not exist"));
                 continue;
+            }
+
+            if (!topology.PublishedTopics.Contains(topic, StringComparer.Ordinal))
+            {
+                CheckKey(subscribed, topic, problems);
             }
 
             string subscriptionId = GcpNaming.TopicSubscription(Prefix, endpoint, topic);
@@ -209,6 +226,18 @@ internal sealed class GcpProvisioner : TopologyProvisioner
         }
 
         return problems;
+    }
+
+    // ADR-017, doc 07 §5 (CR-41): with KmsKeyName, every topic is encrypted with that key (CMEK).
+    private void CheckKey(Topic? topic, string resource, List<TopologyProblem> problems)
+    {
+        if (topic is null || _transport.Options.KmsKeyName is not { } expected || topic.KmsKeyName == expected)
+        {
+            return;
+        }
+
+        problems.Add(new TopologyProblem(TopologyProblemKind.Unencrypted, resource,
+            $"the topic '{topic.TopicName?.TopicId}' is encrypted with {(string.IsNullOrEmpty(topic.KmsKeyName) ? "a Google-managed key" : topic.KmsKeyName)}; expected the CMEK {expected}"));
     }
 
     private void CheckSubscription(TransportTopology topology, Subscription subscription, string resource, string topicId, string? expectedFilter, string deadLetters, List<TopologyProblem> problems)

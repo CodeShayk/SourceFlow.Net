@@ -45,6 +45,18 @@ public sealed class AwsTransportOptions
     /// <summary>How long messages wait on a queue before SQS drops them (<c>MessageRetentionPeriod</c>, 60 s to 14 days).</summary>
     public TimeSpan MessageRetention { get; set; } = TimeSpan.FromDays(14);
 
+    /// <summary>
+    /// Requires encryption at rest (ADR-017, doc 07 §5, CR-41): <c>Validate</c> reports every queue without SSE (SQS-managed
+    /// or KMS) and every topic without a KMS key, and <c>CreateIfMissing</c> creates them encrypted. Off by default.
+    /// </summary>
+    public bool RequireEncryption { get; set; }
+
+    /// <summary>
+    /// The KMS key (id, ARN or alias) queues and topics are encrypted with; with <see cref="RequireEncryption"/>, Validate
+    /// requires exactly this key. Null uses SQS-managed SSE for queues and <c>alias/aws/sns</c> for topics.
+    /// </summary>
+    public string? KmsKeyId { get; set; }
+
     /// <summary>The v2 wire bridge's allow-list, or null when the bridge is off (the default).</summary>
     public Migration.V2MessageMap? V2Messages { get; private set; }
 

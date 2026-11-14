@@ -115,6 +115,7 @@ The capabilities the transport declares to the core (`GcpTransport.GcpCapabiliti
 | `PollInterval` | `TimeSpan` | 100 ms | How long a receiver waits between empty pulls while it waits for the first message; 10 ms to 10 seconds. |
 | `NamePrefix` | `string` | `""` | Prepended to every topic and subscription id. Letters, digits, `-`, `_` and `.`; at most 100 characters. |
 | `MessageRetention` | `TimeSpan` | 7 days | `message_retention_duration` of new endpoint and topic subscriptions; 10 minutes to 7 days. |
+| `KmsKeyName` | `string?` | `null` | A Cloud KMS key (CMEK) for the topics the transport creates. `Validate` reports every topic not encrypted with it (`Unencrypted`). |
 
 | Method | Purpose |
 |--------|---------|
