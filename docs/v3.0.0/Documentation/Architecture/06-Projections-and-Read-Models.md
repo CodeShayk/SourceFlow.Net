@@ -182,7 +182,7 @@ Every event carries a bucket, `xxHash32(tenant + '/' + stream) & 1023`, computed
 dotnet sourceflow projection repartition projection:account-summary@1 --from 1 --to 4
 ```
 
-Every new partition's checkpoint is set to the **minimum** of the old checkpoints; then set `SubscriptionPartitions = 4` and restart. Events between the minimum and each old position are applied again, which is safe only for idempotent projections. Document projections keyed by their stream are guarded automatically (below); for other projections the command requires `--idempotent` to confirm a version guard. The alternative is a blue/green rebuild.
+Every new partition's checkpoint is set to the **minimum** of the old checkpoints, and the new count is stored with them in one transaction; then configure the subscription with 4 partitions (`Partitions(4)` or `SubscriptionPartitions`) and restart. Each subscription's count is stored: a node configured otherwise refuses that subscription (`sourceflow.subscription.partition_mismatch`). Events between the minimum and each old position are applied again, which is safe only for idempotent projections. Document projections keyed by their stream are guarded automatically (below); for other projections the command requires `--idempotent` to confirm a version guard. The alternative is a blue/green rebuild.
 
 ## Checkpoints and consistency
 

@@ -126,6 +126,7 @@ public static class StorageConformance
         new("SCK-79", "Fencing: a holder that paused after the fence check cannot commit once a new owner has the lease", PausedHolderCannotCommit),
         new("SCK-80", "Documents: concurrent upserts of the same document, the newer version always wins", ConcurrentUpsertsNewerWins),
         new("SCK-81", "ES-R1: an append after a flush or raw connection access is refused", AppendWindowCloses),
+        new("SCK-82", "Partitions: the first claim stores the count, and a repartition writes it with the checkpoints atomically", RepartitionAtomic),
     ];
 
     // ------------------------------------------------------------------ helpers
@@ -1105,6 +1106,40 @@ public static class StorageConformance
         first.Append(StreamA, "sck", ExpectedVersion.NoStream, Events(1));   // first: accepted
         await first.FlushAsync(ct).ConfigureAwait(false);                      // and a flush after it is fine
         await first.CommitAsync(ct).ConfigureAwait(false);
+    }
+
+    // doc 06 §3 (CR-18): the first node claims the count; others read it back. A repartition writes the new count and every
+    // partition's checkpoint in one transaction: one stale lease and nothing changes.
+    private static async Task RepartitionAtomic(IStorageFixture f, CancellationToken ct)
+    {
+        Check.Null(await f.Checkpoints.GetPartitionsAsync("rp", ct).ConfigureAwait(false), "no count before a node runs the subscription");
+        Check.Equal(1, await f.Checkpoints.ClaimPartitionsAsync("rp", 1, ct).ConfigureAwait(false), "the first claim stores its count");
+        Check.Equal(1, await f.Checkpoints.ClaimPartitionsAsync("rp", 4, ct).ConfigureAwait(false), "a later claim reads the stored count back");
+
+        LeaseToken first = await LeaseAsync(f, "sub:rp:0", ct).ConfigureAwait(false);
+        LeaseToken second = await LeaseAsync(f, "sub:rp:1", ct).ConfigureAwait(false);
+        var moved = new GlobalPosition(7, 2);
+        await using (IStorageSession stale = await f.Sessions.BeginAsync(Tenant, ct).ConfigureAwait(false))
+        {
+            stale.SaveCheckpoint("rp", 0, moved, first);
+            stale.SaveCheckpoint("rp", 1, moved, second with { Token = second.Token + 1 });
+            stale.SetPartitions("rp", 2);
+            await Check.ThrowsAsync<LeaseLostException>(() => stale.CommitAsync(ct).AsTask(), "one fenced checkpoint fails").ConfigureAwait(false);
+        }
+
+        Check.Equal(1, await f.Checkpoints.GetPartitionsAsync("rp", ct).ConfigureAwait(false), "the count is unchanged");
+        Check.Equal(GlobalPosition.Start, await f.Checkpoints.GetAsync("rp", 0, ct).ConfigureAwait(false), "and so is the other checkpoint");
+
+        await using (IStorageSession repartition = await f.Sessions.BeginAsync(Tenant, ct).ConfigureAwait(false))
+        {
+            repartition.SaveCheckpoint("rp", 0, moved, first);
+            repartition.SaveCheckpoint("rp", 1, moved, second);
+            repartition.SetPartitions("rp", 2);
+            await repartition.CommitAsync(ct).ConfigureAwait(false);
+        }
+
+        Check.Equal(2, await f.Checkpoints.GetPartitionsAsync("rp", ct).ConfigureAwait(false), "the new count");
+        Check.Equal(moved, await f.Checkpoints.GetAsync("rp", 1, ct).ConfigureAwait(false), "with the checkpoints");
     }
 
     private static async Task DocumentVersions(IStorageFixture f, CancellationToken ct)

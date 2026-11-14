@@ -821,7 +821,7 @@ Register `IActorAccessor` (who is acting, for audit) and `ITenantResolver` (the 
 | `ImmediateRetries` | `3` | 0–10 | In-process retries of a transient failure before a delayed retry |
 | `DelayedRetries` | 10 s, 1 min, 10 min, 1 h | positive delays | Delayed retry schedule (a list you can edit); exhausting it parks the message |
 | `SubscriptionBatchSize` | `1000` | 1–10,000 | Largest subscription batch (batches start at 100 and grow while full) |
-| `SubscriptionPartitions` | `1` | 1–1024, power of two | Partitions per async subscription |
+| `SubscriptionPartitions` | `1` | 1–1024, power of two | Partitions of a subscription that has no stored count yet; override per projection with `Partitions(n)`. The first node stores the count, and a node configured otherwise refuses that subscription (doc 06 §3). |
 | `SwitchLagThreshold` | `100` | 0–1,000,000 | A new read-model generation takes over once every partition is this close to the log |
 | `RetainPreviousFor` | 7 days | 0–3650 days | How long a retired read-model generation is kept |
 | `ReceiveLockDuration` | 30 s | 1 s–12 h | Message lock / visibility timeout; renewed at half this interval |

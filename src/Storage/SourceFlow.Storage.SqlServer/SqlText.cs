@@ -95,6 +95,21 @@ internal sealed class SqlText
             IF @@ROWCOUNT = 0 INSERT INTO {s}.checkpoints (subscription, partition, commit_pos, seq_pos) VALUES (@sub, @p, @commit, @seq);
             """);
         GetCheckpoint = R("SELECT commit_pos, seq_pos FROM {s}.checkpoints WHERE subscription = @sub AND partition = @p");
+        GetPartitions = R("SELECT partitions FROM {s}.subscription_partitions WHERE subscription = @sub");
+        // No range locks (they deadlock two nodes claiming at once): insert, and a duplicate key means another node claimed.
+        ClaimPartitions = R("""
+            BEGIN TRY
+                INSERT INTO {s}.subscription_partitions (subscription, partitions) VALUES (@sub, @partitions);
+            END TRY
+            BEGIN CATCH
+                IF ERROR_NUMBER() NOT IN (2601, 2627) THROW;
+            END CATCH;
+            SELECT partitions FROM {s}.subscription_partitions WHERE subscription = @sub;
+            """);
+        SetPartitions = R("""
+            UPDATE {s}.subscription_partitions SET partitions = @partitions, updated_at = SYSDATETIMEOFFSET() WHERE subscription = @sub;
+            IF @@ROWCOUNT = 0 INSERT INTO {s}.subscription_partitions (subscription, partitions) VALUES (@sub, @partitions);
+            """);
 
         LoadProcess = R("SELECT version, state, completed, updated_at FROM {s}.process_instances WHERE tenant_id = @tenant AND process_type = @type AND process_id = @id");
         InsertProcess = R("""
@@ -384,6 +399,12 @@ internal sealed class SqlText
     public string NodeLeave { get; }
 
     public string RegisterSchemas { get; }
+
+    public string GetPartitions { get; }
+
+    public string ClaimPartitions { get; }
+
+    public string SetPartitions { get; }
 
     public string ReplaceSchemas { get; }
 

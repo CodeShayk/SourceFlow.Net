@@ -26,7 +26,7 @@ internal sealed class SubscriptionAdmin(SourceFlowRuntime runtime, SubscriptionE
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(subscription);
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        int partitions = runtime.Options.SubscriptionPartitions;
+        int partitions = await runtime.Storage.Checkpoints.GetPartitionsAsync(subscription, cancellationToken).ConfigureAwait(false) ?? runtime.PartitionsOf(subscription);
         ArgumentOutOfRangeException.ThrowIfNegative(partition);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(partition, partitions);
         LeaseToken lease = await runtime.Storage.Leases.TryAcquireAsync($"sub:{subscription}:{partition}", runtime.Options.NodeId, runtime.Options.LeaseTtl, cancellationToken).ConfigureAwait(false)

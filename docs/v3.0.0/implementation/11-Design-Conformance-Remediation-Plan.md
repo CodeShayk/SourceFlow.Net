@@ -325,6 +325,9 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
   - **Per-subscription override:** `Projections(p => p.Add<T>().Partitions(n))`. `SubscriptionPartitions` becomes the
     default for new subscriptions only.
   - **CLI:** `projection repartition` updates the stored count in the same transaction as the checkpoints.
+  *As built:* the count is claimed (insert if absent) on the checkpoint store, and rechecked every `LeaseTtl`, so a
+  node notices a repartition or a corrected configuration. A refused subscription is skipped when a node checks whether
+  it has caught up. The mismatch is a gauge plus log event 1306.
 - **Tests:**
   - UT-SUB-31: changing the global default does not change an existing subscription.
   - UT-SUB-32: a node with a mismatched `P` refuses that subscription.

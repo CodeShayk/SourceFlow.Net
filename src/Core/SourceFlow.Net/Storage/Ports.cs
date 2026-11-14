@@ -86,6 +86,12 @@ public interface IStorageSession : IAsyncDisposable
     /// <summary>Queues a fenced checkpoint save. A lost lease surfaces as <see cref="LeaseLostException"/> at commit.</summary>
     void SaveCheckpoint(string subscription, int partition, GlobalPosition position, LeaseToken lease);
 
+    /// <summary>
+    /// Queues storing a subscription's partition count, committed with this session's checkpoints (a repartition writes
+    /// both at once, doc 06 §3, CR-18).
+    /// </summary>
+    void SetPartitions(string subscription, int partitions);
+
     /// <summary>Loads process state, or null when the instance does not exist.</summary>
     ValueTask<ProcessState?> LoadProcessStateAsync(string processType, string processId, CancellationToken cancellationToken);
 
@@ -153,6 +159,15 @@ public interface ICheckpointStore
 {
     /// <summary>The last committed position of a subscription partition.</summary>
     ValueTask<GlobalPosition> GetAsync(string subscription, int partition, CancellationToken cancellationToken);
+
+    /// <summary>The partition count stored for a subscription, or null before any node has run it (doc 06 §3, CR-18).</summary>
+    ValueTask<int?> GetPartitionsAsync(string subscription, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Stores <paramref name="partitions"/> for a subscription that has no count yet, and returns the stored count: the
+    /// claim of the first node to run it, which every other node must match.
+    /// </summary>
+    ValueTask<int> ClaimPartitionsAsync(string subscription, int partitions, CancellationToken cancellationToken);
 }
 
 /// <summary>Fenced leases using the store's clock (doc 05 §7.4).</summary>

@@ -142,6 +142,7 @@ The schema is defined by versioned SQL scripts embedded in the package ([`Schema
 | `V006__data_keys_per_tenant` | `data_keys.tenant_id`, keyed by `(tenant_id, subject_id)`: erasing a subject in one tenant leaves the same subject id in another tenant intact. Existing keys move to the default tenant `-`. |
 | `V007__data_keys_policy` | The `tenant_isolation` policy on `data_keys`, which becomes a tenant table under row-level security. |
 | `V008__document_position` | `documents.position_commit` and `position_seq`: the global position of the last event applied to a cross-stream document, which guards it against re-applied events (doc 06 §5). |
+| `V009__subscription_partitions` | Each subscription's partition count; the first node stores it, others must match (doc 06 §3). |
 
 `PostgreSqlSchemaMigrator` ([source](../../../src/Storage/SourceFlow.Storage.PostgreSQL/PostgreSqlSchemaMigrator.cs)) applies them:
 

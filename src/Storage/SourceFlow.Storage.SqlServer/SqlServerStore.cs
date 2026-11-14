@@ -227,6 +227,23 @@ public sealed partial class SqlServerStore :
             : GlobalPosition.Start;
     }
 
+    /// <inheritdoc />
+    public async ValueTask<int?> GetPartitionsAsync(string subscription, CancellationToken cancellationToken)
+    {
+        await using SqlConnection connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using SqlCommand command = Command(Sql.GetPartitions, connection, null, Text("@sub", subscription));
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is int partitions ? partitions : null;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<int> ClaimPartitionsAsync(string subscription, int partitions, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(partitions, 1);
+        await using SqlConnection connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using SqlCommand command = Command(Sql.ClaimPartitions, connection, null, Text("@sub", subscription), Int32("@partitions", partitions));
+        return (int)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
+    }
+
     // ------------------------------------------------------------------ ILeaseManager, INodeRegistry
 
     /// <inheritdoc />

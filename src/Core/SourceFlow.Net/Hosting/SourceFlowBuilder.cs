@@ -119,6 +119,8 @@ public sealed class SourceFlowBuilder
 
     internal Dictionary<Type, SubscriptionFailurePolicy> ProjectionPolicies { get; } = [];
 
+    internal Dictionary<Type, int> ProjectionPartitions { get; } = [];
+
     internal List<MiddlewareRegistration> Middleware { get; } = [];
 
     internal ErrorClassifier ErrorRules { get; } = new();
@@ -324,6 +326,22 @@ public sealed class ProjectionModeBuilder
     public ProjectionModeBuilder OnFailure(SubscriptionFailurePolicy policy)
     {
         _builder.ProjectionPolicies[_projection] = policy;
+        return this;
+    }
+
+    /// <summary>
+    /// The async projection's partition count (a power of two), overriding <see cref="Runtime.SourceFlowOptions.SubscriptionPartitions"/>
+    /// for this subscription (doc 06 §3, CR-18). It must match the count stored for the subscription: a node configured
+    /// otherwise refuses to run it; change it with <c>projection repartition</c>.
+    /// </summary>
+    public ProjectionModeBuilder Partitions(int partitions)
+    {
+        if (partitions < 1 || (partitions & (partitions - 1)) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(partitions), partitions, "The partition count must be a positive power of two (doc 06 §3).");
+        }
+
+        _builder.ProjectionPartitions[_projection] = partitions;
         return this;
     }
 }

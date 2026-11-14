@@ -57,6 +57,12 @@ while lease held:
 
   The events between the minimum and each old position are re-applied. That is safe only for **idempotent** projections, so the version guard (§5) is required, and the command refuses to run otherwise. Alternatively, do a blue/green rebuild (§6).
 
+> **As built (WP-C.9, CR-18).**
+> - **`P` is per subscription and stored.** The first node to run a subscription stores its configured count, in `subscription_partitions` (PostgreSQL V009, SQL Server V004, and the in-memory store).
+> - **Mismatched nodes refuse it.** A node configured with a different count refuses that subscription (`sourceflow.subscription.partition_mismatch`, log event 1306) and holds none of its leases. During a rolling deploy with a changed count, the nodes still on the stored count keep processing, and each event is handled once (E2E-35).
+> - **Configuring `P`.** It comes from `Projections(p => p.Add<T>().Partitions(n))`, or from `SubscriptionPartitions`. That default now applies to subscriptions with no stored count only.
+> - **`projection repartition --from --to`** writes the new count with every new partition's checkpoint in one transaction (SCK-82). Nodes pick the new count up after redeploying with it.
+
 ## 4. Leases, fencing and work distribution
 
 - Every `(subscription, partition)` and every outbox partition is a lease (doc 05 §7.4).

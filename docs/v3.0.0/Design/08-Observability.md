@@ -98,6 +98,7 @@ Units follow UCUM. Histogram buckets are set through `InstrumentAdvice`: duratio
 | `sourceflow.subscription.lag_time` | Observable gauge | s | `subscription`, `partition` | **Freshness SLO** |
 | `sourceflow.subscription.horizon_age` | Observable gauge | s | — | Long-transaction detector (doc 05 §5.4) |
 | `sourceflow.subscription.stalled` | Observable gauge | {partition} | `subscription` | Poison-event stop |
+| `sourceflow.subscription.partition_mismatch` | Observable gauge | {subscription} | `subscription` | A subscription this node refuses: its configured partition count differs from the stored one (doc 06 §3) |
 | `sourceflow.subscription.batch.duration` | Histogram | s | `subscription` | Projection cost |
 | `sourceflow.process.active` | Observable gauge | {instance} | `process.type` | Process-manager load |
 | `sourceflow.lease.owned` | Observable gauge | {lease} | `lease.kind` | Work distribution |

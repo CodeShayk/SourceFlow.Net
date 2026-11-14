@@ -1013,6 +1013,39 @@
     {
       "id": 33,
       "type": "timeseries",
+      "title": "sourceflow.subscription.partition_mismatch",
+      "description": "Subscriptions this node refuses because its partition count differs from the stored one (doc 06 §3).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 106
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "expr": "max by (sourceflow_subscription) (sourceflow_subscription_partition_mismatch{job=~\"$job\"})",
+          "legendFormat": "{{sourceflow_subscription}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "type": "timeseries",
       "title": "sourceflow.subscription.batch.duration",
       "description": "Subscription batch duration.",
       "datasource": {
@@ -1022,7 +1055,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 106
       },
       "fieldConfig": {
@@ -1053,7 +1086,7 @@
       ]
     },
     {
-      "id": 34,
+      "id": 35,
       "type": "row",
       "title": "Process managers and leases",
       "collapsed": false,
@@ -1066,7 +1099,7 @@
       "panels": []
     },
     {
-      "id": 35,
+      "id": 36,
       "type": "timeseries",
       "title": "sourceflow.process.active",
       "description": "Process-manager instances not completed, per process type.",
@@ -1099,7 +1132,7 @@
       ]
     },
     {
-      "id": 36,
+      "id": 37,
       "type": "timeseries",
       "title": "sourceflow.lease.owned",
       "description": "Subscription partition leases this node owns.",
@@ -1132,7 +1165,7 @@
       ]
     },
     {
-      "id": 37,
+      "id": 38,
       "type": "row",
       "title": "Workflows",
       "collapsed": false,
@@ -1145,7 +1178,7 @@
       "panels": []
     },
     {
-      "id": 38,
+      "id": 39,
       "type": "timeseries",
       "title": "sourceflow.workflow.transitions",
       "description": "Workflow transitions by kind (success, failure, retry, timeout, compensate, manual, complete).",
@@ -1178,7 +1211,7 @@
       ]
     },
     {
-      "id": 39,
+      "id": 40,
       "type": "timeseries",
       "title": "sourceflow.workflow.active",
       "description": "Workflow instances not finished, per workflow version and status.",
@@ -1211,7 +1244,7 @@
       ]
     },
     {
-      "id": 40,
+      "id": 41,
       "type": "timeseries",
       "title": "sourceflow.workflow.manual_intervention",
       "description": "Workflow instances that entered manual intervention (alert on any).",
@@ -1244,7 +1277,7 @@
       ]
     },
     {
-      "id": 41,
+      "id": 42,
       "type": "row",
       "title": "Messaging (semantic conventions)",
       "collapsed": false,
@@ -1257,7 +1290,7 @@
       "panels": []
     },
     {
-      "id": 42,
+      "id": 43,
       "type": "timeseries",
       "title": "messaging.client.sent.messages",
       "description": "Messages sent to the broker.",
@@ -1290,7 +1323,7 @@
       ]
     },
     {
-      "id": 43,
+      "id": 44,
       "type": "timeseries",
       "title": "messaging.client.consumed.messages",
       "description": "Messages received from the broker.",
@@ -1323,7 +1356,7 @@
       ]
     },
     {
-      "id": 44,
+      "id": 45,
       "type": "timeseries",
       "title": "messaging.process.duration",
       "description": "Received message processing duration.",

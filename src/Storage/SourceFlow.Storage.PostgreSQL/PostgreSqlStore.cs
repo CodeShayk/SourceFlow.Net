@@ -261,6 +261,26 @@ public sealed partial class PostgreSqlStore :
             : GlobalPosition.Start;
     }
 
+    /// <inheritdoc />
+    public async ValueTask<int?> GetPartitionsAsync(string subscription, CancellationToken cancellationToken)
+    {
+        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(Sql.GetPartitions, connection);
+        command.Parameters.Add(new NpgsqlParameter<string>("sub", subscription));
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is int partitions ? partitions : null;
+    }
+
+    /// <inheritdoc />
+    public async ValueTask<int> ClaimPartitionsAsync(string subscription, int partitions, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(partitions, 1);
+        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(Sql.ClaimPartitions, connection);
+        command.Parameters.Add(new NpgsqlParameter<string>("sub", subscription));
+        command.Parameters.Add(new NpgsqlParameter<int>("partitions", partitions));
+        return (int)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
+    }
+
     // ------------------------------------------------------------------ ILeaseManager
 
     /// <inheritdoc />

@@ -100,6 +100,8 @@ public static class SourceFlowTelemetry
         public const string SubscriptionLagTime = "sourceflow.subscription.lag_time";
         public const string HorizonAge = "sourceflow.subscription.horizon_age";
         public const string SubscriptionStalled = "sourceflow.subscription.stalled";
+
+        public const string SubscriptionPartitionMismatch = "sourceflow.subscription.partition_mismatch";
         public const string SubscriptionBatchDuration = "sourceflow.subscription.batch.duration";
         public const string ProcessActive = "sourceflow.process.active";
         public const string LeaseOwned = "sourceflow.lease.owned";
@@ -140,6 +142,7 @@ public static class SourceFlowTelemetry
         new(Instruments.SubscriptionLagTime, InstrumentKind.Gauge, "s", "Age of the oldest unprocessed event per subscription partition (freshness SLO).", [Tags.Subscription, Tags.Partition]),
         new(Instruments.HorizonAge, InstrumentKind.Gauge, "s", "How long the oldest writing transaction has held the subscription horizon back.", []),
         new(Instruments.SubscriptionStalled, InstrumentKind.Gauge, "{partition}", "Subscription partitions halted at a failing event (Stop policy).", [Tags.Subscription, Tags.Partition]),
+        new(Instruments.SubscriptionPartitionMismatch, InstrumentKind.Gauge, "{subscription}", "Subscriptions this node refuses because its partition count differs from the stored one (doc 06 §3).", [Tags.Subscription]),
         new(Instruments.SubscriptionBatchDuration, InstrumentKind.Histogram, "s", "Subscription batch duration.", [Tags.Subscription]),
         new(Instruments.ProcessActive, InstrumentKind.Gauge, "{instance}", "Process-manager instances not completed, per process type.", [Tags.ProcessType]),
         new(Instruments.LeaseOwned, InstrumentKind.Gauge, "{lease}", "Subscription partition leases this node owns.", [Tags.LeaseKind]),

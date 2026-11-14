@@ -251,6 +251,18 @@ public sealed class SourceFlowRuntime
     /// <summary>Failure policies of async projections that override the default (<see cref="SubscriptionFailurePolicy.Stop"/>).</summary>
     internal IReadOnlyDictionary<Type, SubscriptionFailurePolicy> ProjectionPolicies { get; set; } = new Dictionary<Type, SubscriptionFailurePolicy>();
 
+    // Per-projection partition counts (Projections(p => p.Add<T>().Partitions(n))); others use SubscriptionPartitions.
+    internal IReadOnlyDictionary<Type, int> ProjectionPartitions { get; set; } = new Dictionary<Type, int>();
+
+    // The partition count each subscription runs with: the stored count once this node has matched it (doc 06 §3, CR-18).
+    internal System.Collections.Concurrent.ConcurrentDictionary<string, int> SubscriptionPartitionCounts { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>The partition count of <paramref name="subscription"/> on this node (doc 06 §3).</summary>
+    internal int PartitionsOf(string subscription)
+    {
+        return SubscriptionPartitionCounts.TryGetValue(subscription, out int partitions) ? partitions : Options.SubscriptionPartitions;
+    }
+
     /// <summary>Live nodes running subscriptions, from the last heartbeat (1 without a node registry).</summary>
     internal int LiveSubscriptionNodes { get; set; } = 1;
 

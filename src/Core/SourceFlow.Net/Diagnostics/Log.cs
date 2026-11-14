@@ -71,6 +71,9 @@ internal static partial class Log
     [LoggerMessage(1305, LogLevel.Information, "Dropped retired read-model generation {Generation}")]
     public static partial void ReadModelDropped(ILogger logger, string generation);
 
+    [LoggerMessage(1306, LogLevel.Error, "Subscription {Subscription} is not run on this node: it is configured with {Configured} partitions, but {Stored} are stored (doc 06 §3); align the configuration or run `projection repartition`")]
+    public static partial void SubscriptionPartitionMismatch(ILogger logger, string subscription, int configured, int stored);
+
     [LoggerMessage(1401, LogLevel.Information, "SourceFlow service {Service} started: {Modules} module(s), {Aggregates} aggregate(s), {Subscriptions} subscription(s)")]
     public static partial void Started(ILogger logger, string service, int modules, int aggregates, int subscriptions);
 

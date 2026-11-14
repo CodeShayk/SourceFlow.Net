@@ -23,6 +23,7 @@ internal sealed partial class SqlServerStorageSession : IStorageSession, IDocume
     private readonly List<OutboxMessage> _outbox = [];
     private readonly List<(string Consumer, MessageId Id, InboxResult Result)> _inbox = [];
     private readonly List<(string Subscription, int Partition, GlobalPosition Position, LeaseToken Lease)> _checkpoints = [];
+    private readonly List<(string Subscription, int Partitions)> _partitions = [];
     private readonly List<ProcessWrite> _processes = [];
     private readonly List<DocumentWrite> _documents = [];
     private AppendWrite? _append;
@@ -216,6 +217,14 @@ internal sealed partial class SqlServerStorageSession : IStorageSession, IDocume
         _wroteOther = true;
     }
 
+    public void SetPartitions(string subscription, int partitions)
+    {
+        ThrowIfCompleted();
+        ArgumentOutOfRangeException.ThrowIfLessThan(partitions, 1);
+        _partitions.Add((subscription, partitions));
+        _wroteOther = true;
+    }
+
     public void SaveProcessState(string processType, string processId, long expectedVersion, ReadOnlyMemory<byte> state, bool completed)
     {
         ThrowIfCompleted();
@@ -308,6 +317,11 @@ internal sealed partial class SqlServerStorageSession : IStorageSession, IDocume
             steps.Add(CheckpointStep(subscription, partition, position, lease, check));
         }
 
+        foreach ((string subscription, int partitions) in _partitions)
+        {
+            steps.Add(new Step(_store.Sql.SetPartitions, [SqlServerStore.Text("@sub", subscription), SqlServerStore.Int32("@partitions", partitions)]));
+        }
+
         if (steps.Count == 0)
         {
             return;
@@ -341,6 +355,7 @@ internal sealed partial class SqlServerStorageSession : IStorageSession, IDocume
         _documents.Clear();
         _processes.Clear();
         _checkpoints.Clear();
+        _partitions.Clear();
     }
 
     private async Task ExecuteAsync(List<Step> batch, bool withAppend, CancellationToken cancellationToken)

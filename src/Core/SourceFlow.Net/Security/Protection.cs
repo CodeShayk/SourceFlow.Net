@@ -174,6 +174,11 @@ internal sealed class ProtectingSessionFactory(IStorageSessionFactory inner, Pay
             inner.SaveCheckpoint(subscription, partition, position, lease);
         }
 
+        public void SetPartitions(string subscription, int partitions)
+        {
+            inner.SetPartitions(subscription, partitions);
+        }
+
         public ValueTask<ProcessState?> LoadProcessStateAsync(string processType, string processId, CancellationToken cancellationToken)
         {
             return inner.LoadProcessStateAsync(processType, processId, cancellationToken);

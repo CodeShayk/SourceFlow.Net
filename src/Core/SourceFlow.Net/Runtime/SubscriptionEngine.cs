@@ -22,6 +22,9 @@ internal sealed record SubscriptionDefinition(string Name, Func<Type, bool> Hand
     /// </summary>
     public bool BacksOffBeforeParking { get; init; } = true;
 
+    /// <summary>The configured partition count, or null for <see cref="SourceFlowOptions.SubscriptionPartitions"/> (CR-18).</summary>
+    public int? Partitions { get; init; }
+
     /// <summary>Loads what a batch needs before it is applied (document projections read their documents in one query).</summary>
     public Func<ProjectionScope, IReadOnlyList<(IEvent Event, EventContext Context)>, CancellationToken, ValueTask>? Prefetch { get; init; }
 
@@ -44,6 +47,8 @@ internal sealed class SubscriptionEngine
     private readonly IServiceScopeFactory _scopes;
     private readonly AggregateStore _decoder;
     private readonly ILogger _logger;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _mismatched = new(StringComparer.Ordinal);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset> _partitionsCheckedAt = new(StringComparer.Ordinal);
 
     public SubscriptionEngine(SourceFlowRuntime runtime, IServiceScopeFactory scopes)
     {
@@ -53,6 +58,11 @@ internal sealed class SubscriptionEngine
         _logger = runtime.Logger<SubscriptionEngine>();
         _static = BuildStaticDefinitions();
         _definitions = Compose();
+        runtime.Metrics.Meter.CreateObservableGauge(
+            SourceFlowTelemetry.Instruments.SubscriptionPartitionMismatch,
+            () => _mismatched.Keys.Select(s => new System.Diagnostics.Metrics.Measurement<int>(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Subscription, s))),
+            "{subscription}",
+            "Subscriptions this node refuses because its partition count differs from the stored one (doc 06 §3).");
         runtime.Metrics.Meter.CreateObservableGauge(
             SourceFlowTelemetry.Instruments.SubscriptionStalled,
             () => _stalls.Values.Select(s => new System.Diagnostics.Metrics.Measurement<int>(1,
@@ -103,7 +113,7 @@ internal sealed class SubscriptionEngine
     {
         get
         {
-            int total = Definitions.Count * _runtime.Options.SubscriptionPartitions;
+            int total = Definitions.Where(d => !_mismatched.ContainsKey(d.Name)).Sum(d => _runtime.PartitionsOf(d.Name));
             int live = Math.Max(1, _runtime.LiveSubscriptionNodes);
             return (total + live - 1) / live;
         }
@@ -118,10 +128,20 @@ internal sealed class SubscriptionEngine
         }
 
         int processed = 0;
-        int partitions = _runtime.Options.SubscriptionPartitions;
+        foreach (SubscriptionDefinition definition in Definitions)
+        {
+            await ResolvePartitionsAsync(definition, cancellationToken).ConfigureAwait(false);
+        }
+
         int share = FairShare;
         foreach (SubscriptionDefinition definition in Definitions)
         {
+            if (_mismatched.ContainsKey(definition.Name))
+            {
+                continue;   // its stored partition count differs from this node's: another node, or a repartition, owns it
+            }
+
+            int partitions = _runtime.PartitionsOf(definition.Name);
             for (int partition = 0; partition < partitions; partition++)
             {
                 // Up to the fair share: keep (renew) what this node holds, take free or expired leases only below it.
@@ -226,7 +246,7 @@ internal sealed class SubscriptionEngine
     // True when every partition of the subscription is at most `threshold` events behind the log.
     private async ValueTask<bool> WithinLagAsync(string subscription, int threshold, CancellationToken cancellationToken)
     {
-        int partitions = _runtime.Options.SubscriptionPartitions;
+        int partitions = _runtime.PartitionsOf(subscription);
         for (int partition = 0; partition < partitions; partition++)
         {
             GlobalPosition checkpoint = await _runtime.Storage.Checkpoints.GetAsync(subscription, partition, cancellationToken).ConfigureAwait(false);
@@ -331,9 +351,14 @@ internal sealed class SubscriptionEngine
             return false;   // a rebuild is pending its alias switch (the first build of a projection reads its own collection anyway)
         }
 
-        int partitions = _runtime.Options.SubscriptionPartitions;
         foreach (SubscriptionDefinition definition in Definitions)
         {
+            if (_mismatched.ContainsKey(definition.Name))
+            {
+                continue;   // refused here (CR-18): the nodes with the stored partition count keep it up to date
+            }
+
+            int partitions = _runtime.PartitionsOf(definition.Name);
             for (int partition = 0; partition < partitions; partition++)
             {
                 GlobalPosition checkpoint = await _runtime.Storage.Checkpoints.GetAsync(definition.Name, partition, cancellationToken).ConfigureAwait(false);
@@ -476,6 +501,42 @@ internal sealed class SubscriptionEngine
         _runtime.Committed(session);
     }
 
+    // doc 06 §3 (CR-18): a subscription's partition count decides which buckets each partition reads, so every node must use
+    // the stored one. The first node stores its configured count; a node configured otherwise refuses the subscription (and
+    // drops the leases it held) and reports it, rechecking every lease TTL so a repartition or a fixed config is picked up.
+    private async ValueTask ResolvePartitionsAsync(SubscriptionDefinition definition, CancellationToken cancellationToken)
+    {
+        DateTimeOffset now = _runtime.Time.GetUtcNow();
+        if (_partitionsCheckedAt.TryGetValue(definition.Name, out DateTimeOffset checkedAt) && now - checkedAt < _runtime.Options.LeaseTtl)
+        {
+            return;
+        }
+
+        int configured = definition.Partitions ?? _runtime.Options.SubscriptionPartitions;
+        int stored = await _runtime.Storage.Checkpoints.ClaimPartitionsAsync(definition.Name, configured, cancellationToken).ConfigureAwait(false);
+        _partitionsCheckedAt[definition.Name] = now;
+        if (stored == configured)
+        {
+            _runtime.SubscriptionPartitionCounts[definition.Name] = configured;
+            _mismatched.TryRemove(definition.Name, out _);
+            return;
+        }
+
+        if (_mismatched.TryAdd(definition.Name, stored))
+        {
+            Log.SubscriptionPartitionMismatch(_logger, definition.Name, configured, stored);
+        }
+
+        _runtime.SubscriptionPartitionCounts.TryRemove(definition.Name, out _);
+        foreach ((string, int) held in _owned.Keys.Where(k => k.Item1 == definition.Name).ToArray())
+        {
+            _owned.TryRemove(held, out _);   // its leases expire; a node with the stored count takes them
+        }
+    }
+
+    /// <summary>Subscriptions this node refuses, with the stored partition count that differs from its own (CR-18).</summary>
+    internal IReadOnlyDictionary<string, int> PartitionMismatches => _mismatched;
+
     // Returns false when the partition stops at this event (Stop policy).
     private async ValueTask<bool> ApplyIsolatedAsync(SubscriptionDefinition definition, int partition, LeaseToken lease, StoredEvent stored, CancellationToken cancellationToken)
     {
@@ -613,6 +674,7 @@ internal sealed class SubscriptionEngine
         {
             Policy = _runtime.ProjectionPolicies.GetValueOrDefault(projection.ProjectionType, Hosting.SubscriptionFailurePolicy.Stop),
             BacksOffBeforeParking = false,
+            Partitions = _runtime.ProjectionPartitions.TryGetValue(projection.ProjectionType, out int configured) ? configured : null,
             Prefetch = projection is DocumentProjectionDescriptor document
                 ? (scope, batch, ct) => scope.PrefetchAsync(document, batch, ct)
                 : null,

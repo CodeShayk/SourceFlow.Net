@@ -38,6 +38,7 @@ public sealed class InMemoryStore :
     private readonly SortedDictionary<long, OutboxRecord> _outbox = [];
     private readonly Dictionary<(string Tenant, string Type, string Id), ProcessState> _processes = [];
     private readonly Dictionary<(string Tenant, string Collection, string Id), StoredDocument> _documents = [];
+    private readonly Dictionary<string, int> _partitions = new(StringComparer.Ordinal);
     private readonly Dictionary<Guid, DeadLetter> _deadLetters = [];
     private readonly Dictionary<(string Tenant, string Stream), Snapshot> _snapshots = [];
     private readonly List<Action> _subscribers = [];
@@ -336,6 +337,25 @@ public sealed class InMemoryStore :
         lock (_gate)
         {
             return ValueTask.FromResult(_checkpoints.GetValueOrDefault((subscription, partition)));
+        }
+    }
+
+    /// <inheritdoc />
+    public ValueTask<int?> GetPartitionsAsync(string subscription, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            return ValueTask.FromResult(_partitions.TryGetValue(subscription, out int partitions) ? (int?)partitions : null);
+        }
+    }
+
+    /// <inheritdoc />
+    public ValueTask<int> ClaimPartitionsAsync(string subscription, int partitions, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(partitions, 1);
+        lock (_gate)
+        {
+            return ValueTask.FromResult(_partitions.TryAdd(subscription, partitions) ? partitions : _partitions[subscription]);
         }
     }
 
@@ -963,6 +983,11 @@ public sealed class InMemoryStore :
                 _inbox[(consumer, id)] = new InboxEntry(consumer, id, now, inboxResult);
             }
 
+            foreach ((string subscription, int partitions) in session.Partitions)
+            {
+                _partitions[subscription] = partitions;
+            }
+
             foreach ((string subscription, int partition, GlobalPosition position, _) in session.Checkpoints)
             {
                 _checkpoints[(subscription, partition)] = position;
@@ -1084,6 +1109,8 @@ public sealed class InMemoryStore :
 
         public List<(string Subscription, int Partition, GlobalPosition Position, LeaseToken Lease)> Checkpoints { get; } = [];
 
+        public List<(string Subscription, int Partitions)> Partitions { get; } = [];
+
         public List<ProcessWrite> Processes { get; } = [];
 
         public List<DocumentWrite> DocumentWrites { get; } = [];
@@ -1154,6 +1181,14 @@ public sealed class InMemoryStore :
             ThrowIfCompleted();
             ArgumentNullException.ThrowIfNull(lease);
             Checkpoints.Add((subscription, partition, position, lease));
+            _wroteOther = true;
+        }
+
+        public void SetPartitions(string subscription, int partitions)
+        {
+            ThrowIfCompleted();
+            ArgumentOutOfRangeException.ThrowIfLessThan(partitions, 1);
+            Partitions.Add((subscription, partitions));
             _wroteOther = true;
         }
 

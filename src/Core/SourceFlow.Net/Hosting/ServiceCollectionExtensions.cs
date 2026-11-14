@@ -161,6 +161,7 @@ public static class ServiceCollectionExtensions
             runtime.InlineProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Inline)];
             runtime.AsyncProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Async)];
             runtime.ProjectionPolicies = builder.ProjectionPolicies.ToDictionary();
+            runtime.ProjectionPartitions = builder.ProjectionPartitions.ToDictionary();
             string[] missing = [.. model.Projections.Select(p => p.MissingDependency(sp)).OfType<string>()];
             if (missing.Length > 0)
             {

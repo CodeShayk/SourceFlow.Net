@@ -18,7 +18,7 @@ public sealed class PostgreSqlMigrationTests(PostgreSqlServer server) : PostgreS
     private static readonly string[] Tables =
     [
         "checkpoints", "collection_aliases", "data_keys", "dead_letters", "documents", "events", "inbox", "leases", "nodes",
-        "outbox", "process_instances", "schema_history", "schemas", "snapshots", "streams", "subject_streams",
+        "outbox", "process_instances", "schema_history", "schemas", "snapshots", "streams", "subject_streams", "subscription_partitions",
     ];
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -33,8 +33,8 @@ public sealed class PostgreSqlMigrationTests(PostgreSqlServer server) : PostgreS
 
         IReadOnlyList<int> applied = await migrator.MigrateAsync(Ct);
 
-        applied.ShouldBe([1, 2, 3, 4, 5, 6, 7, 8]);
-        (await migrator.GetAppliedVersionsAsync(Ct)).ShouldBe([1, 2, 3, 4, 5, 6, 7, 8]);
+        applied.ShouldBe([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        (await migrator.GetAppliedVersionsAsync(Ct)).ShouldBe([1, 2, 3, 4, 5, 6, 7, 8, 9]);
         (await TablesAsync(schema)).ShouldBe(Tables);
         await migrator.VerifyAsync(Ct);
     }
@@ -145,7 +145,7 @@ public sealed class PostgreSqlMigrationTests(PostgreSqlServer server) : PostgreS
         await Server.ExecuteAsync(scripter.Script());
 
         (await ColumnsAsync(scripted)).ShouldBe(await ColumnsAsync(migrated));
-        (await scripter.GetAppliedVersionsAsync(Ct)).ShouldBe([1, 2, 3, 4, 5, 6, 7, 8]);
+        (await scripter.GetAppliedVersionsAsync(Ct)).ShouldBe([1, 2, 3, 4, 5, 6, 7, 8, 9]);
         await scripter.VerifyAsync(Ct);
         (await scripter.MigrateAsync(Ct)).ShouldBeEmpty();
     }

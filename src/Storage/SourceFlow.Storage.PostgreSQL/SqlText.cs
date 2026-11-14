@@ -100,6 +100,21 @@ internal sealed class SqlText
             SELECT {s}.sf_assert(count(*) = 1, @check) FROM c
             """);
         GetCheckpoint = R("SELECT commit_pos, seq_pos FROM {s}.checkpoints WHERE subscription = @sub AND partition = @p");
+        GetPartitions = R("SELECT partitions FROM {s}.subscription_partitions WHERE subscription = @sub");
+        ClaimPartitions = R("""
+            WITH ins AS (
+                INSERT INTO {s}.subscription_partitions (subscription, partitions) VALUES (@sub, @partitions)
+                ON CONFLICT (subscription) DO NOTHING
+                RETURNING partitions)
+            SELECT partitions FROM ins
+            UNION ALL
+            SELECT partitions FROM {s}.subscription_partitions WHERE subscription = @sub
+            LIMIT 1
+            """);
+        SetPartitions = R("""
+            INSERT INTO {s}.subscription_partitions (subscription, partitions) VALUES (@sub, @partitions)
+            ON CONFLICT (subscription) DO UPDATE SET partitions = excluded.partitions, updated_at = now()
+            """);
 
         LoadProcess = R("SELECT version, state, completed, updated_at FROM {s}.process_instances WHERE tenant_id = @tenant AND process_type = @type AND process_id = @id");
         InsertProcess = R("""
@@ -358,6 +373,12 @@ internal sealed class SqlText
     public string ClearPreviousAlias { get; }
 
     public string RegisterSchemas { get; }
+
+    public string GetPartitions { get; }
+
+    public string ClaimPartitions { get; }
+
+    public string SetPartitions { get; }
 
     public string ReplaceSchemas { get; }
 

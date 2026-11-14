@@ -436,7 +436,9 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   (ids that can't be read back from a stream id are refused; schema fingerprints cover structure only, so renaming a
   type or adding an upcast version keeps them, with a one-time migration of stored fingerprints; an id's backing has one
   source and SF0022 checks it; cross-stream documents record their position and skip events already applied; schema
-  PostgreSQL V008 and SQL Server V003).
+  PostgreSQL V008 and SQL Server V003), WP-C.9 (each subscription's partition count is stored and every node must
+  match it, with a per-projection `Partitions(n)`; `projection repartition` writes the count with the checkpoints;
+  schema PostgreSQL V009 and SQL Server V004).
 
 ### Other notes
 

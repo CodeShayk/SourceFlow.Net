@@ -154,11 +154,11 @@ internal sealed class SourceFlowMonitor
     private async ValueTask<IReadOnlyList<PartitionReading>> ReadPartitionsAsync(CancellationToken ct)
     {
         IReadOnlyList<SubscriptionStall> stalls = _subscriptions.Stalls;
-        int partitions = _runtime.Options.SubscriptionPartitions;
         DateTimeOffset now = _runtime.Time.GetUtcNow();
         var readings = new List<PartitionReading>();
         foreach (SubscriptionDefinition definition in _subscriptions.Definitions)
         {
+            int partitions = _runtime.PartitionsOf(definition.Name);
             for (int partition = 0; partition < partitions; partition++)
             {
                 BucketRange buckets = Buckets.Range(partition, partitions);

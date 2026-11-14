@@ -392,7 +392,7 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
             RequireIdempotent(name, r.GetValue(idempotent));
             await using Ports ports = await PortsAsync(r, ct);
             GlobalPosition minimum = await RepartitionAsync(ports.Storage, name, r.GetValue(fromPartitions), r.GetValue(toPartitions), ct);
-            await Out.WriteLineAsync($"{name}: {r.GetValue(toPartitions)} partitions from {minimum}. Set SubscriptionPartitions = {r.GetValue(toPartitions)} and restart.");
+            await Out.WriteLineAsync($"{name}: {r.GetValue(toPartitions)} partitions from {minimum}. Configure the subscription with {r.GetValue(toPartitions)} partitions (Partitions({r.GetValue(toPartitions)}) or SubscriptionPartitions) and restart; until then, nodes with the old count refuse it.");
             return 0;
         }));
 
@@ -642,10 +642,16 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
                 }
             }
 
-            foreach (LeaseToken lease in leases.Take(to))
+            // One transaction (CR-18, SCK-82): every new partition's checkpoint and the stored count change together, so no
+            // node ever reads the new count with the old checkpoints, or the reverse.
+            await using (IStorageSession session = await storage.Sessions.BeginAsync(MessageEnvelope.DefaultTenant, ct))
             {
-                await using IStorageSession session = await storage.Sessions.BeginAsync(MessageEnvelope.DefaultTenant, ct);
-                session.SaveCheckpoint(subscription, int.Parse(lease.Name[(lease.Name.LastIndexOf(':') + 1)..], CultureInfo.InvariantCulture), minimum, lease);
+                foreach (LeaseToken lease in leases.Take(to))
+                {
+                    session.SaveCheckpoint(subscription, int.Parse(lease.Name[(lease.Name.LastIndexOf(':') + 1)..], CultureInfo.InvariantCulture), minimum, lease);
+                }
+
+                session.SetPartitions(subscription, to);
                 await session.CommitAsync(ct);
             }
 

@@ -724,7 +724,7 @@ internal sealed class QueryService : IQueryService
 
     private async ValueTask<bool> CaughtUpAsync(string subscription, GlobalPosition position, CancellationToken cancellationToken)
     {
-        int partitions = _runtime.Options.SubscriptionPartitions;
+        int partitions = _runtime.PartitionsOf(subscription);
         for (int partition = 0; partition < partitions; partition++)
         {
             GlobalPosition checkpoint = await _runtime.Storage.Checkpoints.GetAsync(subscription, partition, cancellationToken).ConfigureAwait(false);

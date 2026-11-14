@@ -187,6 +187,7 @@ generated from it.
 | `sourceflow.subscription.lag_time` | Gauge | s | `sourceflow.subscription`, `sourceflow.partition` | Age of the oldest unprocessed event. The read-model freshness SLO. |
 | `sourceflow.subscription.horizon_age` | Gauge | s | none | How long the oldest writing transaction has held the subscription horizon back. A long transaction delays every subscription. |
 | `sourceflow.subscription.stalled` | Gauge | {partition} | `sourceflow.subscription`, `sourceflow.partition` | Partitions halted at a failing event (Stop policy). |
+| `sourceflow.subscription.partition_mismatch` | Gauge | {subscription} | `sourceflow.subscription` | Subscriptions this node refuses because its partition count differs from the stored one. |
 | `sourceflow.subscription.batch.duration` | Histogram | s | `sourceflow.subscription` | Subscription batch duration: the cost of a projection. |
 | `sourceflow.process.active` | Gauge | {instance} | `process.type` | Process-manager instances not completed, per type. |
 | `sourceflow.lease.owned` | Gauge | {lease} | `lease.kind` | Subscription partition leases this node owns (per instance, so sum across instances). |

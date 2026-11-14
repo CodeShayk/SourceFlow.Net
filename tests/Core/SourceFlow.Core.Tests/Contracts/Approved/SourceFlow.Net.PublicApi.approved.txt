@@ -723,6 +723,7 @@ namespace SourceFlow.Diagnostics
             public const string SubscriptionBatchDuration = "sourceflow.subscription.batch.duration";
             public const string SubscriptionLag = "sourceflow.subscription.lag";
             public const string SubscriptionLagTime = "sourceflow.subscription.lag_time";
+            public const string SubscriptionPartitionMismatch = "sourceflow.subscription.partition_mismatch";
             public const string SubscriptionStalled = "sourceflow.subscription.stalled";
             public const string WorkflowActive = "sourceflow.workflow.active";
             public const string WorkflowManualIntervention = "sourceflow.workflow.manual_intervention";
@@ -781,6 +782,7 @@ namespace SourceFlow.Hosting
         public SourceFlow.Hosting.ProjectionModeBuilder Async() { }
         public SourceFlow.Hosting.ProjectionModeBuilder Inline() { }
         public SourceFlow.Hosting.ProjectionModeBuilder OnFailure(SourceFlow.Hosting.SubscriptionFailurePolicy policy) { }
+        public SourceFlow.Hosting.ProjectionModeBuilder Partitions(int partitions) { }
     }
     public sealed class ProjectionsBuilder
     {
@@ -2674,7 +2676,9 @@ namespace SourceFlow.Storage
     }
     public interface ICheckpointStore
     {
+        System.Threading.Tasks.ValueTask<int> ClaimPartitionsAsync(string subscription, int partitions, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetAsync(string subscription, int partition, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<int?> GetPartitionsAsync(string subscription, System.Threading.CancellationToken cancellationToken);
     }
     public interface ICollectionAliases
     {
@@ -2776,6 +2780,7 @@ namespace SourceFlow.Storage
         void RecordInbox(string consumer, SourceFlow.MessageId messageId, SourceFlow.Storage.InboxResult result);
         void SaveCheckpoint(string subscription, int partition, SourceFlow.GlobalPosition position, SourceFlow.Storage.LeaseToken lease);
         void SaveProcessState(string processType, string processId, long expectedVersion, System.ReadOnlyMemory<byte> state, bool completed);
+        void SetPartitions(string subscription, int partitions);
     }
     public interface IStorageSessionFactory
     {
@@ -2983,6 +2988,7 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask ArchiveStreamAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.IStorageSession> BeginAsync(string tenantId, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.OutboxRecord>> ClaimAsync(int partition, SourceFlow.Storage.LeaseToken lease, int maxCount, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<int> ClaimPartitionsAsync(string subscription, int partitions, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask ClearPreviousAsync(string alias, string previous, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask CompleteAsync(SourceFlow.Storage.LeaseToken lease, System.Collections.Generic.IReadOnlyList<long> sequences, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyDictionary<string, int>> CountActiveProcessesAsync(System.Threading.CancellationToken cancellationToken) { }
@@ -2999,6 +3005,7 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetAsync(string subscription, int partition, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Security.SubjectKey?> GetKeyAsync(string tenantId, string subjectId, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.OutboxBacklog>> GetOutboxBacklogAsync(System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<int?> GetPartitionsAsync(string subscription, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetSafeHorizonAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamInfo?> GetStreamInfoAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.StreamId>> GetSubjectStreamsAsync(string tenantId, string subjectId, System.Threading.CancellationToken cancellationToken) { }

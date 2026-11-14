@@ -19,6 +19,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
     private readonly List<OutboxMessage> _outbox = [];
     private readonly List<(string Consumer, MessageId Id, InboxResult Result)> _inbox = [];
     private readonly List<(string Subscription, int Partition, GlobalPosition Position, LeaseToken Lease)> _checkpoints = [];
+    private readonly List<(string Subscription, int Partitions)> _partitions = [];
     private readonly List<ProcessWrite> _processes = [];
     private readonly List<DocumentWrite> _documents = [];
     private AppendWrite? _append;
@@ -221,6 +222,14 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         _wroteOther = true;
     }
 
+    public void SetPartitions(string subscription, int partitions)
+    {
+        ThrowIfCompleted();
+        ArgumentOutOfRangeException.ThrowIfLessThan(partitions, 1);
+        _partitions.Add((subscription, partitions));
+        _wroteOther = true;
+    }
+
     public void SaveProcessState(string processType, string processId, long expectedVersion, ReadOnlyMemory<byte> state, bool completed)
     {
         ThrowIfCompleted();
@@ -316,6 +325,14 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             string check = "checkpoint:" + checks.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
             checks[check] = () => new LeaseLostException(lease.Name);
             steps.Add(new Step(CheckpointCommand(subscription, partition, position, lease, check), null, IsQuery: true));
+        }
+
+        foreach ((string subscription, int partitions) in _partitions)
+        {
+            var command = new NpgsqlBatchCommand(_store.Sql.SetPartitions);
+            command.Parameters.Add(new NpgsqlParameter<string>("sub", subscription));
+            command.Parameters.Add(new NpgsqlParameter<int>("partitions", partitions));
+            steps.Add(new Step(command, null));
         }
 
         if (includeNotify)
@@ -432,6 +449,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         _documents.Clear();
         _processes.Clear();
         _checkpoints.Clear();
+        _partitions.Clear();
         return commit;
     }
 
