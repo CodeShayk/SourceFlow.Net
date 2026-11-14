@@ -71,7 +71,7 @@ As with PostgreSQL, the schema is migrated (`AutoMigrate`) or verified when the 
 | `Schema` | `"sourceflow"` | The schema that holds the SourceFlow tables. 1–63 characters of `[a-z0-9_]`, starting with a letter or underscore. |
 | `AutoMigrate` | `null` | `true` migrates at startup, `false` verifies. `null` means on in `Development`, off elsewhere. |
 | `QueryTimeout` | 5 s | The command timeout for SFQL queries. Positive, at most 30 s. |
-| `QueryConnectionString` | `ConnectionString` | A read-only connection for SFQL queries, for example with `ApplicationIntent=ReadOnly` to an availability-group secondary. |
+| `QueryConnectionString` | `ConnectionString` with `ApplicationIntent=ReadOnly` | The connection for SFQL queries, for example to an availability-group secondary. It must set `ApplicationIntent=ReadOnly` (startup refuses it otherwise), and should log in as a user granted by `SqlServerSchemaMigrator.QueryGrantsScript` (SELECT only). |
 
 The runtime options on `SourceFlowOptions` (`PollInterval`, `LeaseTtl`, `OutboxPartitions`, `SubscriptionPartitions`, `InboxRetention`, `RetentionInterval` and so on) apply unchanged; see the [PostgreSQL README](SourceFlow.Storage.PostgreSQL-README.md#configuration) for the table. `PollInterval` matters more on SQL Server, because it is how other nodes notice new events.
 
@@ -179,14 +179,15 @@ Leases use the database clock (`SYSDATETIMEOFFSET()`); outbox due times use the 
 
 ## SFQL on SQL Server
 
-`SqlServerQueryEngine` compiles a query into one parameterised T-SQL statement on `QueryConnectionString`, with `QueryTimeout` as the command timeout:
+`SqlServerQueryEngine` compiles a query into one parameterised T-SQL statement on the query connection, always with `ApplicationIntent=ReadOnly`, and with `QueryTimeout` as the command timeout:
 
-- Text compares with `COLLATE Latin1_General_BIN2`, ordinal like the interpreter.
+- Text compares with `COLLATE Latin1_General_BIN2`, ordinal like the interpreter. Equality, `IN`, joins, grouping and `DISTINCT` also compare the byte length, so `'a'` and `'a '` stay different.
+- `LIKE` uses `ESCAPE N'\'`: `\%`, `\_` and `\\` match a literal `%`, `_` and `\`, as on PostgreSQL.
 - `NULLS FIRST` and `NULLS LAST` become a `CASE` sort key.
 - A boolean value is a `bit` built from a predicate.
 - `bin()` uses `DATE_BUCKET` (SQL Server 2022).
 - Keyset continuation pages work as on PostgreSQL.
-- A construct SQL Server cannot express the same way (for example the text of a decimal, or arithmetic between two timestamps) falls back to the in-memory interpreter, which returns the same rows.
+- A construct SQL Server cannot express the same way (for example the text of a decimal, or arithmetic between two timestamps) is refused with SFQ0410. It isn't run in the interpreter over the whole log. Aggregate folds run in the interpreter, time-boxed to `QueryTimeout`.
 - `from events` leaves archived streams out unless `options (include_archived = true)`.
 
 There is no `[Queryable]` index sync for SQL Server yet. Create indexes for hot payload predicates yourself (for example a persisted computed column over `JSON_VALUE(data, '$.status')` with a filtered index). See [Architecture/08 Query Side and SFQL](Architecture/08-Query-Side-and-SFQL.md).

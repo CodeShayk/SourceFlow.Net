@@ -365,6 +365,12 @@ text ─► Lexer ─► Parser (pipeline or SQL syntax; recursive descent, allo
 
 Plans are cached by `(normalised text hash, catalog fingerprint, provider)`. The parser has no dependencies and is fuzzed (doc 10 §7).
 
+> **As built (WP-C.12, CR-21, CR-22, CR-23).**
+> - **One fallback rule.** On a store with a SQL engine, that engine runs every `events`, `stream` and `readmodel` query. A construct it can't express is refused with SFQ0410; it isn't run in the interpreter over the whole log. Only what no SQL engine can run (aggregate folds, `schema` rows: `BoundQuery.RequiresInterpreter`) goes to the interpreter. There it is time-boxed to the engine's `QueryTimeout` (`TimeoutException`, HTTP 504) and reads at most `QueryPolicySettings.MaxInterpretedRows` source rows (SFQ0407). PostgreSQL and SQL Server decide `CanExecute` the same way: `RequiresInterpreter`, then a compile probe. A store without an engine (in-memory) runs everything in the interpreter, bounded by `InterpreterTimeout`.
+> - **Deviation.** The plan also pushed tenant, type and time filters down to the interpreter's log read. Since a SQL store no longer interprets event queries, the log read stays as it is: only the in-memory store, which has no engine, reads it.
+> - **SQL Server text.** `LIKE` has `ESCAPE N'\'`, so `\%`, `\_` and `\\` mean what they mean in the interpreter and PostgreSQL, and `[` is escaped. Text `=`, `<>`, `IN`, join keys, `GROUP BY` and `DISTINCT` compare the byte length too, so T-SQL's trailing-space padding doesn't make `'a'` equal `'a '`. The order of two values that differ only in trailing spaces is still T-SQL's.
+> - **Least privilege.** PostgreSQL queries run on `QueryConnectionString` (default `ConnectionString`), in a read-only transaction with the statement timeout. `db script --query-role <role>` prints the SELECT-only grants. SQL Server queries always use `ApplicationIntent=ReadOnly`: a `QueryConnectionString` without it is refused, and without one the read-intent form of `ConnectionString` is used. `SqlServerSchemaMigrator.QueryGrantsScript` grants SELECT and denies writes. A snapshot transaction is not used: it needs `ALLOW_SNAPSHOT_ISOLATION`, a database setting the migrations don't change.
+
 ### 7.2 Indexes that queries can rely on
 
 | Index | Supports |
@@ -759,6 +765,7 @@ The `events` side is bounded by type and time (SFQ0401 satisfied). The join is a
 | SFQ0407 | Estimated plan cost above the configured ceiling |
 | SFQ0408 | Too many result groups |
 | SFQ0409 | `OFFSET`/`skip` not allowed here (event sources) or above the maximum |
+| SFQ0410 | The store's query engine can't express this event or read-model query (it isn't run in the interpreter instead) |
 | SFQ0501 | Permission denied (names the missing permission) |
 | SFQ0502 | Rate limit exceeded |
 | SFQ0503 | Concurrency limit exceeded |

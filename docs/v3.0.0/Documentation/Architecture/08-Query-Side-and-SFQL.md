@@ -114,8 +114,9 @@ Details worth knowing:
 - **Redaction.** Personal-data columns are replaced by `"[redacted]"` unless the caller holds `sourceflow.query.pii`.
   Fields of an erased subject read `[erased]` (crypto-shredding, see [10](10-Security-and-Multi-Tenancy.md)).
 - **Engine choice.** PostgreSQL and SQL Server compile `events`, `stream` and `readmodel` sources (with joins, grouping,
-  subqueries). Aggregate folds and `schema` rows always run in the interpreter. The SQL Server compiler sends a
-  construct it cannot express identically to the interpreter, which returns the same rows from the same store.
+  subqueries). Aggregate folds and `schema` rows always run in the interpreter, time-boxed to the engine's
+  `QueryTimeout` and capped at `MaxInterpretedRows` source rows. A construct a compiler can't express is refused with
+  SFQ0410 rather than run in the interpreter over the whole log.
 
 ## SFQL
 
@@ -542,7 +543,8 @@ services.AddSingleton(QueryPolicySettings.Default with
 - **`IQueryEngine` / `IQueryExplainer`.** A storage adapter registers an engine with
   `TryAddEnumerable(ServiceDescriptor.Singleton<IQueryEngine, …>)`. `CanExecute(BoundQuery)` decides per query;
   `ExecuteAsync(QueryExecution, ct)` returns rows with their sort keys, after the keyset, skipped and limited. Implement
-  `IQueryExplainer` to show your statement in `explain`. Anything your engine refuses runs in the interpreter.
+  `IQueryExplainer` to show your statement in `explain`. An event or read-model query your engine refuses fails with
+  SFQ0410; aggregate folds and schema rows run in the interpreter, time-boxed to your engine's `QueryTimeout`.
 - **`QueryPolicySettings`.** Register your own instance to change limits and cost-guard settings.
 - **`SourceFlowQueryApiOptions.Permissions` and `.Tenant`.** Map your identity provider's claims.
 - **`ISchemaStore`.** Where the schema catalog is registered (in memory and PostgreSQL are provided).
@@ -571,6 +573,7 @@ services.AddSingleton(QueryPolicySettings.Default with
 | SFQ0406 | Join of two unbounded `events` sources |
 | SFQ0408 | Too many result groups |
 | SFQ0409 | `OFFSET`/`skip` not allowed or too large |
+| SFQ0410 | The store's query engine can't express the query |
 | SFQ0501 | Permission denied (names the permission) |
 | SFQ0502 | Rate limit (HTTP API) |
 | SFQ0503 | Concurrency limit (HTTP API) |

@@ -82,6 +82,16 @@ public sealed record QueryPolicySettings
 
     /// <summary>The most result groups a grouped query may produce (default 10,000; SFQ0408).</summary>
     public int MaxGroups { get; init; } = 10_000;
+
+    /// <summary>
+    /// How long a query may run in the interpreter when the store has no query engine of its own (default 5 s, cap 30 s).
+    /// With a SQL engine, the interpreter is time-boxed to the engine's <see cref="IQueryEngine.QueryTimeout"/> instead
+    /// (doc 14 §7.3, CR-21).
+    /// </summary>
+    public TimeSpan InterpreterTimeout { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>The most source rows the interpreter reads for one query (default 100,000): SFQ0407 beyond it (CR-21).</summary>
+    public int MaxInterpretedRows { get; init; } = 100_000;
 }
 
 /// <summary>

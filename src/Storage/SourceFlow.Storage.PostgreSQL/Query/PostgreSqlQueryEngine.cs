@@ -21,16 +21,18 @@ internal sealed class PostgreSqlQueryEngine(PostgreSqlStore store) : IQueryEngin
         return (compiled.Sql, compiled.Parameters.Count);
     }
 
+    public TimeSpan? QueryTimeout => store.Options.QueryTimeout;
+
     public bool CanExecute(BoundQuery query)
     {
-        return PostgreSqlQueryCompiler.CanCompile(query);
+        return PostgreSqlQueryCompiler.CanCompile(query, store.Options.Schema);
     }
 
     public async IAsyncEnumerable<QueryResultRow> ExecuteAsync(QueryExecution execution, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         CompiledQuery compiled = PostgreSqlQueryCompiler.Compile(execution, store.Options.Schema);
         bool allTenants = execution.Query.Options.AllTenants;
-        NpgsqlDataSource source = allTenants ? store.SystemDataSource : store.DataSource;
+        NpgsqlDataSource source = allTenants ? store.SystemDataSource : store.QueryDataSource;
         await using NpgsqlConnection connection = await source.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using NpgsqlTransaction transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         await using (var setup = new NpgsqlBatch(connection, transaction))

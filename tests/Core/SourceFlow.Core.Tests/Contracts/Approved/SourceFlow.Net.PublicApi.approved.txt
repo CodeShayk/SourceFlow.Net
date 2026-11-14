@@ -1432,6 +1432,7 @@ namespace SourceFlow.Query
         public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.SortItem> OrderBy { get; }
         public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.BoundOutput> Outputs { get; }
         public System.Collections.Generic.IReadOnlyDictionary<string, SourceFlow.Query.QueryType> Parameters { get; }
+        public bool RequiresInterpreter { get; }
         public System.Collections.Generic.IReadOnlyList<SourceFlow.Query.BoundSource> Sources { get; }
         public SourceFlow.Query.BoundColumn Column(SourceFlow.Query.Expr column) { }
         public SourceFlow.Query.BoundQuery Subquery(SourceFlow.Query.QueryAst subquery) { }
@@ -1555,6 +1556,7 @@ namespace SourceFlow.Query
     }
     public interface IQueryEngine
     {
+        System.TimeSpan? QueryTimeout { get; }
         bool CanExecute(SourceFlow.Query.BoundQuery query);
         System.Collections.Generic.IAsyncEnumerable<SourceFlow.Query.QueryResultRow> ExecuteAsync(SourceFlow.Query.QueryExecution execution, System.Threading.CancellationToken cancellationToken);
     }
@@ -1707,6 +1709,7 @@ namespace SourceFlow.Query
         public const string ForbiddenCharacters = "SFQ0104";
         public const string JoinNotIndexed = "SFQ0405";
         public const string Limit = "SFQ0103";
+        public const string NotCompilable = "SFQ0410";
         public const string NotGrouped = "SFQ0206";
         public const string NotOwned = "SFQ0204";
         public const string NotQueryable = "SFQ0402";
@@ -1875,9 +1878,11 @@ namespace SourceFlow.Query
     {
         public QueryPolicySettings() { }
         public System.TimeSpan ConsistencyTimeout { get; init; }
+        public System.TimeSpan InterpreterTimeout { get; init; }
         public SourceFlow.Query.QueryLimits Limits { get; init; }
         public System.TimeSpan MaxConsistencyTimeout { get; init; }
         public int MaxGroups { get; init; }
+        public int MaxInterpretedRows { get; init; }
         public System.TimeSpan MaxTimeRange { get; init; }
         public static SourceFlow.Query.QueryPolicySettings Default { get; }
     }

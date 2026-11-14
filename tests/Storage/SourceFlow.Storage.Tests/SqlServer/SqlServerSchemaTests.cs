@@ -84,6 +84,20 @@ public sealed class SqlServerSchemaTests(SqlServerServer server) : SqlServerTest
     }
 
     [Fact]
+    [Trait("Id", "QRY-65")]
+    [Trait("Covers", "doc 14 7.1;Q-R3")]
+    public void TheQueryConnection_IsReadIntent_AndNeverTheWriteConnection()
+    {
+        // CR-23: a query connection without ApplicationIntent=ReadOnly is refused; without one, queries use the read-intent
+        // form of the write connection, never the write connection as it is.
+        Should.Throw<InvalidOperationException>(() => new SqlServerStore(new SqlServerStorageOptions { ConnectionString = "Server=x", QueryConnectionString = "Server=y" }))
+            .Message.ShouldContain("ApplicationIntent=ReadOnly");
+        var options = new SqlServerStorageOptions { ConnectionString = "Server=x;Database=d" };
+        new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(options.QueryConnection).ApplicationIntent.ShouldBe(Microsoft.Data.SqlClient.ApplicationIntent.ReadOnly);
+        new SqlServerSchemaMigrator(Server.ConnectionString, "sales").QueryGrantsScript("reader").ShouldContain("DENY INSERT, UPDATE, DELETE, EXECUTE, ALTER ON SCHEMA::[sales] TO [reader]");
+    }
+
+    [Fact]
     [Trait("Id", "UT-HC-10")]
     [Trait("Covers", "doc 08 3.2")]
     public async Task MonitorReadings_AndTheStoreHealthCheck()

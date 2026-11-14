@@ -304,6 +304,26 @@ public sealed class PostgreSqlSchemaMigrator
             """;
     }
 
+    /// <summary>
+    /// Grants for the SFQL query role (doc 14 §7.1, Q-R2, CR-23; <c>db script --query-role</c>): it can read the SourceFlow
+    /// tables and nothing else, so a query can never write, whatever its text. Use it as
+    /// <see cref="PostgreSqlStorageOptions.QueryConnectionString"/>; row-level security applies to it as to the runtime.
+    /// </summary>
+    /// <param name="role">The query role.</param>
+    public string QueryGrantsScript(string role)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(role);
+        string r = "\"" + role.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+        return $"""
+            -- SELECT-only grants for the SourceFlow query role {r} on {Quoted} (doc 14 §7.1). Re-run after migrations.
+            BEGIN;
+            GRANT USAGE ON SCHEMA {Quoted} TO {r};
+            GRANT SELECT ON ALL TABLES IN SCHEMA {Quoted} TO {r};
+            ALTER DEFAULT PRIVILEGES IN SCHEMA {Quoted} GRANT SELECT ON TABLES TO {r};
+            COMMIT;
+            """;
+    }
+
     // FORCE makes the policies apply to the table owner too; only superusers and BYPASSRLS roles skip them.
     private string? IsolationSql(IReadOnlyList<string> tables)
     {

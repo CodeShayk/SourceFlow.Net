@@ -221,6 +221,14 @@ public sealed class BoundQuery
     {
         return _subqueries[subquery];
     }
+
+    /// <summary>
+    /// True when the query, or one of its subqueries, reads a source only the interpreter can produce: an aggregate fold
+    /// or schema rows (doc 14 §7.1). Every other query runs in the store's SQL engine when it has one, or is refused
+    /// (<see cref="QueryCodes.NotCompilable"/>): the one fallback rule every provider shares (CR-21).
+    /// </summary>
+    public bool RequiresInterpreter => Sources.Any(s => s.Kind is not (SourceKind.Events or SourceKind.Stream or SourceKind.ReadModel))
+        || _subqueries.Values.Any(s => s.RequiresInterpreter);
 }
 
 /// <summary>The result of binding: the bound query, or the diagnostics that stopped it.</summary>

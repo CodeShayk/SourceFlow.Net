@@ -246,6 +246,12 @@ public interface IQueryEngine
     /// <summary>True when this engine can run <paramref name="query"/>.</summary>
     bool CanExecute(BoundQuery query);
 
+    /// <summary>
+    /// The engine's statement timeout. A query only the interpreter can run (an aggregate fold, schema rows) is time-boxed
+    /// to it too (doc 14 §7.3, CR-21). Null leaves <see cref="QueryPolicySettings.InterpreterTimeout"/>.
+    /// </summary>
+    TimeSpan? QueryTimeout => null;
+
     /// <summary>Runs the query: rows in sort order, after the keyset, skipped and limited.</summary>
     IAsyncEnumerable<QueryResultRow> ExecuteAsync(QueryExecution execution, CancellationToken cancellationToken);
 }
@@ -258,10 +264,30 @@ internal sealed class InterpreterQueryEngine(SourceFlowRuntime runtime) : IQuery
         return true;
     }
 
+    /// <summary>The time box of an interpreted query; the service sets it from the store's engine (CR-21).</summary>
+    public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(5);
+
     public async IAsyncEnumerable<QueryResultRow> ExecuteAsync(QueryExecution execution, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var interpreter = new Interpreter(execution.Query, new QueryEnvironment(runtime, execution.Tenant, execution.Now, execution.Settings.MaxGroups) { Collections = execution.Collections }, execution.Parameters);
-        List<InterpretedRow> rows = await interpreter.RunAsync(cancellationToken).ConfigureAwait(false);
+        var interpreter = new Interpreter(execution.Query, new QueryEnvironment(runtime, execution.Tenant, execution.Now, execution.Settings.MaxGroups)
+        {
+            Collections = execution.Collections,
+            MaxRows = execution.Settings.MaxInterpretedRows,
+        }, execution.Parameters);
+        List<InterpretedRow> rows;
+        using (var timeout = new CancellationTokenSource(Timeout))
+        using (var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token))
+        {
+            try
+            {
+                rows = await interpreter.RunAsync(linked.Token).ConfigureAwait(false);
+            }
+            catch (Exception e) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested && e is not QueryException)
+            {
+                throw new TimeoutException("The query exceeded its timeout.", e);
+            }
+        }
+
         object?[]? after = execution.After is null ? null : [.. execution.After];
         int skipped = 0;
         int returned = 0;
@@ -310,7 +336,11 @@ internal sealed class QueryService : IQueryService
         _runtime = runtime;
         _engines = [.. engines];
         _settings = settings ?? QueryPolicySettings.Default;
-        _interpreter = new InterpreterQueryEngine(runtime);
+        TimeSpan interpreterTimeout = _engines.Select(e => e.QueryTimeout).FirstOrDefault(t => t is not null) ?? _settings.InterpreterTimeout;
+        _interpreter = new InterpreterQueryEngine(runtime)
+        {
+            Timeout = interpreterTimeout <= TimeSpan.Zero || interpreterTimeout > TimeSpan.FromSeconds(30) ? TimeSpan.FromSeconds(30) : interpreterTimeout,
+        };
         _catalog = new Lazy<QueryCatalog>(() => QueryCatalog.Build(runtime.Model));
     }
 
@@ -340,7 +370,7 @@ internal sealed class QueryService : IQueryService
         int skip = cursor is null ? Count(probe, plan.Query.Ast.Offset) ?? 0 : 0;
 
         var execution = new QueryExecution(plan.Query, values, tenant, now, cursor?.Keys, skip, take + 1, _settings) { Collections = collections };
-        IQueryEngine engine = _engines.FirstOrDefault(e => e.CanExecute(plan.Query)) ?? _interpreter;
+        IQueryEngine engine = EngineFor(plan.Query);
         var rows = new List<QueryRow>();
         IReadOnlyList<object?>? lastKeys = null;
         bool more = false;
@@ -404,7 +434,7 @@ internal sealed class QueryService : IQueryService
         {
             Collections = await CollectionsAsync(plan.Query, cancellationToken).ConfigureAwait(false),
         };
-        IQueryEngine? engine = _engines.FirstOrDefault(e => e.CanExecute(plan.Query));
+        IQueryEngine engine = EngineFor(plan.Query);
         IReadOnlyList<QuerySourceConsistency> sources = [.. plan.Query.Sources.Select(s => new QuerySourceConsistency(SourceLabel(s), Level(s, plan.Query.Options.Consistency), false))];
         if (engine is IQueryExplainer explainer)
         {
@@ -413,6 +443,20 @@ internal sealed class QueryService : IQueryService
         }
 
         return new QueryPlan(plan.Columns, sources, "in-memory", null, values.Count, plan.Hash);
+    }
+
+    // doc 14 §7.1 (CR-21): a store's SQL engine runs every event and read-model query, and refuses one it can't express;
+    // the interpreter runs only what no SQL engine can (aggregate folds, schema rows), or everything on a store without one.
+    private IQueryEngine EngineFor(BoundQuery query)
+    {
+        if (_engines.Count == 0 || query.RequiresInterpreter)
+        {
+            return _interpreter;
+        }
+
+        return _engines.FirstOrDefault(e => e.CanExecute(query))
+            ?? throw new QueryException(QueryCodes.NotCompilable,
+                "This store's query engine can't express the query; rewrite it (for example without duration arithmetic or computed text over decimals). It doesn't fall back to scanning the log in memory.");
     }
 
     public EventQuery<TEvent> Events<TEvent>()

@@ -304,15 +304,61 @@ public sealed class SqlServerQueryTests(SqlServerServer server) : SqlServerTest(
     [Fact]
     [Trait("Id", "QRY-36")]
     [Trait("Covers", "doc 14 7.1")]
-    public async Task UnsupportedConstructs_FallBackToTheInterpreter_WithTheSameRows()
+    public async Task UnsupportedConstructs_AreRefused_NotRunInTheInterpreter()
     {
         QueryExplainer explain = new(_host.Services);
         const string compiled = "from readmodel \"account-summary\" | project holder";
         const string folded = "from readmodel \"account-summary\" | project tag = concat(holder, ':', balance) | order by tag";
 
         explain.Engine(compiled).ShouldBe("sqlserver");
-        explain.Engine(folded).ShouldBe("interpreter", "decimal text differs between engines: the interpreter runs it");
-        (await RowsAsync(Compiled, folded)).ShouldBe(await RowsAsync(Interpreted, folded));
+        explain.Engine(folded).ShouldBe("interpreter", "decimal text differs between engines: T-SQL can't run it");
+
+        // CR-21: the interpreter would read the whole collection with no statement timeout; SQL Server refuses instead.
+        QueryException refused = await Should.ThrowAsync<QueryException>(() => RowsAsync(Compiled, folded));
+        refused.Code.ShouldBe(QueryCodes.NotCompilable);
+        (await RowsAsync(Interpreted, folded)).ShouldNotBeEmpty("a store without an engine still runs it");
+    }
+
+    [Fact]
+    [Trait("Id", "QRY-63")]
+    [Trait("Covers", "ADR-023 4;doc 14 12")]
+    public async Task EscapedLikePatterns_AndTrailingSpaces_GiveTheSameRows()
+    {
+        // CR-22: T-SQL pads trailing spaces in comparisons and has no default LIKE escape; SFQL compares ordinally and
+        // escapes with a backslash, like the interpreter and PostgreSQL.
+        ICommandSender commands = _host.Services.GetRequiredService<ICommandSender>();
+        foreach (string holder in new[] { "Ada ", "a%b", "axb", "x[y]z", @"back\slash" })
+        {
+            (await commands.SendAsync(new OpenAccount(AccountId.New(), holder, 7m), null, Ct)).Status.ShouldBe(CommandStatus.Accepted);
+        }
+
+        (string Query, object? Parameter, string[] Expected)[] cases =
+        [
+            ("from readmodel \"account-summary\" | where holder = @p | project holder", "Ada", ["Ada"]),
+            ("from readmodel \"account-summary\" | where holder = @p | project holder", "Ada ", ["Ada "]),
+            ("from readmodel \"account-summary\" | where holder <> @p and holder like 'Ad%' | project holder", "Ada", ["Ada "]),
+            ("from readmodel \"account-summary\" | where holder in ('Ada', 'Zed') | project holder | order by holder", null, ["Ada", "Zed"]),
+            ("from readmodel \"account-summary\" | where holder not in ('Ada') and holder like 'Ad%' | project holder", null, ["Ada "]),
+            ("from readmodel \"account-summary\" | where holder like @p | project holder", @"a\%b", ["a%b"]),
+            ("from readmodel \"account-summary\" | where holder like @p | project holder | order by holder", "a%b", ["a%b", "axb"]),
+            ("from readmodel \"account-summary\" | where holder like @p | project holder", "x[y]%", ["x[y]z"]),
+            ("from readmodel \"account-summary\" | where holder like @p | project holder", @"back\\slash", [@"back\slash"]),
+            ("from readmodel \"account-summary\" | where holder like 'Ad%' | summarize n = count() by holder", null, ["Ada  | 1", "Ada | 1"]),
+        ];
+
+        foreach ((string query, object? parameter, string[] expected) in cases)
+        {
+            Dictionary<string, object?>? parameters = parameter is null ? null : new() { ["p"] = parameter };
+            // Ordered ordinally here: T-SQL sorts 'Ada' and 'Ada ' as equal, so their order is not part of the contract.
+            string[] compiled = [.. (await RowsAsync(Compiled, query, parameters)).Order(StringComparer.Ordinal)];
+            compiled.ShouldBe([.. (await RowsAsync(Interpreted, query, parameters)).Order(StringComparer.Ordinal)], $"{query} with {parameter}");
+            compiled.ShouldBe(expected, $"{query} with {parameter}");
+        }
+
+        var sql = new QueryOptions { Language = QueryLanguage.Sql };
+        const string distinct = "SELECT DISTINCT holder FROM readmodel.\"account-summary\" WHERE holder LIKE 'Ad%'";
+        (await RowsAsync(Compiled, distinct, options: sql)).Order(StringComparer.Ordinal).ShouldBe(["Ada", "Ada "]);
+        (await RowsAsync(Interpreted, distinct, options: sql)).Order(StringComparer.Ordinal).ShouldBe(["Ada", "Ada "]);
     }
 
     [Fact]

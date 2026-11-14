@@ -16,6 +16,8 @@ internal sealed class SqlServerQueryEngine(SqlServerStore store) : IQueryEngine,
 {
     public string EngineName => "sqlserver";
 
+    public TimeSpan? QueryTimeout => store.Options.QueryTimeout;
+
     public (string Statement, int ParameterCount) Explain(QueryExecution execution)
     {
         CompiledQuery compiled = SqlServerQueryCompiler.Compile(execution, store.Options.Schema);
@@ -30,7 +32,7 @@ internal sealed class SqlServerQueryEngine(SqlServerStore store) : IQueryEngine,
     public async IAsyncEnumerable<QueryResultRow> ExecuteAsync(QueryExecution execution, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         CompiledQuery compiled = SqlServerQueryCompiler.Compile(execution, store.Options.Schema);
-        await using var connection = new SqlConnection(store.Options.QueryConnectionString ?? store.Options.ConnectionString);
+        await using var connection = new SqlConnection(store.Options.QueryConnection);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(compiled.Sql, connection)
         {

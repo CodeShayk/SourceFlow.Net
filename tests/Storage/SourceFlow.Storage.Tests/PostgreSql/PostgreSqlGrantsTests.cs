@@ -12,7 +12,8 @@ namespace SourceFlow.Storage.Tests.PostgreSql;
 /// <summary>
 /// SEC-REV-01 (WP-5.5 security review, doc 10 §1 "events edited in the database"): with the grants from
 /// <c>db script --grants</c>, the runtime role runs the service but can't update, delete or truncate events, on a plain
-/// or a partitioned events table, including partitions the owner creates later.
+/// or a partitioned events table, including partitions the owner creates later. QRY-65 (WP-C.12, CR-23): with the grants from
+/// <c>db script --query-role</c>, SFQL queries run as a role that can only read.
 /// </summary>
 [Collection(PostgreSqlCollection.Name)]
 [Trait("Category", "EndToEnd")]
@@ -68,7 +69,45 @@ public sealed class PostgreSqlGrantsTests(PostgreSqlServer server) : PostgreSqlT
         (await ScalarAsync(runtime, $"SELECT count(*) FROM \"{schema}\".events WHERE event_type <> 'tampered'")).ShouldBe(2L);
     }
 
-    private async Task<IHost> StartAsync(string schema, string connectionString, bool partitioned)
+    [Fact]
+    [Trait("Id", "QRY-65")]
+    [Trait("Covers", "doc 14 7.1;Q-R2")]
+    public async Task QueryRole_ReadsThroughSfql_ButCantWrite()
+    {
+        string schema = PostgreSqlServer.NewSchema("qrole");
+        string suffix = Guid.CreateVersion7().ToString("N")[^12..];
+        string runtimeRole = "sf_rt_" + suffix;
+        string queryRole = "sf_q_" + suffix;
+        var migrator = new PostgreSqlSchemaMigrator(Server.DataSource, schema);
+        await migrator.MigrateAsync(Ct);
+        await Server.ExecuteAsync($"CREATE ROLE \"{runtimeRole}\" LOGIN PASSWORD '{runtimeRole}'");
+        await Server.ExecuteAsync($"CREATE ROLE \"{queryRole}\" LOGIN PASSWORD '{queryRole}'");
+
+        using var output = new StringWriter();
+        (await SourceFlowCli.RunAsync(["db", "script", "--schema", schema, "--query-role", queryRole], output: output, cancellationToken: Ct)).ShouldBe(0);
+        output.ToString().ShouldContain($"GRANT SELECT ON ALL TABLES IN SCHEMA \"{schema}\" TO \"{queryRole}\"");
+        await Server.ExecuteAsync(migrator.GrantsScript(runtimeRole));
+        await Server.ExecuteAsync(migrator.QueryGrantsScript(queryRole));
+
+        // The service writes as the runtime role and queries as the query role.
+        using IHost host = await StartAsync(schema, Server.ConnectionStringFor(runtimeRole), partitioned: false, Server.ConnectionStringFor(queryRole));
+        AccountId id = AccountId.New();
+        (await host.Services.GetRequiredService<ICommandSender>().SendAsync(new OpenAccount(id, "Ada", 10m), null, Ct)).Status.ShouldBe(CommandStatus.Accepted);
+        SourceFlow.Query.QueryPage page = await host.Services.GetRequiredService<SourceFlow.Query.IQueryService>()
+            .QueryPageAsync("from readmodel \"account-summary\" | project holder", cancellationToken: Ct);
+        page.Rows.Select(r => (string?)r[0]).ShouldBe(["Ada"]);
+        await host.StopAsync(Ct);
+
+        // The query role can read, and nothing else.
+        await using var query = NpgsqlDataSource.Create(Server.ConnectionStringFor(queryRole));
+        (await ScalarAsync(query, $"SELECT count(*) FROM \"{schema}\".events")).ShouldBe(1L);
+        await DeniedAsync(query, $"INSERT INTO \"{schema}\".documents (tenant_id, collection, id, version, data) VALUES ('-', 'x', 'y', 1, '{{}}')");
+        await DeniedAsync(query, $"UPDATE \"{schema}\".documents SET version = version + 1");
+        await DeniedAsync(query, $"DELETE FROM \"{schema}\".events");
+        await DeniedAsync(query, $"DELETE FROM \"{schema}\".outbox");
+    }
+
+    private async Task<IHost> StartAsync(string schema, string connectionString, bool partitioned, string? queryConnectionString = null)
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { EnvironmentName = Environments.Development, DisableDefaults = true });
         builder.Services.AddSourceFlow(sf =>
@@ -82,6 +121,7 @@ public sealed class PostgreSqlGrantsTests(PostgreSqlServer server) : PostgreSqlT
                 o.Schema = schema;
                 o.AutoMigrate = false;
                 o.PartitionEvents = partitioned;
+                o.QueryConnectionString = queryConnectionString;
             });
         });
         IHost host = builder.Build();

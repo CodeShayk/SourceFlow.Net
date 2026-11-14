@@ -95,17 +95,26 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
 
         var from = new Option<int>("--from") { Description = "Script migrations after this version.", DefaultValueFactory = _ => 0 };
         var grants = new Option<string?>("--grants") { Description = "Print least-privilege grants for this runtime role instead (events append-only, doc 10 §1); run as the owner after migrations." };
-        var script = new Command("script", "Print the migration SQL (for DBA review), or with --grants the runtime role's grants.");
+        var queryRole = new Option<string?>("--query-role") { Description = "Print SELECT-only grants for this SFQL query role instead (doc 14 §7.1); use it as QueryConnectionString." };
+        var script = new Command("script", "Print the migration SQL (for DBA review), or with --grants the runtime role's grants, or with --query-role the query role's.");
         script.Options.Add(_schema);
         script.Options.Add(rls);
         script.Options.Add(partitionEvents);
         script.Options.Add(from);
         script.Options.Add(grants);
+        script.Options.Add(queryRole);
         script.SetAction((r, _) => Guard(async () =>
         {
             var migrator = new PostgreSqlSchemaMigrator(Npgsql.NpgsqlDataSource.Create("Host=localhost"), r.GetValue(_schema)!,
                 r.GetValue(rls) ? TenantIsolation.RowLevelSecurity : TenantIsolation.Runtime, r.GetValue(partitionEvents));
-            await Out.WriteLineAsync(r.GetValue(grants) is { } role ? migrator.GrantsScript(role) : migrator.Script(r.GetValue(from)));
+            string text = (r.GetValue(grants), r.GetValue(queryRole)) switch
+            {
+                ({ } role, { } query) => migrator.GrantsScript(role) + "\n" + migrator.QueryGrantsScript(query),
+                ({ } role, null) => migrator.GrantsScript(role),
+                (null, { } query) => migrator.QueryGrantsScript(query),
+                _ => migrator.Script(r.GetValue(from)),
+            };
+            await Out.WriteLineAsync(text);
             return 0;
         }));
 

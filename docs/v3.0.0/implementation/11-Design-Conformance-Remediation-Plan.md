@@ -438,6 +438,16 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
   - QRY-63: the cross-provider equivalence suite extended with escaped `LIKE` patterns and trailing-space strings.
   - QRY-64: a fallback query times out at `QueryTimeout`.
   - QRY-65: the query role cannot write.
+- **As built:**
+  - Refusal (SFQ0410) applies to every provider with an engine, PostgreSQL included. `BoundQuery.RequiresInterpreter`
+    plus a compile probe is the shared `CanExecute` rule.
+  - The log-read push-down was dropped. A SQL store no longer interprets event queries, so only the in-memory store
+    reads the whole log.
+  - QRY-36 now expects SFQ0410 where it expected the fallback.
+  - SQL Server uses no snapshot transaction, because `ALLOW_SNAPSHOT_ISOLATION` is a database setting. The read-intent
+    connection and a SELECT-only user do the job: `SqlServerSchemaMigrator.QueryGrantsScript`, since the `db` CLI is
+    PostgreSQL-only.
+  - The ordering of text that differs only in trailing spaces still follows T-SQL.
 
 #### WP-C.13 Transport parity · 1 ew · lane B · findings CR-24, CR-41
 - **Design restored:** doc 07 §5 ("existing resources are never changed"; Validate checks encryption); ADR-017.

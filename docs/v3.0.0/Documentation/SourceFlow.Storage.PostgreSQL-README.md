@@ -107,6 +107,7 @@ All options are on `PostgreSqlStorageOptions` ([source](../../../src/Storage/Sou
 | `SystemConnectionString` | the main connection | The connection for cross-tenant readers (the global log). Must be a `BYPASSRLS` role, and is required with `RowLevelSecurity`. |
 | `SystemDataSource` | none | An existing data source for cross-tenant readers; takes precedence over `SystemConnectionString`. |
 | `QueryTimeout` | 5 s | The statement timeout for SFQL queries. Positive, at most 30 s. |
+| `QueryConnectionString` | `ConnectionString` | The connection for single-tenant SFQL queries: a role with only the SELECT grants from `dotnet sourceflow db script --query-role <role>`, or a read replica. Queries run in a read-only transaction either way. |
 | `PartitionEvents` | `false` | Partitions `events` by month of `created_at` (see [Partitioned events](#partitioned-events-and-archiving)). |
 | `PartitionMonthsAhead` | 3 | How many months after the current one the maintenance job keeps partitions for. 1 to 24. |
 | `PartitionMaintenanceInterval` | 1 hour | How often the maintenance job checks the partitions ahead. Must be positive. |

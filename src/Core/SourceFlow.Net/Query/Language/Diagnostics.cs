@@ -81,6 +81,12 @@ public static class QueryCodes
     /// <summary><c>OFFSET</c>/<c>skip</c> not allowed or too large.</summary>
     public const string Offset = "SFQ0409";
 
+    /// <summary>
+    /// The store's query engine can't express a construct of an event or read-model query (doc 14 §7.1, CR-21): it is
+    /// refused rather than run in the interpreter over the whole log.
+    /// </summary>
+    public const string NotCompilable = "SFQ0410";
+
     /// <summary>Permission denied.</summary>
     public const string PermissionDenied = "SFQ0501";
 

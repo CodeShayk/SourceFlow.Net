@@ -66,6 +66,23 @@ public sealed partial class SqlServerSchemaMigrator
 
     private string Quoted => "[" + _schema + "]";
 
+    /// <summary>
+    /// Grants for the SFQL query user (doc 14 §7.1, Q-R3, CR-23): it can read the SourceFlow schema and nothing else, so a
+    /// query can never write, whatever its text. Use it in <see cref="SqlServerStorageOptions.QueryConnectionString"/> with
+    /// <c>ApplicationIntent=ReadOnly</c>.
+    /// </summary>
+    /// <param name="user">The database user (or role) that runs queries.</param>
+    public string QueryGrantsScript(string user)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(user);
+        string u = "[" + user.Replace("]", "]]", StringComparison.Ordinal) + "]";
+        return $"""
+            -- SELECT-only grants for the SourceFlow query user {u} on {Quoted} (doc 14 §7.1).
+            GRANT SELECT ON SCHEMA::{Quoted} TO {u};
+            DENY INSERT, UPDATE, DELETE, EXECUTE, ALTER ON SCHEMA::{Quoted} TO {u};
+            """;
+    }
+
     /// <summary>Applies every pending script; returns the versions applied (empty when up to date).</summary>
     /// <exception cref="SqlServerSchemaException">An applied script was modified, or a script failed.</exception>
     public async Task<IReadOnlyList<int>> MigrateAsync(CancellationToken cancellationToken = default)

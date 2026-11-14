@@ -29,6 +29,7 @@ public sealed partial class PostgreSqlStore :
 {
     private readonly bool _ownsDataSource;
     private readonly bool _ownsSystemDataSource;
+    private readonly bool _ownsQueryDataSource;
 
     /// <summary>Creates the store over a data source. The schema must already be migrated (<see cref="PostgreSqlSchemaMigrator"/>).</summary>
     public PostgreSqlStore(PostgreSqlStorageOptions options, TimeProvider? time = null)
@@ -42,6 +43,8 @@ public sealed partial class PostgreSqlStore :
         _ownsSystemDataSource = options.SystemDataSource is null && options.SystemConnectionString is not null;
         SystemDataSource = options.SystemDataSource
             ?? (options.SystemConnectionString is { } system ? NpgsqlDataSource.Create(system) : DataSource);
+        _ownsQueryDataSource = options.QueryConnectionString is not null;
+        QueryDataSource = options.QueryConnectionString is { } query ? NpgsqlDataSource.Create(query) : DataSource;
         Sql = new SqlText(options.Schema);
         _notifications = new Notifier(this);
         _announcer = new Announcer(this);
@@ -49,6 +52,9 @@ public sealed partial class PostgreSqlStore :
 
     /// <summary>The data source.</summary>
     public NpgsqlDataSource DataSource { get; }
+
+    /// <summary>The data source for SFQL queries (<see cref="PostgreSqlStorageOptions.QueryConnectionString"/>, CR-23).</summary>
+    internal NpgsqlDataSource QueryDataSource { get; }
 
     /// <summary>The options.</summary>
     public PostgreSqlStorageOptions Options { get; }
@@ -771,6 +777,11 @@ public sealed partial class PostgreSqlStore :
     {
         await _announcer.DisposeAsync().ConfigureAwait(false);
         await _notifications.DisposeAsync().ConfigureAwait(false);
+        if (_ownsQueryDataSource)
+        {
+            await QueryDataSource.DisposeAsync().ConfigureAwait(false);
+        }
+
         if (_ownsSystemDataSource)
         {
             await SystemDataSource.DisposeAsync().ConfigureAwait(false);

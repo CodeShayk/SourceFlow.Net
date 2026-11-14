@@ -443,7 +443,10 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   engine and the new validator rule WF-V17), WP-C.11 (every rejection of an awaited or compensation command reaches the
   workflow and a late one is ignored; a new process manager or workflow version starts at the head of the log, and
   versions share instance claims; one `CorrelationPath` reads `start.correlate`, nested paths included; the specs run
-  through the process-manager runner, and `ProcessManagerSpec` is created with `For<TProcess, TId, TModule>()`).
+  through the process-manager runner, and `ProcessManagerSpec` is created with `For<TProcess, TId, TModule>()`),
+  WP-C.12 (a query the store's SQL engine can't express is refused with SFQ0410 instead of scanning the log in memory,
+  and interpreted queries are time-boxed and capped; SQL Server `LIKE` escapes and trailing spaces match the other
+  providers; queries run on a read-only connection and `db script --query-role` prints SELECT-only grants).
 
 ### Other notes
 

@@ -57,6 +57,14 @@ public sealed partial class PostgreSqlStorageOptions
     public TimeSpan QueryTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
+    /// The connection for SFQL queries of one tenant (doc 14 §7.1, Q-R2, CR-23): a role that can only read, for example
+    /// one granted by <c>dotnet sourceflow db script --query-role</c>, or a read replica. Defaults to
+    /// <see cref="ConnectionString"/>. Queries run in a read-only transaction with the statement timeout either way;
+    /// cross-tenant queries use <see cref="SystemConnectionString"/>.
+    /// </summary>
+    public string? QueryConnectionString { get; set; }
+
+    /// <summary>
     /// Partitions the events table by month of <c>created_at</c> (doc 05 §9; recommended from capacity tier M). The
     /// migrator converts an existing table once, keeping its rows; a maintenance job creates partitions ahead of time;
     /// old partitions that hold only archived or deleted streams can be detached with

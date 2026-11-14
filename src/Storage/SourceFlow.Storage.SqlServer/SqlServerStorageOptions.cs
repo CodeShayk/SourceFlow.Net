@@ -21,10 +21,16 @@ public sealed partial class SqlServerStorageOptions
     public TimeSpan QueryTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// A read-only connection string for SFQL queries (for example with <c>ApplicationIntent=ReadOnly</c> to an
-    /// availability-group secondary, doc 14 §10). Defaults to <see cref="ConnectionString"/>.
+    /// The connection for SFQL queries (doc 14 §7.1, §10, Q-R3, CR-23): it must set <c>ApplicationIntent=ReadOnly</c>, so
+    /// an availability group routes it to a readable secondary, and should log in as a user that can only read
+    /// (<see cref="SqlServerSchemaMigrator.QueryGrantsScript"/>). Defaults to <see cref="ConnectionString"/> with
+    /// <c>ApplicationIntent=ReadOnly</c>: queries never use the write connection as it is.
     /// </summary>
     public string? QueryConnectionString { get; set; }
+
+    /// <summary>The connection string queries use: <see cref="QueryConnectionString"/>, or the read-intent form of <see cref="ConnectionString"/>.</summary>
+    internal string QueryConnection => QueryConnectionString
+        ?? new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(ConnectionString) { ApplicationIntent = Microsoft.Data.SqlClient.ApplicationIntent.ReadOnly }.ConnectionString;
 
     internal void Validate()
     {
@@ -41,6 +47,12 @@ public sealed partial class SqlServerStorageOptions
         if (QueryTimeout <= TimeSpan.Zero || QueryTimeout > TimeSpan.FromSeconds(30))
         {
             throw new InvalidOperationException("QueryTimeout must be positive and at most 30 seconds.");
+        }
+
+        if (QueryConnectionString is { } query
+            && new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(query).ApplicationIntent != Microsoft.Data.SqlClient.ApplicationIntent.ReadOnly)
+        {
+            throw new InvalidOperationException("QueryConnectionString must set ApplicationIntent=ReadOnly: SFQL queries run on a read-only connection (doc 14 §7.1).");
         }
     }
 

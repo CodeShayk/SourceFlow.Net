@@ -39,6 +39,9 @@ internal sealed record QueryEnvironment(SourceFlowRuntime Runtime, string Tenant
     /// <summary>The serving collection of each read model by name (blue/green aliases, doc 06 §6).</summary>
     public IReadOnlyDictionary<string, string>? Collections { get; init; }
 
+    /// <summary>The most source rows one query may read (CR-21).</summary>
+    public int MaxRows { get; init; } = int.MaxValue;
+
     public string CollectionOf(QueryReadModel readModel)
     {
         return Collections is not null && Collections.TryGetValue(readModel.Name, out string? collection) ? collection : readModel.Collection;
@@ -233,6 +236,7 @@ internal sealed class Interpreter(BoundQuery query, QueryEnvironment environment
                             && (version is null || e.TypeVersion == version))
                         {
                             rows.Add(new EventRow(e));
+                            Bound(rows.Count);
                         }
                     }
 
@@ -251,7 +255,8 @@ internal sealed class Interpreter(BoundQuery query, QueryEnvironment environment
 
             case SourceKind.ReadModel:
             {
-                IReadOnlyList<StoredDocument> documents = await storage.Documents.ListAsync(environment.Tenant, environment.CollectionOf(source.ReadModel!), int.MaxValue, cancellationToken).ConfigureAwait(false);
+                IReadOnlyList<StoredDocument> documents = await storage.Documents.ListAsync(environment.Tenant, environment.CollectionOf(source.ReadModel!), environment.MaxRows == int.MaxValue ? int.MaxValue : environment.MaxRows + 1, cancellationToken).ConfigureAwait(false);
+                Bound(documents.Count);
                 return [.. documents.Select(d => (SourceRow)new DocumentRow(d, JsonDocument.Parse(d.Data).RootElement.Clone()))];
             }
 
@@ -259,6 +264,15 @@ internal sealed class Interpreter(BoundQuery query, QueryEnvironment environment
                 return [await FoldAggregateAsync(source, cancellationToken).ConfigureAwait(false)];
             default:
                 return SchemaRows(source);
+        }
+    }
+
+    // CR-21: the interpreter holds its rows in memory, so it reads at most MaxRows of them.
+    private void Bound(int rows)
+    {
+        if (rows > environment.MaxRows)
+        {
+            throw new QueryException(QueryCodes.CostCeiling, $"The query reads more than {environment.MaxRows} rows in the interpreter; narrow it.");
         }
     }
 

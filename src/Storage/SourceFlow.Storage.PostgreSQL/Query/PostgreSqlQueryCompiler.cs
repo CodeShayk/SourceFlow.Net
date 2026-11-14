@@ -40,11 +40,28 @@ internal sealed class PostgreSqlQueryCompiler
         _schema = schema;
     }
 
-    /// <summary>True when every source can be compiled (aggregate folds and schema rows run in the interpreter).</summary>
-    public static bool CanCompile(BoundQuery query)
+    /// <summary>
+    /// True when the query compiles. Aggregate folds and schema rows run in the interpreter
+    /// (<see cref="BoundQuery.RequiresInterpreter"/>, the rule every provider shares); an event or read-model query that
+    /// doesn't compile is refused with SFQ0410 (CR-21).
+    /// </summary>
+    public static bool CanCompile(BoundQuery query, string schema)
     {
-        return query.Sources.All(s => s.Kind is SourceKind.Events or SourceKind.Stream or SourceKind.ReadModel)
-            && Subqueries(query).All(CanCompile);
+        if (query.RequiresInterpreter)
+        {
+            return false;
+        }
+
+        try
+        {
+            var probe = new QueryExecution(query, new Dictionary<string, object?>(), "-", DateTimeOffset.UnixEpoch, null, 0, 1, QueryPolicySettings.Default);
+            Compile(probe, schema);
+            return true;
+        }
+        catch (QueryException e) when (e.Code == QueryCodes.Unsupported)
+        {
+            return false;
+        }
     }
 
     public static CompiledQuery Compile(QueryExecution execution, string schema)
@@ -816,37 +833,6 @@ internal sealed class PostgreSqlQueryCompiler
     private static bool IsText(QueryType type)
     {
         return type is QueryType.String or QueryType.Uuid;
-    }
-
-    private static IEnumerable<BoundQuery> Subqueries(BoundQuery query)
-    {
-        var found = new List<BoundQuery>();
-        void Walk(Expr? e)
-        {
-            switch (e)
-            {
-                case null:
-                    return;
-                case InSubqueryExpr s:
-                    found.Add(query.Subquery(s.Subquery));
-                    Walk(s.Value);
-                    return;
-                case ExistsSubqueryExpr s:
-                    found.Add(query.Subquery(s.Subquery));
-                    return;
-                case UnaryExpr u:
-                    Walk(u.Operand);
-                    return;
-                case BinaryExpr b:
-                    Walk(b.Left);
-                    Walk(b.Right);
-                    return;
-            }
-        }
-
-        Walk(query.Ast.Where);
-        Walk(query.Ast.Having);
-        return found;
     }
 
     private static QueryException Unsupported(string what)

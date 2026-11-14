@@ -26,8 +26,8 @@ internal sealed record CompiledQuery(string Sql, IReadOnlyList<SqlParameter> Par
 /// separately, T-SQL has no boolean scalar), ordinal text (every text value is <c>COLLATE Latin1_General_100_BIN2</c>, so
 /// equality, <c>LIKE</c>, grouping and ordering are case- and accent-sensitive), nulls last ascending and first descending,
 /// decimal division with <c>NULLIF</c> for zero divisors (six decimal places, SQL Server's decimal rules). A construct
-/// SQL Server cannot express the same way is <see cref="QueryCodes.Unsupported"/>: <see cref="CanCompile"/> then sends the
-/// query to the interpreter, which gives the same rows over the same store.
+/// SQL Server cannot express the same way is <see cref="QueryCodes.Unsupported"/>: <see cref="CanCompile"/> is then false,
+/// and the query is refused with SFQ0410 rather than run in the interpreter over the whole log (CR-21).
 /// </remarks>
 internal sealed class SqlServerQueryCompiler
 {
@@ -47,10 +47,14 @@ internal sealed class SqlServerQueryCompiler
         _schema = "[" + schema + "]";
     }
 
-    /// <summary>True when the query compiles (aggregate folds, schema rows and unsupported constructs run in the interpreter).</summary>
+    /// <summary>
+    /// True when the query compiles. Aggregate folds and schema rows run in the interpreter
+    /// (<see cref="BoundQuery.RequiresInterpreter"/>, the rule every provider shares); an event or read-model query that
+    /// doesn't compile is refused with SFQ0410 (CR-21).
+    /// </summary>
     public static bool CanCompile(BoundQuery query, string schema)
     {
-        if (!query.Sources.All(s => s.Kind is SourceKind.Events or SourceKind.Stream or SourceKind.ReadModel))
+        if (query.RequiresInterpreter)
         {
             return false;
         }
@@ -104,6 +108,18 @@ internal sealed class SqlServerQueryCompiler
         }
 
         sql.AppendJoin(", ", select);
+        if (query.Ast.Distinct)
+        {
+            // CR-22: DISTINCT compares text with trailing-space padding; the lengths keep 'a' and 'a ' apart.
+            for (int i = 0; i < query.Outputs.Count; i++)
+            {
+                if (query.Outputs[i].Type == QueryType.String)
+                {
+                    sql.Append(", DATALENGTH(").Append(Value(query.Outputs[i].Expression, scope)).Append(") AS o").Append(i.ToString(CultureInfo.InvariantCulture)).Append("_len");
+                }
+            }
+        }
+
         AppendFromWhere(sql, scope);
         if (query.Ast.GroupBy.Count > 0)
         {
@@ -111,7 +127,8 @@ internal sealed class SqlServerQueryCompiler
             sql.Append(" GROUP BY ").AppendJoin(", ", query.Ast.GroupBy.Select(g =>
             {
                 BoundOutput? output = query.Outputs.FirstOrDefault(o => o.Type != QueryType.Position && (ReferenceEquals(o.Expression, g) || o.Expression.ToString() == g.ToString()));
-                return Value(output?.Expression ?? g, scope);
+                string key = Value(output?.Expression ?? g, scope);
+                return TypeOf(g, scope) == QueryType.String ? $"{key}, DATALENGTH({key})" : key;   // CR-22
             }));
         }
 
@@ -188,7 +205,11 @@ internal sealed class SqlServerQueryCompiler
             var on = new List<string>();
             foreach (JoinEquality equality in join.On)
             {
-                on.Add($"({Value(equality.Left, scope)}) = ({Value(equality.Right, scope)})");
+                string left = Value(equality.Left, scope);
+                string right = Value(equality.Right, scope);
+                on.Add(TypeOf(equality.Left, scope) == QueryType.String && TypeOf(equality.Right, scope) == QueryType.String
+                    ? TextEquality(left, right, negated: false)
+                    : $"({left}) = ({right})");
             }
 
             on.AddRange(SourceFilters(source, alias, scope));
@@ -325,7 +346,7 @@ internal sealed class SqlServerQueryCompiler
             BinaryExpr { Operator: BinaryOperator.Or } b => $"({Condition(b.Left, scope)}) OR ({Condition(b.Right, scope)})",
             BinaryExpr { Operator: BinaryOperator.Xor } b => $"({Value(b.Left, scope)}) <> ({Value(b.Right, scope)})",
             BinaryExpr { Operator: BinaryOperator.Equal or BinaryOperator.NotEqual or BinaryOperator.Less or BinaryOperator.LessOrEqual or BinaryOperator.Greater or BinaryOperator.GreaterOrEqual } b => Comparison(b, scope),
-            LikeExpr like => $"({Value(like.Value, scope)}) {(like.Negated ? "NOT LIKE" : "LIKE")} ({Pattern(like.Pattern, scope)})",
+            LikeExpr like => $"({Value(like.Value, scope)}) {(like.Negated ? "NOT LIKE" : "LIKE")} ({Pattern(like.Pattern, scope)}) ESCAPE N'\\'",
             InListExpr list => InList(list, scope),
             InSubqueryExpr subquery => $"({Value(subquery.Value, scope)}) {(subquery.Negated ? "NOT IN" : "IN")} ({Subquery(subquery.Subquery, scope, exists: false)})",
             ExistsSubqueryExpr exists => $"{(exists.Negated ? "NOT EXISTS" : "EXISTS")} ({Subquery(exists.Subquery, scope, exists: true)})",
@@ -460,13 +481,38 @@ internal sealed class SqlServerQueryCompiler
             throw Unsupported("duration comparisons");
         }
 
-        return $"({Operand(binary.Left, type, scope)}) {op} ({Operand(binary.Right, type, scope)})";
+        string left = Operand(binary.Left, type, scope);
+        string right = Operand(binary.Right, type, scope);
+        if (type == QueryType.String && op is "=" or "<>")
+        {
+            return TextEquality(left, right, op == "<>");
+        }
+
+        return $"({left}) {op} ({right})";
+    }
+
+    // Text equality without T-SQL's trailing-space padding ('a' = 'a ' is true in T-SQL): the plain comparison keeps the
+    // index, and the byte lengths must match too (CR-22, doc 14 §12).
+    private static string TextEquality(string left, string right, bool negated)
+    {
+        return negated
+            ? $"(({left}) <> ({right}) OR DATALENGTH({left}) <> DATALENGTH({right}))"
+            : $"(({left}) = ({right}) AND DATALENGTH({left}) = DATALENGTH({right}))";
     }
 
     private string InList(InListExpr list, Scope scope)
     {
         QueryType type = TypeOf(list.Value, scope);
-        return $"({Value(list.Value, scope)}) {(list.Negated ? "NOT IN" : "IN")} ({string.Join(", ", list.Items.Select(i => Operand(i, type, scope)))})";
+        string value = Value(list.Value, scope);
+        string[] items = [.. list.Items.Select(i => Operand(i, type, scope))];
+        if (type == QueryType.String)
+        {
+            // CR-22: the plain IN keeps the index; the sentinel suffix defeats trailing-space padding.
+            string padded = $"(({value}) IN ({string.Join(", ", items)}) AND (({value}) + N'|') IN ({string.Join(", ", items.Select(i => $"(({i}) + N'|')"))}))";
+            return list.Negated ? $"NOT {padded}" : padded;
+        }
+
+        return $"({value}) {(list.Negated ? "NOT IN" : "IN")} ({string.Join(", ", items)})";
     }
 
     private string Between(BetweenExpr between, Scope scope)
@@ -475,18 +521,49 @@ internal sealed class SqlServerQueryCompiler
         return $"({Value(between.Value, scope)}) {(between.Negated ? "NOT BETWEEN" : "BETWEEN")} ({Operand(between.Low, type, scope)}) AND ({Operand(between.High, type, scope)})";
     }
 
-    // LIKE in T-SQL also treats [ ] as wildcards: a bracket in the pattern is escaped as [[].
+    // LIKE with ESCAPE '\' (CR-22): '\x' matches x, as in the interpreter and PostgreSQL. T-SQL also treats '[' as the
+    // start of a character set, so a bracket is escaped too; a trailing lone '\' is a literal backslash.
     private string Pattern(Expr pattern, Scope scope)
     {
         if (pattern is LiteralExpr or ParameterExpr)
         {
             object? value = Supplied(pattern);
             return value is string text
-                ? Parameter(text.Replace("[", "[[]", StringComparison.Ordinal), SqlDbType.NVarChar) + Bin2
+                ? Parameter(LikePattern(text), SqlDbType.NVarChar) + Bin2
                 : Value(pattern, QueryType.String, scope);
         }
 
-        return $"REPLACE({Value(pattern, scope)}, N'[', N'[[]')";
+        return $"REPLACE({Value(pattern, scope)}, N'[', N'\\[')";
+    }
+
+    internal static string LikePattern(string pattern)
+    {
+        var text = new StringBuilder(pattern.Length + 8);
+        for (int i = 0; i < pattern.Length; i++)
+        {
+            char c = pattern[i];
+            if (c == '\\')
+            {
+                if (i + 1 < pattern.Length)
+                {
+                    text.Append('\\').Append(pattern[++i]);
+                }
+                else
+                {
+                    text.Append(@"\\");
+                }
+            }
+            else if (c == '[')
+            {
+                text.Append(@"\[");
+            }
+            else
+            {
+                text.Append(c);
+            }
+        }
+
+        return text.ToString();
     }
 
     // A value in the context of another operand's type (a string literal compared with a timestamp becomes a timestamp).
