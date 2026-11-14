@@ -281,6 +281,19 @@ public sealed partial class PostgreSqlStore :
         return (int)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
     }
 
+    /// <inheritdoc />
+    public async ValueTask<bool> InitializeAsync(string subscription, int partitions, GlobalPosition position, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(partitions, 1);
+        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(Sql.InitializeCheckpoints, connection);
+        command.Parameters.Add(new NpgsqlParameter<string>("sub", subscription));
+        command.Parameters.Add(new NpgsqlParameter<int>("partitions", partitions));
+        command.Parameters.Add(Xid("tx", position.Commit));
+        command.Parameters.Add(new NpgsqlParameter<long>("seq", checked((long)Math.Min(position.Sequence, long.MaxValue))));
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) > 0;
+    }
+
     // ------------------------------------------------------------------ ILeaseManager
 
     /// <inheritdoc />

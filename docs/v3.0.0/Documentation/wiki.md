@@ -1674,7 +1674,7 @@ as `MoneyTransfer` does with `Stage`.
 
 ```csharp
 var transfer = TransferId.Parse("0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d");
-new ProcessManagerSpec<MoneyTransfer, TransferId>(transfer)
+ProcessManagerSpec.For<MoneyTransfer, TransferId, TransfersModule>().WithModule<AccountsModule>()
     .Given(new TransferRequested(transfer, from, to, 5m), new MoneyWithdrawn(from, 5m, 5m))
     .WhenTimeAdvances(MoneyTransfer.Timeout)
     .When(new TransferTimedOut(transfer))
@@ -2830,7 +2830,7 @@ assert. A failure throws `SpecificationException` with a readable message.
 
 ```csharp
 var transfer = TransferId.Parse("0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d");
-var spec = new ProcessManagerSpec<MoneyTransfer, TransferId>(transfer);
+var spec = ProcessManagerSpec.For<MoneyTransfer, TransferId, TransfersModule>().WithModule<AccountsModule>();
 
 spec.When(new TransferRequested(transfer, Account, Other, 5m))
     .ThenSends(new Withdraw(Account, 5m))

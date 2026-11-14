@@ -193,7 +193,7 @@ public sealed partial class WorkflowGeneratorTests
         SyntaxTree[] engine = [.. run.Result.GeneratedTrees.Where(t => Path.GetFileName(t.FilePath).StartsWith("SourceFlow.Workflows.Engine.", StringComparison.Ordinal))];
         engine.Select(t => Path.GetFileName(t.FilePath)).Order(StringComparer.Ordinal).ShouldBe(
         [
-            "SourceFlow.Workflows.Engine.Guard.g.cs", "SourceFlow.Workflows.Engine.IsoDuration.g.cs", "SourceFlow.Workflows.Engine.JsonLite.g.cs",
+            "SourceFlow.Workflows.Engine.CorrelationPath.g.cs", "SourceFlow.Workflows.Engine.Guard.g.cs", "SourceFlow.Workflows.Engine.IsoDuration.g.cs", "SourceFlow.Workflows.Engine.JsonLite.g.cs",
             "SourceFlow.Workflows.Engine.SimulationStateJson.g.cs", "SourceFlow.Workflows.Engine.WorkflowBridge.g.cs", "SourceFlow.Workflows.Engine.WorkflowIds.g.cs",
             "SourceFlow.Workflows.Engine.WorkflowJson.g.cs", "SourceFlow.Workflows.Engine.WorkflowModel.g.cs", "SourceFlow.Workflows.Engine.WorkflowSimulator.g.cs",
         ]);
@@ -245,6 +245,40 @@ public sealed partial class WorkflowGeneratorTests
         Run(properties: new Dictionary<string, string>(Properties) { ["build_property.SourceFlowServiceName"] = "orders" })
             .Source("Orders.OrdersModule.Workflows.g.cs").ShouldContain("\"orders.workflow-instances\"");
         GeneratorHarness.RunWithFiles([Domain], []).Result.GeneratedTrees.ShouldNotContain(t => t.FilePath.EndsWith("Workflows.g.cs", StringComparison.Ordinal), "no workflows: no query");
+    }
+
+    [Fact]
+    [Trait("Id", "GEN-80")]
+    [Trait("Covers", "doc 15 5.4")]
+    public void NestedCorrelatePath_ReadsThroughTheStartMessagesMembers()
+    {
+        const string nestedDomain = """
+
+            namespace Orders
+            {
+                public sealed record Customer(OrderId OrderId, string Email);
+                [MessageType("orders.customer-ordered", 1)] public sealed record CustomerOrdered(Customer Customer, decimal Total) : IEvent;
+            }
+            """;
+        string workflow = Workflow
+            .Replace("start: { on: orders.order-placed.v1, correlate: data.orderId }", "start: { on: orders.customer-ordered.v1, correlate: data.customer.orderId }", StringComparison.Ordinal)
+            .Replace("orderId: { from: start.data.orderId }", "orderId: { from: start.data.customer.orderId }", StringComparison.Ordinal);
+
+        GeneratorRun run = Run(workflow, Sources.Usings + nestedDomain + Hooks);
+
+        run.GeneratorDiagnostics.ShouldBeEmpty(string.Join("\n", run.GeneratorDiagnostics));
+        string source = run.Source("ApproveOrderWorkflowV1.Workflow.g.cs");
+        source.ShouldContain("case global::Orders.CustomerOrdered m: id = global::SourceFlow.Workflows.WorkflowInstanceId.From(global::SourceFlow.Workflows.WorkflowRuntime.CorrelationValue(m.Customer?.OrderId)); return !id.IsDefault;");
+        source.ShouldContain("case global::Orders.OrderApproved m: id = global::SourceFlow.Workflows.WorkflowInstanceId.From(global::SourceFlow.Workflows.WorkflowRuntime.CorrelationValue(m.OrderId)); return !id.IsDefault;",
+            Case.Sensitive, "an awaited event that isn't a reply carries the instance key, the last segment");
+        run.CompilationErrors().ShouldBeEmpty();
+
+        AttributeData attribute = run.Output.Assembly.GetAttributes().Single(a => a.AttributeClass?.Name == "SourceFlowManifestAttribute");
+        JsonNode ordered = JsonNode.Parse((string)attribute.ConstructorArguments[0].Value!)!["messages"]!.AsArray().Single(m => (string?)m!["type"] == "orders.customer-ordered")!;
+        ordered["fields"]![0]!["fields"]!.AsArray().Select(f => (string?)f!["name"]).ShouldBe(["orderId", "email"], "the manifest describes the nested members");
+
+        GeneratorRun missing = Run(workflow.Replace("correlate: data.customer.orderId", "correlate: data.customer.nope", StringComparison.Ordinal), Sources.Usings + nestedDomain + Hooks);
+        missing.GeneratorDiagnostics.ShouldContain(d => d.Id == "SF0020" && d.GetMessage(System.Globalization.CultureInfo.InvariantCulture).Contains("'customer.nope'", StringComparison.Ordinal));
     }
 
     [GeneratedRegex(@"(?m)^\s*public (?:(?:static|sealed|abstract|readonly|partial)\s+)*(?:class|record|struct|enum|interface)\b")]

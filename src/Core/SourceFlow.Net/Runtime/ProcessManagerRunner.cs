@@ -25,9 +25,17 @@ internal sealed class ProcessManagerRunner(SourceFlowRuntime runtime)
 
     // A workflow version starts an instance only when it is the latest registered version and no other version has
     // that instance already (a newly deployed version's subscription also sees the start events of earlier instances).
+    // Starting claims the instance under a key shared by every version (CR-34): a v1 node and a v2 node that both see the
+    // start event race on that one row, so only one of them starts it; the other retries and finds the claim.
     private async ValueTask<bool> MayStartAsync(IStorageSession session, ProcessManagerDescriptor process, string instanceId, CancellationToken cancellationToken)
     {
         if (_superseded.Contains(process.Name))
+        {
+            return false;
+        }
+
+        if (ClaimOf(process) is { } claim
+            && await session.LoadProcessStateAsync(claim, instanceId, cancellationToken).ConfigureAwait(false) is not null)
         {
             return false;
         }
@@ -69,9 +77,18 @@ internal sealed class ProcessManagerRunner(SourceFlowRuntime runtime)
     /// <summary>Applies one message; returns false when the message does not correlate to an instance.</summary>
     public async ValueTask<bool> ReactAsync(IStorageSession session, ProcessManagerDescriptor process, IMessage message, MessageEnvelope envelope, CancellationToken cancellationToken)
     {
+        return (await ReactCoreAsync(session, process, message, envelope, cancellationToken).ConfigureAwait(false)).Correlated;
+    }
+
+    /// <summary>
+    /// Applies one message and says what happened: whether it correlated, to which instance, and the reaction applied
+    /// (null when the instance ignored it, is completed, or may not start). The specs run this path (doc 11 §2, CR-44).
+    /// </summary>
+    internal async ValueTask<ReactOutcome> ReactCoreAsync(IStorageSession session, ProcessManagerDescriptor process, IMessage message, MessageEnvelope envelope, CancellationToken cancellationToken)
+    {
         if (!process.TryCorrelate(message, envelope.CorrelationId, out string? instanceId))
         {
-            return false;
+            return new ReactOutcome(false, null, null);
         }
 
         using Activity? activity = SourceFlowTelemetry.ActivitySource.StartActivity("react " + process.Name, ActivityKind.Internal);
@@ -80,14 +97,14 @@ internal sealed class ProcessManagerRunner(SourceFlowRuntime runtime)
         ProcessState? stored = await session.LoadProcessStateAsync(process.Name, instanceId, cancellationToken).ConfigureAwait(false);
         if (stored is { Completed: true } || (stored is null && process.IsWorkflow && !await MayStartAsync(session, process, instanceId, cancellationToken).ConfigureAwait(false)))
         {
-            return true;
+            return new ReactOutcome(true, instanceId, null);
         }
 
         object state = stored is null ? process.Initial : JsonSerializer.Deserialize(stored.State.Span, typeInfo)!;
         Reaction reaction = process.React(state, message, instanceId, runtime.Time.GetUtcNow(), envelope.MessageId, isNew: stored is null, runtime.Model.Registry.Options, envelope.CausationId);
         if (reaction.IsIgnored)
         {
-            return true;
+            return new ReactOutcome(true, instanceId, null);
         }
 
         var correlation = new CorrelationId(instanceId);
@@ -99,6 +116,11 @@ internal sealed class ProcessManagerRunner(SourceFlowRuntime runtime)
 
         long version = stored?.Version ?? 0;
         session.SaveProcessState(process.Name, instanceId, version, JsonSerializer.SerializeToUtf8Bytes(next, typeInfo), reaction.Completes);
+        if (stored is null && ClaimOf(process) is { } claim)
+        {
+            // A new instance: claimed for every version of the workflow, in the same transaction (expected version 0).
+            session.SaveProcessState(claim, instanceId, 0, System.Text.Encoding.UTF8.GetBytes("{\"process\":\"" + process.Name + "\"}"), completed: true);
+        }
         for (int i = 0; i < reaction.Commands.Count; i++)
         {
             runtime.EnqueueCommand(session, reaction.Commands[i], envelope, correlation, replyOnReject: true, messageId: reaction.CommandIds[i]);
@@ -115,7 +137,16 @@ internal sealed class ProcessManagerRunner(SourceFlowRuntime runtime)
         }
 
         activity?.SetTag("sourceflow.process.completed", reaction.Completes);
-        return true;
+        return new ReactOutcome(true, instanceId, reaction);
+    }
+
+    /// <summary>The process type under which every version of a workflow claims its instances (CR-34).</summary>
+    internal const string ClaimPrefix = "workflow-claim:";
+
+    // The shared claim key of a DSL workflow version, or null for other process managers.
+    private static string? ClaimOf(ProcessManagerDescriptor process)
+    {
+        return process.IsWorkflow && WorkflowRuntime.TryParseProcessName(process.Name, out string? name, out _) ? ClaimPrefix + name : null;
     }
 
     private static HashSet<string> Superseded(IEnumerable<ProcessManagerDescriptor> processes)
@@ -184,3 +215,6 @@ internal sealed class ProcessManagerRunner(SourceFlowRuntime runtime)
         });
     }
 }
+
+/// <summary>What one process-manager reaction did: correlated or not, the instance, and the applied reaction (or null).</summary>
+internal readonly record struct ReactOutcome(bool Correlated, string? InstanceId, Reaction? Reaction);

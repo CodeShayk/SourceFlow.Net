@@ -101,7 +101,7 @@ namespace SourceFlow.Studio.Dsl.Specs
         {
             ManifestMessage? startMessage = environment.Message(workflow.Start.On);
             var samples = new Samples(workflow);
-            Dictionary<string, object?> startData = samples.Message(startMessage, correlationValue: null);
+            Dictionary<string, object?> startData = samples.Start(startMessage);
             bool solved = SolveGuards(workflow, path, startData, startMessage);
 
             var options = new SimulationOptions { Guard = step => step == SimulationOptions.StartGuard || step.StartsWith(SimulationOptions.SuccessGuard, StringComparison.Ordinal) ? true : solved ? (bool?)null : path.Guards.TryGetValue(step, out bool run) ? run : (bool?)null };
@@ -388,16 +388,48 @@ namespace SourceFlow.Studio.Dsl.Specs
             }
         }
 
-        // Deterministic sample values by field type; the correlation key carries the instance id.
+        // Deterministic sample values by field type. The start message carries the instance id at the correlate path
+        // (nested objects included); other messages carry it under the instance key (CR-35).
         private sealed class Samples
         {
+            private readonly string _path;
             private readonly string _correlationField;
             private int _counter;
 
             public Samples(WorkflowDefinition workflow)
             {
-                int dot = workflow.Start.Correlate.LastIndexOf('.');
-                _correlationField = dot >= 0 ? workflow.Start.Correlate.Substring(dot + 1) : workflow.Start.Correlate;
+                _path = CorrelationPath.IsValid(workflow.Start.Correlate) ? workflow.Start.Correlate : CorrelationPath.Prefix + "id";
+                _correlationField = CorrelationPath.InstanceKey(_path);
+            }
+
+            public Dictionary<string, object?> Start(ManifestMessage? message)
+            {
+                var data = new Dictionary<string, object?>(StringComparer.Ordinal);
+                if (message is not null)
+                {
+                    Fill(data, message.Fields, string.Empty);
+                }
+
+                ManifestField? key = message?.FieldAt(CorrelationPath.Field(_path));
+                CorrelationPath.Set(data, _path, key is null ? "sample-instance" : Sample(key, "instance"));
+                return data;
+            }
+
+            private static void Fill(Dictionary<string, object?> data, IReadOnlyList<ManifestField> fields, string prefix)
+            {
+                foreach (ManifestField field in fields)
+                {
+                    if (field.Fields.Count > 0)
+                    {
+                        var nested = new Dictionary<string, object?>(StringComparer.Ordinal);
+                        Fill(nested, field.Fields, prefix + field.Name + ".");
+                        data[field.Name] = nested;
+                    }
+                    else
+                    {
+                        data[field.Name] = Sample(field, prefix + field.Name);
+                    }
+                }
             }
 
             public Dictionary<string, object?> Message(ManifestMessage? message, string? correlationValue, IEnumerable<string>? distinct = null)

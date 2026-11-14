@@ -359,6 +359,26 @@ public sealed class InMemoryStore :
         }
     }
 
+    /// <inheritdoc />
+    public ValueTask<bool> InitializeAsync(string subscription, int partitions, GlobalPosition position, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(partitions, 1);
+        lock (_gate)
+        {
+            if (_checkpoints.Keys.Any(k => k.Subscription == subscription))
+            {
+                return ValueTask.FromResult(false);
+            }
+
+            for (int partition = 0; partition < partitions; partition++)
+            {
+                _checkpoints[(subscription, partition)] = position;
+            }
+
+            return ValueTask.FromResult(true);
+        }
+    }
+
     // ------------------------------------------------------------------ IDocumentAdmin
 
     /// <inheritdoc />

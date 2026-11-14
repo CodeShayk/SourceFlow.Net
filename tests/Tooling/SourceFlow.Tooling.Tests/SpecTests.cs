@@ -55,7 +55,7 @@ public sealed class SpecTests
     public void ProcessManagerSpec_HappyPath_SendsAndCompletes()
     {
         var transfer = TransferId.Parse("0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d");
-        var spec = new ProcessManagerSpec<MoneyTransfer, TransferId>(transfer);
+        var spec = ProcessManagerSpec.For<MoneyTransfer, TransferId, TransfersModule>().WithModule<AccountsModule>();
 
         spec.When(new TransferRequested(transfer, Account, Other, 5m))
             .ThenSends(new Withdraw(Account, 5m))
@@ -72,7 +72,7 @@ public sealed class SpecTests
     {
         var transfer = TransferId.Parse("0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d");
 
-        new ProcessManagerSpec<MoneyTransfer, TransferId>(transfer)
+        ProcessManagerSpec.For<MoneyTransfer, TransferId, TransfersModule>().WithModule<AccountsModule>()
             .Given(new TransferRequested(transfer, Account, Other, 5m), new MoneyWithdrawn(Account, 5m, 5m))
             .WhenTimeAdvances(MoneyTransfer.Timeout)
             .When(new TransferTimedOut(transfer))
@@ -125,5 +125,34 @@ public sealed class SpecTests
     private static string ThisFile([System.Runtime.CompilerServices.CallerFilePath] string path = "")
     {
         return Approvals.ResolveSourcePath(path);
+    }
+    [Fact]
+    [Trait("Id", "UT-TST-21")]
+    [Trait("Covers", "doc 11 2")]
+    public void ProcessManagerSpec_FailsWhereAServiceWould()
+    {
+        var transfer = TransferId.Parse("0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d");
+        var other = TransferId.Parse("0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e");
+
+        // A first message that can't start an instance: MoneyWithdrawn has no CorrelateBy, and nothing caused it.
+        Should.Throw<SpecificationException>(() => ProcessManagerSpec.For<MoneyTransfer, TransferId, TransfersModule>().WithModule<AccountsModule>()
+            .When(new MoneyWithdrawn(Account, 5m, 5m))).Message.ShouldContain("doesn't correlate");
+
+        // A message that correlates to another instance: a service would apply it there, not here.
+        ProcessManagerSpec<MoneyTransfer, TransferId> started = ProcessManagerSpec.For<MoneyTransfer, TransferId, TransfersModule>().WithModule<AccountsModule>()
+            .Given(new TransferRequested(transfer, Account, Other, 5m));
+        started.Id.ShouldBe(transfer);
+        Should.Throw<SpecificationException>(() => started.When(new TransferRequested(other, Account, Other, 5m))).Message.ShouldContain("not to this spec's");
+
+        // A message the process manager doesn't handle is never delivered to it.
+        Should.Throw<SpecificationException>(() => started.When(new OpenAccount(Account, "Ada", 1m))).Message.ShouldContain("doesn't handle");
+
+        // Sending a command whose contract the service doesn't register fails, as at runtime.
+        Should.Throw<SourceFlow.Messaging.UnknownMessageTypeException>(() => ProcessManagerSpec.For<MoneyTransfer, TransferId, TransfersModule>()
+            .When(new TransferRequested(transfer, Account, Other, 5m)));
+
+        // The state is what was stored: written as JSON and read back.
+        started.State.Stage.ShouldBe(TransferStage.Withdrawing);
+        started.State.Amount.ShouldBe(5m);
     }
 }

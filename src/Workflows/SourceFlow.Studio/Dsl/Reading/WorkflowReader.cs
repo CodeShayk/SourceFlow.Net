@@ -278,7 +278,7 @@ namespace SourceFlow.Studio.Dsl.Reading
                             break;
                         case "correlate":
                             string? path = Text(pair.Value, "start.correlate");
-                            if (path is not null && !(path.StartsWith("data.", StringComparison.Ordinal) && Segments.IsMatch(path)))
+                            if (path is not null && !CorrelationPath.IsValid(path))
                             {
                                 Report(WorkflowRules.Format, "'start.correlate' is a path into the start message, such as 'data.orderId'.", Loc(pair.Value));
                             }

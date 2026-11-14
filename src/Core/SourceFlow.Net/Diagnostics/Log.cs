@@ -74,6 +74,9 @@ internal static partial class Log
     [LoggerMessage(1306, LogLevel.Error, "Subscription {Subscription} is not run on this node: it is configured with {Configured} partitions, but {Stored} are stored (doc 06 §3); align the configuration or run `projection repartition`")]
     public static partial void SubscriptionPartitionMismatch(ILogger logger, string subscription, int configured, int stored);
 
+    [LoggerMessage(1307, LogLevel.Information, "Subscription {Subscription} runs for the first time and starts at the head of the log ({Commit}, {Sequence}): it reacts to new events only (doc 15 §5.6)")]
+    public static partial void SubscriptionStartsAtHead(ILogger logger, string subscription, ulong commit, ulong sequence);
+
     [LoggerMessage(1401, LogLevel.Information, "SourceFlow service {Service} started: {Modules} module(s), {Aggregates} aggregate(s), {Subscriptions} subscription(s)")]
     public static partial void Started(ILogger logger, string service, int modules, int aggregates, int subscriptions);
 

@@ -168,6 +168,13 @@ public interface ICheckpointStore
     /// claim of the first node to run it, which every other node must match.
     /// </summary>
     ValueTask<int> ClaimPartitionsAsync(string subscription, int partitions, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// When the subscription has no checkpoint at all, sets the checkpoint of each of its <paramref name="partitions"/> to
+    /// <paramref name="position"/>, so it starts there instead of at the beginning of the log (doc 15 §5.6, CR-34). Returns
+    /// whether it did; a subscription with any checkpoint is left as it is.
+    /// </summary>
+    ValueTask<bool> InitializeAsync(string subscription, int partitions, GlobalPosition position, CancellationToken cancellationToken);
 }
 
 /// <summary>Fenced leases using the store's clock (doc 05 §7.4).</summary>

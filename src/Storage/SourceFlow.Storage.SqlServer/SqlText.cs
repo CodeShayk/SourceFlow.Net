@@ -96,6 +96,21 @@ internal sealed class SqlText
             """);
         GetCheckpoint = R("SELECT commit_pos, seq_pos FROM {s}.checkpoints WHERE subscription = @sub AND partition = @p");
         GetPartitions = R("SELECT partitions FROM {s}.subscription_partitions WHERE subscription = @sub");
+        // Insert-if-none without range locks: a duplicate key means another node initialized it first.
+        InitializeCheckpoints = R("""
+            BEGIN TRY
+                ;WITH n AS (SELECT 0 AS p UNION ALL SELECT p + 1 FROM n WHERE p + 1 < @partitions)
+                INSERT INTO {s}.checkpoints (subscription, partition, commit_pos, seq_pos)
+                SELECT @sub, p, @commit, @seq FROM n
+                 WHERE NOT EXISTS (SELECT 1 FROM {s}.checkpoints WHERE subscription = @sub)
+                OPTION (MAXRECURSION 0);
+                SELECT @@ROWCOUNT;
+            END TRY
+            BEGIN CATCH
+                IF ERROR_NUMBER() NOT IN (2601, 2627) THROW;
+                SELECT 0;
+            END CATCH;
+            """);
         // No range locks (they deadlock two nodes claiming at once): insert, and a duplicate key means another node claimed.
         ClaimPartitions = R("""
             BEGIN TRY
@@ -403,6 +418,8 @@ internal sealed class SqlText
     public string GetPartitions { get; }
 
     public string ClaimPartitions { get; }
+
+    public string InitializeCheckpoints { get; }
 
     public string SetPartitions { get; }
 

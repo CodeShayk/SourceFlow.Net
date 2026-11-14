@@ -385,13 +385,31 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
     - a new process-manager subscription starts at the head of the log, unless `StartFrom = Beginning` is set
       explicitly;
     - instances are claimed with a shared key per `(workflow name, instance)`, so v1 and v2 nodes can't both start one.
+    *As built:*
+    - every process manager starts at the head, hand-written ones included: the setting is
+      `sf.ProcessManager<T>(p => p.StartFrom(SubscriptionStart.Beginning))`.
+    - the start position is fixed at host startup, before the node receives or sends anything. If it were fixed when
+      the subscription first ran, events written in between would be skipped.
+    - the claim is a completed process state `workflow-claim:{name}`, so there is no new table.
+    - extra tests: SCK-83 (`ICheckpointStore.InitializeAsync`) and UT-PM-21 (a node that doesn't register v1 still
+      respects its claim).
   - **Correlation path (CR-35):** one `CorrelationPath` helper in the DSL core, used by the reader, validator, simulator,
     path enumerator, spec generator and the generator. Nested paths are supported everywhere.
+    *As built:*
+    - the start message is read along the whole path; awaited events carry the instance key (the last segment) as
+      their own member, as doc 15 §5.4 says.
+    - the manifest lists the members of nested object fields, so the validator can check a nested path.
+    - the generator test is GEN-80, because GEN-69..79 are reserved for other packages.
   - **Specs on the production path (CR-44):**
     - `ProcessManagerSpec` and `WorkflowSpec` run through the process-manager runner over in-memory storage;
     - specs correlate through `TryCorrelate`, apply the `MayStart` and completed rules, and round-trip state through
       JSON;
     - doc 11 §2's example is updated.
+    *As built:*
+    - `ProcessManagerSpec.For<TProcess, TId, TModule>()` replaces the constructor that took an id. The first message
+      starts the instance, and `WithModule<T>()` adds the contracts of the commands it sends.
+    - a spec routes commands owned elsewhere to a stand-in endpoint, because a spec has no deployment routing.
+    - a spec of a workflow version leaves the module's other versions of that workflow out, so it can start instances.
 - **Tests:**
   - UT-PM-19: a rejected compensation is a failed attempt.
   - UT-PM-20: a late attempt-1 rejection is ignored.

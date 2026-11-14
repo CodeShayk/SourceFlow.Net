@@ -14,7 +14,7 @@ public static class WorkflowSpec
         where TWorkflow : class, IProcessManagerRuntime<TWorkflow, WorkflowInstanceId>, IWorkflowState<TWorkflow>
         where TModule : ISourceFlowModule
     {
-        return new WorkflowSpec<TWorkflow>(new SourceFlowModelBuilder().AddModule<TModule>().Build());
+        return new WorkflowSpec<TWorkflow>(ProcessSpecRuntime.Create<TModule>(typeof(TWorkflow), TWorkflow.ProcessName));
     }
 }
 
@@ -22,28 +22,49 @@ public static class WorkflowSpec
 /// Given/When/Then for a generated DSL workflow (doc 15 §6.1 "generate specs"). Messages are given by type name and JSON
 /// data and built with the module's JSON metadata, as the runtime does; the clock follows the timers.
 /// </summary>
+/// <remarks>
+/// Every message goes through the process-manager runner over in-memory storage (doc 11 §2, CR-44): the start message
+/// must correlate through the workflow's correlate path, later messages correlate as replies to its commands (the
+/// envelope correlation is the instance), the start rules apply, and the state is read back from its JSON each time. A
+/// spec runs one workflow version: the module's other versions of the workflow are left out.
+/// </remarks>
 /// <typeparam name="TWorkflow">The generated workflow.</typeparam>
 public sealed class WorkflowSpec<TWorkflow>
     where TWorkflow : class, IProcessManagerRuntime<TWorkflow, WorkflowInstanceId>, IWorkflowState<TWorkflow>
 {
-    private readonly RuntimeModel _model;
+    private readonly ProcessSpecRuntime _spec;
     private readonly List<(ICommand Command, MessageId? Id)> _sent = [];
     private TWorkflow _state = TWorkflow.Initial;
     private WorkflowInstanceId _id;
+    private string? _instance;
     private Reaction? _reaction;
     private readonly List<(WorkflowTimer Timer, DateTimeOffset Due)> _timers = [];
     private int _messages;
 
-    internal WorkflowSpec(RuntimeModel model)
+    internal WorkflowSpec(ProcessSpecRuntime spec)
     {
-        _model = model;
+        _spec = spec;
+    }
+
+    private RuntimeModel Model => _spec.Runtime.Model;
+
+    /// <summary>Registers another module before the start, for example the contracts of the commands the workflow sends.</summary>
+    public WorkflowSpec<TWorkflow> WithModule<TModule>()
+        where TModule : ISourceFlowModule
+    {
+        _spec.AddModule<TModule>();
+        return this;
     }
 
     /// <summary>The current state.</summary>
     public TWorkflow State => _state;
 
     /// <summary>The simulated time.</summary>
-    public DateTimeOffset Now { get; private set; } = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    public DateTimeOffset Now
+    {
+        get => _spec.Clock.Now;
+        private set => _spec.Clock.Now = value;
+    }
 
     /// <summary>Every command sent so far, with its message id.</summary>
     public IReadOnlyList<(ICommand Command, MessageId? Id)> Sent => _sent;
@@ -57,16 +78,15 @@ public sealed class WorkflowSpec<TWorkflow>
     /// </summary>
     public IReadOnlyList<WorkflowTimer> Timers => [.. _timers.Select(t => t.Timer)];
 
-    /// <summary>The start message.</summary>
+    /// <summary>The start message: it must correlate through the workflow's correlate path, as in a service.</summary>
     public WorkflowSpec<TWorkflow> Start(string type, string json)
     {
-        IMessage message = Message(type, json);
-        if (!TWorkflow.TryCorrelate(message, out _id))
+        if (_instance is not null)
         {
-            throw new SpecificationException($"{type} doesn't correlate to an instance of {TWorkflow.ProcessName}.");
+            throw new SpecificationException("The workflow has started already.");
         }
 
-        return Deliver(message);
+        return Deliver(Message(type, json), start: true);
     }
 
     /// <summary>The awaited success event (or any event) arrives.</summary>
@@ -104,15 +124,15 @@ public sealed class WorkflowSpec<TWorkflow>
         }
 
         (ICommand command, MessageId? commandId) = _sent[sentIndex];
-        MessageTypeInfo commandType = _model.Registry.Get(command.GetType());
-        if (!_model.Registry.TryGet(CommandReplies.RejectedTypeName(commandType.Name), commandType.Version, out MessageTypeInfo? reply))
+        MessageTypeInfo commandType = Model.Registry.Get(command.GetType());
+        if (!Model.Registry.TryGet(CommandReplies.RejectedTypeName(commandType.Name), commandType.Version, out MessageTypeInfo? reply))
         {
             throw new SpecificationException($"{TWorkflow.ProcessName} doesn't handle rejections of {commandType.CloudEventType} (no 'rejected:' failure on it).");
         }
 
         var json = new JsonObject
         {
-            ["command"] = JsonSerializer.SerializeToNode(command, _model.Registry.Options.GetTypeInfo(command.GetType())),
+            ["command"] = JsonSerializer.SerializeToNode(command, Model.Registry.Options.GetTypeInfo(command.GetType())),
             ["error"] = new JsonObject { ["code"] = code, ["message"] = message ?? code },
         };
         return Deliver((IMessage)json.Deserialize(reply.JsonTypeInfo)!, causation: commandId);
@@ -165,7 +185,7 @@ public sealed class WorkflowSpec<TWorkflow>
     /// <summary>Expects the last message to have sent exactly these command types (<c>{name}.v{version}</c>), in order.</summary>
     public WorkflowSpec<TWorkflow> ThenSends(params string[] types)
     {
-        string[] sent = [.. (_reaction?.Commands ?? []).Select(c => _model.Registry.Get(c.GetType()).CloudEventType)];
+        string[] sent = [.. (_reaction?.Commands ?? []).Select(c => Model.Registry.Get(c.GetType()).CloudEventType)];
         if (!sent.SequenceEqual(types))
         {
             throw new SpecificationException($"Expected sends [{string.Join(", ", types)}] but got [{string.Join(", ", sent)}].");
@@ -200,7 +220,7 @@ public sealed class WorkflowSpec<TWorkflow>
 
     private IMessage Message(string type, string json)
     {
-        if (!CloudEvents.TryParseType(type, out string name, out int version) || !_model.Registry.TryGet(name, version, out MessageTypeInfo? info))
+        if (!CloudEvents.TryParseType(type, out string name, out int version) || !Model.Registry.TryGet(name, version, out MessageTypeInfo? info))
         {
             throw new SpecificationException($"'{type}' is not a registered message type.");
         }
@@ -208,23 +228,39 @@ public sealed class WorkflowSpec<TWorkflow>
         return (IMessage)JsonSerializer.Deserialize(json, info.JsonTypeInfo)!;
     }
 
-    private WorkflowSpec<TWorkflow> Deliver(IMessage message, MessageId? causation = null)
+    private WorkflowSpec<TWorkflow> Deliver(IMessage message, MessageId? causation = null, bool start = false)
     {
-        if (_id.IsDefault)
+        bool starting = _instance is null;
+        if (starting != start)
         {
-            throw new SpecificationException("Start the workflow first.");
+            throw new SpecificationException(starting ? "Start the workflow first." : "The workflow has started already.");
         }
 
         var messageId = new MessageId(MessageIds.CreateVersion5(MessageIds.SourceFlowNamespace, "spec/" + (++_messages).ToString(System.Globalization.CultureInfo.InvariantCulture)));
-        Reaction reaction = _state.React(message, new ReactionContext<WorkflowInstanceId>(_id, Now, messageId, _state.State is null) { Serializer = _model.Registry.Options, CausationId = causation });
-        if (reaction.IsIgnored)
+        CorrelationId correlation = starting ? CorrelationId.None : new CorrelationId(_instance!);
+        (string instance, Reaction? reaction) = _spec.Deliver(message, correlation, messageId, causation, _instance);
+        if (starting)
         {
-            _reaction = null;
-            return this;
+            _instance = instance;
+            _id = WorkflowInstanceId.Parse(instance);
+        }
+
+        if (_spec.Load(instance) is { } stored)
+        {
+            _state = (TWorkflow)stored.State;
+        }
+        else if (starting)
+        {
+            _instance = null;   // it didn't start (for example start.when was false)
+            _id = default;
         }
 
         _reaction = reaction;
-        _state = (TWorkflow?)reaction.NewState ?? _state;
+        if (reaction is null)
+        {
+            return this;
+        }
+
         for (int i = 0; i < reaction.Commands.Count; i++)
         {
             _sent.Add((reaction.Commands[i], reaction.CommandIds[i]));

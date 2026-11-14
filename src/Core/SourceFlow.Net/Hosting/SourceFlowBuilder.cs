@@ -121,6 +121,8 @@ public sealed class SourceFlowBuilder
 
     internal Dictionary<Type, int> ProjectionPartitions { get; } = [];
 
+    internal Dictionary<Type, SubscriptionStart> ProcessManagerStarts { get; } = [];
+
     internal List<MiddlewareRegistration> Middleware { get; } = [];
 
     internal ErrorClassifier ErrorRules { get; } = new();
@@ -204,6 +206,15 @@ public sealed class SourceFlowBuilder
     {
         ArgumentNullException.ThrowIfNull(configure);
         configure(RoutingRules);
+        return this;
+    }
+
+    /// <summary>Configures a process manager or DSL workflow version a module registers, by its type.</summary>
+    public SourceFlowBuilder ProcessManager<TProcess>(Action<ProcessManagerBuilder> configure)
+        where TProcess : class
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        configure(new ProcessManagerBuilder(this, typeof(TProcess)));
         return this;
     }
 
@@ -344,6 +355,41 @@ public sealed class ProjectionModeBuilder
         _builder.ProjectionPartitions[_projection] = partitions;
         return this;
     }
+}
+
+/// <summary>Configures one process manager (or DSL workflow version) a module registers.</summary>
+public sealed class ProcessManagerBuilder
+{
+    private readonly SourceFlowBuilder _builder;
+    private readonly Type _process;
+
+    internal ProcessManagerBuilder(SourceFlowBuilder builder, Type process)
+    {
+        _builder = builder;
+        _process = process;
+    }
+
+    /// <summary>
+    /// Where the process manager's subscription starts reading the log the first time it runs (doc 15 §5.6, CR-34):
+    /// <see cref="SubscriptionStart.Head"/> by default, so a newly deployed process manager or workflow version doesn't
+    /// start instances for past events. <see cref="SubscriptionStart.Beginning"/> reacts to the whole history. Once the
+    /// subscription has run, it continues from its checkpoints either way.
+    /// </summary>
+    public ProcessManagerBuilder StartFrom(SubscriptionStart start)
+    {
+        _builder.ProcessManagerStarts[_process] = start;
+        return this;
+    }
+}
+
+/// <summary>Where a new subscription starts reading the log (doc 15 §5.6, CR-34).</summary>
+public enum SubscriptionStart
+{
+    /// <summary>At the head: only events committed after it first runs. The default for process managers.</summary>
+    Head = 0,
+
+    /// <summary>At the beginning of the log: every past event too.</summary>
+    Beginning = 1,
 }
 
 /// <summary>What a subscription does with an event that keeps failing (doc 06 §7, GAP-07).</summary>

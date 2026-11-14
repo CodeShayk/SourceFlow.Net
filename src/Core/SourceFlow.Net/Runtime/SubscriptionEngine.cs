@@ -22,6 +22,12 @@ internal sealed record SubscriptionDefinition(string Name, Func<Type, bool> Hand
     /// </summary>
     public bool BacksOffBeforeParking { get; init; } = true;
 
+    /// <summary>
+    /// Whether the subscription starts at the head of the log the first time it runs, rather than at the beginning (doc 15
+    /// §5.6, CR-34): process managers do, unless configured otherwise.
+    /// </summary>
+    public bool StartsAtHead { get; init; }
+
     /// <summary>The configured partition count, or null for <see cref="SourceFlowOptions.SubscriptionPartitions"/> (CR-18).</summary>
     public int? Partitions { get; init; }
 
@@ -534,6 +540,31 @@ internal sealed class SubscriptionEngine
         }
     }
 
+    /// <summary>
+    /// doc 15 §5.6 (CR-34): a process manager that has never run starts at the head of the log, so a new workflow (or a new
+    /// version) doesn't start instances for past events. Every node runs this at startup, before it receives or sends
+    /// anything, so the events this service writes from then on are read. It is decided once: a subscription with a stored
+    /// partition count or any checkpoint has run, and continues from its checkpoints.
+    /// </summary>
+    internal async ValueTask InitializeStartsAsync(CancellationToken cancellationToken)
+    {
+        GlobalPosition? head = null;
+        foreach (SubscriptionDefinition definition in _static.Where(d => d.StartsAtHead))
+        {
+            if (await _runtime.Storage.Checkpoints.GetPartitionsAsync(definition.Name, cancellationToken).ConfigureAwait(false) is not null)
+            {
+                continue;
+            }
+
+            head ??= await _runtime.Storage.Log.GetSafeHorizonAsync(cancellationToken).ConfigureAwait(false);
+            int partitions = definition.Partitions ?? _runtime.Options.SubscriptionPartitions;
+            if (await _runtime.Storage.Checkpoints.InitializeAsync(definition.Name, partitions, head.Value, cancellationToken).ConfigureAwait(false))
+            {
+                Log.SubscriptionStartsAtHead(_logger, definition.Name, head.Value.Commit, head.Value.Sequence);
+            }
+        }
+    }
+
     /// <summary>Subscriptions this node refuses, with the stored partition count that differs from its own (CR-18).</summary>
     internal IReadOnlyDictionary<string, int> PartitionMismatches => _mismatched;
 
@@ -696,7 +727,10 @@ internal sealed class SubscriptionEngine
             definitions.Add(new SubscriptionDefinition(
                 "pm:" + process.Name,
                 type => process.HandledMessages.Contains(type),
-                async ctx => await processes.ReactAsync(ctx.Session, process, ctx.Event, ctx.Stored.ToEnvelope(), ctx.CancellationToken).ConfigureAwait(false)));
+                async ctx => await processes.ReactAsync(ctx.Session, process, ctx.Event, ctx.Stored.ToEnvelope(), ctx.CancellationToken).ConfigureAwait(false))
+            {
+                StartsAtHead = _runtime.ProcessManagerStarts.GetValueOrDefault(process.StateType, Hosting.SubscriptionStart.Head) == Hosting.SubscriptionStart.Head,
+            });
         }
 
         foreach (EventHandlerDescriptor handler in _runtime.Model.EventHandlers)

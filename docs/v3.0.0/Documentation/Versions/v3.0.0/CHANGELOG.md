@@ -440,7 +440,10 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   match it, with a per-projection `Partitions(n)`; `projection repartition` writes the count with the checkpoints;
   schema PostgreSQL V009 and SQL Server V004), WP-C.10 (a compensation's timers have their own identity and timers
   match by due time, so a stale timer can't end a compensation early; the pivot is a point of no return in the
-  engine and the new validator rule WF-V17).
+  engine and the new validator rule WF-V17), WP-C.11 (every rejection of an awaited or compensation command reaches the
+  workflow and a late one is ignored; a new process manager or workflow version starts at the head of the log, and
+  versions share instance claims; one `CorrelationPath` reads `start.correlate`, nested paths included; the specs run
+  through the process-manager runner, and `ProcessManagerSpec` is created with `For<TProcess, TId, TModule>()`).
 
 ### Other notes
 

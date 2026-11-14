@@ -247,8 +247,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
         /// <summary>Placeholder start data: the correlation value and nothing else.</summary>
         internal static IReadOnlyDictionary<string, object?> StartData(WorkflowDefinition workflow)
         {
-            string field = workflow.Start.Correlate.Length > 5 ? workflow.Start.Correlate.Substring(5) : "id";
-            return new Dictionary<string, object?>(StringComparer.Ordinal) { [field] = "instance-1" };
+            return CorrelationPath.Data(CorrelationPath.IsValid(workflow.Start.Correlate) ? workflow.Start.Correlate : CorrelationPath.Prefix + "id", "instance-1");
         }
 
         // The choices at a wait: each outcome once, and each retryable outcome repeated until its retries run out.

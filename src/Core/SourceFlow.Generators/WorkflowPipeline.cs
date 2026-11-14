@@ -26,7 +26,7 @@ namespace SourceFlow.Generators
 
     internal sealed record MessageEntry(string Ref, string ClrType, string Kind, EquatableArray<MemberEntry> Members);
 
-    internal sealed record MemberEntry(string JsonName, string Property);
+    internal sealed record MemberEntry(string JsonName, string Property, bool Reference, EquatableArray<MemberEntry> Members);
 
     internal sealed record WorkflowContext(
         string AssemblyName,
@@ -109,16 +109,7 @@ namespace SourceFlow.Generators
                         continue;
                     }
 
-                    var members = new List<MemberEntry>();
-                    foreach (IPropertySymbol property in type.GetMembers().OfType<IPropertySymbol>().Where(p => !p.IsStatic && p.DeclaredAccessibility == Accessibility.Public && p.Name != "EqualityContract"))
-                    {
-                        string json = property.FindAttribute("System.Text.Json.Serialization.JsonPropertyNameAttribute") is { ConstructorArguments.Length: 1 } renamed && renamed.ConstructorArguments[0].Value is string explicitName
-                            ? explicitName
-                            : Camel(property.Name);
-                        members.Add(new MemberEntry(json, property.Name));
-                    }
-
-                    messages.Add(new MessageEntry(reference, type.FullName(), kind, members.ToEquatableArray()));
+                    messages.Add(new MessageEntry(reference, type.FullName(), kind, Members(type, ImmutableStack<INamedTypeSymbol>.Empty)));
                 }
             }
 
@@ -200,7 +191,8 @@ namespace SourceFlow.Generators
             string className = Pascal(workflow.Name) + "WorkflowV" + workflow.Version.ToString(CultureInfo.InvariantCulture);
             string ns = module.Namespace.Length > 0 ? module.Namespace : options.RootNamespace ?? string.Empty;
             string fullType = "global::" + (ns.Length > 0 ? ns + "." : string.Empty) + className;
-            string correlation = workflow.Start.Correlate.Substring(workflow.Start.Correlate.LastIndexOf('.') + 1);
+            IReadOnlyList<string> path = CorrelationPath.Segments(workflow.Start.Correlate);
+            IReadOnlyList<string> key = path.Count == 0 ? path : new[] { path[path.Count - 1] };
 
             MessageEntry? start = Resolve(workflow.Start.On, workflow.Start.At("on"));
             var events = new SortedDictionary<string, MessageEntry>(StringComparer.Ordinal);
@@ -287,7 +279,7 @@ namespace SourceFlow.Generators
             }
 
             events.Remove(workflow.Start.On);
-            string source = Emit(workflow, ns, className, start, correlation, events, commands, rejections, hooks.Where(h => context.UserMethods.Contains(fullType + "." + h)));
+            string source = Emit(workflow, ns, className, start, path, key, events, commands, rejections, hooks.Where(h => context.UserMethods.Contains(fullType + "." + h)));
             string relative = Relative(file.Path, options.ProjectDir);
             var registration = new WorkflowRegistration(
                 fullType,
@@ -307,7 +299,8 @@ namespace SourceFlow.Generators
             string ns,
             string className,
             MessageEntry start,
-            string correlation,
+            IReadOnlyList<string> path,
+            IReadOnlyList<string> key,
             SortedDictionary<string, MessageEntry> events,
             SortedDictionary<string, MessageEntry> commands,
             SortedDictionary<string, MessageEntry> rejections,
@@ -351,10 +344,10 @@ namespace SourceFlow.Generators
             w.Line();
             w.Open($"static bool {contract}.TryCorrelate({Sf}IMessage message, out {id} id)");
             w.Open("switch (message)");
-            Correlate(w, start, correlation, id);
+            Correlate(w, start, path, id);
             foreach (MessageEntry e in events.Values)
             {
-                Correlate(w, e, correlation, id);
+                Correlate(w, e, key, id);
             }
 
             w.Line($"case {Wf}WorkflowTimer m when m.Workflow == ProcessName: id = {id}.From(m.Instance); return true;");
@@ -416,12 +409,56 @@ namespace SourceFlow.Generators
             return w.ToString();
         }
 
-        private static void Correlate(SourceWriter w, MessageEntry message, string correlation, string id)
+        // The start message reads the whole correlate path, through nested members; an awaited event reads its own
+        // member named by the instance key, the path's last segment (doc 15 §5.4, CR-35).
+        private static void Correlate(SourceWriter w, MessageEntry message, IReadOnlyList<string> path, string id)
         {
-            if (message.Members.FirstOrDefault(m => m.JsonName == correlation) is { } member)
+            if (path.Count == 0)
             {
-                w.Line($"case {message.ClrType} m: id = {id}.From({Wf}WorkflowRuntime.CorrelationValue(m.{member.Property})); return !id.IsDefault;");
+                return;
             }
+
+            var access = new StringBuilder("m");
+            EquatableArray<MemberEntry> members = message.Members;
+            for (int i = 0; i < path.Count; i++)
+            {
+                if (members.FirstOrDefault(m => m.JsonName == path[i]) is not { } member)
+                {
+                    return;
+                }
+
+                access.Append('.').Append(member.Property);
+                if (i < path.Count - 1)
+                {
+                    if (member.Reference)
+                    {
+                        access.Append('?');
+                    }
+
+                    members = member.Members;
+                }
+            }
+
+            w.Line($"case {message.ClrType} m: id = {id}.From({Wf}WorkflowRuntime.CorrelationValue({access})); return !id.IsDefault;");
+        }
+
+        // Public instance properties with their JSON names; object members of the service's own types list theirs, so a
+        // nested correlate path reads through them (CR-35).
+        private static EquatableArray<MemberEntry> Members(INamedTypeSymbol type, ImmutableStack<INamedTypeSymbol> outer)
+        {
+            outer = outer.Push(type);
+            var members = new List<MemberEntry>();
+            foreach (IPropertySymbol property in type.GetMembers().OfType<IPropertySymbol>().Where(p => !p.IsStatic && !p.IsIndexer && p.DeclaredAccessibility == Accessibility.Public && p.Name != "EqualityContract"))
+            {
+                string json = property.FindAttribute("System.Text.Json.Serialization.JsonPropertyNameAttribute") is { ConstructorArguments.Length: 1 } renamed && renamed.ConstructorArguments[0].Value is string explicitName
+                    ? explicitName
+                    : Camel(property.Name);
+                EquatableArray<MemberEntry> nested = ManifestBuilder.NestedType(property.Type, outer) is { } inner ? Members(inner, outer) : EquatableArray<MemberEntry>.Empty;
+                bool reference = property.Type.IsReferenceType || property.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T };
+                members.Add(new MemberEntry(json, property.Name, reference, nested));
+            }
+
+            return members.ToEquatableArray();
         }
 
         /// <summary>The generated domain query's class name.</summary>

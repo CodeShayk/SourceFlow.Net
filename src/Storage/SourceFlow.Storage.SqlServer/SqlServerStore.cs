@@ -244,6 +244,17 @@ public sealed partial class SqlServerStore :
         return (int)(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false))!;
     }
 
+    /// <inheritdoc />
+    public async ValueTask<bool> InitializeAsync(string subscription, int partitions, GlobalPosition position, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(partitions, 1);
+        await using SqlConnection connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using SqlCommand command = Command(Sql.InitializeCheckpoints, connection, null,
+            Text("@sub", subscription), Int32("@partitions", partitions),
+            Int64("@commit", checked((long)position.Commit)), Int64("@seq", checked((long)Math.Min(position.Sequence, long.MaxValue))));
+        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false), System.Globalization.CultureInfo.InvariantCulture) > 0;
+    }
+
     // ------------------------------------------------------------------ ILeaseManager, INodeRegistry
 
     /// <inheritdoc />

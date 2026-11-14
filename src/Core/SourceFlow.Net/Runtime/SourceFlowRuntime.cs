@@ -254,6 +254,15 @@ public sealed class SourceFlowRuntime
     // Per-projection partition counts (Projections(p => p.Add<T>().Partitions(n))); others use SubscriptionPartitions.
     internal IReadOnlyDictionary<Type, int> ProjectionPartitions { get; set; } = new Dictionary<Type, int>();
 
+    /// <summary>
+    /// Where a command with no local owner and no route goes, instead of failing with <see cref="NoRouteException"/>. Only
+    /// the specs set it: routing is deployment configuration they don't have (doc 11 §2, CR-44).
+    /// </summary>
+    internal string? UnroutedCommandEndpoint { get; set; }
+
+    /// <summary>Where each process manager's new subscription starts (by process type); absent means the head (CR-34).</summary>
+    internal IReadOnlyDictionary<Type, Hosting.SubscriptionStart> ProcessManagerStarts { get; set; } = new Dictionary<Type, Hosting.SubscriptionStart>();
+
     // The partition count each subscription runs with: the stored count once this node has matched it (doc 06 §3, CR-18).
     internal System.Collections.Concurrent.ConcurrentDictionary<string, int> SubscriptionPartitionCounts { get; } = new(StringComparer.Ordinal);
 
@@ -348,7 +357,7 @@ public sealed class SourceFlowRuntime
             ? Routing.Endpoint
             : Routing.Commands.TryGetValue(command.GetType(), out route)
                 ? route.Endpoint
-                : throw new NoRouteException(command.GetType());
+                : UnroutedCommandEndpoint ?? throw new NoRouteException(command.GetType());
         string? subject = TrySubjectOf(command);
         if (replyOnReject && (local || route is { ReplyOnReject: true }) && ExpectsRejection(command.GetType()))
         {

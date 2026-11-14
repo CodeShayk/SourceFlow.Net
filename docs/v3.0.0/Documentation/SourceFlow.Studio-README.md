@@ -320,7 +320,7 @@ For `name: trip-booking`, `version: 1`, in a project whose module is in namespac
 | Generated | Shape |
 |-----------|-------|
 | The process manager | `[ProcessManager("trip-booking@1")] public sealed partial record TripBookingWorkflowV1 : IProcessManagerRuntime<TripBookingWorkflowV1, WorkflowInstanceId>, IWorkflowState<TripBookingWorkflowV1>`, with `ProcessName`, `Initial`, `State` (the engine state as JSON) and `Status` |
-| Correlation | The start message and awaited events that carry the instance key (the last segment of `start.correlate`) correlate by that member; `WorkflowTimer` and `WorkflowControl` by their instance; replies through the envelope correlation |
+| Correlation | The start message correlates by the whole `start.correlate` path, nested members included (`data.customer.orderId`); awaited events that carry the instance key (the path's last segment) correlate by that member; `WorkflowTimer` and `WorkflowControl` by their instance; replies through the envelope correlation |
 | The engine | The simulator's sources, injected once per assembly as internal types in `SourceFlow.Workflows.Engine`. Services without workflows get none of it |
 | Module registration | A `RegisterWorkflows` part on the module: the shared `WorkflowTimer`/`WorkflowControl` messages, each workflow's state metadata, `CommandRejected<T>` for every command with `rejected:` failures, and the process manager |
 | A domain query | `WorkflowInstancesQuery(string Workflow)`, registered as `<service>.workflow-instances` version 1 |

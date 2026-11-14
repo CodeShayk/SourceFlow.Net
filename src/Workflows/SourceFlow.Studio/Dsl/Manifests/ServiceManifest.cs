@@ -119,7 +119,7 @@ namespace SourceFlow.Studio.Dsl.Manifests
                     Required(m, "kind"),
                     m["clrType"]?.AsString,
                     m["aggregate"]?.AsString,
-                    List(m["fields"], f => new ManifestField(Required(f, "name"), Required(f, "type"), f["nullable"]?.AsBoolean ?? false, f["personalData"]?.AsBoolean ?? false)))),
+                    List(m["fields"], ReadField))),
                 Aggregates = List(root["aggregates"], a => new ManifestAggregate(
                     Required(a, "name"),
                     a["clrType"]?.AsString,
@@ -133,6 +133,14 @@ namespace SourceFlow.Studio.Dsl.Manifests
                 Subscribes = List(root["subscribes"], s => new ManifestSubscription(Required(s, "topic"), Strings(s["only"]), s["where"]?.AsString)),
                 CommandRoutes = List(root["commandRoutes"], r => new ManifestCommandRoute(Required(r, "command"), Required(r, "to"), r["replyOnReject"]?.AsBoolean ?? false)),
                 Workflows = List(root["workflows"], w => new ManifestWorkflow(Required(w, "name"), Int(w, "version"), w["file"]?.AsString) { Fingerprint = w["fingerprint"]?.AsString }),
+            };
+        }
+
+        private static ManifestField ReadField(JsonValue f)
+        {
+            return new ManifestField(Required(f, "name"), Required(f, "type"), f["nullable"]?.AsBoolean ?? false, f["personalData"]?.AsBoolean ?? false)
+            {
+                Fields = List(f["fields"], ReadField),
             };
         }
 
@@ -194,10 +202,38 @@ namespace SourceFlow.Studio.Dsl.Manifests
         {
             return Fields.FirstOrDefault(f => f.Name == name);
         }
+
+        /// <summary>The field at a dotted path of JSON names, such as <c>customer.id</c>, through nested objects; or null.</summary>
+        public ManifestField? FieldAt(string path)
+        {
+            if (path is null)
+            {
+                throw new ArgumentNullException(nameof(path));
+            }
+
+            IReadOnlyList<ManifestField> fields = Fields;
+            ManifestField? field = null;
+            foreach (string segment in path.Split('.'))
+            {
+                field = fields.FirstOrDefault(f => f.Name == segment);
+                if (field is null)
+                {
+                    return null;
+                }
+
+                fields = field.Fields;
+            }
+
+            return field;
+        }
     }
 
     /// <summary>A message field: its JSON name and schema-like type.</summary>
-    public sealed record ManifestField(string Name, string Type, bool Nullable, bool PersonalData);
+    public sealed record ManifestField(string Name, string Type, bool Nullable, bool PersonalData)
+    {
+        /// <summary>The members of an <c>object</c> field, when the manifest describes them (CR-35).</summary>
+        public IReadOnlyList<ManifestField> Fields { get; init; } = Array.Empty<ManifestField>();
+    }
 
     /// <summary>An aggregate.</summary>
     public sealed record ManifestAggregate(string Name, string? ClrType, IReadOnlyList<ManifestCommand> Commands, IReadOnlyList<string> Events);

@@ -30,7 +30,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(DslRoot)Json\*.cs;$(DslRoot)Manifests\*.cs;$(DslRoot)Model\*.cs;$(DslRoot)Expressions\*.cs;$(DslRoot)Diagnostics\*.cs;$(DslRoot)Reading\*.cs;$(DslRoot)Validation\*.cs;$(DslRoot)WorkflowAnalysis.cs" Link="Dsl\%(RecursiveDir)%(Filename)%(Extension)" />
-    <EmbeddedResource Include="$(DslRoot)Json\JsonLite.cs;$(DslRoot)Model\WorkflowModel.cs;$(DslRoot)Model\IsoDuration.cs;$(DslRoot)Model\WorkflowJson.cs;$(DslRoot)Expressions\Guard.cs;$(DslRoot)Simulation\WorkflowSimulator.cs;$(DslRoot)Simulation\WorkflowIds.cs;$(DslRoot)Simulation\SimulationStateJson.cs" LogicalName="Engine/%(Filename)%(Extension)" Link="Engine\%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(DslRoot)Json\JsonLite.cs;$(DslRoot)Model\WorkflowModel.cs;$(DslRoot)Model\IsoDuration.cs;$(DslRoot)Model\CorrelationPath.cs;$(DslRoot)Model\WorkflowJson.cs;$(DslRoot)Expressions\Guard.cs;$(DslRoot)Simulation\WorkflowSimulator.cs;$(DslRoot)Simulation\WorkflowIds.cs;$(DslRoot)Simulation\SimulationStateJson.cs" LogicalName="Engine/%(Filename)%(Extension)" Link="Engine\%(Filename)%(Extension)" />
     <EmbeddedResource Include="Workflows\WorkflowBridge.txt" LogicalName="Engine/WorkflowBridge.cs" WithCulture="false" />
   </ItemGroup>
   <ItemGroup>

@@ -101,6 +101,12 @@ internal sealed class SqlText
             """);
         GetCheckpoint = R("SELECT commit_pos, seq_pos FROM {s}.checkpoints WHERE subscription = @sub AND partition = @p");
         GetPartitions = R("SELECT partitions FROM {s}.subscription_partitions WHERE subscription = @sub");
+        InitializeCheckpoints = R("""
+            INSERT INTO {s}.checkpoints (subscription, partition, commit_pos, seq_pos, updated_at)
+            SELECT @sub, p, @tx, @seq, now() FROM generate_series(0, @partitions - 1) AS p
+             WHERE NOT EXISTS (SELECT 1 FROM {s}.checkpoints WHERE subscription = @sub)
+            ON CONFLICT (subscription, partition) DO NOTHING
+            """);
         ClaimPartitions = R("""
             WITH ins AS (
                 INSERT INTO {s}.subscription_partitions (subscription, partitions) VALUES (@sub, @partitions)
@@ -377,6 +383,8 @@ internal sealed class SqlText
     public string GetPartitions { get; }
 
     public string ClaimPartitions { get; }
+
+    public string InitializeCheckpoints { get; }
 
     public string SetPartitions { get; }
 

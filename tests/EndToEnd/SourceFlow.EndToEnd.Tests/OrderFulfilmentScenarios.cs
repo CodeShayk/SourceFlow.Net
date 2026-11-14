@@ -423,6 +423,35 @@ public sealed class OrderFulfilmentScenarios(PostgreSqlServer postgreSql, LocalS
         after.Services.GetRequiredService<SourceFlowRuntime>().Model.ProcessManagers.Select(p => p.Name).ShouldBe(["order-fulfilment@2"]);
     }
 
+    // ================================================================ E2E-36: a new workflow starts at the head
+
+    [Fact]
+    [Trait("Id", "E2E-36")]
+    [Trait("Requires", "Docker")]
+    [Trait("Covers", "doc 15 5.6")]
+    public async Task DeployingAWorkflow_StartsNoInstancesForPastEvents()
+    {
+        await using OrderFulfilmentSystem system = await OrderFulfilmentSystem.StartAsync(Servers, Store.PostgreSql, Broker.InMemory);
+        await system.StopAsync(system.Orders);
+
+        // A release without the workflow takes an order: its order-placed event is in the log, and nothing starts.
+        await system.StartOrdersAsync(sf => sf.AddOrdersService<Without<Without<OrdersModule, OrderFulfilmentWorkflowV1>, Orders.WorkflowInstancesQuery>>());
+        var past = OrderId.New();
+        await system.PlaceAsync(past, 120m);
+        await EventuallyEqualAsync(() => system.OrderEventsAsync(past), [Placed], "the past order to be placed", system);
+        await system.StopAsync(system.Orders);
+
+        // The next release adds version 2. Its subscription is new: it starts at the head, so only new orders start it.
+        await system.StartOrdersAsync(sf => sf.AddOrdersService<Without<OrdersModule, OrderFulfilmentWorkflowV1>>().AddModule<NextReleaseModule>());
+        var fresh = OrderId.New();
+        await system.PlaceAsync(fresh, 120m);
+
+        await system.WaitAsync(fresh, s => s.Status == "Completed", "the new order to ship on version 2", version: 2);
+        (await system.SummaryAsync(past, version: 2)).ShouldBeNull("the past order's event came before version 2 was deployed");
+        (await system.EngineStateAsync(past, version: 2)).ShouldBeNull();
+        (await system.ReservationEventsAsync(past)).ShouldBeEmpty("no stock was reserved for it");
+    }
+
     // ================================================================ WF-E2E-11: duplicate delivery everywhere
 
     [Fact]
@@ -625,7 +654,8 @@ public sealed class OrderFulfilmentScenarios(PostgreSqlServer postgreSql, LocalS
 }
 
 /// <summary>
-/// A module without one process manager: a deployment that never had a workflow version, or removed it (doc 15 §5.6).
+/// A module without one process manager (or domain query): a deployment that never had a workflow version, or removed it
+/// (doc 15 §5.6).
 /// </summary>
 internal sealed class Without<TModule, TProcess> : ISourceFlowModule
     where TModule : ISourceFlowModule
@@ -686,6 +716,12 @@ internal sealed class Without<TModule, TProcess> : ISourceFlowModule
 
         public void AddDomainQuery<TQuery, TResult>()
             where TQuery : class, IDomainQueryRuntime<TQuery, TResult>
-            where TResult : class => inner.AddDomainQuery<TQuery, TResult>();
+            where TResult : class
+        {
+            if (typeof(TQuery) != typeof(TProcess))
+            {
+                inner.AddDomainQuery<TQuery, TResult>();
+            }
+        }
     }
 }

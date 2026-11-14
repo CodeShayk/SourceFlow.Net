@@ -127,6 +127,7 @@ public static class StorageConformance
         new("SCK-80", "Documents: concurrent upserts of the same document, the newer version always wins", ConcurrentUpsertsNewerWins),
         new("SCK-81", "ES-R1: an append after a flush or raw connection access is refused", AppendWindowCloses),
         new("SCK-82", "Partitions: the first claim stores the count, and a repartition writes it with the checkpoints atomically", RepartitionAtomic),
+        new("SCK-83", "Checkpoints: a new subscription can start at a position; one with any checkpoint is left as it is", InitializeCheckpoints),
     ];
 
     // ------------------------------------------------------------------ helpers
@@ -1106,6 +1107,31 @@ public static class StorageConformance
         first.Append(StreamA, "sck", ExpectedVersion.NoStream, Events(1));   // first: accepted
         await first.FlushAsync(ct).ConfigureAwait(false);                      // and a flush after it is fine
         await first.CommitAsync(ct).ConfigureAwait(false);
+    }
+
+    // doc 15 §5.6 (CR-34): a new process manager starts at the head of the log. Initializing writes every partition's
+    // checkpoint once; a later call, or a subscription that already has a checkpoint, changes nothing.
+    private static async Task InitializeCheckpoints(IStorageFixture f, CancellationToken ct)
+    {
+        var head = new GlobalPosition(42, 3);
+        Check.True(await f.Checkpoints.InitializeAsync("init", 4, head, ct).ConfigureAwait(false), "a new subscription is initialized");
+        for (int partition = 0; partition < 4; partition++)
+        {
+            Check.Equal(head, await f.Checkpoints.GetAsync("init", partition, ct).ConfigureAwait(false), $"partition {partition} starts at the head");
+        }
+
+        Check.True(!await f.Checkpoints.InitializeAsync("init", 4, new GlobalPosition(99, 1), ct).ConfigureAwait(false), "only once");
+        Check.Equal(head, await f.Checkpoints.GetAsync("init", 0, ct).ConfigureAwait(false), "a second call moves nothing");
+
+        LeaseToken lease = await LeaseAsync(f, "sub:running:1", ct).ConfigureAwait(false);
+        await using (IStorageSession session = await f.Sessions.BeginAsync(Tenant, ct).ConfigureAwait(false))
+        {
+            session.SaveCheckpoint("running", 1, new GlobalPosition(5, 1), lease);
+            await session.CommitAsync(ct).ConfigureAwait(false);
+        }
+
+        Check.True(!await f.Checkpoints.InitializeAsync("running", 2, head, ct).ConfigureAwait(false), "a subscription that has run is not moved");
+        Check.Equal(GlobalPosition.Start, await f.Checkpoints.GetAsync("running", 0, ct).ConfigureAwait(false), "not even its other partitions");
     }
 
     // doc 06 §3 (CR-18): the first node claims the count; others read it back. A repartition writes the new count and every

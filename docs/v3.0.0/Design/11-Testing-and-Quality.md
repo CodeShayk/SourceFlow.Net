@@ -41,9 +41,10 @@ public class BankAccountSpecs
 
     [Fact]
     public void Transfer_times_out_and_compensates() =>
-        ProcessManagerSpec.For<MoneyTransfer>()
+        ProcessManagerSpec.For<MoneyTransfer, TransferId, TransfersModule>().WithModule<AccountsModule>()
             .Given(new TransferRequested(TId, From, To, 10m), new MoneyWithdrawn(From, 10m, 90m))
             .WhenTimeAdvances(TimeSpan.FromMinutes(5))
+            .When(new TransferTimedOut(TId))
             .ThenSends(new Deposit(From, 10m), new FailTransfer(TId, "timeout"))
             .ThenCompleted();
 
@@ -55,7 +56,9 @@ public class BankAccountSpecs
 }
 ```
 
-The specs run the **generated** `Decide`, `Evolve` and `React` code, so they test exactly what runs in production. They also check that each event round-trips through the serialiser and that `Evolve` is deterministic (by applying the events twice).
+The specs run the **generated** `Decide`, `Evolve` and `React` code, so they test exactly what runs in production.
+
+> **As built (WP-C.11, CR-44).** `ProcessManagerSpec` and `WorkflowSpec` go one step further: each message runs through the process-manager runner over in-memory storage. Correlation uses `TryCorrelate` and the envelope correlation (none for the first message, the instance for later ones, as for replies). A workflow version starts only under the start rules. A completed instance ignores later messages. The state is read back from its JSON after every message. A spec of a workflow version leaves the module's other versions of that workflow out. Commands owned elsewhere go to a stand-in endpoint, because routing is deployment configuration. They also check that each event round-trips through the serialiser and that `Evolve` is deterministic (by applying the events twice).
 
 ## 3. Integration test host
 

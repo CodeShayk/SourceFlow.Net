@@ -62,6 +62,8 @@ while lease held:
 > - **Mismatched nodes refuse it.** A node configured with a different count refuses that subscription (`sourceflow.subscription.partition_mismatch`, log event 1306) and holds none of its leases. During a rolling deploy with a changed count, the nodes still on the stored count keep processing, and each event is handled once (E2E-35).
 > - **Configuring `P`.** It comes from `Projections(p => p.Add<T>().Partitions(n))`, or from `SubscriptionPartitions`. That default now applies to subscriptions with no stored count only.
 > - **`projection repartition --from --to`** writes the new count with every new partition's checkpoint in one transaction (SCK-82). Nodes pick the new count up after redeploying with it.
+>
+> **As built (WP-C.11, CR-34).** A new process-manager subscription starts at the head of the log, not the beginning: at startup, a node sets the checkpoints of a process manager that has never run to the safe horizon (SCK-83, log event 1307). Projections and event handlers still start at the beginning. See doc 15 §5.6.
 
 ## 4. Leases, fencing and work distribution
 

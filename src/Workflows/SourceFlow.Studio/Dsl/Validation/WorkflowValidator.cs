@@ -46,6 +46,7 @@ namespace SourceFlow.Studio.Dsl.Validation
             private readonly Dictionary<string, string> _dataTypes = new Dictionary<string, string>(StringComparer.Ordinal);
             private readonly Dictionary<string, bool> _dataPersonal = new Dictionary<string, bool>(StringComparer.Ordinal);
             private readonly string? _correlationField;
+            private readonly string? _correlationPath;
 
             public Run(WorkflowDefinition workflow, WorkflowEnvironment environment)
             {
@@ -53,8 +54,11 @@ namespace SourceFlow.Studio.Dsl.Validation
                 _env = environment;
                 _owner = environment.Service(workflow.Owner)
                     ?? (environment.CompilingService == workflow.Owner || environment.Partial ? environment.Manifests.FirstOrDefault(m => m.Service is null) : null);
-                int dot = workflow.Start.Correlate.LastIndexOf('.');
-                _correlationField = dot >= 0 ? workflow.Start.Correlate.Substring(dot + 1) : null;
+                if (CorrelationPath.IsValid(workflow.Start.Correlate))
+                {
+                    _correlationField = CorrelationPath.InstanceKey(workflow.Start.Correlate);
+                    _correlationPath = CorrelationPath.Field(workflow.Start.Correlate);
+                }
             }
 
             public List<WorkflowDiagnostic> Diagnostics { get; } = new List<WorkflowDiagnostic>();
@@ -119,7 +123,7 @@ namespace SourceFlow.Studio.Dsl.Validation
                     Report(WorkflowRules.Unreachable, "The owner never receives the start message " + start.On + ": " + why + ".", start.At("on"));
                 }
 
-                if (_correlationField is { } key && message.Field(key) is null)
+                if (_correlationPath is { } key && message.FieldAt(key) is null)
                 {
                     Report(WorkflowRules.Correlation, "'start.correlate' reads '" + key + "', which " + start.On + " doesn't have.", start.At("correlate"));
                 }
@@ -138,13 +142,13 @@ namespace SourceFlow.Studio.Dsl.Validation
                     if (field.From is { } from)
                     {
                         string name = from.Substring("start.data.".Length);
-                        ManifestField? source = startMessage?.Field(name.Split('.')[0]);
+                        PathField? source = startMessage is null ? null : At(startMessage, name);
                         if (startMessage is not null && source is null)
                         {
                             Report(WorkflowRules.Map, "Data field '" + field.Name + "' reads '" + name + "', which " + _workflow.Start.On + " doesn't have.", field.At("from"));
                         }
 
-                        _dataTypes[field.Name] = source is not null && name.IndexOf('.') < 0 ? source.Type : "object";
+                        _dataTypes[field.Name] = source?.Type ?? "object";
                         if (source is { PersonalData: true } && !field.Personal)
                         {
                             Report(WorkflowRules.PersonalData, "Data field '" + field.Name + "' copies personal data (" + _workflow.Start.On + "." + name + "); mark it 'personal: true', or don't keep it.", field.Location);
@@ -169,14 +173,14 @@ namespace SourceFlow.Studio.Dsl.Validation
                     foreach (CaptureSpec capture in success.Capture)
                     {
                         string name = capture.Path.StartsWith("event.data.", StringComparison.Ordinal) ? capture.Path.Substring("event.data.".Length) : capture.Path;
-                        ManifestField? source = message.Field(name.Split('.')[0]);
+                        PathField? source = At(message, name);
                         if (source is null)
                         {
                             Report(WorkflowRules.Map, "The capture '" + capture.Field + "' reads '" + name + "', which " + success.On + " doesn't have.", capture.At("path"));
                             continue;
                         }
 
-                        string type = name.IndexOf('.') < 0 ? source.Type : "object";
+                        string type = source.Type;
                         if (_dataTypes.TryGetValue(capture.Field, out string? existing) && !Compatible(existing, type))
                         {
                             Report(WorkflowRules.Map, "The capture '" + capture.Field + "' is " + type + " but data field '" + capture.Field + "' is " + existing + ".", capture.At("path"));
@@ -853,9 +857,53 @@ namespace SourceFlow.Studio.Dsl.Validation
                     return null;
                 }
 
-                string name = path.Substring("event.data.".Length);
-                ManifestField? field = message.Field(name.Split('.')[0]);
-                return field is null ? null : name.IndexOf('.') < 0 ? field.Type : "object";
+                return At(message, path.Substring("event.data.".Length))?.Type;
+            }
+
+            // A path into a message's data (CR-35): typed from the manifest when it describes the nesting, an object when
+            // the first member exists but its members aren't described; null when the message doesn't have it. Personal
+            // when any member along the path is.
+            private static PathField? At(ManifestMessage message, string name)
+            {
+                string[] segments = name.Split('.');
+                IReadOnlyList<ManifestField> fields = message.Fields;
+                bool personal = false;
+                for (int i = 0; i < segments.Length; i++)
+                {
+                    ManifestField? field = fields.FirstOrDefault(f => f.Name == segments[i]);
+                    if (field is null)
+                    {
+                        return null;
+                    }
+
+                    personal |= field.PersonalData;
+                    if (i == segments.Length - 1)
+                    {
+                        return new PathField(field.Type, personal);
+                    }
+
+                    if (field.Fields.Count == 0)
+                    {
+                        return new PathField("object", personal);
+                    }
+
+                    fields = field.Fields;
+                }
+
+                return null;
+            }
+
+            private sealed class PathField
+            {
+                public PathField(string type, bool personalData)
+                {
+                    Type = type;
+                    PersonalData = personalData;
+                }
+
+                public string Type { get; }
+
+                public bool PersonalData { get; }
             }
 
             private void Guard(string text, SourceLocation at, Func<string, string?> resolve, string scope)

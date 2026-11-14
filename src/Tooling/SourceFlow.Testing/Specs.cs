@@ -113,31 +113,65 @@ public sealed class AggregateSpec<TAggregate, TId>
     }
 }
 
-/// <summary>Given/When/Then for a process manager's pure reactions (doc 11 §2).</summary>
+/// <summary>Creates <see cref="ProcessManagerSpec{TProcess, TId}"/>s.</summary>
+public static class ProcessManagerSpec
+{
+    /// <summary>A spec for one instance of the process manager <typeparamref name="TProcess"/> that <typeparamref name="TModule"/> registers.</summary>
+    public static ProcessManagerSpec<TProcess, TId> For<TProcess, TId, TModule>()
+        where TProcess : class, IProcessManagerRuntime<TProcess, TId>
+        where TId : struct, IStronglyTypedId<TId>
+        where TModule : ISourceFlowModule
+    {
+        return new ProcessManagerSpec<TProcess, TId>(ProcessSpecRuntime.Create<TModule>(typeof(TProcess), TProcess.ProcessName));
+    }
+}
+
+/// <summary>Given/When/Then for a process manager (doc 11 §2).</summary>
+/// <remarks>
+/// Every message goes through the process-manager runner over in-memory storage, as in a service (CR-44). The first
+/// message starts the instance: it must correlate through <c>CorrelateBy</c>, because it carries no envelope correlation.
+/// Later messages correlate as replies to the instance's commands (the envelope correlation is the instance), unless their
+/// own <c>CorrelateBy</c> says otherwise; one that correlates to another instance fails the spec. A completed instance
+/// ignores later messages, and the state is read back from its JSON after each message.
+/// </remarks>
 /// <typeparam name="TProcess">The process manager.</typeparam>
 /// <typeparam name="TId">Its id type.</typeparam>
 public sealed class ProcessManagerSpec<TProcess, TId>
     where TProcess : class, IProcessManagerRuntime<TProcess, TId>
     where TId : struct, IStronglyTypedId<TId>
 {
-    private readonly TId _id;
+    private readonly ProcessSpecRuntime _spec;
+    private string? _instance;
     private TProcess _state = TProcess.Initial;
-    private bool _started;
     private bool _completed;
     private Reaction? _reaction;
-    private DateTimeOffset _now = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+    private bool _reacted;
+    private int _messages;
 
-    /// <summary>Creates a spec for one instance.</summary>
-    public ProcessManagerSpec(TId id)
+    internal ProcessManagerSpec(ProcessSpecRuntime spec)
     {
-        _id = id;
+        _spec = spec;
     }
 
-    /// <summary>The current state.</summary>
+    /// <summary>Registers another module before the first message, for example the contracts of the commands it sends.</summary>
+    public ProcessManagerSpec<TProcess, TId> WithModule<TModule>()
+        where TModule : ISourceFlowModule
+    {
+        _spec.AddModule<TModule>();
+        return this;
+    }
+
+    /// <summary>The instance id, once the first message has started it.</summary>
+    public TId? Id => _instance is null ? null : TId.Parse(_instance);
+
+    /// <summary>The current state, as stored.</summary>
     public TProcess State => _state;
 
     /// <summary>True when the instance completed.</summary>
     public bool IsCompleted => _completed;
+
+    /// <summary>The reaction clock.</summary>
+    public DateTimeOffset Now => _spec.Clock.Now;
 
     /// <summary>Past messages, applied in order.</summary>
     public ProcessManagerSpec<TProcess, TId> Given(params IMessage[] messages)
@@ -153,7 +187,7 @@ public sealed class ProcessManagerSpec<TProcess, TId>
     /// <summary>Moves the reaction clock forward.</summary>
     public ProcessManagerSpec<TProcess, TId> WhenTimeAdvances(TimeSpan by)
     {
-        _now += by;
+        _spec.Clock.Now += by;
         return this;
     }
 
@@ -161,16 +195,17 @@ public sealed class ProcessManagerSpec<TProcess, TId>
     public ProcessManagerSpec<TProcess, TId> When(IMessage message)
     {
         _reaction = Apply(message);
+        _reacted = true;
         return this;
     }
 
     /// <summary>Expects exactly these commands to be sent.</summary>
     public ProcessManagerSpec<TProcess, TId> ThenSends(params ICommand[] commands)
     {
-        Reaction reaction = Reacted();
-        if (!reaction.Commands.SequenceEqual(commands))
+        IReadOnlyList<ICommand> sent = Reacted()?.Commands ?? [];
+        if (!sent.SequenceEqual(commands))
         {
-            throw new SpecificationException($"Expected sends [{string.Join(", ", commands.Select(c => c.ToString()))}] but got [{string.Join(", ", reaction.Commands.Select(c => c.ToString()))}].");
+            throw new SpecificationException($"Expected sends [{string.Join(", ", commands.Select(c => c.ToString()))}] but got [{string.Join(", ", sent.Select(c => c.ToString()))}].");
         }
 
         return this;
@@ -179,7 +214,7 @@ public sealed class ProcessManagerSpec<TProcess, TId>
     /// <summary>Expects a message to be scheduled at <paramref name="at"/>.</summary>
     public ProcessManagerSpec<TProcess, TId> ThenSchedules(IMessage message, DateTimeOffset at)
     {
-        if (!Reacted().Scheduled.Contains(new ScheduledMessage(message, at)))
+        if (Reacted()?.Scheduled.Contains(new ScheduledMessage(message, at)) != true)
         {
             throw new SpecificationException($"Expected {message} to be scheduled at {at:O}.");
         }
@@ -198,10 +233,10 @@ public sealed class ProcessManagerSpec<TProcess, TId>
         return this;
     }
 
-    /// <summary>Expects the message to be ignored.</summary>
+    /// <summary>Expects the message to be ignored (by the process manager, or because the instance had completed).</summary>
     public ProcessManagerSpec<TProcess, TId> ThenIgnored()
     {
-        if (!Reacted().IsIgnored)
+        if (Reacted() is not null)
         {
             throw new SpecificationException("Expected the message to be ignored.");
         }
@@ -209,28 +244,26 @@ public sealed class ProcessManagerSpec<TProcess, TId>
         return this;
     }
 
-    private Reaction Apply(IMessage message)
+    private Reaction? Apply(IMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);
-        if (_completed)
+        bool starting = _instance is null;
+        var messageId = new MessageId(SourceFlow.Messaging.MessageIds.CreateVersion5(SourceFlow.Messaging.MessageIds.SourceFlowNamespace, "spec/" + (++_messages).ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        CorrelationId correlation = starting ? CorrelationId.None : new CorrelationId(_instance!);
+        (string instance, Reaction? reaction) = _spec.Deliver(message, correlation, messageId, causation: null, _instance);
+        if (_spec.Load(instance) is { } stored)
         {
-            return Reaction.Ignore;
-        }
-
-        Reaction reaction = _state.React(message, new ReactionContext<TId>(_id, _now, MessageId.Empty, !_started));
-        if (!reaction.IsIgnored)
-        {
-            _started = true;
-            _state = (TProcess?)reaction.NewState ?? _state;
-            _completed = reaction.Completes;
+            _instance = instance;
+            _state = (TProcess)stored.State;
+            _completed = stored.Completed;
         }
 
         return reaction;
     }
 
-    private Reaction Reacted()
+    private Reaction? Reacted()
     {
-        return _reaction ?? throw new SpecificationException("Call When(message) first.");
+        return _reacted ? _reaction : throw new SpecificationException("Call When(message) first.");
     }
 }
 

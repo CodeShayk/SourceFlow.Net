@@ -773,6 +773,10 @@ namespace SourceFlow.Diagnostics
 }
 namespace SourceFlow.Hosting
 {
+    public sealed class ProcessManagerBuilder
+    {
+        public SourceFlow.Hosting.ProcessManagerBuilder StartFrom(SourceFlow.Hosting.SubscriptionStart start) { }
+    }
     public enum ProjectionMode
     {
         Inline = 0,
@@ -809,6 +813,8 @@ namespace SourceFlow.Hosting
         public SourceFlow.Hosting.SourceFlowBuilder Configure(System.Action<SourceFlow.Runtime.SourceFlowOptions> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder Errors(System.Action<SourceFlow.Pipeline.ErrorClassifier> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder MigrateFromV2(System.Action<SourceFlow.Migration.V2MigrationBuilder> configure) { }
+        public SourceFlow.Hosting.SourceFlowBuilder ProcessManager<TProcess>(System.Action<SourceFlow.Hosting.ProcessManagerBuilder> configure)
+            where TProcess :  class { }
         public SourceFlow.Hosting.SourceFlowBuilder Projections(System.Action<SourceFlow.Hosting.ProjectionsBuilder> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder Routing(System.Action<SourceFlow.Runtime.RoutingBuilder> configure) { }
         public SourceFlow.Hosting.SourceFlowBuilder Security(System.Action<SourceFlow.Security.SecurityBuilder> configure) { }
@@ -876,6 +882,11 @@ namespace SourceFlow.Hosting
     {
         Stop = 0,
         Park = 1,
+    }
+    public enum SubscriptionStart
+    {
+        Head = 0,
+        Beginning = 1,
     }
 }
 namespace SourceFlow.Messaging
@@ -2680,6 +2691,7 @@ namespace SourceFlow.Storage
         System.Threading.Tasks.ValueTask<int> ClaimPartitionsAsync(string subscription, int partitions, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<SourceFlow.GlobalPosition> GetAsync(string subscription, int partition, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<int?> GetPartitionsAsync(string subscription, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<bool> InitializeAsync(string subscription, int partitions, SourceFlow.GlobalPosition position, System.Threading.CancellationToken cancellationToken);
     }
     public interface ICollectionAliases
     {
@@ -3011,6 +3023,7 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask<SourceFlow.Storage.StreamInfo?> GetStreamInfoAsync(string tenantId, SourceFlow.StreamId stream, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.StreamId>> GetSubjectStreamsAsync(string tenantId, string subjectId, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<int> HeartbeatAsync(string nodeId, int roles, System.TimeSpan liveWindow, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<bool> InitializeAsync(string subscription, int partitions, SourceFlow.GlobalPosition position, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask LeaveAsync(string nodeId, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.CollectionAlias>> ListAliasesAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.StoredDocument>> ListAsync(string tenantId, string collection, int maxCount, System.Threading.CancellationToken cancellationToken) { }

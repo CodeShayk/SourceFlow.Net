@@ -502,8 +502,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 throw new ArgumentNullException(nameof(startData));
             }
 
-            string correlate = workflow.Start.Correlate.StartsWith("data.", StringComparison.Ordinal) ? workflow.Start.Correlate.Substring(5) : workflow.Start.Correlate;
-            string instance = SentCommand.Format(Read(startData, correlate)).Trim('\'');
+            string instance = SentCommand.Format(CorrelationPath.Read(startData, workflow.Start.Correlate)).Trim('\'');
             var run = new Run(new SimulationState(workflow, instance) { Now = now, StartedAt = now, StartData = startData, Options = options ?? SimulationOptions.Default });
             if (workflow.Start.When is { } when && GuardParser.Parse(when).Expression is { } guard
                 && run.State.Options.Guard?.Invoke(SimulationOptions.StartGuard) != true

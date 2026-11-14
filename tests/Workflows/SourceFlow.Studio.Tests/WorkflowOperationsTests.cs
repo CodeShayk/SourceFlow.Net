@@ -343,6 +343,42 @@ public sealed class WorkflowOperationsTests
         after.Runtime.Model.ProcessManagers.Select(p => p.Name).ShouldContain("order-fulfilment@2");
     }
 
+    [Fact]
+    [Trait("Id", "UT-PM-21")]
+    [Trait("Covers", "doc 15 5.6")]
+    public async Task ANodeThatDoesntKnowVersion1_StillLeavesItsInstancesAlone()
+    {
+        // A rolling deploy: a node still on version 1 starts an order; a node already on version 2 (which doesn't register
+        // version 1, so can't see its state) reads the same start event. The shared claim keeps it to one instance.
+        var store = new InMemoryStore(TimeProvider.System);
+        var order = OrderId.New();
+        await using (SourceFlowTestHost v1 = await Host<FixtureWithout<OrderFulfilmentWorkflowV2>>(store: store))
+        {
+            await v1.SendAsync(new PlaceOrder(order, 120m, ["sku-1"], "a@b.c", Priority: false), cancellationToken: Ct);
+            await v1.WaitForIdleAsync();
+            (await Summary(v1, order)).Status.ShouldBe("Completed");
+        }
+
+        await using SourceFlowTestHost v2 = await SourceFlowTestHost.StartAsync(sf =>
+        {
+            sf.ServiceName = "orders";
+            sf.AddModule<FixtureWithout<OrderFulfilmentWorkflowV1>>();
+            sf.ProcessManager<OrderFulfilmentWorkflowV2>(p => p.StartFrom(SourceFlow.Hosting.SubscriptionStart.Beginning));   // it reads the past start event
+        }, store: store, cancellationToken: Ct);
+        var fresh = OrderId.New();
+        await v2.SendAsync(new PlaceOrder(fresh, 120m, ["sku-1"], "a@b.c", Priority: false), cancellationToken: Ct);
+        await v2.WaitForIdleAsync();
+
+        (await Summary(v2, fresh, version: 2)).Status.ShouldBe("Completed", "a new order starts on version 2");
+        await using IStorageSession session = await store.BeginAsync(MessageEnvelope.DefaultTenant, Ct);
+        string segment = WorkflowInstanceId.From(order.ToString()).ToStreamSegment();
+        (await session.LoadProcessStateAsync("order-fulfilment@2", segment, Ct)).ShouldBeNull("version 1 claimed that order");
+        System.Text.Encoding.UTF8.GetString((await session.LoadProcessStateAsync("workflow-claim:order-fulfilment", segment, Ct)).ShouldNotBeNull().State.Span)
+            .ShouldContain("order-fulfilment@1");
+        System.Text.Encoding.UTF8.GetString((await session.LoadProcessStateAsync("workflow-claim:order-fulfilment", WorkflowInstanceId.From(fresh.ToString()).ToStreamSegment(), Ct)).ShouldNotBeNull().State.Span)
+            .ShouldContain("order-fulfilment@2");
+    }
+
     // ================================================================ helpers
 
     private static Task<SourceFlowTestHost> Host<TModule>(TimeProvider? time = null, InMemoryStore? store = null, bool monitor = false)

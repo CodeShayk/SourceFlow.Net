@@ -26,6 +26,7 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
     private readonly List<string> _modules = [];
     private readonly Dictionary<Type, Query.DomainQueryDescriptor> _domainQueries = [];
     private readonly HashSet<Type> _removedProjections = [];
+    private Func<ProcessManagerDescriptor, bool>? _keepProcess;
 
     /// <summary>The names of the registered modules.</summary>
     public IReadOnlyList<string> Modules => _modules;
@@ -138,6 +139,13 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
         return this;
     }
 
+    /// <summary>Keeps only the process managers <paramref name="keep"/> accepts (a spec runs one workflow version, CR-44).</summary>
+    internal SourceFlowModelBuilder KeepProcessManagers(Func<ProcessManagerDescriptor, bool> keep)
+    {
+        _keepProcess = keep;
+        return this;
+    }
+
     /// <inheritdoc />
     public void AddSessionProjection<TProjection, TUnitOfWork>()
         where TProjection : class, ISessionProjectionRuntime<TProjection, TUnitOfWork>, new()
@@ -175,6 +183,14 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
         foreach (Type removed in _removedProjections)
         {
             _projections.Remove(removed);
+        }
+
+        if (_keepProcess is { } keep)
+        {
+            foreach (KeyValuePair<Type, ProcessManagerDescriptor> process in _processManagers.Where(p => !keep(p.Value)).ToArray())
+            {
+                _processManagers.Remove(process.Key);
+            }
         }
 
         JsonSerializerOptions options = SystemTextJsonMessageSerializer.CreateOptions(_resolvers, _converters);

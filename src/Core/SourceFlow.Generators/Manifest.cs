@@ -13,7 +13,7 @@ namespace SourceFlow.Generators
     // Routes, publications, subscriptions and replyOnReject are configuration and are merged by
     // `dotnet sourceflow manifest export` (WP-S.2).
 
-    internal sealed record ManifestField(string Name, string Type, bool Nullable, bool PersonalData);
+    internal sealed record ManifestField(string Name, string Type, bool Nullable, bool PersonalData, EquatableArray<ManifestField> Fields);
 
     internal sealed record ManifestMessage(string Ref, string Name, int Version, string Kind, string ClrType, string? Aggregate, EquatableArray<ManifestField> Fields);
 
@@ -210,8 +210,11 @@ namespace SourceFlow.Generators
         }
 
         // Public instance properties in declaration order, with their JSON names (camelCase unless [JsonPropertyName]).
-        private static IEnumerable<ManifestField> Fields(INamedTypeSymbol type)
+        // An object member of the service's own types lists its members too, so a nested `correlate` path can be checked
+        // (CR-35); NestedType has the limits.
+        private static IEnumerable<ManifestField> Fields(INamedTypeSymbol type, ImmutableStack<INamedTypeSymbol>? outer = null)
         {
+            outer = (outer ?? ImmutableStack<INamedTypeSymbol>.Empty).Push(type);
             foreach (IPropertySymbol property in type.GetMembers().OfType<IPropertySymbol>())
             {
                 if (property.IsStatic || property.IsIndexer || property.DeclaredAccessibility != Accessibility.Public || property.Name == "EqualityContract")
@@ -225,8 +228,45 @@ namespace SourceFlow.Generators
                         : CamelCase(property.Name);
                 bool personal = property.FindMemberAttribute(KnownNames.PersonalDataAttribute) is not null;
                 string kind = FieldType(property.Type, out bool nullable);
-                yield return new ManifestField(name, kind, nullable, personal);
+                EquatableArray<ManifestField> nested = kind == "object" && NestedType(property.Type, outer) is { } inner
+                    ? Fields(inner, outer).ToEquatableArray()
+                    : EquatableArray<ManifestField>.Empty;
+                yield return new ManifestField(name, kind, nullable, personal, nested);
             }
+        }
+
+        /// <summary>
+        /// The type whose members an object member lists: a non-generic class, record or struct outside <c>System</c>, not
+        /// abstract, at most three levels down and not one of the types it is nested in (no cycles).
+        /// </summary>
+        internal static INamedTypeSymbol? NestedType(ITypeSymbol type, ImmutableStack<INamedTypeSymbol> outer)
+        {
+            if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } wrapped)
+            {
+                type = wrapped.TypeArguments[0];
+            }
+
+            if (type is not INamedTypeSymbol named || named.IsAbstract || named.IsGenericType
+                || named.TypeKind is not (TypeKind.Class or TypeKind.Struct)
+                || named.SpecialType != SpecialType.None
+                || named.FindAttribute(KnownNames.StronglyTypedIdAttribute) is not null
+                || named.ContainingNamespace?.ToDisplayString() is not { } ns || ns == "System" || ns.StartsWith("System.", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            int depth = 0;
+            foreach (INamedTypeSymbol o in outer)
+            {
+                if (SymbolEqualityComparer.Default.Equals(o, named))
+                {
+                    return null;
+                }
+
+                depth++;
+            }
+
+            return depth > 3 ? null : named;
         }
 
         private static string FieldType(ITypeSymbol type, out bool nullable)
@@ -331,6 +371,29 @@ namespace SourceFlow.Generators
 
     internal static class ManifestEmitter
     {
+        private static void Field(StringBuilder fb, ManifestField f)
+        {
+            fb.Append("{\"name\":").Append(Str(f.Name)).Append(",\"type\":").Append(Str(f.Type));
+            if (f.Nullable)
+            {
+                fb.Append(",\"nullable\":true");
+            }
+
+            if (f.PersonalData)
+            {
+                fb.Append(",\"personalData\":true");
+            }
+
+            if (f.Fields.Count > 0)
+            {
+                fb.Append(",\"fields\":[");
+                Join(fb, f.Fields, Field);
+                fb.Append(']');
+            }
+
+            fb.Append('}');
+        }
+
         public static bool HasContent(ImmutableArray<ManifestMessage> messages, ImmutableArray<ManifestAggregate> aggregates, ImmutableArray<ManifestHandler> handlers, ImmutableArray<ManifestProcess> processes, ImmutableArray<ManifestProjection> projections)
         {
             return messages.Length + aggregates.Length + handlers.Length + processes.Length + projections.Length > 0;
@@ -360,21 +423,7 @@ namespace SourceFlow.Generators
                 }
 
                 b.Append(",\"fields\":[");
-                Join(b, m.Fields, (fb, f) =>
-                {
-                    fb.Append("{\"name\":").Append(Str(f.Name)).Append(",\"type\":").Append(Str(f.Type));
-                    if (f.Nullable)
-                    {
-                        fb.Append(",\"nullable\":true");
-                    }
-
-                    if (f.PersonalData)
-                    {
-                        fb.Append(",\"personalData\":true");
-                    }
-
-                    fb.Append('}');
-                });
+                Join(b, m.Fields, Field);
                 b.Append("]}");
             });
 

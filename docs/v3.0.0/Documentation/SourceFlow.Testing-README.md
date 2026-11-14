@@ -133,15 +133,20 @@ public sealed class ProcessManagerSpec<TProcess, TId>
     where TId : struct, IStronglyTypedId<TId>
 ```
 
-A process manager spec is created for one instance id. Each message goes through the generated `React`; the new state
-is kept, and the instance stops reacting once it completes.
+A process manager spec runs every message the way a service does (CR-44): through the process-manager runner over
+in-memory storage. The first message starts the instance and must correlate through `CorrelateBy`; later messages
+correlate as replies to the instance's commands, unless their own `CorrelateBy` says otherwise. The state is written as
+JSON and read back after each message, and a completed instance ignores later messages. The spec fails where a service
+would: a first message that doesn't correlate, a message for another instance, a message type the process manager
+doesn't handle, or a command whose contract no registered module carries. Commands owned elsewhere need no route in a
+spec.
 
 ```csharp
 [Fact]
 public void A_transfer_withdraws_deposits_and_completes()
 {
     var transfer = TransferId.Parse("0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d");
-    var spec = new ProcessManagerSpec<MoneyTransfer, TransferId>(transfer);
+    var spec = ProcessManagerSpec.For<MoneyTransfer, TransferId, TransfersModule>().WithModule<AccountsModule>();
 
     spec.When(new TransferRequested(transfer, Account, Other, 5m))
         .ThenSends(new Withdraw(Account, 5m))
@@ -156,7 +161,7 @@ public void A_timeout_while_depositing_compensates()
 {
     var transfer = TransferId.Parse("0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d");
 
-    new ProcessManagerSpec<MoneyTransfer, TransferId>(transfer)
+    ProcessManagerSpec.For<MoneyTransfer, TransferId, TransfersModule>().WithModule<AccountsModule>()
         .Given(new TransferRequested(transfer, Account, Other, 5m), new MoneyWithdrawn(Account, 5m, 5m))
         .WhenTimeAdvances(MoneyTransfer.Timeout)
         .When(new TransferTimedOut(transfer))
@@ -167,7 +172,9 @@ public void A_timeout_while_depositing_compensates()
 
 | Member | Meaning |
 |--------|---------|
-| `new ProcessManagerSpec<TProcess, TId>(TId id)` | A spec for one instance. |
+| `ProcessManagerSpec.For<TProcess, TId, TModule>()` | A spec for one instance of the process manager that `TModule` registers; the first message starts it. |
+| `WithModule<TModule>()` | Registers another module before the first message, for example the contracts of the commands it sends. |
+| `Id` | The instance id, once started. |
 | `Given(params IMessage[])` | Messages applied in order before the one under test. |
 | `WhenTimeAdvances(TimeSpan)` | Moves the reaction clock forward. The clock starts at `2026-01-01T00:00:00Z`. |
 | `When(IMessage)` | Reacts to one message. |
@@ -249,6 +256,7 @@ including the other services' contracts (the TravelBooking `BookingsModule` regi
 | `FireTimer()` | The last scheduled timer fires (a timeout, or the end of a retry delay), and the clock moves to its due time. |
 | `FireTimer(kind, step, attempt)` | A specific scheduled timer fires, even one the workflow has cancelled since (a stale timer delivered late, as a broker would). |
 | `Timers` | Every timer scheduled and not fired yet. Cancelled timers stay, as in production. |
+| `WithModule<TModule>()` | Registers another module before the start. |
 | `RejectAt(sentIndex, code)` | The command at that index of `Sent` is rejected, with its id as the reply's causation, as in production. For an earlier attempt's command this is a late reply, which the workflow ignores. `Reject(code)` rejects the last command sent. |
 | `Control(action, step = null, reason = null, compensate = false)` | An operator action (`WorkflowControl.ResumeAction`, `RetryStepAction`, `AbortAction`). |
 | `ThenSends(params string[] types)` | Expects the last message to have sent exactly these command types (`{name}.v{version}`), in order. `ThenSends()` with no arguments expects nothing sent. |

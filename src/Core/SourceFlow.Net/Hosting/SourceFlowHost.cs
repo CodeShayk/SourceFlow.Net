@@ -66,6 +66,7 @@ public sealed class SourceFlowHost : IHostedLifecycleService, IHealthCheck, IAsy
         await RegisterSchemasAsync(cancellationToken).ConfigureAwait(false);
         CheckDomainQueries();
         await CheckWorkflowVersionsAsync(cancellationToken).ConfigureAwait(false);
+        await _subscriptions.InitializeStartsAsync(cancellationToken).ConfigureAwait(false);   // new process managers start at the head (CR-34)
         _stopping = new CancellationTokenSource();
         CancellationToken stopping = _stopping.Token;
         _runtime.Snapshots.Start();

@@ -30,6 +30,7 @@ flowchart LR
 | `ITimeout` | `SourceFlow` | Marker for messages a process manager schedules to itself |
 | `CommandRejected<TCommand>` | `SourceFlow` | The reply when a command the process manager sent is rejected ([ADR-018](../../ADRs/ADR-018-business-rejections-are-values-not-exceptions.md)) |
 | `ProcessManagerDescriptor` | `SourceFlow.Runtime` | The registered process manager in the runtime model (`IsWorkflow` for generated workflows) |
+| `ProcessManager<T>(p => p.StartFrom(…))` | `SourceFlow.Hosting` | Where a new process manager's subscription starts: `SubscriptionStart.Head` (the default, so a new process manager or workflow version reacts to new events only) or `Beginning` |
 | `ProcessManagerRunner` | internal | Runs one reaction inside a storage session |
 | `MessageDispatcher`, `SubscriptionEngine` | internal | Deliver remote messages and local events to the runner |
 | `ProcessManagerSpec<TProcess, TId>` | `SourceFlow.Testing` | Given/When/Then tests for hand-written process managers |
@@ -103,12 +104,12 @@ The state, the timeout and `CommandRejected<Withdraw>` must be in the module's J
 
 **Correlation.** For each message the runner asks the generated `TryCorrelate`: a `CorrelateBy` method for that message type wins; otherwise the envelope's `CorrelationId` is parsed as the instance id. Every command and timer a process manager queues carries the instance id as its correlation, so replies, rejection replies and timers find the instance without a `CorrelateBy`.
 
-**Testing.** `ProcessManagerSpec` replays messages against one instance on a fixed clock (2026-01-01T00:00:00Z):
+**Testing.** `ProcessManagerSpec` runs messages through the process-manager runner over in-memory storage, on a fixed clock (2026-01-01T00:00:00Z), so correlation, completion and the JSON state behave as in a service:
 
 ```csharp
 var transfer = TransferId.Parse("0193a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d");
 
-new ProcessManagerSpec<MoneyTransfer, TransferId>(transfer)
+ProcessManagerSpec.For<MoneyTransfer, TransferId, TransfersModule>().WithModule<AccountsModule>()
     .Given(new TransferRequested(transfer, Account, Other, 5m), new MoneyWithdrawn(Account, 5m, 5m))
     .WhenTimeAdvances(MoneyTransfer.Timeout)
     .When(new TransferTimedOut(transfer))
@@ -197,7 +198,7 @@ flowchart TD
 |-----------|--------|
 | `[ProcessManager("name@v")] public sealed partial record {Name}WorkflowV{v}` | In the module's namespace. Implements `IProcessManagerRuntime<…, WorkflowInstanceId>` and `IWorkflowState<…>`. Its only state is `string? State`, the engine state as JSON; `Status` reads it |
 | `HandledMessages` | The start message, every awaited success and failure event, `CommandRejected<T>` for each command with `rejected:` failures, `WorkflowTimer` and `WorkflowControl` |
-| `TryCorrelate` | The start message and awaited events that carry the instance key (the last segment of `start.correlate`, for example `bookingId`) correlate by that member; `WorkflowTimer` and `WorkflowControl` by their `Instance`; anything else falls back to the envelope correlation |
+| `TryCorrelate` | The start message correlates by the whole `start.correlate` path, through nested members (`data.customer.orderId` reads `m.Customer?.OrderId`); awaited events that carry the instance key (the path's last segment, for example `bookingId`) correlate by that member; `WorkflowTimer` and `WorkflowControl` by their `Instance`; anything else falls back to the envelope correlation |
 | `React` | Passes the message to the engine: `Start`, `Receive`, `Rejected`, `Timer` or `Control`. The engine ignores what the instance isn't waiting for (a late event, a reply to an earlier attempt) |
 | Commands | Built from the engine's field values through the service's JSON metadata (`ReactionContext.Serializer`), and sent with a deterministic id (`Reaction.AndSend(command, messageId)`) |
 | Hooks | `private static partial object? {Name}(IReadOnlyDictionary<string, object?> data)` declarations for each `$hook` you implemented; a missing one is SF0021 |
