@@ -249,6 +249,7 @@ including the other services' contracts (the TravelBooking `BookingsModule` regi
 | `FireTimer()` | The last scheduled timer fires (a timeout, or the end of a retry delay), and the clock moves to its due time. |
 | `FireTimer(kind, step, attempt)` | A specific scheduled timer fires, even one the workflow has cancelled since (a stale timer delivered late, as a broker would). |
 | `Timers` | Every timer scheduled and not fired yet. Cancelled timers stay, as in production. |
+| `RejectAt(sentIndex, code)` | The command at that index of `Sent` is rejected, with its id as the reply's causation, as in production. For an earlier attempt's command this is a late reply, which the workflow ignores. `Reject(code)` rejects the last command sent. |
 | `Control(action, step = null, reason = null, compensate = false)` | An operator action (`WorkflowControl.ResumeAction`, `RetryStepAction`, `AbortAction`). |
 | `ThenSends(params string[] types)` | Expects the last message to have sent exactly these command types (`{name}.v{version}`), in order. `ThenSends()` with no arguments expects nothing sent. |
 | `ThenStatus(WorkflowStatus)` | Expects `Running`, `Compensating`, `ManualIntervention`, `Completed`, `Compensated` or `Aborted`. |

@@ -252,6 +252,8 @@ public sealed class FixtureWithout<TWorkflow> : ISourceFlowModule
 [JsonSerializable(typeof(CommandRejected<ReserveStock>))]
 [JsonSerializable(typeof(CommandRejected<Charge>))]
 [JsonSerializable(typeof(CommandRejected<CreateShipment>))]
+[JsonSerializable(typeof(CommandRejected<ReleaseStock>))]
+[JsonSerializable(typeof(CommandRejected<Refund>))]
 [JsonSerializable(typeof(Order))]
 [JsonSerializable(typeof(Stock))]
 [JsonSerializable(typeof(Payment))]

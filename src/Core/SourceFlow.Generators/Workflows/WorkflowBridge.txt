@@ -55,7 +55,7 @@ namespace SourceFlow.Workflows.Engine
 
         public global::SourceFlow.Reaction Rejected(TSelf current, string command, string code, string message, global::SourceFlow.ReactionContext<global::SourceFlow.Workflows.WorkflowInstanceId> context)
         {
-            return Step(current, SimulationInput.RejectedFor(command, code, message), Serializer(context), context);
+            return Step(current, SimulationInput.RejectedFor(command, code, message, context.CausationId?.Value), Serializer(context), context);
         }
 
         public global::SourceFlow.Reaction Timer(TSelf current, global::SourceFlow.Workflows.WorkflowTimer timer, global::SourceFlow.ReactionContext<global::SourceFlow.Workflows.WorkflowInstanceId> context)

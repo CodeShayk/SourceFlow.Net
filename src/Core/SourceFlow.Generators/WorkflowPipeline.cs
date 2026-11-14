@@ -225,9 +225,24 @@ namespace SourceFlow.Generators
                 }
             }
 
+            // CR-32 (doc 15 §5.3): every awaited command's rejection reaches the workflow, declared or not (an undeclared one
+            // goes to ManualIntervention), and so does a compensation's (a rejected compensation is a failed attempt).
+            void Rejectable(SendSpec? send)
+            {
+                if (send is not null && types.TryGetValue(send.Command, out MessageEntry? rejected))
+                {
+                    rejections[send.Command] = rejected;
+                }
+            }
+
             foreach (WorkflowStep step in workflow.Steps)
             {
                 Send(step.Send);
+                if (step.Await is not null)
+                {
+                    Rejectable(step.Send);
+                }
+
                 if (step.Await is { } wait)
                 {
                     if (Resolve(wait.Success.On, wait.Success.At("on")) is { } success)
@@ -241,16 +256,12 @@ namespace SourceFlow.Generators
                         {
                             events[on] = failed;
                         }
-
-                        if (failure.Rejected is not null && step.Send is { } send && types.TryGetValue(send.Command, out MessageEntry? rejected))
-                        {
-                            rejections[send.Command] = rejected;
-                        }
                     }
                 }
 
                 if (step.Compensate is { None: false } compensate)
                 {
+                    Rejectable(compensate.Send);
                     Send(compensate.Send);
                     if (compensate.Await?.Success is { } undone && Resolve(undone.On, undone.At("on")) is { } compensated)
                     {

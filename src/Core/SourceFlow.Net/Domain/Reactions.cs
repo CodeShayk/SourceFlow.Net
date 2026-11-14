@@ -48,6 +48,13 @@ public readonly record struct ReactionContext<TId>(TId Id, DateTimeOffset Now, M
     /// workflows use them to read events and build commands (doc 15 §5.5); hand-written process managers don't need them.
     /// </summary>
     public System.Text.Json.JsonSerializerOptions? Serializer { get; init; }
+
+    /// <summary>
+    /// The id of the message that caused the one being handled (its envelope's causation), when known. For a
+    /// <see cref="CommandRejected{TCommand}"/> it is the rejected command's id, so a reply to an earlier attempt can be told
+    /// apart (doc 15 §5.5, CR-33).
+    /// </summary>
+    public MessageId? CausationId { get; init; }
 }
 
 /// <summary>A message to deliver at a later time (a durable timer, doc 04 §8).</summary>

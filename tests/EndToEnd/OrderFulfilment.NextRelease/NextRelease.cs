@@ -11,6 +11,8 @@ public sealed partial class NextReleaseModule;
 [JsonSerializable(typeof(CommandRejected<Inventory.ReserveStock>))]
 [JsonSerializable(typeof(CommandRejected<Payments.Charge>))]
 [JsonSerializable(typeof(CommandRejected<Shipping.CreateShipment>))]
+[JsonSerializable(typeof(CommandRejected<Inventory.ReleaseStock>))]
+[JsonSerializable(typeof(CommandRejected<Payments.Refund>))]
 [JsonSerializable(typeof(Inventory.OrderId), TypeInfoPropertyName = "InventoryOrderId")]
 [JsonSerializable(typeof(Payments.OrderId), TypeInfoPropertyName = "PaymentsOrderId")]
 [JsonSerializable(typeof(Shipping.OrderId), TypeInfoPropertyName = "ShippingOrderId")]

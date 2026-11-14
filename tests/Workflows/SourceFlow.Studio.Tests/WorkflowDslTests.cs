@@ -532,10 +532,10 @@ public sealed class WorkflowDslTests
     [Trait("Id", "UT-WF-39")]
     public void RuleIds_AreStable_AndSeveritiesMatchTheDoc()
     {
-        WorkflowRules.All.Count.ShouldBe(23);
-        WorkflowRules.All.Distinct().Count().ShouldBe(23);
-        WorkflowRules.All.Where(id => WorkflowRules.SeverityOf(id) == WorkflowSeverity.Warning).ShouldBe(["WF-V09", "WF-V14"]);
-        Enumerable.Range(1, 17).Select(i => $"WF-V{i:00}").ShouldAllBe(id => WorkflowRules.All.Contains(id));
+        WorkflowRules.All.Count.ShouldBe(24);
+        WorkflowRules.All.Distinct().Count().ShouldBe(24);
+        WorkflowRules.All.Where(id => WorkflowRules.SeverityOf(id) == WorkflowSeverity.Warning).ShouldBe(["WF-V09", "WF-V14", "WF-V18"]);
+        Enumerable.Range(1, 18).Select(i => $"WF-V{i:00}").ShouldAllBe(id => WorkflowRules.All.Contains(id));
 
         var diagnostic = new WorkflowDiagnostic("WF-V06", WorkflowSeverity.Error, "message", new SourceLocation(3, 4));
         diagnostic.ToString().ShouldBe("(3,4): error WF-V06: message");

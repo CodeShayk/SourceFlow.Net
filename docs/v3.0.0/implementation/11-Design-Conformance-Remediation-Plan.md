@@ -376,6 +376,9 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
 - **Deliverables:**
   - **Rejections (CR-32):** `CommandRejected<T>` is registered for every command a workflow sends, compensations
     included. A compensation with `timeout: none` gets the validator warning WF-V18.
+    *As built:* for every awaited command and every compensation (terminal `on.*` sends are not awaited). Each needs JSON
+    metadata in the service's context, as declared rejections already did. Startup names a missing one; the fixtures and
+    the TravelBooking sample add theirs.
   - **Late replies (CR-33):** rejection replies carry their causation id, and the engine compares it with the current
     attempt's deterministic id from `WorkflowIds.Send` or `WorkflowIds.Compensation`.
   - **New versions and new workflows (CR-34):**

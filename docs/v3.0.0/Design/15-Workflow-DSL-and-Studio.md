@@ -363,6 +363,7 @@ CompensationStack = [ (stepId, compensation, attempt) … ]   # pushed on each s
 | WF-V15 | `name@version` unique per owner; changing a published version's structure without bumping `version` | Error |
 | WF-V16 | Compensation commands aren't themselves compensated (no nested sagas inside compensation) | Error |
 | WF-V17 | A step at or after the pivot doesn't `next` or `goto` a step before it (forward recovery only) | Error |
+| WF-V18 | A compensation has a timeout: `timeout: none` would leave the instance `Compensating` for ever if no outcome arrives | Warning |
 
 **As built (WP-S.3): validation** (`WorkflowAnalysis.Analyze` = reader, then `WorkflowValidator`).
 
@@ -424,6 +425,11 @@ Commands of other services are referenced by **logical name**. The owner must re
   - **Operator commands.** One shared `WorkflowControl(workflow, instance, action, step?, reason?, compensate)` replaces `ResumeWorkflow`, `AbortWorkflow` and `RetryWorkflowStep`. It is delivered through the scheduler, because process managers react to messages, not commands. The actions are `resume`, `retry-step` and `abort`.
   - **Instance data** is JSON in the state rather than typed fields. `personal: true` data is therefore not crypto-shredded in workflow state yet (WF-V14 still warns; follow-up).
 - **Testing.** `SourceFlow.Testing.WorkflowSpec.For<TWorkflow, TModule>()` is the API the generated specs (WP-S.4) use: `Start`, `Succeed`, `Fail`, `Reject`, `FireTimer`, `Control`, `ThenSends`, `ThenStatus`.
+
+> **As built (WP-C.11, CR-32, CR-33).**
+> - **Every rejection arrives.** The generated workflow handles `CommandRejected<T>` for every command it awaits, whether a failure declares the rejection or not, and for every compensation command. An undeclared step rejection goes to `ManualIntervention`. A rejected compensation counts as a failed attempt.
+> - **Migration.** The service's `JsonSerializerContext` needs `[JsonSerializable(typeof(CommandRejected<T>))]` for each of these commands. Startup names any that is missing.
+> - **Late replies.** A rejection reply carries the rejected command's id as its causation (`ReactionContext.CausationId`). The engine compares it with the current attempt's deterministic id (`WorkflowIds.Send`, or `WorkflowIds.Compensation` while compensating) and ignores a reply to an earlier attempt.
 
 ### 5.6 Versioning of running instances
 

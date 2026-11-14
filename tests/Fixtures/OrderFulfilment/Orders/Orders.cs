@@ -273,5 +273,7 @@ public static class OrdersService
 [JsonSerializable(typeof(CommandRejected<ReserveStock>))]
 [JsonSerializable(typeof(CommandRejected<Charge>))]
 [JsonSerializable(typeof(CommandRejected<CreateShipment>))]
+[JsonSerializable(typeof(CommandRejected<ReleaseStock>))]
+[JsonSerializable(typeof(CommandRejected<Refund>))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 public sealed partial class OrdersJsonContext : JsonSerializerContext;

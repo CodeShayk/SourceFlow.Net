@@ -84,7 +84,7 @@ internal sealed class ProcessManagerRunner(SourceFlowRuntime runtime)
         }
 
         object state = stored is null ? process.Initial : JsonSerializer.Deserialize(stored.State.Span, typeInfo)!;
-        Reaction reaction = process.React(state, message, instanceId, runtime.Time.GetUtcNow(), envelope.MessageId, isNew: stored is null, runtime.Model.Registry.Options);
+        Reaction reaction = process.React(state, message, instanceId, runtime.Time.GetUtcNow(), envelope.MessageId, isNew: stored is null, runtime.Model.Registry.Options, envelope.CausationId);
         if (reaction.IsIgnored)
         {
             return true;

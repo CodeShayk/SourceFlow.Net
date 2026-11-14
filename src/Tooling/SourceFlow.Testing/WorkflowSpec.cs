@@ -89,7 +89,21 @@ public sealed class WorkflowSpec<TWorkflow>
             throw new SpecificationException("Nothing was sent to reject.");
         }
 
-        ICommand command = _sent[^1].Command;
+        return RejectAt(_sent.Count - 1, code, message);
+    }
+
+    /// <summary>
+    /// The command at <paramref name="sentIndex"/> in <see cref="Sent"/> is rejected: for an earlier attempt's command, a
+    /// late reply. The reply carries the command's id as its causation, as in production (doc 15 §5.5).
+    /// </summary>
+    public WorkflowSpec<TWorkflow> RejectAt(int sentIndex, string code, string? message = null)
+    {
+        if (sentIndex < 0 || sentIndex >= _sent.Count)
+        {
+            throw new SpecificationException($"There is no sent command #{sentIndex}; {_sent.Count} were sent.");
+        }
+
+        (ICommand command, MessageId? commandId) = _sent[sentIndex];
         MessageTypeInfo commandType = _model.Registry.Get(command.GetType());
         if (!_model.Registry.TryGet(CommandReplies.RejectedTypeName(commandType.Name), commandType.Version, out MessageTypeInfo? reply))
         {
@@ -101,7 +115,7 @@ public sealed class WorkflowSpec<TWorkflow>
             ["command"] = JsonSerializer.SerializeToNode(command, _model.Registry.Options.GetTypeInfo(command.GetType())),
             ["error"] = new JsonObject { ["code"] = code, ["message"] = message ?? code },
         };
-        return Deliver((IMessage)json.Deserialize(reply.JsonTypeInfo)!);
+        return Deliver((IMessage)json.Deserialize(reply.JsonTypeInfo)!, causation: commandId);
     }
 
     /// <summary>The last timer scheduled fires (a timeout or the end of a retry delay); the clock moves to its due time.</summary>
@@ -194,7 +208,7 @@ public sealed class WorkflowSpec<TWorkflow>
         return (IMessage)JsonSerializer.Deserialize(json, info.JsonTypeInfo)!;
     }
 
-    private WorkflowSpec<TWorkflow> Deliver(IMessage message)
+    private WorkflowSpec<TWorkflow> Deliver(IMessage message, MessageId? causation = null)
     {
         if (_id.IsDefault)
         {
@@ -202,7 +216,7 @@ public sealed class WorkflowSpec<TWorkflow>
         }
 
         var messageId = new MessageId(MessageIds.CreateVersion5(MessageIds.SourceFlowNamespace, "spec/" + (++_messages).ToString(System.Globalization.CultureInfo.InvariantCulture)));
-        Reaction reaction = _state.React(message, new ReactionContext<WorkflowInstanceId>(_id, Now, messageId, _state.State is null) { Serializer = _model.Registry.Options });
+        Reaction reaction = _state.React(message, new ReactionContext<WorkflowInstanceId>(_id, Now, messageId, _state.State is null) { Serializer = _model.Registry.Options, CausationId = causation });
         if (reaction.IsIgnored)
         {
             _reaction = null;

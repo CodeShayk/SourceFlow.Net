@@ -358,7 +358,7 @@ public sealed class WorkflowRuntimeTests
         private void Deliver(WorkflowTimer timer)
         {
             // A stale timer: delivered through the operator path of the spec (the same React).
-            typeof(WorkflowSpec<OrderFulfilmentWorkflowV1>).GetMethod("Deliver", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(_spec, [timer]);
+            typeof(WorkflowSpec<OrderFulfilmentWorkflowV1>).GetMethod("Deliver", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(_spec, [timer, null]);
         }
 
         private JsonObject EventData(string type)

@@ -309,5 +309,6 @@ public static class BookingsService
 [JsonSerializable(typeof(Hotels.BookingId), TypeInfoPropertyName = "HotelsBookingId")]
 [JsonSerializable(typeof(CommandRejected<ReserveRoom>))]
 [JsonSerializable(typeof(CommandRejected<ConfirmReservation>))]
+[JsonSerializable(typeof(CommandRejected<ReleaseRoom>))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 public sealed partial class BookingsJsonContext : JsonSerializerContext;

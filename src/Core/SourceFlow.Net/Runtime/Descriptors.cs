@@ -159,7 +159,7 @@ public abstract class ProcessManagerDescriptor
     public abstract bool TryCorrelate(IMessage message, CorrelationId envelopeCorrelation, [NotNullWhen(true)] out string? instanceId);
 
     /// <summary>Runs the generated <c>React</c>.</summary>
-    public abstract Reaction React(object state, IMessage message, string instanceId, DateTimeOffset now, MessageId messageId, bool isNew, System.Text.Json.JsonSerializerOptions? serializer = null);
+    public abstract Reaction React(object state, IMessage message, string instanceId, DateTimeOffset now, MessageId messageId, bool isNew, System.Text.Json.JsonSerializerOptions? serializer = null, MessageId? causationId = null);
 }
 
 internal sealed class ProcessManagerDescriptor<TProcess, TId> : ProcessManagerDescriptor
@@ -192,10 +192,10 @@ internal sealed class ProcessManagerDescriptor<TProcess, TId> : ProcessManagerDe
         return false;
     }
 
-    public override Reaction React(object state, IMessage message, string instanceId, DateTimeOffset now, MessageId messageId, bool isNew, System.Text.Json.JsonSerializerOptions? serializer = null)
+    public override Reaction React(object state, IMessage message, string instanceId, DateTimeOffset now, MessageId messageId, bool isNew, System.Text.Json.JsonSerializerOptions? serializer = null, MessageId? causationId = null)
     {
         TId id = TId.Parse(instanceId);
-        return ((TProcess)state).React(message, new ReactionContext<TId>(id, now, messageId, isNew) { Serializer = serializer });
+        return ((TProcess)state).React(message, new ReactionContext<TId>(id, now, messageId, isNew) { Serializer = serializer, CausationId = causationId });
     }
 }
 

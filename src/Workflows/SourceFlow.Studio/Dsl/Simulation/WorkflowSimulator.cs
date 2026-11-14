@@ -331,6 +331,12 @@ namespace SourceFlow.Studio.Dsl.Simulation
         /// </summary>
         public static SimulationInput RejectedFor(string command, string code, string? message = null) => new Rejection(command, code, message);
 
+        /// <summary>
+        /// A rejection reply caused by the command with id <paramref name="cause"/>: it counts only for the attempt that sent
+        /// it, so a late reply to an earlier attempt is ignored (doc 15 §5.5, CR-33).
+        /// </summary>
+        public static SimulationInput RejectedFor(string command, string code, string? message, Guid? cause) => new Rejection(command, code, message, cause);
+
         /// <summary>Operator: <c>ResumeWorkflow</c>.</summary>
         public static SimulationInput Resume(string? fromStep = null) => new Operator("resume", fromStep, false);
 
@@ -377,14 +383,18 @@ namespace SourceFlow.Studio.Dsl.Simulation
 
         internal sealed class Rejection : SimulationInput
         {
-            public Rejection(string command, string code, string? message)
+            public Rejection(string command, string code, string? message, Guid? cause = null)
             {
                 Command = command;
                 Code = code;
                 Message = message;
+                Cause = cause;
             }
 
             public string Command { get; }
+
+            /// <summary>The id of the rejected command, when the reply carries it (its causation).</summary>
+            public Guid? Cause { get; }
 
             public string Code { get; }
 
@@ -676,9 +686,27 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 }
 
                 WorkflowStep step = Current;
-                string? awaited = State.Status == WorkflowStatus.Compensating ? step.Compensate?.Send?.Command
+                bool compensating = State.Status == WorkflowStatus.Compensating;
+                string? awaited = compensating ? step.Compensate?.Send?.Command
                     : State.Status == WorkflowStatus.Running ? step.Send?.Command : null;
-                return awaited == rejection.Command ? SimulationInput.Reject(rejection.Code, rejection.Message) : null;
+                if (awaited != rejection.Command)
+                {
+                    return null;
+                }
+
+                // The current attempt's command has a deterministic id; a rejection of any other attempt is late (CR-33).
+                if (rejection.Cause is { } cause)
+                {
+                    Guid current = compensating
+                        ? WorkflowIds.Compensation(Workflow.ProcessName, State.Instance, step.Id, State.Attempt)
+                        : WorkflowIds.Send(Workflow.ProcessName, State.Instance, step.Id, State.Attempt);
+                    if (cause != current)
+                    {
+                        return new SimulationInput.Ignore(rejection + ": a late reply to an earlier attempt");
+                    }
+                }
+
+                return SimulationInput.Reject(rejection.Code, rejection.Message);
             }
 
             // ------------------------------------------------------------ steps

@@ -510,6 +510,12 @@ namespace SourceFlow.Studio.Dsl.Validation
                 else
                 {
                     Timeout(compensate.Timeout, "the compensation of '" + step.Id + "'");
+                    if (compensate.Timeout.None)
+                    {
+                        // WF-V18 (CR-32): a compensation that is never rejected and never succeeds would hold the instance in
+                        // Compensating for ever; with a timeout it counts as a failed attempt and ends in ManualIntervention.
+                        Report(WorkflowRules.UnboundedCompensation, "The compensation of '" + step.Id + "' has 'timeout: none': if neither its success nor its rejection arrives, the instance stays Compensating; give it a timeout.", step.At("compensate"));
+                    }
                 }
             }
 

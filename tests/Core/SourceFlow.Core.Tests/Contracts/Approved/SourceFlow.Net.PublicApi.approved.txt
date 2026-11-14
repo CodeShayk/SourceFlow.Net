@@ -443,6 +443,7 @@ namespace SourceFlow
         where TId :  struct, SourceFlow.IStronglyTypedId<TId>
     {
         public ReactionContext(TId Id, System.DateTimeOffset Now, SourceFlow.MessageId MessageId, bool IsNew) { }
+        public SourceFlow.MessageId? CausationId { get; init; }
         public TId Id { get; init; }
         public bool IsNew { get; init; }
         public SourceFlow.MessageId MessageId { get; init; }
@@ -2155,7 +2156,7 @@ namespace SourceFlow.Runtime
         public bool IsWorkflow { get; }
         public abstract string Name { get; }
         public abstract System.Type StateType { get; }
-        public abstract SourceFlow.Reaction React(object state, SourceFlow.IMessage message, string instanceId, System.DateTimeOffset now, SourceFlow.MessageId messageId, bool isNew, System.Text.Json.JsonSerializerOptions? serializer = null);
+        public abstract SourceFlow.Reaction React(object state, SourceFlow.IMessage message, string instanceId, System.DateTimeOffset now, SourceFlow.MessageId messageId, bool isNew, System.Text.Json.JsonSerializerOptions? serializer = null, SourceFlow.MessageId? causationId = default);
         public abstract bool TryCorrelate(SourceFlow.IMessage message, SourceFlow.CorrelationId envelopeCorrelation, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? instanceId);
     }
     public abstract class ProjectionDescriptor

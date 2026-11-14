@@ -141,10 +141,13 @@ namespace SourceFlow.Studio.Dsl.Diagnostics
         /// <summary>WF-V17: a <c>next</c> or <c>goto</c> from a step at or after the pivot to a step before it.</summary>
         public const string PivotBackward = "WF-V17";
 
+        /// <summary>WF-V18: a compensation with <c>timeout: none</c>, which waits for ever if no outcome arrives.</summary>
+        public const string UnboundedCompensation = "WF-V18";
+
         /// <summary>The default severity of each rule.</summary>
         public static WorkflowSeverity SeverityOf(string id)
         {
-            return id == MissingCompensation || id == PersonalData ? WorkflowSeverity.Warning : WorkflowSeverity.Error;
+            return id == MissingCompensation || id == PersonalData || id == UnboundedCompensation ? WorkflowSeverity.Warning : WorkflowSeverity.Error;
         }
 
         /// <summary>Every rule id, in order.</summary>
@@ -152,7 +155,7 @@ namespace SourceFlow.Studio.Dsl.Diagnostics
         {
             Syntax, UnknownKey, Shape, SchemaVersion, Duration, Format,
             UnknownType, CommandOwner, Unreachable, Correlation, Reachability, Timeout, Pivot, Rejection,
-            MissingCompensation, Retry, Goto, Map, Guard, PersonalData, Version, NestedCompensation, PivotBackward,
+            MissingCompensation, Retry, Goto, Map, Guard, PersonalData, Version, NestedCompensation, PivotBackward, UnboundedCompensation,
         };
     }
 }
