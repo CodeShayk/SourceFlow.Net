@@ -34,6 +34,11 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 .Prop("compensationPending", state.CompensationPending)
                 .Prop("now", state.Now.ToString("O", CultureInfo.InvariantCulture))
                 .Prop("startedAt", state.StartedAt.ToString("O", CultureInfo.InvariantCulture));
+            if (state.PivotPassed)
+            {
+                w.Prop("pivotPassed", true);   // written only once set, so instances before the pivot keep their exact form
+            }
+
             w.Key("retries").Begin();
             foreach (KeyValuePair<string, int> retry in state.Retries.OrderBy(r => r.Key, StringComparer.Ordinal))
             {
@@ -84,6 +89,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 Attempt = (int)(root["attempt"]?.AsInteger ?? 1),
                 Aborting = root["aborting"]?.AsBoolean ?? false,
                 CompensationPending = root["compensationPending"]?.AsBoolean ?? false,
+                PivotPassed = root["pivotPassed"]?.AsBoolean ?? false,
                 Now = Time(root["now"]?.AsString),
                 StartedAt = Time(root["startedAt"]?.AsString ?? root["now"]?.AsString),
                 StartData = Map(root["startData"]),

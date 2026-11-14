@@ -267,7 +267,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
             {
                 CompensateSpec compensate = workflow.Step(step)!.Compensate!;
                 choices.Add(new List<PathMove> { Move(step, "compensated", SimulationInput.Succeed(), "compensate:" + step + ":success") });
-                if (state.Timer is { Kind: SimulationTimer.Timeout } && !tried.Contains("compensate:" + step + ":timeout"))
+                if (state.Timer is { Kind: SimulationTimer.CompensateTimeout } && !tried.Contains("compensate:" + step + ":timeout"))
                 {
                     choices.AddRange(Repeated(step, "compensation timeout", SimulationInput.FireTimer(), "compensate:" + step + ":timeout", compensate.Retry));
                 }

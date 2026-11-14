@@ -17,7 +17,7 @@ namespace SourceFlow.Studio.Tests;
 
 /// <summary>
 /// The generated workflow (WP-S.5): the doc 15 §5.1 workflow compiled from Fixture/order-fulfilment.sfflow.yaml into
-/// OrderFulfilmentWorkflowV1, run in a host and compared with the simulator (WF-DIFF-01..05).
+/// OrderFulfilmentWorkflowV1, run in a host and compared with the simulator (WF-DIFF-01..06).
 /// </summary>
 [Trait("Category", "Unit")]
 public sealed class WorkflowRuntimeTests
@@ -181,6 +181,23 @@ public sealed class WorkflowRuntimeTests
         first.Sent[^1].Id.ShouldBe(new MessageId(WorkflowIds.Send(OrderFulfilmentWorkflowV1.ProcessName, first.Instance, "reserve-stock", 2)));
     }
 
+    [Fact]
+    [Trait("Id", "WF-DIFF-06")]
+    [Trait("Covers", "doc 15 5.3;WFD-NFR-2")]
+    public void WithSeveralTimersScheduled_BothIgnoreEveryStaleOne()
+    {
+        var run = new Differential();
+        run.Start(total: 6000m);
+        run.Apply(Choice.Success);   // reserve-stock's timeout stays scheduled although cancelled
+        run.Apply(Choice.Timer);     // charge-payment's attempt-1 timeout fires; attempt 2 has its own
+        run.Apply(Choice.Success);   // payment captured: the review waits a day
+        run.Scheduled.ShouldBeGreaterThan(1, "the cancelled timers are still scheduled, as at the broker");
+
+        run.FireEveryStaleTimer().ShouldBeTrue("each one is ignored by the generated workflow and the simulator alike");
+        run.Apply(Choice.Timer);     // the review's own timeout counts: manual
+        run.Status.ShouldBe(SimStatus.ManualIntervention);
+    }
+
     // ================================================================ helpers
 
     // Version 1 only: with version 2 registered too, new orders would start on version 2 (doc 15 §5.6).
@@ -260,6 +277,29 @@ public sealed class WorkflowRuntimeTests
             SimulationResult result = WorkflowSimulator.Step(_sim!, input);
             _spec.Control(action, step, reason, compensate);
             Compare(result);
+        }
+
+        public int Scheduled => _spec.Timers.Count;
+
+        // Delivers every scheduled timer except the pending one, to both, as a broker would deliver cancelled timers.
+        public bool FireEveryStaleTimer()
+        {
+            bool ignored = true;
+            foreach (WorkflowTimer timer in _spec.Timers.ToArray())
+            {
+                if (_sim!.Timer is { } pending && pending.Kind == timer.Kind && pending.Step == timer.Step && pending.Attempt == timer.Attempt && pending.Due == timer.Due)
+                {
+                    continue;
+                }
+
+                SimulationResult result = WorkflowSimulator.Step(_sim, SimulationInput.Timer(timer.Kind, timer.Step, timer.Attempt, timer.Due));
+                int before = _spec.Sent.Count;
+                _spec.FireTimer(timer.Kind, timer.Step, timer.Attempt);
+                Compare(result);
+                ignored &= result.Effects.All(e => e.Kind == SimulationEffect.Ignored) && _spec.LastReaction is null && _spec.Sent.Count == before;
+            }
+
+            return ignored;
         }
 
         public bool Stale(string kind, string step, int attempt)

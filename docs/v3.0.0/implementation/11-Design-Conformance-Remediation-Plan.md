@@ -345,11 +345,18 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
     - stale-timer matching also compares the due time;
     - the bridge acts on `Cancel` effects by recording cancelled timer ids in state, so a cancelled timer that is
       delivered later is ignored by id.
+    *As built:* no cancelled-id record. `WorkflowTimer` carries its due time, and a timer counts only if its identity
+    and due time match the pending timer. A cancelled timer can never match a re-armed one, so the record would add
+    state without adding a case.
   - **Pivot (CR-20):**
     - **Validator:** a new rule, WF-V17, refuses a `next` or `goto` from a step at or after the pivot to an earlier step.
     - **Engine:** records that the pivot passed, and refuses to start compensation afterwards. The only exception is an
       operator `abort --compensate`, which is audited.
     - **CLI:** `workflow resume --step <step before the pivot>` is refused after the pivot.
+    *As built:*
+    - the engine refuses the resume (it is ignored and the instance stays in ManualIntervention). The CLI reads only
+      the instance summary, which knows neither the pivot nor the step order.
+    - WF-V17 refuses targets before the pivot. Loops among the steps after it stay allowed (forward recovery).
   - **Specs keep every timer:** the simulator, `WorkflowSpec` and the differential tests keep every scheduled timer.
     `FireTimer(stale)` becomes available in specs.
 - **Tests:**

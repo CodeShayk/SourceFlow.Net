@@ -60,7 +60,7 @@ namespace SourceFlow.Workflows.Engine
 
         public global::SourceFlow.Reaction Timer(TSelf current, global::SourceFlow.Workflows.WorkflowTimer timer, global::SourceFlow.ReactionContext<global::SourceFlow.Workflows.WorkflowInstanceId> context)
         {
-            return Step(current, SimulationInput.Timer(timer.Kind, timer.Step, timer.Attempt), Serializer(context), context);
+            return Step(current, SimulationInput.Timer(timer.Kind, timer.Step, timer.Attempt, timer.Due), Serializer(context), context);
         }
 
         public global::SourceFlow.Reaction Control(TSelf current, global::SourceFlow.Workflows.WorkflowControl control, global::SourceFlow.ReactionContext<global::SourceFlow.Workflows.WorkflowInstanceId> context)
@@ -140,7 +140,7 @@ namespace SourceFlow.Workflows.Engine
                 }
                 else if (effect.Kind == SimulationEffect.Schedule && effect.Timer is { } timer)
                 {
-                    reaction = reaction.Schedule(new global::SourceFlow.Workflows.WorkflowTimer(_process, instance, timer.Kind, timer.Step, timer.Attempt), timer.Due);
+                    reaction = reaction.Schedule(new global::SourceFlow.Workflows.WorkflowTimer(_process, instance, timer.Kind, timer.Step, timer.Attempt) { Due = timer.Due }, timer.Due);
                 }
             }
 

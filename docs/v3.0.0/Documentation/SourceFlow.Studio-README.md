@@ -456,7 +456,7 @@ The simulator is the reference implementation of the execution semantics, and th
 | `Succeed(data?)` | The current step's success event |
 | `Reject(code, message?)` | The current command is rejected with `code` |
 | `FailWith(eventType, data?)` | A declared failure event |
-| `FireTimer()` / `Timer(kind, step, attempt)` | The pending timer (or a specific one; `kind` is `timeout` or `retry`) |
+| `FireTimer()` / `Timer(kind, step, attempt[, due])` | The pending timer, or a specific one. `kind` is `timeout`, `compensate-timeout` or `retry`; a compensation's timers name the step `compensate:{step}`. With `due`, the timer counts only if its due time matches too. |
 | `Receive(type, data?)` | Any message by type |
 | `RejectedFor(command, code, message?)` | A rejection of a specific command |
 | `Resume(fromStep?)`, `RetryStep()`, `Abort(reason, compensate)` | Operator commands |

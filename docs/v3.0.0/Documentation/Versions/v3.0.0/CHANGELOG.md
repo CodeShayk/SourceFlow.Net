@@ -438,7 +438,9 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   source and SF0022 checks it; cross-stream documents record their position and skip events already applied; schema
   PostgreSQL V008 and SQL Server V003), WP-C.9 (each subscription's partition count is stored and every node must
   match it, with a per-projection `Partitions(n)`; `projection repartition` writes the count with the checkpoints;
-  schema PostgreSQL V009 and SQL Server V004).
+  schema PostgreSQL V009 and SQL Server V004), WP-C.10 (a compensation's timers have their own identity and timers
+  match by due time, so a stale timer can't end a compensation early; the pivot is a point of no return in the
+  engine and the new validator rule WF-V17).
 
 ### Other notes
 

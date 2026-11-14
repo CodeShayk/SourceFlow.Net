@@ -246,7 +246,9 @@ including the other services' contracts (the TravelBooking `BookingsModule` regi
 | `Start(type, json)` | The start message. It must correlate to an instance (`TryCorrelate`). |
 | `Succeed(type, json)`, `Fail(type, json)` | An awaited success event or a failure event arrives. |
 | `Reject(code, message = null)` | The last command sent is rejected with this code. The workflow must handle rejections of that command (a `rejected:` failure on the step). |
-| `FireTimer()` | The pending timer fires (a timeout, or the end of a retry delay), and the clock moves to its due time. |
+| `FireTimer()` | The last scheduled timer fires (a timeout, or the end of a retry delay), and the clock moves to its due time. |
+| `FireTimer(kind, step, attempt)` | A specific scheduled timer fires, even one the workflow has cancelled since (a stale timer delivered late, as a broker would). |
+| `Timers` | Every timer scheduled and not fired yet. Cancelled timers stay, as in production. |
 | `Control(action, step = null, reason = null, compensate = false)` | An operator action (`WorkflowControl.ResumeAction`, `RetryStepAction`, `AbortAction`). |
 | `ThenSends(params string[] types)` | Expects the last message to have sent exactly these command types (`{name}.v{version}`), in order. `ThenSends()` with no arguments expects nothing sent. |
 | `ThenStatus(WorkflowStatus)` | Expects `Running`, `Compensating`, `ManualIntervention`, `Completed`, `Compensated` or `Aborted`. |

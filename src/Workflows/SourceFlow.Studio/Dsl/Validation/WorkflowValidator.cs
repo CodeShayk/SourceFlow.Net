@@ -239,11 +239,21 @@ namespace SourceFlow.Studio.Dsl.Validation
                     }
 
                     GotoTarget(step.Timeout.Then);
+                    ForwardOnly(step, afterPivot, step.Timeout.Then.Kind == ThenKind.Goto ? step.Timeout.Then.Target : null, "goto", step.Timeout.Then.Location.Line > 0 ? step.Timeout.Then.Location : step.At("timeout"));
                 }
 
                 if (step.Next is { } next && next != WorkflowStep.CompleteKeyword && _workflow.Step(next) is null)
                 {
                     Report(WorkflowRules.Goto, "'next: " + next + "' names no step.", step.At("next"));
+                }
+
+                ForwardOnly(step, afterPivot, step.Next, "next", step.At("next"));
+                if (step.Await is { } awaited)
+                {
+                    foreach (FailureSpec failure in awaited.Failures)
+                    {
+                        ForwardOnly(step, afterPivot, failure.Then.Kind == ThenKind.Goto ? failure.Then.Target : null, "goto", failure.Then.Location.Line > 0 ? failure.Then.Location : failure.Location);
+                    }
                 }
 
                 Compensation(step, owner, afterPivot);
@@ -536,6 +546,31 @@ namespace SourceFlow.Studio.Dsl.Validation
                 if (retry.Cap is { } cap && cap < retry.Initial)
                 {
                     Report(WorkflowRules.Retry, "'cap' is shorter than 'initial'.", retry.At("cap"));
+                }
+            }
+
+            // WF-V17 (doc 15 §2, CR-20): after the pivot only forward recovery is possible, so a step at or after it can't
+            // send the instance back to a step before it (which would redo work the pivot made final).
+            private void ForwardOnly(WorkflowStep step, bool afterPivot, string? target, string keyword, SourceLocation location)
+            {
+                if (!afterPivot || target is null || target == WorkflowStep.CompleteKeyword)
+                {
+                    return;
+                }
+
+                int to = -1;
+                for (int i = 0; i < _workflow.Steps.Count; i++)
+                {
+                    if (_workflow.Steps[i].Id == target)
+                    {
+                        to = i;
+                        break;
+                    }
+                }
+
+                if (to >= 0 && to < _workflow.PivotIndex)
+                {
+                    Report(WorkflowRules.PivotBackward, "Step '" + step.Id + "' is at or after the pivot '" + _workflow.Steps[_workflow.PivotIndex].Id + "', so '" + keyword + ": " + target + "' can't go back before it (forward recovery only).", location);
                 }
             }
 

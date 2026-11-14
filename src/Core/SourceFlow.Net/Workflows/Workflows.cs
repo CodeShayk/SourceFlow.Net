@@ -114,14 +114,21 @@ public readonly record struct WorkflowInstanceId : IStronglyTypedId<WorkflowInst
 /// </summary>
 /// <param name="Workflow">The process name, <c>name@version</c>.</param>
 /// <param name="Instance">The instance (correlation value).</param>
-/// <param name="Kind"><c>timeout</c> or <c>retry</c>.</param>
-/// <param name="Step">The step.</param>
+/// <param name="Kind"><c>timeout</c>, <c>compensate-timeout</c> or <c>retry</c>.</param>
+/// <param name="Step">The step, or <c>compensate:{step}</c> for a compensation's timers.</param>
 /// <param name="Attempt">The attempt the timer belongs to.</param>
 [MessageType(TypeName, 1)]
 public sealed record WorkflowTimer(string Workflow, string Instance, string Kind, string Step, int Attempt) : ITimeout
 {
     /// <summary>The message type name.</summary>
     public const string TypeName = "sourceflow.workflow.timer";
+
+    /// <summary>
+    /// When the timer was due. A delivered timer counts only if it is the instance's pending timer, identity and due time
+    /// alike, so a timer cancelled and re-armed for the same attempt is ignored when the old one arrives (doc 15 §5.3,
+    /// CR-19). Null on timers scheduled before it was recorded: those match by identity.
+    /// </summary>
+    public DateTimeOffset? Due { get; init; }
 }
 
 /// <summary>

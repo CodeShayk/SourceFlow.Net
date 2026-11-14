@@ -1,0 +1,25 @@
+sourceflow.workflow: 1
+name: ship-order
+version: 1
+owner: orders
+description: WF-V17. After the pivot only forward recovery is possible, so no step at or after it may go back before it.
+start: { on: orders.order-placed.v1, correlate: data.orderId }
+data:
+  orderId: { from: start.data.orderId }
+  lines:   { from: start.data.lines }
+steps:
+  - id: approve
+    send: { command: orders.approve-order.v1, map: { orderId: $data.orderId } }
+    await: { success: orders.order-approved.v1 }
+    timeout: { after: PT1H, then: manual }
+
+  - id: create-shipment
+    pivot: true
+    send:  { command: shipping.create-shipment.v1, map: { orderId: $data.orderId, lines: $data.lines } }
+    await:
+      success: shipping.shipment-created.v1
+      failure:
+        - rejected: shipping.address_invalid
+          then: { goto: approve }            # WF-V17: back before the pivot
+    timeout: { after: PT1H, then: { goto: create-shipment } }   # forward recovery, at the pivot: allowed
+    next: complete

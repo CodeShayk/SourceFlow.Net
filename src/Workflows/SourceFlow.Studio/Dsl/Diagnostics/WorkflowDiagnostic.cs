@@ -138,6 +138,9 @@ namespace SourceFlow.Studio.Dsl.Diagnostics
         /// <summary>WF-V16: a compensation that is itself compensated or branches.</summary>
         public const string NestedCompensation = "WF-V16";
 
+        /// <summary>WF-V17: a <c>next</c> or <c>goto</c> from a step at or after the pivot to a step before it.</summary>
+        public const string PivotBackward = "WF-V17";
+
         /// <summary>The default severity of each rule.</summary>
         public static WorkflowSeverity SeverityOf(string id)
         {
@@ -149,7 +152,7 @@ namespace SourceFlow.Studio.Dsl.Diagnostics
         {
             Syntax, UnknownKey, Shape, SchemaVersion, Duration, Format,
             UnknownType, CommandOwner, Unreachable, Correlation, Reachability, Timeout, Pivot, Rejection,
-            MissingCompensation, Retry, Goto, Map, Guard, PersonalData, Version, NestedCompensation,
+            MissingCompensation, Retry, Goto, Map, Guard, PersonalData, Version, NestedCompensation, PivotBackward,
         };
     }
 }

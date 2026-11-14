@@ -31,8 +31,7 @@ public sealed class WorkflowSpec<TWorkflow>
     private TWorkflow _state = TWorkflow.Initial;
     private WorkflowInstanceId _id;
     private Reaction? _reaction;
-    private WorkflowTimer? _timer;
-    private DateTimeOffset _due;
+    private readonly List<(WorkflowTimer Timer, DateTimeOffset Due)> _timers = [];
     private int _messages;
 
     internal WorkflowSpec(RuntimeModel model)
@@ -51,6 +50,12 @@ public sealed class WorkflowSpec<TWorkflow>
 
     /// <summary>The last reaction, or null when the message was ignored.</summary>
     public Reaction? LastReaction => _reaction;
+
+    /// <summary>
+    /// Every timer scheduled and not fired yet, oldest first. Cancelled timers stay, as in production: the broker delivers
+    /// them at their due time and the engine ignores them (doc 15 §5.3).
+    /// </summary>
+    public IReadOnlyList<WorkflowTimer> Timers => [.. _timers.Select(t => t.Timer)];
 
     /// <summary>The start message.</summary>
     public WorkflowSpec<TWorkflow> Start(string type, string json)
@@ -99,14 +104,39 @@ public sealed class WorkflowSpec<TWorkflow>
         return Deliver((IMessage)json.Deserialize(reply.JsonTypeInfo)!);
     }
 
-    /// <summary>The pending timer fires (a timeout or the end of a retry delay); the clock moves to its due time.</summary>
+    /// <summary>The last timer scheduled fires (a timeout or the end of a retry delay); the clock moves to its due time.</summary>
     public WorkflowSpec<TWorkflow> FireTimer()
     {
-        WorkflowTimer timer = _timer ?? throw new SpecificationException("No timer is pending.");
-        _timer = null;
-        if (_due > Now)
+        if (_timers.Count == 0)
         {
-            Now = _due;
+            throw new SpecificationException("No timer is pending.");
+        }
+
+        return Fire(_timers.Count - 1);
+    }
+
+    /// <summary>
+    /// A specific scheduled timer fires, even one the workflow has since cancelled or replaced (a stale timer, delivered
+    /// late): the clock moves to its due time if later. The latest timer with that identity is used.
+    /// </summary>
+    public WorkflowSpec<TWorkflow> FireTimer(string kind, string step, int attempt)
+    {
+        int index = _timers.FindLastIndex(t => t.Timer.Kind == kind && t.Timer.Step == step && t.Timer.Attempt == attempt);
+        if (index < 0)
+        {
+            throw new SpecificationException($"No {kind} timer for {step}#{attempt} was scheduled; scheduled: {string.Join(", ", _timers.Select(t => t.Timer.Kind + " " + t.Timer.Step + "#" + t.Timer.Attempt))}.");
+        }
+
+        return Fire(index);
+    }
+
+    private WorkflowSpec<TWorkflow> Fire(int index)
+    {
+        (WorkflowTimer timer, DateTimeOffset due) = _timers[index];
+        _timers.RemoveAt(index);
+        if (due > Now)
+        {
+            Now = due;
         }
 
         return Deliver(timer);
@@ -190,8 +220,7 @@ public sealed class WorkflowSpec<TWorkflow>
         {
             if (scheduled.Message is WorkflowTimer timer)
             {
-                _timer = timer;
-                _due = scheduled.DeliverAt;
+                _timers.Add((timer, scheduled.DeliverAt));
             }
         }
 

@@ -310,6 +310,7 @@ CompensationStack = [ (stepId, compensation, attempt) … ]   # pushed on each s
 
 - **Determinism.** It is pure and deterministic. Time is explicit: a timer firing moves the clock to the timer's due time.
 - **State.** Status, step, phase, attempt, retries per outcome, the compensation stack, data, the failure, the one pending timer, and `CompensationPending`.
+  *As built (WP-C.10):* also `PivotPassed`, which is written to the state only once set.
 - **Retries.**
   - A retry with a delay sets the phase to `Retrying` and schedules a `retry` timer. Without a delay, the command is re-sent at once.
   - Business retries and timeout retries are counted separately. A re-sent attempt gets a new id; a re-entered step starts again at attempt 1.
@@ -336,6 +337,11 @@ CompensationStack = [ (stepId, compensation, attempt) … ]   # pushed on each s
   - **BPMN 2.0.** The semantic model only (no BPMNDI): a message start event, send and receive tasks, timer and message boundary events, guard gateways with CESQL `conditionExpression`, compensation boundary events with `isForCompensation` tasks, and retries as documentation.
   - **BPMN check.** The model is checked for well-formedness, unique ids and resolved references. Validating against the OMG XSDs is not automated, because the XSDs are not vendored.
 
+> **As built (WP-C.10, CR-19, CR-20).**
+> - **Timer identity.** A compensation's timers have their own identity: kind `compensate-timeout` for its timeout, `retry` for its retry delay, and the step `compensate:{step}`. They never share one with the step's own timers. In doc 15 §5.1, when `charge-payment` is rejected within 5 minutes, `release-stock` gets its own 15-minute timeout, and `reserve-stock`'s cancelled 5-minute timeout is ignored when it arrives.
+> - **Due time.** `WorkflowTimer` carries its due time, and a delivered timer counts only if its identity and due time match the pending timer. A timer cancelled and later re-armed for the same attempt is therefore ignored when the old one arrives. Timers scheduled before this change have no due time and match by identity alone.
+> - **The pivot.** Once the pivot step succeeds, the engine records `PivotPassed`. A later `then: fail` goes to `ManualIntervention` instead of compensating. Only an operator `abort --compensate` still compensates, and it is recorded as an `audit` effect. A `resume` to a step before the pivot is ignored, and the instance stays in `ManualIntervention`.
+
 ### 5.4 Validation rules (WFD-28)
 
 | ID | Rule | Severity |
@@ -356,6 +362,7 @@ CompensationStack = [ (stepId, compensation, attempt) … ]   # pushed on each s
 | WF-V14 | No `[PersonalData]` field in `data` unless the owner marks it as personal data (it is then crypto-shredded in state like any other) | Warning |
 | WF-V15 | `name@version` unique per owner; changing a published version's structure without bumping `version` | Error |
 | WF-V16 | Compensation commands aren't themselves compensated (no nested sagas inside compensation) | Error |
+| WF-V17 | A step at or after the pivot doesn't `next` or `goto` a step before it (forward recovery only) | Error |
 
 **As built (WP-S.3): validation** (`WorkflowAnalysis.Analyze` = reader, then `WorkflowValidator`).
 
@@ -370,6 +377,7 @@ CompensationStack = [ (stepId, compensation, attempt) … ]   # pushed on each s
   - **WF-V12** types values from data (declared or captured), the start event, literals (`null` only into nullable fields) and hooks (unchecked).
   - **WF-V15** compares a `name@version` with the structural fingerprint the owner's manifest records for it (`workflows[].fingerprint`, `sha256:` and 16 hex digits). Comments, the description and map-key order don't change the fingerprint. Duplicates are checked against the owner's other workflows.
   - **WF-V16** is structural: no `compensate`, `pivot` or `next` inside a compensation, and no failure branches in a compensation's `await`.
+  - **WF-V17** (WP-C.10, CR-20) checks `next` and every `goto` (on failures and the timeout) of steps at or after the pivot. A target before the pivot would redo work the pivot made final. Moving between steps after the pivot, a retry loop for example, is allowed.
 - **Partial mode.** At compile time only some manifests are known. Partial mode skips rules about commands whose owner is unknown, but still reports unknown types, with a hint to reference the contract package.
 - **Golden suite.** `tests/workflow-golden` holds a four-service commerce domain (`domain/`) and 30 cases (`cases/NN-*/workflow.sfflow.yaml` with `expected.diagnostics.json`). Every rule has a negative case, and five cases are valid.
 

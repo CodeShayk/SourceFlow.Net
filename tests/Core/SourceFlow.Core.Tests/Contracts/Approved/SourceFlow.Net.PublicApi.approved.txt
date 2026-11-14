@@ -3417,6 +3417,7 @@ namespace SourceFlow.Workflows
         public const string TypeName = "sourceflow.workflow.timer";
         public WorkflowTimer(string Workflow, string Instance, string Kind, string Step, int Attempt) { }
         public int Attempt { get; init; }
+        public System.DateTimeOffset? Due { get; init; }
         public string Instance { get; init; }
         public string Kind { get; init; }
         public string Step { get; init; }

@@ -39,11 +39,20 @@ namespace SourceFlow.Studio.Dsl.Simulation
         Retrying = 1,
     }
 
-    /// <summary>A timer: a step timeout or a retry delay, for one attempt.</summary>
+    /// <summary>
+    /// A timer: a step timeout, a compensation timeout or a retry delay, for one attempt. A compensation's timers name the
+    /// step <c>compensate:{step}</c>, so they never share an identity with the step's own (doc 15 §5.3, CR-19).
+    /// </summary>
     public sealed record SimulationTimer(string Kind, string Step, int Attempt, DateTimeOffset Due)
     {
-        /// <summary>A step or compensation timeout.</summary>
+        /// <summary>A step timeout.</summary>
         public const string Timeout = "timeout";
+
+        /// <summary>A compensation timeout.</summary>
+        public const string CompensateTimeout = "compensate-timeout";
+
+        /// <summary>The step a compensation's timers name: <c>compensate:{step}</c>.</summary>
+        public static string CompensationStep(string step) => "compensate:" + step;
 
         /// <summary>A retry delay.</summary>
         public const string Retry = "retry";
@@ -78,6 +87,9 @@ namespace SourceFlow.Studio.Dsl.Simulation
 
         /// <summary>The input was ignored (stale timer, terminal instance, no match).</summary>
         public const string Ignored = "ignored";
+
+        /// <summary>An operator overrode a rule, recorded for audit (a compensation after the pivot, CR-20).</summary>
+        public const string Audit = "audit";
 
         /// <summary>The command, for <see cref="Send"/>.</summary>
         public SentCommand? Command { get; init; }
@@ -209,6 +221,12 @@ namespace SourceFlow.Studio.Dsl.Simulation
         /// <summary>True in ManualIntervention when a compensation failed: resuming continues the compensation.</summary>
         public bool CompensationPending { get; internal set; }
 
+        /// <summary>
+        /// True once the pivot step succeeded (doc 15 §2, CR-20): from then on only forward recovery is possible, so the
+        /// engine starts no compensation (an operator <c>abort --compensate</c> excepted, audited) and resumes no step before it.
+        /// </summary>
+        public bool PivotPassed { get; internal set; }
+
         /// <summary>Whether the instance is finished.</summary>
         public bool IsTerminal => Status == WorkflowStatus.Completed || Status == WorkflowStatus.Compensated || Status == WorkflowStatus.Aborted;
 
@@ -244,6 +262,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 StartedAt = StartedAt,
                 Aborting = Aborting,
                 CompensationPending = CompensationPending,
+                PivotPassed = PivotPassed,
                 Options = Options,
                 _retries = new Dictionary<string, int>(_retries, StringComparer.Ordinal),
                 _attempts = new Dictionary<string, int>(_attempts, StringComparer.Ordinal),
@@ -289,10 +308,16 @@ namespace SourceFlow.Studio.Dsl.Simulation
         public static SimulationInput FailWith(string eventType, IReadOnlyDictionary<string, object?>? data = null) => new Outcome("event", eventType, data);
 
         /// <summary>The pending timer fires (a timeout, or the end of a retry delay).</summary>
-        public static SimulationInput FireTimer() => new TimerInput(null, null, null);
+        public static SimulationInput FireTimer() => new TimerInput(null, null, null, null);
 
         /// <summary>A specific timer message arrives (stale ones are ignored).</summary>
-        public static SimulationInput Timer(string kind, string step, int attempt) => new TimerInput(kind, step, attempt);
+        public static SimulationInput Timer(string kind, string step, int attempt) => new TimerInput(kind, step, attempt, null);
+
+        /// <summary>
+        /// A delivered timer with its due time: it counts only if it is the pending timer, identity and due time alike, so a
+        /// timer cancelled and later re-armed for the same attempt is ignored when the old one arrives (CR-19).
+        /// </summary>
+        public static SimulationInput Timer(string kind, string step, int attempt, DateTimeOffset? due) => new TimerInput(kind, step, attempt, due);
 
         /// <summary>
         /// A message of type <paramref name="type"/> arrives (the runtime): the success or a failure event of what the
@@ -370,11 +395,12 @@ namespace SourceFlow.Studio.Dsl.Simulation
 
         internal sealed class TimerInput : SimulationInput
         {
-            public TimerInput(string? kind, string? step, int? attempt)
+            public TimerInput(string? kind, string? step, int? attempt, DateTimeOffset? due)
             {
                 Kind = kind;
                 Step = step;
                 Attempt = attempt;
+                Due = due;
             }
 
             public string? Kind { get; }
@@ -382,6 +408,8 @@ namespace SourceFlow.Studio.Dsl.Simulation
             public string? Step { get; }
 
             public int? Attempt { get; }
+
+            public DateTimeOffset? Due { get; }
 
             public override string ToString() => Kind is null ? "timer" : Kind + " " + Step + "#" + Attempt;
         }
@@ -758,6 +786,11 @@ namespace SourceFlow.Studio.Dsl.Simulation
 
                     CancelTimer();
                     Transition(SimulationTransition.Success, step.Id);
+                    if (step.Pivot)
+                    {
+                        State.PivotPassed = true;
+                    }
+
                     if (step.Compensate is { None: false })
                     {
                         State._stack.Add(step.Id);
@@ -872,7 +905,9 @@ namespace SourceFlow.Studio.Dsl.Simulation
             private void Timer(SimulationInput.TimerInput input)
             {
                 SimulationTimer? pending = State.Timer;
-                if (pending is null || (input.Kind is { } kind && (kind != pending.Kind || input.Step != pending.Step || input.Attempt != pending.Attempt)))
+                if (pending is null
+                    || (input.Kind is { } kind && (kind != pending.Kind || input.Step != pending.Step || input.Attempt != pending.Attempt))
+                    || (input.Due is { } due && due != pending.Due))
                 {
                     Effect(SimulationEffect.Ignored, "stale " + (input.Kind is null ? "timer" : input.Kind + " " + input.Step + "#" + input.Attempt));
                     return;
@@ -914,6 +949,13 @@ namespace SourceFlow.Studio.Dsl.Simulation
 
             private void BeginCompensation()
             {
+                if (State.PivotPassed)
+                {
+                    // After the point of no return the completed work stays: an operator recovers forward (CR-20).
+                    Manual("compensation after the pivot is refused (forward recovery only): " + (State.Failure?.Code ?? "failure") + " at " + State.Step);
+                    return;
+                }
+
                 Status(WorkflowStatus.Compensating);
                 CompensateTop();
             }
@@ -955,7 +997,11 @@ namespace SourceFlow.Studio.Dsl.Simulation
                 Guid id = WorkflowIds.Compensation(Workflow.ProcessName, State.Instance, State.Step!, State.Attempt);
                 SentCommand command = Command(compensate.Send!, id, first: false);
                 Effect(SimulationEffect.Send, command.ToString(), command);
-                Arm(compensate.Timeout, State.Step!);
+                State.Timer = null;
+                if (compensate.Timeout is { None: false, After: { } after })
+                {
+                    Schedule(new SimulationTimer(SimulationTimer.CompensateTimeout, SimulationTimer.CompensationStep(State.Step!), State.Attempt, State.Now + after));
+                }
             }
 
             private void CompensationOutcome(SimulationInput.Outcome outcome)
@@ -1002,7 +1048,7 @@ namespace SourceFlow.Studio.Dsl.Simulation
                     if (delay > TimeSpan.Zero)
                     {
                         State.Phase = WorkflowPhase.Retrying;
-                        Schedule(new SimulationTimer(SimulationTimer.Retry, State.Step!, State.Attempt, State.Now + delay));
+                        Schedule(new SimulationTimer(SimulationTimer.Retry, SimulationTimer.CompensationStep(State.Step!), State.Attempt, State.Now + delay));
                     }
                     else
                     {
@@ -1056,6 +1102,11 @@ namespace SourceFlow.Studio.Dsl.Simulation
                         State.CompensationPending = false;
                         if (op.Compensate)
                         {
+                            if (State.PivotPassed)
+                            {
+                                Effect(SimulationEffect.Audit, "an operator abort compensates after the pivot: " + (op.Argument ?? "no reason given"));
+                            }
+
                             State.Aborting = true;
                             Status(WorkflowStatus.Compensating);
                             CompensateTop();
@@ -1105,6 +1156,13 @@ namespace SourceFlow.Studio.Dsl.Simulation
                             if (index < 0)
                             {
                                 Effect(SimulationEffect.Ignored, "resume: no step '" + op.Argument + "'");
+                                Status(WorkflowStatus.ManualIntervention);
+                                return;
+                            }
+
+                            if (State.PivotPassed && Workflow.PivotIndex >= 0 && index < Workflow.PivotIndex)
+                            {
+                                Effect(SimulationEffect.Ignored, "resume: '" + Workflow.Steps[index].Id + "' is before the pivot, which has passed (forward recovery only)");
                                 Status(WorkflowStatus.ManualIntervention);
                                 return;
                             }

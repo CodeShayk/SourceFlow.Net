@@ -3,12 +3,12 @@ using SourceFlow.Studio.Dsl.Simulation;
 
 namespace SourceFlow.Studio.Tests;
 
-/// <summary>WF-GOLD-01..30: each case's diagnostics (plan 10 §3.1).</summary>
+/// <summary>WF-GOLD-01..31: each case's diagnostics (plan 10 §3.1).</summary>
 [Trait("Category", "Unit")]
 public sealed class GoldenTests
 {
     [Theory]
-    [Trait("Id", "WF-GOLD-01..30")]
+    [Trait("Id", "WF-GOLD-01..31")]
     [Trait("Covers", "WFD-28;WFD-NFR-2")]
     [MemberData(nameof(Cases))]
     public void Diagnostics_MatchTheGoldenFile(string @case)
@@ -19,7 +19,7 @@ public sealed class GoldenTests
     }
 
     [Theory]
-    [Trait("Id", "WF-GOLD-01..30")]
+    [Trait("Id", "WF-GOLD-01..31")]
     [Trait("Covers", "WFD-34")]
     [MemberData(nameof(Cases))]
     public void Paths_MatchTheGoldenFile(string @case)
