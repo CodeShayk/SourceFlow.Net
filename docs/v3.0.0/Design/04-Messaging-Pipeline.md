@@ -205,6 +205,8 @@ loop:
 ```
 
 - **Leases** spread partitions across instances, so relay throughput grows with instance count (up to the number of partitions).
+
+> **As built (WP-C.6, CR-43).** A claim returns only the head row of each key, so the relay groups a claim's rows by destination and kind and sends each group in one `SendAsync`/`PublishAsync` call; the transport splits it by its batch limits. A partial batch (`TransportSendException`) fails only the rows it names, each classified as a one-message send failure. A drain renews its partition lease every third of `LeaseTtl` (re-acquiring it under the same token); if the lease lapsed meanwhile, the drain stops and whoever holds it now relays the partition. The `send` span stays one per message.
 - **Why an outbox table rather than log tailing.** Tailing the event log avoids a second write, but it can only publish *events*. Remote commands, replies and timers would still need a table. Tailing also forces the relay to read every event in order to find the few that are published. One mechanism for every outbound message is simpler (KISS) and lets publication order follow the partition key rather than global commit order. The cost is about one small insert per published message. Measured cost and the alternative are revisited in [doc 09](09-Performance-and-Scalability.md).
 
 ## 8. Scheduler (durable timers and delayed delivery)
@@ -235,7 +237,7 @@ The runtime prefers the broker's native delay: SQS `ChangeMessageVisibility` (up
 > - A delay up to the transport's `MaxDelay` uses the native delay (`AbandonAsync(delay)`).
 > - A longer delay uses the fallback above. The message is queued as received (still protected, same id) as an `OutboxKind.Scheduled` row for this endpoint, with `deliver_at = now + delay` and `sfattempt` set to the attempts so far. Then the original is completed. A crash between the two duplicates it, which the inbox absorbs. The receiver counts attempts as `sfattempt + DeliveryCount`, so the budget and the parked record's `Attempts` span the re-sends.
 > - On an ordered endpoint the fallback would let the key's next message overtake the head, so the delay is capped at `MaxDelay`. Startup logs the capped entries (event 1404).
-> - **Per-key order on retry.** On an ordered endpoint, when a key's head is abandoned for a delayed retry, the worker releases (abandons with no delay) the key's messages it had already received behind it, instead of handling them. The broker redelivers them after the head. Messages of other keys are unaffected.
+> - **Per-key order on retry.** On an ordered endpoint, when a key's head is abandoned for a delayed retry, the worker releases the key's messages it had already received behind it, unhandled, with the head's delay, so they never become visible before the head. A broker that holds the key back while the head waits (SQS FIFO, Service Bus sessions) would keep them back anyway; one that does not (LocalStack, TCK-46) cannot hand them out first. Messages of other keys are unaffected.
 
 ### 9.3 Dead letters (parking)
 

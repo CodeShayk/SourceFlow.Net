@@ -186,17 +186,25 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
 
     private async Task WorkAsync(ChannelReader<Delivery> reader, CancellationToken cancellationToken)
     {
-        // Keys whose head waits for a delayed retry, with the receive sequence reached when it was released: the key's
-        // messages received up to then came after the head and must not overtake it (ADR-033 §7, CR-08).
-        var held = new Dictionary<string, long>(StringComparer.Ordinal);
+        // Keys whose head waits for a delayed retry: the receive sequence reached when it was released, and its delay. The
+        // key's messages received up to then came after the head and must not overtake it (ADR-033 §7, CR-08), so they
+        // are released with the same delay: they never become visible before the head, whether or not the broker holds
+        // the key back while the head waits (an emulator may not).
+        var held = new Dictionary<string, (long UpTo, TimeSpan Delay)>(StringComparer.Ordinal);
         await foreach ((ReceivedMessage message, long sequence) in reader.ReadAllAsync(CancellationToken.None).ConfigureAwait(false))
         {
             try
             {
                 string? key = _runtime.Routing.OrderedEndpoint ? message.Envelope.EffectivePartitionKey : null;
-                if (_draining || (key is not null && held.TryGetValue(key, out long upTo) && sequence <= upTo))
+                if (_draining)
                 {
-                    await ReleaseAsync(message).ConfigureAwait(false);
+                    await ReleaseAsync(message, TimeSpan.Zero).ConfigureAwait(false);
+                    continue;
+                }
+
+                if (key is not null && held.TryGetValue(key, out (long UpTo, TimeSpan Delay) head) && sequence <= head.UpTo)
+                {
+                    await ReleaseAsync(message, head.Delay).ConfigureAwait(false);
                     continue;
                 }
 
@@ -205,9 +213,9 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
                     held.Remove(key);
                 }
 
-                if (await HandleAsync(message, cancellationToken).ConfigureAwait(false) && key is not null)
+                if (await HandleAsync(message, cancellationToken).ConfigureAwait(false) is { } delay && key is not null)
                 {
-                    held[key] = Interlocked.Read(ref _received);
+                    held[key] = (Interlocked.Read(ref _received), delay);
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -227,13 +235,13 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
         }
     }
 
-    // Releases a message unhandled, for immediate redelivery; a failure only leaves it to its lock.
-    private async ValueTask ReleaseAsync(ReceivedMessage message)
+    // Releases a message unhandled, for redelivery after the delay; a failure only leaves it to its lock.
+    private async ValueTask ReleaseAsync(ReceivedMessage message, TimeSpan delay)
     {
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await message.AbandonAsync(TimeSpan.Zero, timeout.Token).ConfigureAwait(false);
+            await message.AbandonAsync(delay, timeout.Token).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
@@ -241,8 +249,8 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
         }
     }
 
-    // True when the message was released for a delayed retry.
-    private async Task<bool> HandleAsync(ReceivedMessage message, CancellationToken cancellationToken)
+    // The delay when the message was released for a delayed retry; null otherwise.
+    private async Task<TimeSpan?> HandleAsync(ReceivedMessage message, CancellationToken cancellationToken)
     {
         // Keep the lock while the handler runs (visibility heartbeat, doc 07 §4).
         using var renewing = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -279,7 +287,7 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
         }
     }
 
-    private async Task<bool> HandleLockedAsync(ReceivedMessage message, CancellationToken cancellationToken)
+    private async Task<TimeSpan?> HandleLockedAsync(ReceivedMessage message, CancellationToken cancellationToken)
     {
         MessageContext context;
         int immediate = 0;
@@ -316,7 +324,7 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
             {
                 // Settling failed (for example the broker connection dropped): the message is redelivered and the inbox absorbs it.
                 Log.ReceiveLoopFailed(_logger, exception, _runtime.Routing.Endpoint);
-                return false;
+                return null;
             }
         }
         finally
@@ -340,8 +348,8 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
         }
     }
 
-    // True when the message was released for a delayed retry.
-    private async ValueTask<bool> SettleAsync(ReceivedMessage message, MessageContext context, CancellationToken cancellationToken)
+    // The delay when the message was released for a delayed retry; null otherwise.
+    private async ValueTask<TimeSpan?> SettleAsync(ReceivedMessage message, MessageContext context, CancellationToken cancellationToken)
     {
         int attempt = AttemptOf(message);
         switch (context.Outcome)
@@ -355,28 +363,28 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
                 if (delay <= maxDelay)
                 {
                     await message.AbandonAsync(delay, cancellationToken).ConfigureAwait(false);
-                    return true;
+                    return delay;
                 }
 
                 if (_runtime.Routing.OrderedEndpoint)
                 {
                     // Re-sending would let the key's next message overtake this one: wait as long as the broker can (CR-13).
                     await message.AbandonAsync(maxDelay, cancellationToken).ConfigureAwait(false);
-                    return true;
+                    return maxDelay;
                 }
 
                 await DeferAsync(message, attempt, delay, cancellationToken).ConfigureAwait(false);
                 await message.CompleteAsync(cancellationToken).ConfigureAwait(false);
-                return false;
+                return null;
             case HandlingOutcome.Transient:
             case HandlingOutcome.Permanent:
                 await ParkAsync(message, context, context.Outcome == HandlingOutcome.Transient ? "Exhausted" : ReasonOf(context.Exception), cancellationToken).ConfigureAwait(false);
                 await message.CompleteAsync(cancellationToken).ConfigureAwait(false);
-                return false;
+                return null;
             default:
                 await _runtime.FaultAsync(FaultPoints.ReceiverBeforeComplete, cancellationToken).ConfigureAwait(false);
                 await message.CompleteAsync(cancellationToken).ConfigureAwait(false);
-                return false;
+                return null;
         }
     }
 

@@ -91,6 +91,10 @@ As built ([ADR-033](../ADRs/ADR-033-final-transport-spi-pull-receivers-and-the-i
 | TCK-41..43 | Payload protection on: encrypt on send, decrypt on receive; tamper → parked `DecryptionFailed` | `KmsEncryptionIntegrationTests`, `KeyVaultEncryptionTests` |
 | TCK-44 | Graceful shutdown: in-flight drained, nothing acknowledged without completion | new |
 | TCK-45 | End to end with the core: remote command appended once under injected duplicates | `AwsIntegrationTests` (concept) |
+| TCK-46 | With the core, ordered endpoint: the head fails once and waits for a delayed retry; the key's later messages keep their order | new (WP-C.6, CR-08) |
+| TCK-47 | A settlement fails (outage); the key is delivered again to the same receiver without a restart, still in order | new (WP-C.6, CR-09) |
+| TCK-48 | With the core: a delayed retry longer than `MaxDelay` is honoured through the outbox, carrying `sfattempt` | new (WP-C.6, CR-13) |
+| TCK-49 | `Validate` creates nothing: a second validation still reports the missing resources | new (WP-C.6, ADR-017) |
 
 ### 3.1 Infrastructure as code (IAC, WP-3.5)
 

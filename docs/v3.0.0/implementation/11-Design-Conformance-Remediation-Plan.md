@@ -195,6 +195,8 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
   - **Per-key order on retry (CR-08):** on an ordered endpoint, when a key's head message is abandoned for a delayed
     retry, the worker abandons with zero delay the messages of the same key that are already buffered, instead of
     handling them. Messages of other keys are unaffected.
+    *As built:* with the head's delay, not zero: LocalStack hands a released message out while the head still waits
+    (TCK-46 failed with zero), and with the head's delay no broker can deliver them before it.
   - **Azure session leak (CR-09):**
     - the session slot's hold is released in a `finally`;
     - a failed settlement disposes the session receiver, so the lock lapses and the broker redelivers;
@@ -221,6 +223,9 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
     messages already taken (visibility or deadline 0) before rethrowing, and the stale `_unsettled` entry is removed.
   - **Relay lease (CR-43):** `OutboxRelay` renews its lease during long drains, and publishes each group with the
     transport's batch API (doc 04 §7).
+    *As built:* renewal re-acquires the lease under the same token every third of `LeaseTtl`; a lapsed lease ends the
+    drain. A partial batch fails only the rows the transport names. Azure also releases what a receive that fails
+    partway took (as CR-42 asks of AWS and Pub/Sub). TCK-47 uses an outage during `Complete` as the settle fault.
 - **Conformance kit:**
   - TCK-46: receive with max 10 on an ordered endpoint; the head fails once with a delayed retry; order is preserved
     end to end, run through the core.

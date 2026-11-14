@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using SourceFlow.Diagnostics;
 using SourceFlow.Messaging;
 using SourceFlow.Storage;
+using SourceFlow.Transport;
 
 namespace SourceFlow.Runtime;
 
@@ -60,7 +61,8 @@ public sealed class OutboxRelay
 
     private async ValueTask<int> RelayPartitionAsync(int partition, CancellationToken cancellationToken)
     {
-        LeaseToken? lease = await _runtime.Storage.Leases.TryAcquireAsync($"outbox:{partition}", _runtime.Options.NodeId, _runtime.Options.LeaseTtl, cancellationToken).ConfigureAwait(false);
+        string name = $"outbox:{partition}";
+        LeaseToken? lease = await _runtime.Storage.Leases.TryAcquireAsync(name, _runtime.Options.NodeId, _runtime.Options.LeaseTtl, cancellationToken).ConfigureAwait(false);
         if (lease is null)
         {
             _leases.TryRemove(partition, out _);
@@ -70,30 +72,49 @@ public sealed class OutboxRelay
         _leases[partition] = lease;
 
         int work = 0;
+        var renewal = new RenewalClock(_runtime);
         try
         {
             while (true)
             {
+                // A long drain renews the lease as it goes (CR-43), so it never lapses mid-drain and lets a second relay in.
+                if (renewal.Due)
+                {
+                    LeaseToken? renewed = await _runtime.Storage.Leases.TryAcquireAsync(name, _runtime.Options.NodeId, _runtime.Options.LeaseTtl, cancellationToken).ConfigureAwait(false);
+                    if (renewed is null || renewed.Token != lease.Token)
+                    {
+                        _leases.TryRemove(partition, out _);
+                        return work;   // it lapsed meanwhile: whoever holds it now relays this partition
+                    }
+
+                    renewal.Restart();
+                }
+
                 IReadOnlyList<OutboxRecord> rows = await _runtime.Storage.Outbox.ClaimAsync(partition, lease, _runtime.Options.OutboxBatchSize, cancellationToken).ConfigureAwait(false);
                 if (rows.Count == 0)
                 {
                     return work;
                 }
 
+                // Claimed rows are the heads of their keys, so one batch call per destination keeps per-key order (doc 04 §7).
                 var delivered = new List<long>(rows.Count);
-                foreach (OutboxRecord row in rows)
+                foreach (IGrouping<(OutboxKind Kind, string Destination), OutboxRecord> group in rows.GroupBy(r => (r.Message.Kind == OutboxKind.Publish ? OutboxKind.Publish : OutboxKind.Send, r.Message.Destination)))
                 {
-                    Exception? failure = await DispatchAsync(row, cancellationToken).ConfigureAwait(false);
-                    if (failure is null)
+                    OutboxRecord[] batch = [.. group];
+                    Dictionary<long, Exception> failures = await DispatchAsync(group.Key.Kind, group.Key.Destination, batch, cancellationToken).ConfigureAwait(false);
+                    foreach (OutboxRecord row in batch)
                     {
-                        delivered.Add(row.Sequence);
-                    }
-                    else
-                    {
-                        await HandleFailureAsync(lease, row, failure, cancellationToken).ConfigureAwait(false);
-                    }
+                        if (failures.TryGetValue(row.Sequence, out Exception? failure))
+                        {
+                            await HandleFailureAsync(lease, row, failure, cancellationToken).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            delivered.Add(row.Sequence);
+                        }
 
-                    work++;
+                        work++;
+                    }
                 }
 
                 if (delivered.Count > 0)
@@ -114,41 +135,111 @@ public sealed class OutboxRelay
         }
     }
 
-    private async ValueTask<Exception?> DispatchAsync(OutboxRecord row, CancellationToken cancellationToken)
+    // Sends one destination's rows in one transport call (the transport splits by its batch limits, doc 04 §7) and returns
+    // the failure of each row that was not sent. A partial batch (TransportSendException) fails only the rows it lists,
+    // each as a one-message send failure, so classification is the same as for a single send.
+    private async ValueTask<Dictionary<long, Exception>> DispatchAsync(OutboxKind kind, string destination, OutboxRecord[] rows, CancellationToken cancellationToken)
     {
-        OutboxMessage message = row.Message;
-        using Activity? activity = SourceFlowTelemetry.ActivitySource.StartActivity("send " + message.Destination, ActivityKind.Producer,
-            ActivityContext.TryParse(message.Envelope.TraceParent, message.Envelope.TraceState, out ActivityContext parent) ? parent : default);
-        activity?.SetTag(SourceFlowTelemetry.Tags.MessagingSystem, _runtime.Transport.SystemName);
-        SemanticConventions.SetOperationType(activity, "send");
-        activity?.SetTag(SourceFlowTelemetry.Tags.Destination, message.Destination);
-        activity?.SetTag(SourceFlowTelemetry.Tags.MessageId, message.Envelope.MessageId.ToString());
+        // A send span per message, in its own trace; with several, none is made current, since they overlap.
+        Activity? current = Activity.Current;
+        var activities = new Activity?[rows.Length];
+        for (int i = 0; i < rows.Length; i++)
+        {
+            MessageEnvelope envelope = rows[i].Message.Envelope;
+            Activity? activity = SourceFlowTelemetry.ActivitySource.StartActivity("send " + destination, ActivityKind.Producer,
+                ActivityContext.TryParse(envelope.TraceParent, envelope.TraceState, out ActivityContext parent) ? parent : default);
+            activity?.SetTag(SourceFlowTelemetry.Tags.MessagingSystem, _runtime.Transport.SystemName);
+            SemanticConventions.SetOperationType(activity, "send");
+            activity?.SetTag(SourceFlowTelemetry.Tags.Destination, destination);
+            activity?.SetTag(SourceFlowTelemetry.Tags.MessageId, envelope.MessageId.ToString());
+            activities[i] = activity;
+            if (rows.Length > 1)
+            {
+                Activity.Current = current;
+            }
+        }
+
+        var failures = new Dictionary<long, Exception>();
         long started = Stopwatch.GetTimestamp();
         try
         {
-            if (message.Kind == OutboxKind.Publish)
+            MessageEnvelope[] envelopes = [.. rows.Select(r => r.Message.Envelope)];
+            if (kind == OutboxKind.Publish)
             {
-                await _runtime.Transport.PublishAsync(message.Destination, [message.Envelope], cancellationToken).ConfigureAwait(false);
+                await _runtime.Transport.PublishAsync(destination, envelopes, cancellationToken).ConfigureAwait(false);
             }
             else
             {
-                await _runtime.Transport.SendAsync(message.Destination, [message.Envelope], cancellationToken).ConfigureAwait(false);
+                await _runtime.Transport.SendAsync(destination, envelopes, cancellationToken).ConfigureAwait(false);
             }
-
-            _runtime.Metrics.SentMessages.Add(1,
-                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.MessagingSystem, _runtime.Transport.SystemName),
-                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Destination, message.Destination));
-            return null;
+        }
+        catch (TransportSendException partial) when (!cancellationToken.IsCancellationRequested)
+        {
+            ILookup<MessageId, SendFailure> failed = partial.Failures.ToLookup(f => f.MessageId);
+            foreach (OutboxRecord row in rows)
+            {
+                if (failed[row.Message.Envelope.MessageId].FirstOrDefault() is { } failure)
+                {
+                    failures[row.Sequence] = new TransportSendException(destination, [failure], 0);
+                }
+            }
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
-            return exception;
+            foreach (OutboxRecord row in rows)
+            {
+                failures[row.Sequence] = exception;
+            }
         }
         finally
         {
             _runtime.Metrics.OutboxDispatchDuration.Record(Stopwatch.GetElapsedTime(started).TotalSeconds,
                 new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.MessagingSystem, _runtime.Transport.SystemName));
+            for (int i = activities.Length - 1; i >= 0; i--)
+            {
+                if (failures.TryGetValue(rows[i].Sequence, out Exception? failure))
+                {
+                    activities[i]?.SetStatus(ActivityStatusCode.Error, failure.GetType().Name);
+                }
+
+                activities[i]?.Dispose();
+            }
+
+            if (rows.Length == 1)
+            {
+                Activity.Current = current;
+            }
+        }
+
+        if (rows.Length > failures.Count)
+        {
+            _runtime.Metrics.SentMessages.Add(rows.Length - failures.Count,
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.MessagingSystem, _runtime.Transport.SystemName),
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Destination, destination));
+        }
+
+        return failures;
+    }
+
+    // When to renew a partition lease during a drain: a third of the TTL on either the business clock or the system clock.
+    private sealed class RenewalClock(SourceFlowRuntime runtime)
+    {
+        private DateTimeOffset _business = runtime.Time.GetUtcNow();
+        private long _system = Stopwatch.GetTimestamp();
+
+        public bool Due
+        {
+            get
+            {
+                TimeSpan third = runtime.Options.LeaseTtl / 3;
+                return runtime.Time.GetUtcNow() - _business >= third || Stopwatch.GetElapsedTime(_system) >= third;
+            }
+        }
+
+        public void Restart()
+        {
+            _business = runtime.Time.GetUtcNow();
+            _system = Stopwatch.GetTimestamp();
         }
     }
 

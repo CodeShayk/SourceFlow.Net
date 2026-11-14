@@ -152,12 +152,14 @@ public sealed class RetirementCoverageTests
 
         public ValueTask PublishAsync(string topic, IReadOnlyList<MessageEnvelope> messages, CancellationToken cancellationToken)
         {
-            if (messages.Any(m => m.PartitionKey == FailingKey))
+            // Like a real batch send (TCK-08): the others go out, and the failing ones are reported each by id.
+            MessageEnvelope[] failing = [.. messages.Where(m => m.PartitionKey == FailingKey)];
+            Published.AddRange(messages.Except(failing));
+            if (failing.Length > 0)
             {
-                throw new TransportUnavailableException("partition unavailable");
+                throw new TransportSendException(topic, [.. failing.Select(m => new SendFailure(m.MessageId, new TransportUnavailableException("partition unavailable")))], messages.Count - failing.Length);
             }
 
-            Published.AddRange(messages);
             return ValueTask.CompletedTask;
         }
 

@@ -2,7 +2,7 @@
 
 This guide explains how SourceFlow.Net v3 tests its cloud transports, and how to run those tests yourself: the Transport Conformance Kit (TCK) that every transport must pass, the emulators used on pull requests, the end-to-end scenarios that run real services across a broker, the real-cloud nightly runs, the chaos tests, and the CI jobs that tie them together.
 
-The principle comes from [ADR-014](../ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md): behaviour the core can supply is written once in the core, and every transport must pass the same conformance cases before release. AWS SNS/SQS, Azure Service Bus, Google Pub/Sub and the in-memory reference broker all pass all 45 cases.
+The principle comes from [ADR-014](../ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md): behaviour the core can supply is written once in the core, and every transport must pass the same conformance cases before release. AWS SNS/SQS, Azure Service Bus, Google Pub/Sub and the in-memory reference broker all pass all 49 cases.
 
 ## Contents
 
@@ -37,7 +37,7 @@ The principle comes from [ADR-014](../ADRs/ADR-014-transport-spi-and-conformance
 
 | Project | Contents |
 |---------|----------|
-| [`tests/Core/SourceFlow.Core.Tests`](../../../tests/Core/SourceFlow.Core.Tests) | `Transport/InMemoryTransportConformanceTests.cs`: TCK-01..45 against the in-memory broker. |
+| [`tests/Core/SourceFlow.Core.Tests`](../../../tests/Core/SourceFlow.Core.Tests) | `Transport/InMemoryTransportConformanceTests.cs`: TCK-01..49 against the in-memory broker. |
 | [`tests/Cloud/SourceFlow.Cloud.Tests`](../../../tests/Cloud/SourceFlow.Cloud.Tests) | `Aws/`, `Azure/`, `Gcp/`: unit tests, provisioning tests, the TCK on emulators and on real cloud, and the emulator servers (`LocalStackServer`, `PubSubEmulatorServer`, `ServiceBusEmulatorServer`). `Security/`: KMS key providers (fakes, LocalStack and real KMS). `Topology/`: export drift, `Describe`, and the Terraform/Bicep tests. |
 | [`tests/EndToEnd/SourceFlow.EndToEnd.Tests`](../../../tests/EndToEnd/SourceFlow.EndToEnd.Tests) | Cross-service, OrderFulfilment, v2 bridge, payload protection, relay latency and chaos scenarios; `BrokerConnection`. |
 | [`src/Tooling/SourceFlow.Testing`](../../../src/Tooling/SourceFlow.Testing) | The kits themselves (`Conformance/TransportConformance.cs`, `TopologyFixtures.cs`) and `ChaosInjector`. See [SourceFlow.Testing](SourceFlow.Testing-README.md). |
@@ -54,7 +54,7 @@ Tests are selected by xUnit traits, which the CI jobs filter on:
 
 ## The Transport Conformance Kit
 
-`SourceFlow.Testing.Conformance.TransportConformance.Cases` holds 45 cases, TCK-01 to TCK-45 ([ADR-033](../ADRs/ADR-033-final-transport-spi-pull-receivers-and-the-in-memory-reference-broker.md)). Each case provisions what it needs with `CreateIfMissing` under the fixture's prefix and drives the transport through the SPI only. Cases 18, 24, 25 and 45 also start real SourceFlow services (a small generated domain, `TckModule`) on the transport under test.
+`SourceFlow.Testing.Conformance.TransportConformance.Cases` holds 49 cases, TCK-01 to TCK-49 ([ADR-033](../ADRs/ADR-033-final-transport-spi-pull-receivers-and-the-in-memory-reference-broker.md)). Each case provisions what it needs with `CreateIfMissing` under the fixture's prefix and drives the transport through the SPI only. Cases 18, 24, 25, 45, 46 and 48 also start real SourceFlow services (a small generated domain, `TckModule`) on the transport under test.
 
 | Group | Cases | What is checked |
 |-------|-------|-----------------|
@@ -70,6 +70,7 @@ Tests are selected by xUnit traits, which the CI jobs filter on:
 | Provisioning | TCK-35..40 | `CreateIfMissing` is idempotent and leaves a valid topology; `Validate` reports every missing endpoint, topic and subscription at once, and detects an ordering mismatch, a missing dead-letter queue, a missing or misconfigured subscription, and filter drift. |
 | Payload protection | TCK-41..43 | A protected envelope (marker and ciphertext) round-trips byte for byte; bodies are never transcoded; a tampered ciphertext is delivered as is for the core to reject. |
 | Shutdown and end to end | TCK-44..45 | Completed messages stay completed and the rest are redelivered after shutdown; with the core, remote commands take effect once under duplicates and integration events reach each service once. |
+| Receive path | TCK-46..49 | With the core, an ordered key keeps its order while its head waits for a delayed retry; after a failed settlement the key is delivered again without a restart; a delayed retry longer than the transport's maximum delay is honoured (through the outbox, carrying `sfattempt`); `Validate` creates nothing. |
 
 A failed check throws `ConformanceException` (from the framework-agnostic `Check` helpers), so the kit runs under any test framework.
 
@@ -250,7 +251,7 @@ The other scenarios in the project (the Bank scenarios E2E-01..15, read-model re
 
 Setting `SOURCEFLOW_REAL_CLOUD` to `aws`, `azure` or `gcp` moves that cloud's tests from the emulator to the real service:
 
-- The `*RealCloudConformanceTests` classes run TCK-01..45 and skip the fault-injection cases (TCK-32..34); without the variable they are skipped.
+- The `*RealCloudConformanceTests` classes run TCK-01..49 and skip the fault-injection cases (TCK-32..34, TCK-47); without the variable they are skipped.
 - In the end-to-end suite, `BrokerConnection.RealCloud(broker)` puts the matching leg (for example every `_Aws` scenario) on the real cloud instead of the emulator.
 
 | Cloud | Credentials | Required variables |

@@ -75,7 +75,13 @@ internal sealed class GcpReceiver : ITransportReceiver
         // Release what this receiver still holds, so a graceful stop redelivers at once instead of after the lock.
         KeyValuePair<string, GcpSubscription>[] held = [.. _unsettled];
         _unsettled.Clear();
-        foreach (IGrouping<GcpSubscription, string> group in held.GroupBy(h => h.Value, h => h.Key))
+        await ReleaseQuietlyAsync(held.Select(h => (h.Value, h.Key))).ConfigureAwait(false);
+    }
+
+    // Returns leased messages at once; best effort, since the leases expire on their own.
+    private async Task ReleaseQuietlyAsync(IEnumerable<(GcpSubscription Subscription, string AckId)> leases)
+    {
+        foreach (IGrouping<GcpSubscription, string> group in leases.GroupBy(l => l.Subscription, l => l.AckId))
         {
             try
             {
@@ -83,7 +89,7 @@ internal sealed class GcpReceiver : ITransportReceiver
             }
             catch (TransportException)
             {
-                // Best effort: the leases expire on their own.
+                // the lease expires on its own
             }
         }
     }
@@ -138,51 +144,73 @@ internal sealed class GcpReceiver : ITransportReceiver
         await AcknowledgeAsync(subscription, [message.AckId], cancellationToken).ConfigureAwait(false);
     }
 
-    // One pull from each subscription in turn (starting with the next one each round), up to the maximum in total.
+    // One pull from each subscription in turn (starting with the next one each round), up to the maximum in total. A
+    // failure partway returns everything the round took and has not settled before it is rethrown, so those messages are
+    // redelivered at once rather than after their lease, and none is left behind as unsettled (CR-42).
     private async Task<List<ReceivedMessage>> PullRoundAsync(int max, CancellationToken cancellationToken)
     {
-        var received = new List<ReceivedMessage>();
-        int start = Interlocked.Increment(ref _turn);
-        for (int i = 0; i < _subscriptions.Count && received.Count < max; i++)
+        var received = new List<GcpDelivery>();
+        var taken = new List<(GcpSubscription Subscription, string AckId)>();
+        try
         {
-            GcpSubscription subscription = _subscriptions[(int)((uint)(start + i) % (uint)_subscriptions.Count)];
+            int start = Interlocked.Increment(ref _turn);
+            for (int i = 0; i < _subscriptions.Count && received.Count < max; i++)
+            {
+                GcpSubscription subscription = _subscriptions[(int)((uint)(start + i) % (uint)_subscriptions.Count)];
 #pragma warning disable CS0612, CS0618 // ReturnImmediately: the receiver bounds the wait itself, and a cancelled long pull can strand leased messages
-            var request = new PullRequest { SubscriptionAsSubscriptionName = subscription.Name, MaxMessages = max - received.Count, ReturnImmediately = true };
+                var request = new PullRequest { SubscriptionAsSubscriptionName = subscription.Name, MaxMessages = max - received.Count, ReturnImmediately = true };
 #pragma warning restore CS0612, CS0618
-            PullResponse response = await GcpErrors.CallAsync(Destination, () => _transport.Subscriber.PullAsync(request, _transport.Call(cancellationToken)), cancellationToken).ConfigureAwait(false);
+                PullResponse response = await GcpErrors.CallAsync(Destination, () => _transport.Subscriber.PullAsync(request, _transport.Call(cancellationToken)), cancellationToken).ConfigureAwait(false);
 
-            var accepted = new List<GcpDelivery>();
-            foreach (PubSubReceivedMessage message in response.ReceivedMessages)
-            {
-                if (await AcceptAsync(subscription, message, cancellationToken).ConfigureAwait(false) is { } delivery)
+                taken.AddRange(response.ReceivedMessages.Select(m => (subscription, m.AckId)));   // all leased now
+                var accepted = new List<GcpDelivery>();
+                foreach (PubSubReceivedMessage message in response.ReceivedMessages)
                 {
-                    accepted.Add(delivery);
+                    if (await AcceptAsync(subscription, message, cancellationToken).ConfigureAwait(false) is { } delivery)
+                    {
+                        accepted.Add(delivery);
+                    }
+                    else
+                    {
+                        taken.Remove((subscription, message.AckId));   // settled here (dead-lettered, hidden or filtered out)
+                    }
                 }
-            }
 
-            if (accepted.Count == 0)
+                if (accepted.Count == 0)
+                {
+                    continue;
+                }
+
+                // The subscription's ack deadline applies until the receiver sets its own lock.
+                int lockSeconds = (int)LockDuration.TotalSeconds;
+                if (lockSeconds != subscription.AckDeadlineSeconds)
+                {
+                    await SetDeadlineAsync(subscription, [.. accepted.Select(d => d.AckId)], lockSeconds, cancellationToken).ConfigureAwait(false);
+                }
+
+                DateTimeOffset lockedUntil = TimeProvider.System.GetUtcNow() + LockDuration;
+                foreach (GcpDelivery delivery in accepted)
+                {
+                    delivery.LockedUntil = lockedUntil;
+                    _unsettled[delivery.AckId] = subscription;
+                }
+
+                received.AddRange(accepted);
+            }
+        }
+        catch (Exception) when (taken.Count > 0)
+        {
+            // Includes the message whose acceptance failed and the rest of its pull, which are leased too.
+            foreach ((_, string ackId) in taken)
             {
-                continue;
+                _unsettled.TryRemove(ackId, out _);
             }
 
-            // The subscription's ack deadline applies until the receiver sets its own lock.
-            int lockSeconds = (int)LockDuration.TotalSeconds;
-            if (lockSeconds != subscription.AckDeadlineSeconds)
-            {
-                await SetDeadlineAsync(subscription, [.. accepted.Select(d => d.AckId)], lockSeconds, cancellationToken).ConfigureAwait(false);
-            }
-
-            DateTimeOffset lockedUntil = TimeProvider.System.GetUtcNow() + LockDuration;
-            foreach (GcpDelivery delivery in accepted)
-            {
-                delivery.LockedUntil = lockedUntil;
-                _unsettled[delivery.AckId] = subscription;
-            }
-
-            received.AddRange(accepted);
+            await ReleaseQuietlyAsync(taken).ConfigureAwait(false);
+            throw;
         }
 
-        return received;
+        return [.. received];
     }
 
     private async Task<GcpDelivery?> AcceptAsync(GcpSubscription subscription, PubSubReceivedMessage message, CancellationToken cancellationToken)

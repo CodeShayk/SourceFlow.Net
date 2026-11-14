@@ -87,7 +87,45 @@ internal abstract class AzureReceiverBase : ITransportReceiver
         }
     }
 
+    /// <summary>
+    /// A delivery whose settlement failed, or that a failed receive never handed out (CR-09). It is forgotten and its
+    /// session hold released, so the key is not blocked until a restart. A session is closed, which ends its lock and
+    /// lets the broker hand the session (with this message) out again; a queue message is abandoned, best effort.
+    /// </summary>
+    internal async Task SettleFailedAsync(AzureDelivery delivery)
+    {
+        if (!_unsettled.TryRemove(delivery.Message.LockToken, out _))
+        {
+            return;
+        }
+
+        if (delivery.Slot is { } slot)
+        {
+            slot.Release();
+            await DropSessionAsync(slot).ConfigureAwait(false);
+        }
+        else
+        {
+            await TryAsync(() => delivery.Receiver.AbandonMessageAsync(delivery.Message)).ConfigureAwait(false);
+        }
+    }
+
     protected abstract ValueTask DisposeReceiversAsync();
+
+    /// <summary>Closes a session the receiver can no longer settle reliably.</summary>
+    protected virtual Task DropSessionAsync(SessionSlot slot)
+    {
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Settles, as <see cref="SettleFailedAsync"/> does, the deliveries a receive accepted before it failed.</summary>
+    protected async Task ReleaseAcceptedAsync(IEnumerable<ReceivedMessage> accepted)
+    {
+        foreach (AzureDelivery delivery in accepted.Cast<AzureDelivery>())
+        {
+            await SettleFailedAsync(delivery).ConfigureAwait(false);
+        }
+    }
 
     /// <summary>Renews the session locks of sessions with messages in flight.</summary>
     protected virtual Task RenewSessionsAsync(DateTimeOffset now)
@@ -186,18 +224,16 @@ internal sealed class AzureDelivery(AzureReceiverBase owner, ServiceBusReceiver 
 
     public override string? DeadLetterReason => reason;
 
-    public override async ValueTask CompleteAsync(CancellationToken cancellationToken)
+    public override ValueTask CompleteAsync(CancellationToken cancellationToken)
     {
-        await LateSettlementIgnoredAsync(() => receiver.CompleteMessageAsync(message, cancellationToken)).ConfigureAwait(false);
-        owner.Settled(this);
+        return SettleAsync(() => LateSettlementIgnoredAsync(() => receiver.CompleteMessageAsync(message, cancellationToken)));
     }
 
     public override async ValueTask AbandonAsync(TimeSpan delay, CancellationToken cancellationToken)
     {
         if (delay <= TimeSpan.Zero || owner.IsDeadLetterReceiver)
         {
-            await LateSettlementIgnoredAsync(() => receiver.AbandonMessageAsync(message, cancellationToken: cancellationToken)).ConfigureAwait(false);
-            owner.Settled(this);
+            await SettleAsync(() => LateSettlementIgnoredAsync(() => receiver.AbandonMessageAsync(message, cancellationToken: cancellationToken))).ConfigureAwait(false);
             return;
         }
 
@@ -212,9 +248,11 @@ internal sealed class AzureDelivery(AzureReceiverBase owner, ServiceBusReceiver 
         // A scheduled copy carries the deliveries so far; the original is completed (a crash in between duplicates it,
         // which the inbox absorbs).
         ServiceBusSender sender = owner.Transport.Sender(AzureNaming.Queue(owner.Transport.Prefix, owner.Endpoint));
-        await AzureErrors.CallAsync(owner.Destination, () => sender.ScheduleMessageAsync(AzureWire.Retry(message, deliveries), TimeProvider.System.GetUtcNow() + wait, cancellationToken)).ConfigureAwait(false);
-        await LateSettlementIgnoredAsync(() => receiver.CompleteMessageAsync(message, cancellationToken)).ConfigureAwait(false);
-        owner.Settled(this);
+        await SettleAsync(async () =>
+        {
+            await AzureErrors.CallAsync(owner.Destination, () => sender.ScheduleMessageAsync(AzureWire.Retry(message, deliveries), TimeProvider.System.GetUtcNow() + wait, cancellationToken)).ConfigureAwait(false);
+            await LateSettlementIgnoredAsync(() => receiver.CompleteMessageAsync(message, cancellationToken)).ConfigureAwait(false);
+        }).ConfigureAwait(false);
     }
 
     public override async ValueTask RenewAsync(CancellationToken cancellationToken)
@@ -239,7 +277,22 @@ internal sealed class AzureDelivery(AzureReceiverBase owner, ServiceBusReceiver 
             throw new TransportException("A message on a dead-letter queue cannot be dead-lettered again.", transient: false);
         }
 
-        await AzureErrors.CallAsync(owner.Destination, () => receiver.DeadLetterMessageAsync(message, reason, deadLetterErrorDescription: null, cancellationToken)).ConfigureAwait(false);
+        await SettleAsync(() => AzureErrors.CallAsync(owner.Destination, () => receiver.DeadLetterMessageAsync(message, reason, deadLetterErrorDescription: null, cancellationToken))).ConfigureAwait(false);
+    }
+
+    // Settles, and on failure releases the hold this delivery has on its session before the error goes on (CR-09).
+    private async ValueTask SettleAsync(Func<Task> settle)
+    {
+        try
+        {
+            await settle().ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            await owner.SettleFailedAsync(this).ConfigureAwait(false);
+            throw;
+        }
+
         owner.Settled(this);
     }
 
@@ -274,12 +327,27 @@ internal sealed class AzureQueueReceiver(AzureTransport transport, string endpoi
         IReadOnlyList<ServiceBusReceivedMessage> messages = await AzureErrors.CallAsync(Destination, () =>
             receiver.ReceiveMessagesAsync(Math.Clamp(maxMessages, 1, 100), wait < MinimumWait ? MinimumWait : wait, cancellationToken)).ConfigureAwait(false);
         var received = new List<ReceivedMessage>(messages.Count);
-        foreach (ServiceBusReceivedMessage message in messages)
+        int next = 0;
+        try
         {
-            if (await AcceptAsync(receiver, message, slot: null, cancellationToken).ConfigureAwait(false) is { } delivery)
+            for (; next < messages.Count; next++)
             {
-                received.Add(delivery);
+                if (await AcceptAsync(receiver, messages[next], slot: null, cancellationToken).ConfigureAwait(false) is { } delivery)
+                {
+                    received.Add(delivery);
+                }
             }
+        }
+        catch (Exception)
+        {
+            // Nothing this receive took stays locked unseen (CR-42): the accepted ones, the failing one and the rest.
+            await ReleaseAcceptedAsync(received).ConfigureAwait(false);
+            foreach (ServiceBusReceivedMessage left in messages.Skip(next))
+            {
+                await TryAsync(() => receiver.AbandonMessageAsync(left)).ConfigureAwait(false);
+            }
+
+            throw;
         }
 
         return received;
@@ -379,12 +447,23 @@ internal sealed class AzureSessionReceiver(AzureTransport transport, string endp
                     continue;
                 }
 
-                foreach (ServiceBusReceivedMessage message in messages)
+                try
                 {
-                    if (await AcceptAsync(slot.Receiver, message, slot, cancellationToken).ConfigureAwait(false) is { } delivery)
+                    foreach (ServiceBusReceivedMessage message in messages)
                     {
-                        received.Add(delivery);
+                        if (await AcceptAsync(slot.Receiver, message, slot, cancellationToken).ConfigureAwait(false) is { } delivery)
+                        {
+                            received.Add(delivery);
+                        }
                     }
+                }
+                catch (Exception)
+                {
+                    // Nothing this receive took stays held (CR-42): the sessions of the accepted messages are closed, and
+                    // so is this one, which returns the failing message and the rest of its batch.
+                    await ReleaseAcceptedAsync(received).ConfigureAwait(false);
+                    await DropSessionAsync(slot).ConfigureAwait(false);
+                    throw;
                 }
             }
 
@@ -418,10 +497,22 @@ internal sealed class AzureSessionReceiver(AzureTransport transport, string endp
             slots = [.. _slots];
         }
 
-        foreach (SessionSlot slot in slots.Where(s => !s.Receiver.IsClosed && s.Receiver.SessionLockedUntil - now < RenewMargin))
+        // Only sessions with deliveries in flight: an idle one is not kept alive here, so it lapses (and goes to another
+        // instance) even when the receive loop has stopped calling (CR-09).
+        foreach (SessionSlot slot in slots.Where(s => s.Busy && !s.Receiver.IsClosed && s.Receiver.SessionLockedUntil - now < RenewMargin))
         {
             await TryAsync(() => slot.Receiver.RenewSessionLockAsync()).ConfigureAwait(false);
         }
+    }
+
+    protected override async Task DropSessionAsync(SessionSlot slot)
+    {
+        lock (_gate)
+        {
+            _slots.Remove(slot);
+        }
+
+        await TryAsync(() => slot.Receiver.DisposeAsync().AsTask()).ConfigureAwait(false);
     }
 
     protected override async ValueTask DisposeReceiversAsync()

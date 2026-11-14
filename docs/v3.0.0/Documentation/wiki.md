@@ -2943,7 +2943,7 @@ retry with the same idempotency key is absorbed. The repository's chaos suite (C
 ### 16.7 Conformance kits
 
 A storage adapter implements `IStorageFixture` and runs `StorageConformance.Cases`; a transport implements
-`ITransportFixture` and runs `TransportConformance.Cases` (TCK-01 to TCK-45). Cases that need clock control or fault
+`ITransportFixture` and runs `TransportConformance.Cases` (TCK-01 to TCK-49). Cases that need clock control or fault
 injection are skipped on fixtures that cannot drive them, never weakened. See
 [Cloud Integration Testing](Cloud-Integration-Testing.md) for how the cloud transports run the kit on emulators and real
 accounts.

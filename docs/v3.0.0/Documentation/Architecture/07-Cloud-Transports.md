@@ -400,7 +400,7 @@ public static class MyBrokerBuilderExtensions
 }
 ```
 
-11. **Conformance.** Implement `ITransportFixture` (and `ITransportFaults` if the broker or its SDK pipeline can inject faults) and run `TransportConformance.Cases`. Parity means all 45 cases pass, with only fault-injection cases skipped on a real service. See [Cloud Integration Testing](../Cloud-Integration-Testing.md#running-a-transport-adapter-through-the-tck).
+11. **Conformance.** Implement `ITransportFixture` (and `ITransportFaults` if the broker or its SDK pipeline can inject faults) and run `TransportConformance.Cases`. Parity means all 49 cases pass, with only fault-injection cases skipped on a real service. See [Cloud Integration Testing](../Cloud-Integration-Testing.md#running-a-transport-adapter-through-the-tck).
 
 The three cloud packages are the best templates; `AwsTransport` and `AwsReceiver` are the most compact.
 

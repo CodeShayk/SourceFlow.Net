@@ -54,8 +54,29 @@ internal sealed class AwsReceiver : ITransportReceiver
         };
         ReceiveMessageResponse response = await AwsErrors.CallAsync(Destination, () => _transport.Sqs.ReceiveMessageAsync(request, cancellationToken)).ConfigureAwait(false);
 
+        // A failure partway (hiding a dead letter, deleting a filtered event) releases what this receive took and has not
+        // settled before it is rethrown, so those messages are redelivered at once, and none stays unsettled (CR-42).
+        List<string> taken = [.. (response.Messages ?? []).Select(m => m.ReceiptHandle)];
+        try
+        {
+            return await AcceptAsync(response.Messages ?? [], taken).ConfigureAwait(false);
+        }
+        catch (Exception) when (taken.Count > 0)
+        {
+            foreach (string handle in taken)
+            {
+                _unsettled.TryRemove(handle, out _);
+            }
+
+            await ReleaseQuietlyAsync(taken).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private async Task<IReadOnlyList<ReceivedMessage>> AcceptAsync(List<Message> messages, List<string> taken)
+    {
         var received = new List<ReceivedMessage>();
-        foreach (Message message in response.Messages ?? [])
+        foreach (Message message in messages)
         {
             var attributes = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach ((string name, MessageAttributeValue value) in message.MessageAttributes ?? [])
@@ -85,12 +106,14 @@ internal sealed class AwsReceiver : ITransportReceiver
                     await SetVisibilityAsync(message.ReceiptHandle, MaxVisibilitySeconds, CancellationToken.None).ConfigureAwait(false);
                 }
 
+                taken.Remove(message.ReceiptHandle);   // left to its lock (endpoint) or hidden (dead-letter queue)
                 continue;
             }
 
             if (attributes.TryGetValue(AwsWire.TopicAttribute, out string? topic) && _clientFilters.TryGetValue(topic, out CloudEventFilter? filter) && !filter.Matches(envelope))
             {
                 await DeleteAsync(message.ReceiptHandle, CancellationToken.None).ConfigureAwait(false);   // filtered out: acknowledged unseen
+                taken.Remove(message.ReceiptHandle);
                 continue;
             }
 
@@ -108,7 +131,13 @@ internal sealed class AwsReceiver : ITransportReceiver
         // Release what this receiver still holds, so a graceful stop redelivers at once instead of after the lock.
         string[] held = [.. _unsettled.Keys];
         _unsettled.Clear();
-        foreach (string[] chunk in held.Chunk(10))
+        await ReleaseQuietlyAsync(held).ConfigureAwait(false);
+    }
+
+    // Makes messages visible again at once; best effort, since their locks expire on their own.
+    private async Task ReleaseQuietlyAsync(IReadOnlyList<string> handles)
+    {
+        foreach (string[] chunk in handles.Chunk(10))
         {
             try
             {

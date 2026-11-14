@@ -62,7 +62,7 @@ WP-3.1 has to freeze the SPI before three provider workstreams start in parallel
 
 ## Consequences
 
-- Provider packages (WP-3.2..3.4) implement one small SPI, and must pass the same 45 cases as the in-memory broker.
+- Provider packages (WP-3.2..3.4) implement one small SPI, and must pass the same cases as the in-memory broker (45 at WP-3.1; 49 since WP-C.6 added TCK-46..49).
 - Every in-memory test now exercises the CloudEvents wire mapping, so envelope regressions surface everywhere, not only in provider suites.
 - Brokers that cannot filter natively still filter correctly, at the cost of receiving and acknowledging unwanted events.
 - The broker dead-letter queue is a backstop. The ingestor moves its messages to the store, where `dlq replay` re-sends them.

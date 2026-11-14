@@ -70,7 +70,7 @@ public interface ITransportFaults
 }
 
 /// <summary>
-/// The transport conformance kit, TCK-01..45 (ADR-014, plan 06 §3): every transport must pass every case it can run
+/// The transport conformance kit, TCK-01..49 (ADR-014, plan 06 §3): every transport must pass every case it can run
 /// for GA parity. Run each case against a fresh fixture.
 /// </summary>
 public static class TransportConformance
@@ -146,6 +146,12 @@ public static class TransportConformance
         // Shutdown and end to end
         new("TCK-44", "Shutdown: completed messages stay completed, the rest are redelivered", ShutdownRedelivers),
         new("TCK-45", "With the core: remote commands once under duplicates, integration events once per service", EndToEnd),
+
+        // Receive path (WP-C.6)
+        new("TCK-46", "With the core: on an ordered endpoint a head waiting for a delayed retry keeps its key's order", OrderedRetryThroughTheCore),
+        new("TCK-47", "A failed settlement: the key is delivered again without a restart", SettleFaultRecovers, RequiresFaultInjection: true),
+        new("TCK-48", "With the core: a delayed retry longer than the maximum delay is honoured", LongDelayHonoured),
+        new("TCK-49", "Validate creates nothing", ValidateCreatesNothing),
     ];
 
     // ================================================================ helpers
@@ -1221,13 +1227,14 @@ public static class TransportConformance
     }
 
     // A service on the transport under test: the kit's domain, an in-memory store, short polling.
-    private static Task<SourceFlowTestHost> HostAsync(ITransportFixture f, string service, string endpoint, CancellationToken ct, TckObservations? observations = null, Action<Runtime.RoutingBuilder>? routing = null)
+    private static Task<SourceFlowTestHost> HostAsync(ITransportFixture f, string service, string endpoint, CancellationToken ct, TckObservations? observations = null, Action<Runtime.RoutingBuilder>? routing = null,
+        Action<Hosting.SourceFlowBuilder>? configure = null, ITransport? transport = null)
     {
         return SourceFlowTestHost.StartAsync(sf =>
         {
             sf.ServiceName = service;
             sf.AddModule<TckModule>();
-            sf.UseTransport(_ => f.Transport);
+            sf.UseTransport(_ => transport ?? f.Transport);
             sf.Routing(r =>
             {
                 r.Endpoint(endpoint);
@@ -1238,6 +1245,244 @@ public static class TransportConformance
                 o.PollInterval = TimeSpan.FromMilliseconds(20);
                 o.DeadLetterIngestInterval = TimeSpan.FromMilliseconds(200);
             });
+            configure?.Invoke(sf);
         }, store: new InMemoryStore(), services: s => s.AddSingleton(observations ?? new TckObservations()), cancellationToken: ct);
+    }
+
+    // ================================================================ receive path (WP-C.6)
+
+    // TCK-46: the head of a key fails once and waits for a delayed retry; the key's later messages, received with it, do
+    // not overtake it (ADR-033 §7, CR-08).
+    private static async Task OrderedRetryThroughTheCore(ITransportFixture f, CancellationToken ct)
+    {
+        if (!f.Transport.Capabilities.OrderedDelivery)
+        {
+            return;
+        }
+
+        string endpoint = Name(f, "ordered-core");
+        var failing = new FailOnce(1);
+        await using SourceFlowTestHost owner = await HostAsync(f, "tck-owner", endpoint, ct, routing: r => r.OrderedEndpoint(), configure: sf =>
+        {
+            sf.UseMiddleware(_ => failing, PipelineStage.Receive);
+            sf.Configure(o =>
+            {
+                o.ImmediateRetries = 0;
+                o.DelayedRetries.Clear();
+                o.DelayedRetries.Add(TimeSpan.FromSeconds(1));
+                o.PrefetchPerWorker = 10;
+            });
+        }).ConfigureAwait(false);
+        var tally = TckTallyId.New();
+        MessageEnvelope[] commands = [.. Enumerable.Range(1, 5).Select(n => Command(new TckAdd(tally, n)) with { PartitionKey = tally.ToString() })];
+
+        await f.Transport.SendAsync(endpoint, commands, ct).ConfigureAwait(false);
+        await Eventually(() => Task.FromResult(failing.Failures == 1), f, "the head's first attempt", owner).ConfigureAwait(false);
+        if (f.SupportsClockControl)
+        {
+            await f.AdvanceClockAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);   // past the head's delay
+        }
+
+        StreamId stream = StreamId.For(TckTally.AggregateName, tally);
+        await Eventually(async () => (await owner.EventsAsync(stream).ConfigureAwait(false)).Count >= commands.Length, f, "every command's effect", owner).ConfigureAwait(false);
+        int[] amounts = [.. (await owner.EventsAsync(stream).ConfigureAwait(false)).Cast<TckAdded>().Select(e => e.Amount)];
+        Check.SequenceEqual(new[] { 1, 2, 3, 4, 5 }, amounts, "in the order sent, although the head waited for its retry");
+    }
+
+    // TCK-47: settling fails (the broker is unreachable); the key's message comes back to the same receiver without a
+    // restart, and the key's next one follows it (doc 07 §4, CR-09).
+    private static async Task SettleFaultRecovers(ITransportFixture f, CancellationToken ct)
+    {
+        ITransportFaults faults = Check.NotNull(f.Faults, "fault injection");
+        bool ordered = f.Transport.Capabilities.OrderedDelivery;
+        string endpoint = Name(f, "settle-fault");
+        TimeSpan lockDuration = TimeSpan.FromSeconds(3);
+        await using ITransportReceiver receiver = await ReceiverAsync(f, Topology(endpoint, ordered: ordered), ct, lockDuration).ConfigureAwait(false);
+        MessageEnvelope first = Envelope("k");
+        MessageEnvelope second = Envelope("k");
+        await f.Transport.SendAsync(endpoint, [first], ct).ConfigureAwait(false);
+        ReceivedMessage head = await ReceiveOneAsync(receiver, f, ct).ConfigureAwait(false);
+        await f.Transport.SendAsync(endpoint, [second], ct).ConfigureAwait(false);
+
+        // The settlement fails (an error), or the outage cost the lock and it is ignored as late (Service Bus): either way
+        // the message was not completed, and what matters is that it comes back.
+        faults.Unavailable = true;
+        try
+        {
+            await head.CompleteAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is TransportException or ObjectDisposedException or TimeoutException)
+        {
+            // the settle fault
+        }
+        finally
+        {
+            faults.Unavailable = false;
+        }
+
+        await PassAsync(f, lockDuration + TimeSpan.FromSeconds(1), ct).ConfigureAwait(false);   // the lock lapses
+        var seen = new List<MessageId>();
+        DateTimeOffset deadline = TimeProvider.System.GetUtcNow() + f.ReceiveTimeout * 2;
+        while (seen.Count(id => id == first.MessageId || id == second.MessageId) < 2 && TimeProvider.System.GetUtcNow() < deadline)
+        {
+            foreach (ReceivedMessage message in await receiver.ReceiveAsync(10, TimeSpan.FromMilliseconds(200), ct).ConfigureAwait(false))
+            {
+                seen.Add(message.Envelope.MessageId);
+                await message.CompleteAsync(ct).ConfigureAwait(false);
+            }
+        }
+
+        Check.True(seen.Contains(first.MessageId), "the unsettled message is delivered again, to the same receiver");
+        Check.True(seen.Contains(second.MessageId), "the key's next message is not blocked");
+        if (ordered)
+        {
+            Check.True(seen.IndexOf(first.MessageId) < seen.IndexOf(second.MessageId), "and still in order");
+        }
+    }
+
+    // TCK-48: a delayed retry longer than the transport's maximum delay is honoured: the core re-sends it through the
+    // outbox (doc 04 §9.2), the broker carries sfattempt, and the attempts are counted across the re-send (CR-13).
+    private static async Task LongDelayHonoured(ITransportFixture f, CancellationToken ct)
+    {
+        string endpoint = Name(f, "long-delay");
+        var limited = new MaxDelayTransport(f.Transport, TimeSpan.FromSeconds(1));
+        var failing = new FailOnce(1);
+        TimeSpan delay = TimeSpan.FromSeconds(3);
+        await using SourceFlowTestHost owner = await HostAsync(f, "tck-owner", endpoint, ct, transport: limited, configure: sf =>
+        {
+            sf.UseMiddleware(_ => failing, PipelineStage.Receive);
+            sf.Configure(o =>
+            {
+                o.ImmediateRetries = 0;
+                o.DelayedRetries.Clear();
+                o.DelayedRetries.Add(delay);
+            });
+        }).ConfigureAwait(false);
+        var tally = TckTallyId.New();
+
+        await f.Transport.SendAsync(endpoint, [Command(new TckAdd(tally, 4))], ct).ConfigureAwait(false);
+        StreamId stream = StreamId.For(TckTally.AggregateName, tally);
+        await Eventually(async () => (await owner.EventsAsync(stream).ConfigureAwait(false)).Count > 0, f, "the retried command's effect", owner).ConfigureAwait(false);
+
+        Check.Equal(2, failing.Attempts.Count, "one failure, then the retry");
+        Check.True(failing.Attempts[1].At - failing.Attempts[0].At >= delay - TimeSpan.FromMilliseconds(250), "not before the full delay");
+        Check.Equal(1, failing.Attempts[1].Attempts, "the re-sent copy carries the attempts so far");
+        Check.True(limited.Abandons.All(d => d <= TimeSpan.FromSeconds(1)), "never a longer native delay than the transport allows");
+    }
+
+    // TCK-49: Validate reports what is missing and creates nothing (ADR-017).
+    private static async Task ValidateCreatesNothing(ITransportFixture f, CancellationToken ct)
+    {
+        TransportTopology topology = FullTopology(f, "validate-only");
+
+        await ThrowsAsync<TopologyValidationException>(() => f.Transport.ProvisionAsync(topology, ProvisioningMode.Validate, ct).AsTask(), "the first validation").ConfigureAwait(false);
+        TopologyValidationException again = await ThrowsAsync<TopologyValidationException>(() => f.Transport.ProvisionAsync(topology, ProvisioningMode.Validate, ct).AsTask(), "a second validation").ConfigureAwait(false);
+
+        Check.True(again.Problems.Any(p => p.Kind == TopologyProblemKind.MissingEndpoint && p.Resource == topology.Endpoint), "the endpoint is still missing");
+        Check.True(again.Problems.Any(p => p.Kind == TopologyProblemKind.MissingTopic && p.Resource == topology.PublishedTopics[0]), "the topic is still missing");
+    }
+
+    // Fails the first messages it sees with a transient error; records every attempt (time and carried attempts).
+    private sealed class FailOnce(int failures) : IMessageMiddleware
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<(DateTimeOffset At, int Attempts)> _attempts = new();
+        private readonly int _failures = failures;
+        private int _left = failures;
+
+        public int Failures => _failures - Math.Max(0, Volatile.Read(ref _left));
+
+        public IReadOnlyList<(DateTimeOffset At, int Attempts)> Attempts => [.. _attempts];
+
+        public ValueTask InvokeAsync(MessageContext context, MessageDelegate next)
+        {
+            _attempts.Enqueue((TimeProvider.System.GetUtcNow(), context.Envelope.Attempts ?? 0));
+            if (Interlocked.Decrement(ref _left) >= 0)
+            {
+                throw new TimeoutException("TCK: a transient failure");
+            }
+
+            return next(context);
+        }
+    }
+
+    // The transport under test, declaring a shorter maximum delay (so the core's fallback runs in seconds), recording
+    // every abandon's delay.
+    private sealed class MaxDelayTransport(ITransport inner, TimeSpan maxDelay) : ITransport
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<TimeSpan> _abandons = new();
+
+        public IReadOnlyList<TimeSpan> Abandons => [.. _abandons];
+
+        public string SystemName => inner.SystemName;
+
+        public TransportCapabilities Capabilities => inner.Capabilities with { MaxDelay = maxDelay };
+
+        public ValueTask SendAsync(string endpoint, IReadOnlyList<MessageEnvelope> messages, CancellationToken cancellationToken)
+        {
+            return inner.SendAsync(endpoint, messages, cancellationToken);
+        }
+
+        public ValueTask PublishAsync(string topic, IReadOnlyList<MessageEnvelope> messages, CancellationToken cancellationToken)
+        {
+            return inner.PublishAsync(topic, messages, cancellationToken);
+        }
+
+        public async ValueTask<ITransportReceiver> CreateReceiverAsync(ReceiverOptions options, CancellationToken cancellationToken)
+        {
+            return new Receiver(await inner.CreateReceiverAsync(options, cancellationToken).ConfigureAwait(false), _abandons);
+        }
+
+        public ValueTask<ITransportReceiver> CreateDeadLetterReceiverAsync(string endpoint, CancellationToken cancellationToken)
+        {
+            return inner.CreateDeadLetterReceiverAsync(endpoint, cancellationToken);
+        }
+
+        public ValueTask ProvisionAsync(TransportTopology topology, ProvisioningMode mode, CancellationToken cancellationToken)
+        {
+            return inner.ProvisionAsync(topology, mode, cancellationToken);
+        }
+
+        private sealed class Receiver(ITransportReceiver inner, System.Collections.Concurrent.ConcurrentQueue<TimeSpan> abandons) : ITransportReceiver
+        {
+            public async ValueTask<IReadOnlyList<ReceivedMessage>> ReceiveAsync(int maxMessages, TimeSpan wait, CancellationToken cancellationToken)
+            {
+                return [.. (await inner.ReceiveAsync(maxMessages, wait, cancellationToken).ConfigureAwait(false)).Select(m => new Message(m, abandons))];
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                return inner.DisposeAsync();
+            }
+        }
+
+        private sealed class Message(ReceivedMessage inner, System.Collections.Concurrent.ConcurrentQueue<TimeSpan> abandons) : ReceivedMessage
+        {
+            public override MessageEnvelope Envelope => inner.Envelope;
+
+            public override int DeliveryCount => inner.DeliveryCount;
+
+            public override string? DeadLetterReason => inner.DeadLetterReason;
+
+            public override ValueTask CompleteAsync(CancellationToken cancellationToken)
+            {
+                return inner.CompleteAsync(cancellationToken);
+            }
+
+            public override ValueTask AbandonAsync(TimeSpan delay, CancellationToken cancellationToken)
+            {
+                abandons.Enqueue(delay);
+                return inner.AbandonAsync(delay, cancellationToken);
+            }
+
+            public override ValueTask RenewAsync(CancellationToken cancellationToken)
+            {
+                return inner.RenewAsync(cancellationToken);
+            }
+
+            public override ValueTask DeadLetterAsync(string reason, CancellationToken cancellationToken)
+            {
+                return inner.DeadLetterAsync(reason, cancellationToken);
+            }
+        }
     }
 }

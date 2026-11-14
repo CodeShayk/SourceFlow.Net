@@ -169,7 +169,7 @@ See [Projections and read models](../../Architecture/06-Projections-and-Read-Mod
 
 - **Final pull-based transport SPI** ([ADR-033](../../../ADRs/ADR-033-final-transport-spi-pull-receivers-and-the-in-memory-reference-broker.md)):
   lock renewal, explicit dead-lettering, capabilities, typed errors, and an in-memory reference broker.
-- **Transport conformance kit**: 45 cases (TCK-01..45), passed by every transport
+- **Transport conformance kit**: 49 cases (TCK-01..49), passed by every transport
   ([ADR-014](../../../ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md)).
 - **`SourceFlow.Cloud.Aws`**: SQS and SNS, FIFO ordering and deduplication, SNS filter policies, redrive queues,
   `UseAwsTransport`.
@@ -425,7 +425,12 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   WP-C.4 (`MapCommand` refuses a body that contradicts the route; continuation tokens are validated; no request text in
   SQL; query API status codes as doc 14 §9.1: 413, 503 with `Retry-After`, 429; Studio host file checks), WP-C.5 (every
   outbound message goes through the outbox: a command sent inside a handler joins its transaction, a routed API send and
-  a dead-letter replay are written in a session of their own, and only the relay sends to the transport).
+  a dead-letter replay are written in a session of their own, and only the relay sends to the transport), WP-C.6 (the
+  receive path: a draining shutdown through `IHostedLifecycleService`; per-key order kept while a head waits for a
+  delayed retry; `InboxRetention` defaults to 14 days and is checked against the broker's retention; delays longer than
+  the broker's maximum go through the outbox with the new `sfattempt` extension; failed settlements and receives no
+  longer hold a key or an Azure session; the relay renews its lease while draining and publishes in batches;
+  TCK-46..49).
 
 ### Other notes
 

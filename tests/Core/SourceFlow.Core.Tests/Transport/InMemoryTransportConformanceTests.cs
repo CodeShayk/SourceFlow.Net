@@ -99,9 +99,9 @@ public sealed class InMemoryTransportConformanceTests
 
     [Fact]
     [Trait("Id", "TCK-00")]
-    public void TheKit_HasTheFortyFivePlannedCases()
+    public void TheKit_HasTheFortyNinePlannedCases()
     {
-        TransportConformance.Cases.Select(c => c.Id).ShouldBe(Enumerable.Range(1, 45).Select(i => $"TCK-{i:D2}"));
+        TransportConformance.Cases.Select(c => c.Id).ShouldBe(Enumerable.Range(1, 49).Select(i => $"TCK-{i:D2}"));
     }
 
     [Theory]

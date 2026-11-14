@@ -490,7 +490,7 @@ security) and SQL Server stores run them. `PersonalDataKeyStoreConformance.RunAs
 
 Implement `ITransportFixture` (the transport, a unique name prefix, receive timeouts, optional clock control, optional
 `ITransportFaults` for outages, throttling, credential expiry and duplicates, and optional `InjectDefectAsync` for
-topology validation) and run `TransportConformance.Cases` (TCK-01..45). Cases that need clock control or fault
+topology validation) and run `TransportConformance.Cases` (TCK-01..49). Cases that need clock control or fault
 injection are marked (`RequiresClockControl`, `RequiresFaultInjection`) and skipped on fixtures that cannot drive them,
 never weakened. `TopologyFixtures` holds the named topologies (`minimal`, `full`, `ordered`, `filtered`, `publisher`,
 `subscriber`) that the kit and the infrastructure-as-code modules in `deploy/topology` are tested with.
