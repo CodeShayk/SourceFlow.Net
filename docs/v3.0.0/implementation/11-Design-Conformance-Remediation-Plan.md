@@ -251,6 +251,18 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
       before parking;
     - parking and the checkpoint commit in one session.
   - **ES-R1 guard (CR-50):** `FlushAsync` and the `Connection` and `Transaction` getters close the append window.
+  *As built:*
+  - parking and the checkpoint are not one session (the dead-letter store is not a session write); instead the dead
+    letter's id is derived from the consumer and the event, so a re-park after a crash replaces it (UT-SUB-30);
+  - the backoff applies to process managers and handlers; a projection that chose Park parks at once;
+  - SQL Server's single-document upsert is not a `MERGE … WITH (HOLDLOCK)`: its key-range locks deadlocked two writers
+    of a new document (SCK-80), with or without `UPDLOCK`. It updates if newer, else inserts, and on a duplicate key
+    updates again if newer, with no range locks;
+  - the raw getters also throw while an append is queued and unsent; SCK-63 now flushes before its custom SQL;
+  - SCK-80 is a 25-round race in the kit rather than a CsCheck property;
+  - COMMIT is not folded into the SQL Server batch: SqlClient sends a parameterized batch through `sp_executesql`, and
+    committing the client's transaction there fails (error 266). The lease-row lock is held for the COMMIT round trip;
+    fencing is unaffected.
 - **Tests:**
   - SCK-79: a stale lease holder that paused after the fence check cannot commit once a new owner has acquired the
     lease. Uses an injected delay; run on all three stores.

@@ -14,7 +14,9 @@ internal sealed class SqlText
 
     private const string DeadLetterColumns = "id, consumer, source, destination, destination_is_topic, reason, attributes, body, error_type, error_message, error_detail, attempts, first_failed_at, parked_at, status, status_changed_at, status_note";
 
-    private const string LeaseFence = "EXISTS (SELECT 1 FROM {s}.leases WHERE name = @lease AND owner = @lease_owner AND token = @lease_token AND expires_at > SYSDATETIMEOFFSET())";
+    // A fenced write locks the lease row (UPDLOCK, HOLDLOCK) until its transaction ends, so a concurrent acquire waits for
+    // it: a holder that paused after the check cannot commit once another owner has the lease (doc 05 §7.4, CR-14).
+    private const string LeaseFence = "EXISTS (SELECT 1 FROM {s}.leases WITH (UPDLOCK, HOLDLOCK) WHERE name = @lease AND owner = @lease_owner AND token = @lease_token AND expires_at > SYSDATETIMEOFFSET())";
 
     public SqlText(string schema)
     {
@@ -110,11 +112,24 @@ internal sealed class SqlText
         GetDocument = R("SELECT version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = @id");
         GetDocuments = R("SELECT d.id, d.version, d.data FROM {s}.documents d JOIN OPENJSON(@ids) WITH (id nvarchar(200) COLLATE Latin1_General_100_BIN2 '$') i ON d.id = i.id WHERE d.tenant_id = @tenant AND d.collection = @collection");
         ListDocuments = R("SELECT TOP (@max) id, version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection ORDER BY id COLLATE Latin1_General_BIN2");
+        // No key-range locks (two writers of a new document deadlocked on them, SCK-80): update if newer; else insert; and if
+        // the insert meets the other writer's row (it waited for that commit), update again, still only if newer. Whatever
+        // the interleaving, the newer version wins (doc 05 §5.5, CR-15). Sessions run without XACT_ABORT, so the duplicate
+        // key is a statement error the CATCH handles, and the transaction stays committable.
         UpsertDocument = R("""
             UPDATE {s}.documents SET version = @version, data = @data, updated_at = SYSDATETIMEOFFSET()
              WHERE tenant_id = @tenant AND collection = @collection AND id = @id AND version <= @version;
-            IF @@ROWCOUNT = 0 AND NOT EXISTS (SELECT 1 FROM {s}.documents WITH (UPDLOCK, HOLDLOCK) WHERE tenant_id = @tenant AND collection = @collection AND id = @id)
-                INSERT INTO {s}.documents (tenant_id, collection, id, version, data) VALUES (@tenant, @collection, @id, @version, @data);
+            IF @@ROWCOUNT = 0 AND NOT EXISTS (SELECT 1 FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = @id)
+            BEGIN
+                BEGIN TRY
+                    INSERT INTO {s}.documents (tenant_id, collection, id, version, data) VALUES (@tenant, @collection, @id, @version, @data);
+                END TRY
+                BEGIN CATCH
+                    IF ERROR_NUMBER() NOT IN (2601, 2627) THROW;
+                    UPDATE {s}.documents SET version = @version, data = @data, updated_at = SYSDATETIMEOFFSET()
+                     WHERE tenant_id = @tenant AND collection = @collection AND id = @id AND version <= @version;
+                END CATCH
+            END;
             """);
         UpsertDocuments = R("""
             MERGE {s}.documents WITH (HOLDLOCK) AS d
@@ -208,15 +223,22 @@ internal sealed class SqlText
                     ORDER BY o.seq) o
              ORDER BY o.seq
             """);
+        // The fence and the write share one transaction, so the lease row stays locked until the write commits.
         CompleteOutbox = R($$"""
+            SET XACT_ABORT ON;
+            BEGIN TRANSACTION;
             DECLARE @ok bit = CASE WHEN {{LeaseFence}} THEN 1 ELSE 0 END;
             IF @ok = 1 DELETE o FROM {s}.outbox o JOIN OPENJSON(@seqs) WITH (seq bigint '$') s ON o.seq = s.seq;
+            COMMIT TRANSACTION;
             SELECT @ok;
             """);
         RetryOutbox = R($$"""
+            SET XACT_ABORT ON;
+            BEGIN TRANSACTION;
             DECLARE @ok bit = CASE WHEN {{LeaseFence}} THEN 1 ELSE 0 END;
             IF @ok = 1 UPDATE {s}.outbox SET attempts = attempts + 1, last_error = @error, deliver_at = @at,
                 first_due_at = COALESCE(first_due_at, CASE WHEN deliver_at > created_at THEN deliver_at ELSE created_at END) WHERE seq = @seq;
+            COMMIT TRANSACTION;
             SELECT @ok;
             """);
         CountOutbox = R("SELECT COUNT_BIG(*) FROM {s}.outbox");

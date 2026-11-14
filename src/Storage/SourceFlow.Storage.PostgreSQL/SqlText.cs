@@ -7,7 +7,9 @@ internal sealed class SqlText
 
     private const string DeadLetterColumns = "id, consumer, source, destination, destination_is_topic, reason, attributes, body, error_type, error_message, error_detail, attempts, first_failed_at, parked_at, status, status_changed_at, status_note";
 
-    private const string LeaseFence = "SELECT 1 FROM {s}.leases WHERE name = @lease AND owner = @lease_owner AND token = @lease_token AND expires_at > now()";
+    // A fenced write locks the lease row (FOR SHARE) until it commits, so a concurrent acquire waits for it: a holder that
+    // paused after the check cannot commit once another owner has the lease (doc 05 §7.4, CR-14).
+    private const string LeaseFence = "SELECT 1 FROM {s}.leases WHERE name = @lease AND owner = @lease_owner AND token = @lease_token AND expires_at > now() FOR SHARE";
 
     // The event insert shared by every append variant; 's' yields the base version, zero rows when the CAS failed.
     private const string AppendTail = """
@@ -91,6 +93,7 @@ internal sealed class SqlText
                 INSERT INTO {s}.checkpoints AS c (subscription, partition, commit_pos, seq_pos, updated_at)
                 SELECT @sub, @p, @tx, @seq, now() FROM {s}.leases l
                  WHERE l.name = @lease AND l.owner = @lease_owner AND l.token = @lease_token AND l.expires_at > now()
+                   FOR SHARE OF l
                 ON CONFLICT (subscription, partition) DO UPDATE
                    SET commit_pos = excluded.commit_pos, seq_pos = excluded.seq_pos, updated_at = excluded.updated_at
                 RETURNING 1)

@@ -16,6 +16,12 @@ internal sealed record SubscriptionDefinition(string Name, Func<Type, bool> Hand
     /// <summary>What happens to an event that keeps failing (doc 06 §7).</summary>
     public Hosting.SubscriptionFailurePolicy Policy { get; init; } = Hosting.SubscriptionFailurePolicy.Park;
 
+    /// <summary>
+    /// Under the Park policy, whether a transient failure backs off on the delayed-retry schedule before it is parked (doc 06
+    /// §2, CR-29): process managers and handlers do; a projection that chose Park parks at once.
+    /// </summary>
+    public bool BacksOffBeforeParking { get; init; } = true;
+
     /// <summary>Loads what a batch needs before it is applied (document projections read their documents in one query).</summary>
     public Func<ProjectionScope, IReadOnlyList<(IEvent Event, EventContext Context)>, CancellationToken, ValueTask>? Prefetch { get; init; }
 
@@ -496,23 +502,36 @@ internal sealed class SubscriptionEngine
             }
         }
 
+        (string, int) key = (definition.Name, partition);
+        SubscriptionStall? previous = _stalls.TryGetValue(key, out SubscriptionStall? held) && held.Position == stored.Position ? held : null;
+        int attempts = (previous?.Attempts ?? 0) + 1;
+        bool transient = last is not null && _runtime.Classifier.Classify(last) != Pipeline.HandlingOutcome.Permanent;
         if (definition.Policy == Hosting.SubscriptionFailurePolicy.Stop)
         {
             // doc 06 §7: halt the partition at the event; retry with backoff (1 s doubling, capped at 5 min).
-            SubscriptionStall stall = _stalls.AddOrUpdate((definition.Name, partition),
-                _ => Stall(definition.Name, partition, stored, last!, 1, since: null),
-                (_, previous) => previous.Position == stored.Position
-                    ? Stall(definition.Name, partition, stored, last!, previous.Attempts + 1, previous.StalledSince)
-                    : Stall(definition.Name, partition, stored, last!, 1, since: null));
+            SubscriptionStall stall = _stalls[key] = Stall(definition.Name, partition, stored, last!, attempts, previous?.StalledSince);
             Log.SubscriptionFailed(_logger, last!, definition.Name, partition, stored.EventId.ToString(), $"stopped (attempt {stall.Attempts}, retry at {stall.RetryAt:O})");
             return false;
         }
 
+        if (definition.BacksOffBeforeParking && transient && attempts <= _runtime.Options.DelayedRetries.Count)
+        {
+            // doc 06 §2 (CR-29): a transient failure backs off on the delayed-retry schedule before it is parked, as on the
+            // receive path; the partition waits at the event meanwhile, so its order holds.
+            SubscriptionStall stall = _stalls[key] = Stall(definition.Name, partition, stored, last!, attempts, previous?.StalledSince, _runtime.Options.DelayedRetries[attempts - 1]);
+            Log.SubscriptionFailed(_logger, last!, definition.Name, partition, stored.EventId.ToString(), $"backing off (attempt {stall.Attempts}, retry at {stall.RetryAt:O})");
+            return false;
+        }
+
+        _stalls.TryRemove(key, out _);
         Log.SubscriptionFailed(_logger, last!, definition.Name, partition, stored.EventId.ToString(), "parked");
         DateTimeOffset now = _runtime.Time.GetUtcNow();
+
+        // The id is derived from the consumer and the event, so parking again after a crash before the checkpoint below
+        // committed replaces the same dead letter instead of adding a second (CR-29).
         await _runtime.Storage.DeadLetters.ParkAsync(new DeadLetter
         {
-            Id = Guid.CreateVersion7(now),
+            Id = ParkedId(definition.Name, stored),
             Consumer = definition.Name,
             Source = "subscription",
             Envelope = stored.ToEnvelope(),
@@ -520,10 +539,11 @@ internal sealed class SubscriptionEngine
             ErrorType = last?.GetType().FullName,
             ErrorMessage = last?.Message,
             ErrorDetail = last?.ToString(),
-            Attempts = _runtime.Options.ImmediateRetries + 1,
-            FirstFailedAt = now,
+            Attempts = attempts * (_runtime.Options.ImmediateRetries + 1),
+            FirstFailedAt = previous?.StalledSince ?? now,
             ParkedAt = now,
         }, cancellationToken).ConfigureAwait(false);
+        await _runtime.FaultAsync(FaultPoints.SubscriptionAfterParkBeforeCheckpoint, cancellationToken).ConfigureAwait(false);
         _runtime.Metrics.DeadLettersParked.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Consumer, definition.Name),
             new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Reason, "SubscriptionFailed"));
 
@@ -534,9 +554,15 @@ internal sealed class SubscriptionEngine
         return true;
     }
 
-    private SubscriptionStall Stall(string subscription, int partition, StoredEvent stored, Exception error, int attempts, DateTimeOffset? since)
+    // The dead letter of an event parked by a subscription: the same id every time that consumer parks that event.
+    internal static Guid ParkedId(string consumer, StoredEvent stored)
     {
-        TimeSpan backoff = TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2, Math.Min(attempts - 1, 9))));
+        return Messaging.MessageIds.Derive(stored.EventId, "parked:" + consumer).Value;
+    }
+
+    private SubscriptionStall Stall(string subscription, int partition, StoredEvent stored, Exception error, int attempts, DateTimeOffset? since, TimeSpan? delay = null)
+    {
+        TimeSpan backoff = delay ?? TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2, Math.Min(attempts - 1, 9))));
         DateTimeOffset now = _runtime.Time.GetUtcNow();
         return new SubscriptionStall(subscription, partition, stored.Position, stored.EventId, stored.Type, attempts, error.GetType().Name, error.Message, now + backoff)
         {
@@ -586,6 +612,7 @@ internal sealed class SubscriptionEngine
             ctx => ctx.Projections.ApplyAsync(projection, ctx.Event, ctx.Stored.ToContext(), ctx.CancellationToken))
         {
             Policy = _runtime.ProjectionPolicies.GetValueOrDefault(projection.ProjectionType, Hosting.SubscriptionFailurePolicy.Stop),
+            BacksOffBeforeParking = false,
             Prefetch = projection is DocumentProjectionDescriptor document
                 ? (scope, batch, ct) => scope.PrefetchAsync(document, batch, ct)
                 : null,

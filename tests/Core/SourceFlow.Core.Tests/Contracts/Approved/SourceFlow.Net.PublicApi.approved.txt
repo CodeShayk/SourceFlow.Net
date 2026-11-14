@@ -2073,6 +2073,7 @@ namespace SourceFlow.Runtime
         public const string SessionAfterCommitBeforeAck = "session.afterCommitBeforeAck";
         public const string SessionBeforeCommit = "session.beforeCommit";
         public const string SubscriptionAfterApplyBeforeCommit = "subscription.afterApplyBeforeCommit";
+        public const string SubscriptionAfterParkBeforeCheckpoint = "subscription.afterParkBeforeCheckpoint";
         public static System.Collections.Generic.IReadOnlyList<string> All { get; }
     }
     public sealed class HealthThresholds

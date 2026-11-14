@@ -1196,8 +1196,10 @@ public sealed class InMemoryStore :
 
         public ValueTask FlushAsync(CancellationToken cancellationToken)
         {
-            // The in-memory store applies a session atomically at commit and has no connection to write through.
+            // The in-memory store applies a session atomically at commit and has no connection to write through. As the SQL
+            // stores, an append after a flush is refused (ES-R1, CR-50).
             ThrowIfCompleted();
+            _wroteOther = true;
             return ValueTask.CompletedTask;
         }
 

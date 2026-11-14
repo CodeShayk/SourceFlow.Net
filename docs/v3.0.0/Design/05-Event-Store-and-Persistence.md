@@ -260,6 +260,7 @@ SELECT TOP (@max) … FROM sourceflow.Events
 - **Append.** The rows travel as one JSON parameter read with `OPENJSON`, not as a table-valued parameter. A TVP needs a user-defined table type per schema, and that type cannot be changed while it is in use. A failed version check raises `THROW 50001`. Fenced writes raise `THROW 50002` with a check code.
 - **Batches.** A session's writes go as one command batch, split at 2,000 parameters. SQL Server allows at most 2,100.
 - **Upserts.** Upserts use `MERGE … WITH (HOLDLOCK)`. Leases use the database clock.
+  As built (WP-C.7, CR-15): the single-document upsert updates if newer, otherwise inserts, and on a duplicate key (a concurrent writer inserted first) updates again if newer. It takes no key-range locks, which deadlocked two writers of a new document under `MERGE … WITH (HOLDLOCK)` (SCK-80). Batch upserts keep the `MERGE`.
 - **Keys.** Key columns are `nvarchar(100/200/400)` with `COLLATE Latin1_General_100_BIN2`, so ids compare ordinally, as on PostgreSQL, whatever the database collation. A primary key over 900 bytes is `NONCLUSTERED`.
 - **Notifications.** Notifications are in-process only. Other nodes find new events by polling at `PollInterval`, because SQL Server has no `LISTEN`.
 - **Tenancy.** Tenancy is `TenantIsolation.Runtime`: every query filters on `tenant_id`. Row-level security, as on PostgreSQL in WP-2.6, is not provided.
@@ -337,14 +338,23 @@ CREATE TABLE sourceflow.checkpoints (
     updated_at   timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (subscription, partition));
 
--- Fenced save: succeeds only while this instance still holds the lease with this token
-UPDATE sourceflow.checkpoints c
-   SET commit_pos = @tx, seq_pos = @seq, updated_at = now()
-  FROM sourceflow.leases l
- WHERE c.subscription = @sub AND c.partition = @p
-   AND l.name = @lease AND l.owner = @me AND l.token = @token AND l.expires_at > now();
+-- Fenced save: succeeds only while this instance still holds the lease with this token, and locks the lease row
+-- (FOR SHARE) until the transaction commits, so a concurrent acquire waits for it (§7.4)
+INSERT INTO sourceflow.checkpoints AS c (subscription, partition, commit_pos, seq_pos, updated_at)
+SELECT @sub, @p, @tx, @seq, now() FROM sourceflow.leases l
+ WHERE l.name = @lease AND l.owner = @me AND l.token = @token AND l.expires_at > now()
+   FOR SHARE OF l
+ON CONFLICT (subscription, partition) DO UPDATE
+   SET commit_pos = excluded.commit_pos, seq_pos = excluded.seq_pos, updated_at = excluded.updated_at;
 -- 0 rows ⇒ LeaseLostException ⇒ whole transaction (incl. read-model writes) rolls back
 ```
+
+> **Design change (WP-C.7, CR-14).** The earlier statement checked the lease without locking it. A former owner that passed
+> the check and then paused before COMMIT could still commit after its lease expired and a new owner had taken it. Every
+> fenced statement now locks the lease row: `FOR SHARE` on PostgreSQL, `WITH (UPDLOCK, HOLDLOCK)` on SQL Server, where
+> the fenced outbox statements also run in a transaction of their own. The
+> acquire's update waits for that lock, so the new owner reads what the former one committed. SCK-79 checks it on every
+> store.
 
 ### 7.4 Leases
 
@@ -363,7 +373,7 @@ UPDATE sourceflow.leases
 RETURNING token;
 ```
 
-The TTL defaults to 30 s and is renewed every 10 s. A lost renewal stops work on that partition immediately. Fencing (§7.3) guarantees that a paused former owner cannot commit after a new owner has taken over.
+The TTL defaults to 30 s and is renewed every 10 s. A lost renewal stops work on that partition immediately. Fencing (§7.3) guarantees that a paused former owner cannot commit after a new owner has taken over: its fenced write holds the lease row, so the takeover waits for its commit or rollback.
 
 ### 7.5 Dead letters, process state, snapshots, documents, keys
 
@@ -471,7 +481,7 @@ CREATE TABLE sourceflow.data_keys (                                         -- c
 - **Document store** (`IDocumentSession` / `IDocumentReader<T>`): `jsonb` documents keyed by `(collection, id)`, with `Get`, `GetMany`, and a raw-SQL query escape hatch. Rebuilt collections are versioned (`account-summary@2`) for blue/green switches (doc 06 §6).
 - **EF Core** (`SourceFlow.Storage.EntityFrameworkCore`): `IEfProjection<TDbContext>` handlers receive a `DbContext` bound to the session's connection and transaction. `SaveChanges` happens before the checkpoint in the same commit. EF Core is **not** used for the event store ([ADR-009](../ADRs/ADR-009-event-store-on-adonet-postgresql-first.md)).
   - EF projections are one kind of **session projection** (`ISessionProjection<TUnitOfWork>` in the core). The generator emits their `When` dispatch, and their module registers them. A storage package supplies an `IProjectionUnitOfWork<T>` that creates the unit of work on the session and completes it before the commit. For EF Core that registration is `UseEntityFrameworkProjections<TDbContext>((o, c) => o.UseNpgsql(c), o => new ReportingDbContext(o))`. A session projection without its unit of work fails at startup.
-  - **ES-R1 still holds.** Before creating the first unit of work, the runtime calls `IStorageSession.FlushAsync`, which sends the queued append first. EF writes therefore always follow the append, and a conflict surfaces before any EF write. Code that writes through `session.Connection` directly must call `FlushAsync` first.
+  - **ES-R1 still holds.** Before creating the first unit of work, the runtime calls `IStorageSession.FlushAsync`, which sends the queued append first. EF writes therefore always follow the append, and a conflict surfaces before any EF write. Code that writes through `session.Connection` directly must call `FlushAsync` first. As built (WP-C.7, CR-50), the session enforces it: `Connection` and `Transaction` throw while an append is queued and not yet sent, and after a flush or raw access a new `Append` is refused (SCK-81).
   - `IdempotentUpsert.UpsertAsync` applies a change only when the source version is newer than the row's `IVersionedReadModel.Version`, so replays and rebuilds are harmless.
   - Tracked changes are saved once, at the end. Set-based statements (`ExecuteUpdateAsync`) run immediately, so a projection should not mix the two on the same rows.
 - **Custom**: `IProjection` with `IStorageSession.Connection` for any SQL.

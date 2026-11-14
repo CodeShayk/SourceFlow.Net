@@ -33,6 +33,9 @@ public static class FaultPoints
     /// <summary>A subscription applied a batch and has not committed it with the checkpoint: the batch is applied again.</summary>
     public const string SubscriptionAfterApplyBeforeCommit = "subscription.afterApplyBeforeCommit";
 
+    /// <summary>A subscription parked a failing event and has not committed the checkpoint past it: it is parked again, as the same dead letter.</summary>
+    public const string SubscriptionAfterParkBeforeCheckpoint = "subscription.afterParkBeforeCheckpoint";
+
     /// <summary>A node is about to renew a subscription or outbox lease it owns: past the TTL, another node takes over.</summary>
     public const string LeaseBeforeRenew = "lease.beforeRenew";
 
@@ -43,6 +46,6 @@ public static class FaultPoints
     public static IReadOnlyList<string> All { get; } =
     [
         SessionBeforeCommit, SessionAfterCommitBeforeAck, ReactionBeforeCommit, RelayAfterPublishBeforeDelete,
-        SubscriptionAfterApplyBeforeCommit, LeaseBeforeRenew, ReceiverBeforeComplete,
+        SubscriptionAfterApplyBeforeCommit, SubscriptionAfterParkBeforeCheckpoint, LeaseBeforeRenew, ReceiverBeforeComplete,
     ];
 }

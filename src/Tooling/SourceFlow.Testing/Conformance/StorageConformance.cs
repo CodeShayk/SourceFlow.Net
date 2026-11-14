@@ -123,6 +123,9 @@ public static class StorageConformance
         new("SCK-74", "Aliases: a requested generation is kept until it is switched in; previous is cleared only when it matches", AliasRequest),
         new("SCK-75", "Aliases: concurrent switches from the same target, exactly one wins", AliasRace),
         new("SCK-76", "Monitor: unfinished workflow instances are counted per workflow, version and status across tenants", ActiveWorkflows),
+        new("SCK-79", "Fencing: a holder that paused after the fence check cannot commit once a new owner has the lease", PausedHolderCannotCommit),
+        new("SCK-80", "Documents: concurrent upserts of the same document, the newer version always wins", ConcurrentUpsertsNewerWins),
+        new("SCK-81", "ES-R1: an append after a flush or raw connection access is refused", AppendWindowCloses),
     ];
 
     // ------------------------------------------------------------------ helpers
@@ -1017,6 +1020,91 @@ public static class StorageConformance
         Check.Equal(1, wins.Count(w => w), "exactly one switch wins");
         CollectionAlias alias = await AliasAsync(aliases, name, ct).ConfigureAwait(false);
         Check.Equal(name + "@1", alias.Previous, "the winner's previous");
+    }
+
+    // doc 05 §7.4 (CR-14): the former owner checks the fence and sends its checkpoint, then pauses before COMMIT while its
+    // lease expires. Either the takeover waits for that transaction (the SQL stores lock the lease row), and the checkpoint
+    // committed before the lease changed hands, or the takeover succeeds at once, and the former owner's commit fails.
+    private static async Task PausedHolderCannotCommit(IStorageFixture f, CancellationToken ct)
+    {
+        TimeSpan ttl = TimeSpan.FromSeconds(1);
+        LeaseToken former = Check.NotNull(await f.Leases.TryAcquireAsync("sub:fence:0", "former", ttl, ct).ConfigureAwait(false), "the former owner's lease");
+        await using IStorageSession paused = await f.Sessions.BeginAsync(Tenant, ct).ConfigureAwait(false);
+        paused.SaveCheckpoint("fence", 0, new GlobalPosition(9, 1), former);
+        await paused.FlushAsync(ct).ConfigureAwait(false);   // the fence is checked and the write sent; COMMIT is still to come
+
+        if (f.SupportsClockControl)
+        {
+            await f.AdvanceClockAsync(ttl + TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+        }
+        else
+        {
+            await Task.Delay(ttl + TimeSpan.FromMilliseconds(500), TimeProvider.System, ct).ConfigureAwait(false);
+        }
+
+        Task<LeaseToken?> takeover = Task.Run(() => f.Leases.TryAcquireAsync("sub:fence:0", "next", TimeSpan.FromSeconds(30), ct).AsTask(), ct);
+        bool waited = await Task.WhenAny(takeover, Task.Delay(TimeSpan.FromMilliseconds(500), TimeProvider.System, ct)).ConfigureAwait(false) != takeover;
+        if (!waited)
+        {
+            Check.NotNull(await takeover.ConfigureAwait(false), "the next owner took the expired lease");
+            await Check.ThrowsAsync<LeaseLostException>(() => paused.CommitAsync(ct).AsTask(), "the paused former owner cannot commit").ConfigureAwait(false);
+            Check.Equal(GlobalPosition.Start, await f.Checkpoints.GetAsync("fence", 0, ct).ConfigureAwait(false), "nothing of the former owner's write");
+            return;
+        }
+
+        await paused.CommitAsync(ct).ConfigureAwait(false);   // it still held the lease row: it commits first
+        LeaseToken next = Check.NotNull(await takeover.ConfigureAwait(false), "then the next owner takes the lease");
+        Check.True(next.Token > former.Token, "with a new token");
+        Check.Equal(new GlobalPosition(9, 1), await f.Checkpoints.GetAsync("fence", 0, ct).ConfigureAwait(false), "the next owner reads the former owner's checkpoint");
+    }
+
+    // doc 05 §5.5 (CR-15): two sessions upsert one new document at the same time; whatever the interleaving, the higher
+    // version is what remains. Repeated, with the order of the writers alternating, to give a race room to show.
+    private static async Task ConcurrentUpsertsNewerWins(IStorageFixture f, CancellationToken ct)
+    {
+        for (int round = 0; round < 25; round++)
+        {
+            string id = "race-" + round.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            using var start = new SemaphoreSlim(0, 2);
+            Task Write(long version) => Task.Run(async () =>
+            {
+                await start.WaitAsync(ct).ConfigureAwait(false);
+                await using IStorageSession session = await f.Sessions.BeginAsync(Tenant, ct).ConfigureAwait(false);
+                session.Documents.Upsert("race", id, version, Encoding.UTF8.GetBytes("{\"v\":" + version.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}"));
+                await session.CommitAsync(ct).ConfigureAwait(false);
+            }, ct);
+
+            Task[] writers = round % 2 == 0 ? [Write(1), Write(2)] : [Write(2), Write(1)];
+            start.Release(2);
+            await Task.WhenAll(writers).ConfigureAwait(false);
+
+            StoredDocument stored = Check.NotNull(await f.Documents.GetAsync(Tenant, "race", id, ct).ConfigureAwait(false), $"round {round}: the document");
+            Check.Equal(2L, stored.Version, $"round {round}: the newer version wins");
+            Check.Equal("{\"v\":2}", Encoding.UTF8.GetString(stored.Data.Span), $"round {round}: with its data");
+        }
+    }
+
+    // ES-R1 (doc 05 §5.3, CR-50): the stream append must be a session's first write. A flush sends what is queued, and SQL
+    // run on the raw connection goes to the server at once, so an append after either is refused.
+    private static async Task AppendWindowCloses(IStorageFixture f, CancellationToken ct)
+    {
+        await using (IStorageSession flushed = await f.Sessions.BeginAsync(Tenant, ct).ConfigureAwait(false))
+        {
+            flushed.Documents.Upsert("docs", "es-r1", 1, Encoding.UTF8.GetBytes("{}"));
+            await flushed.FlushAsync(ct).ConfigureAwait(false);
+            Check.Throws<InvalidOperationException>(() => flushed.Append(StreamA, "sck", ExpectedVersion.NoStream, Events(1)), "an append after a flush");
+        }
+
+        await using IStorageSession raw = await f.Sessions.BeginAsync(Tenant, ct).ConfigureAwait(false);
+        if (raw.Connection is not null)
+        {
+            Check.Throws<InvalidOperationException>(() => raw.Append(StreamA, "sck", ExpectedVersion.NoStream, Events(1)), "an append after the connection was handed out");
+        }
+
+        await using IStorageSession first = await f.Sessions.BeginAsync(Tenant, ct).ConfigureAwait(false);
+        first.Append(StreamA, "sck", ExpectedVersion.NoStream, Events(1));   // first: accepted
+        await first.FlushAsync(ct).ConfigureAwait(false);                      // and a flush after it is fine
+        await first.CommitAsync(ct).ConfigureAwait(false);
     }
 
     private static async Task DocumentVersions(IStorageFixture f, CancellationToken ct)

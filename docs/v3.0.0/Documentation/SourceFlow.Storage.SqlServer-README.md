@@ -83,7 +83,7 @@ The runtime options on `SourceFlowOptions` (`PollInterval`, `LeaseTtl`, `OutboxP
 | Commit | One `NpgsqlBatch` that ends with `COMMIT` (one round trip) | One command batch, then `COMMIT` (two round trips). A batch is split at 2,000 parameters, because SQL Server allows at most 2,100 |
 | Multi-row writes | `unnest` of array parameters | One JSON parameter read with `OPENJSON` (no table-valued parameters, so no user-defined table types to manage) |
 | Failed checks | `sf_assert` raises SQLSTATE `SF001` | `THROW 50001` (append) and `THROW 50002` with a check code (fenced writes, process state) |
-| Upserts | `INSERT … ON CONFLICT` | `MERGE … WITH (HOLDLOCK)` and `UPDLOCK, HOLDLOCK` existence checks |
+| Upserts | `INSERT … ON CONFLICT` | `MERGE … WITH (HOLDLOCK)` for batches; a single document updates if newer, else inserts, and on a duplicate key updates again (no range locks) |
 | Payload columns | `json` | `nvarchar(max)` JSON text, kept as written |
 | Key comparison | Ordinal (`text`, `COLLATE "C"` for ordering) | Key columns are `nvarchar(100/200/400) COLLATE Latin1_General_100_BIN2`, ordinal whatever the database collation |
 | Cross-node wake-ups | `LISTEN`/`NOTIFY` | None. In-process notifications only; other nodes poll at `PollInterval` |

@@ -21,8 +21,12 @@ public sealed class OutboxLeaseTests
         {
             sf.ServiceName = "accounts";
             sf.AddModule<AccountsModule>();
+            sf.Routing(r => r.Publish<AccountOpened>().AsIs().To("accounts.events"));
         }, store: store, cancellationToken: Ct))
         {
+            // Idle with nothing due means a relay pass ran; a pass takes the partitions in order, so it holds outbox:0.
+            // (Idle alone can come before the relay loop's first pass on a loaded machine.)
+            await first.SendAsync(new OpenAccount(AccountId.New(), "Ada", 5m), cancellationToken: Ct);
             await first.WaitForIdleAsync();
             (await store.TryAcquireAsync("outbox:0", "next-node", TimeSpan.FromSeconds(30), Ct)).ShouldBeNull("the running relay holds its partitions");
         }

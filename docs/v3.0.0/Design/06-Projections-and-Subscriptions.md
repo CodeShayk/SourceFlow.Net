@@ -44,6 +44,8 @@ while lease held:
 - **Wake-ups.** The PostgreSQL adapter `LISTEN`s on `sourceflow`. After a commit, outside the transaction, it sends one `pg_notify` that covers every commit since the previous one (WP-4.7: a NOTIFY inside the commit serialises every commit on PostgreSQL's notification lock). The SQL Server adapter has no `NOTIFY`, so it polls adaptively. In both, an in-process signal fires after local commits for the lowest latency. Target: event to async projection p95 ≤ 100 ms on PostgreSQL ([doc 09](09-Performance-and-Scalability.md)).
 - **Batch size** is adaptive: it starts at 100, grows to `MaxBatchSize` (default 1,000) while catching up, and shrinks when caught up.
 
+> **As built (WP-C.7, CR-29).** A failing batch is applied again one event at a time (with `ImmediateRetries`) to find the failing event. For process managers and event handlers under the Park policy, a transient failure then holds the partition at that event and retries it on the `DelayedRetries` schedule, as the receive path does; only when that budget is spent, or at once for a permanent error, is the event parked. A projection that chose Park parks at once; Stop keeps its own backoff (§7). A parked event's dead-letter id is derived from the consumer and the event id, so a crash between parking and the checkpoint re-parks the same dead letter (UT-SUB-30).
+
 ## 3. Partitioning
 
 - Each event carries `bucket = xxHash32(stream_id) & 1023` (doc 05 §1.1). A subscription with `P` partitions (a power of two, 1 to 1024) gives partition `p` the buckets `[p·1024/P, (p+1)·1024/P)`.

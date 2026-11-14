@@ -430,7 +430,9 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   delayed retry; `InboxRetention` defaults to 14 days and is checked against the broker's retention; delays longer than
   the broker's maximum go through the outbox with the new `sfattempt` extension; failed settlements and receives no
   longer hold a key or an Azure session; the relay renews its lease while draining and publishes in batches;
-  TCK-46..49).
+  TCK-46..49), WP-C.7 (fenced writes lock the lease row, so a paused former owner can't commit after a takeover; SQL
+  Server's single-document upsert keeps the newer version under concurrency; process managers and handlers back off
+  before parking, and park once across a crash; an append after a flush or raw connection access is refused).
 
 ### Other notes
 

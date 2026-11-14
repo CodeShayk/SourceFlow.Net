@@ -208,6 +208,7 @@ These are additional to the SCK, which the in-memory store also runs.
 | UT-OUT-09..10 | Wake-up on commit signal; adaptive poll when idle | doc 04 §7 | new |
 | UT-OUT-11..14 | Scheduler: `deliver_at` in the future isn't sent until `FakeTimeProvider` advances; timer to own endpoint; cancel before send deletes the row | doc 04 §8 | new |
 | UT-OUT-15..18 | Partition spread across two relay instances by leases; failover after lease expiry; no duplicate sends while both alive | doc 06 §4 | new |
+| UT-SUB-29..30 | A transient process-manager or handler error backs off on the delayed-retry schedule and does not park; a crash between parking and the checkpoint leaves one dead letter (the id is derived from consumer and event) | doc 06 §2, CR-29 | new (WP-C.7) |
 | UT-OUT-19..20 | A claim's rows for one destination go out in one batch call; a drain longer than the lease TTL renews the lease and is not fenced halfway | doc 04 §7, doc 05 §7.4, CR-43 | new (WP-C.6) |
 | UT-RX-01 | Unknown `(type, version)` → parked `UnknownMessageType`, body never deserialised, acknowledged | GAP-10 | → `AwsSqsCommandListenerTests.ProcessMessage_UnresolvableCommandType…` |
 | UT-RX-02 | Malformed JSON → parked `DeserializationFailed`, acknowledged | — | → `ProcessMessage_InvalidJson_Deletes…` |

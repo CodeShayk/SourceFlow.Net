@@ -43,9 +43,36 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
 
     public IDocumentSession Documents => this;
 
-    public DbConnection? Connection => _connection;
+    // Raw access closes the append window (ES-R1, CR-50): SQL run on the connection goes to the server at once, so a
+    // stream append queued after it would no longer be the session's first write. With an append queued and not yet
+    // sent, the SQL would run before it: call FlushAsync first (doc 05 §7).
+    public DbConnection? Connection
+    {
+        get
+        {
+            ThrowIfAppendUnsent();
+            _wroteOther = true;
+            return _connection;
+        }
+    }
 
-    public DbTransaction? Transaction => _transaction;
+    public DbTransaction? Transaction
+    {
+        get
+        {
+            ThrowIfAppendUnsent();
+            _wroteOther = true;
+            return _transaction;
+        }
+    }
+
+    private void ThrowIfAppendUnsent()
+    {
+        if (_append is not null && !_appendSent)
+        {
+            throw new InvalidOperationException("ES-R1: the stream append is queued and not yet sent; call FlushAsync before using the session's connection, so the append stays the first write (doc 05 §5.3).");
+        }
+    }
 
     // ------------------------------------------------------------------ reads
 
@@ -221,6 +248,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
     {
         ThrowIfCompleted();
         cancellationToken.ThrowIfCancellationRequested();
+        _wroteOther = true;   // ES-R1 (CR-50): an append after a flush would follow the flushed writes
         await SendAsync(includeNotify: false, commit: false, cancellationToken).ConfigureAwait(false);
     }
 

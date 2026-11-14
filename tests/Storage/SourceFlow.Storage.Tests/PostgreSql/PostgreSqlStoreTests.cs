@@ -287,17 +287,26 @@ public sealed class PostgreSqlStoreTests(PostgreSqlServer server) : PostgreSqlTe
         await Server.ExecuteAsync($"CREATE TABLE {table} (id int PRIMARY KEY)");
         await AppendAsync(store, Stream, ExpectedVersion.NoStream);
 
+        // Custom SQL follows the append (ES-R1): flush it first, so a conflict surfaces before any custom write.
         await using (IStorageSession conflicting = await store.BeginAsync(Tenant, Ct))
         {
-            await InsertAsync(conflicting, table, 1);
             conflicting.Append(Stream, "pg", ExpectedVersion.NoStream, [StorageConformance.Event()]);
-            await Should.ThrowAsync<ConcurrencyException>(() => conflicting.CommitAsync(Ct).AsTask());
+            Should.Throw<InvalidOperationException>(() => conflicting.Connection, "the append is queued and not yet sent");
+            await Should.ThrowAsync<ConcurrencyException>(() => conflicting.FlushAsync(Ct).AsTask());
+        }
+
+        await using (IStorageSession rolledBack = await store.BeginAsync(Tenant, Ct))
+        {
+            rolledBack.Append(Stream, "pg", ExpectedVersion.Exact(new StreamVersion(1)), [StorageConformance.Event()]);
+            await rolledBack.FlushAsync(Ct);
+            await InsertAsync(rolledBack, table, 1);   // disposed without a commit: rolled back with the append
         }
 
         await using (IStorageSession committed = await store.BeginAsync(Tenant, Ct))
         {
-            await InsertAsync(committed, table, 2);
             committed.Append(Stream, "pg", ExpectedVersion.Exact(new StreamVersion(1)), [StorageConformance.Event()]);
+            await committed.FlushAsync(Ct);
+            await InsertAsync(committed, table, 2);
             await committed.CommitAsync(Ct);
         }
 
