@@ -173,11 +173,11 @@ public sealed class QueryCatalog
         var fields = new List<QueryField>();
         foreach (JsonPropertyInfo property in info.Properties)
         {
-            ICustomAttributeProvider? attributes = property.AttributeProvider;
-            bool queryable = attributes?.IsDefined(typeof(QueryableAttribute), inherit: true) == true;
-            bool personal = attributes?.IsDefined(typeof(PersonalDataAttribute), inherit: true) == true;
+            // On the property or, for a positional record, on its constructor parameter (doc 10 §4).
+            bool queryable = MemberAttributes.IsDefined<QueryableAttribute>(property);
+            bool personal = MemberAttributes.IsDefined<PersonalDataAttribute>(property);
             var renamed = new Dictionary<int, string>();
-            foreach (RenamedFromAttribute rename in attributes?.GetCustomAttributes(typeof(RenamedFromAttribute), inherit: true).OfType<RenamedFromAttribute>() ?? [])
+            foreach (RenamedFromAttribute rename in MemberAttributes.Of<RenamedFromAttribute>(property))
             {
                 renamed[rename.Version] = rename.Name;
             }

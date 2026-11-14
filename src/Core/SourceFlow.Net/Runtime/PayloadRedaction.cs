@@ -40,13 +40,32 @@ internal sealed class PayloadRedaction(SourceFlowRuntime runtime, IRedactorProvi
         }
     }
 
+    // Beyond this depth a classified member could hide; the rest of the node is replaced rather than logged (fails closed).
+    private const int MaxDepth = 16;
+
     private void Redact(JsonNode node, JsonTypeInfo info, int depth)
     {
-        if (depth > 8 || node is not JsonObject obj || info.Kind != JsonTypeInfoKind.Object)
+        switch (node)
         {
-            return;
-        }
+            case JsonArray array when info.Kind == JsonTypeInfoKind.Enumerable && info.ElementType is { } elementType
+                                      && info.Options.TryGetTypeInfo(elementType, out JsonTypeInfo? element):
+                foreach (JsonNode? item in array)
+                {
+                    if (item is not null)
+                    {
+                        Redact(item, element, depth + 1);
+                    }
+                }
 
+                return;
+            case JsonObject obj when info.Kind == JsonTypeInfoKind.Object:
+                RedactObject(obj, info, depth);
+                return;
+        }
+    }
+
+    private void RedactObject(JsonObject obj, JsonTypeInfo info, int depth)
+    {
         foreach (JsonPropertyInfo property in info.Properties)
         {
             if (!obj.TryGetPropertyValue(property.Name, out JsonNode? value) || value is null)
@@ -54,16 +73,22 @@ internal sealed class PayloadRedaction(SourceFlowRuntime runtime, IRedactorProvi
                 continue;
             }
 
-            DataClassification? classification = (property.AttributeProvider?.GetCustomAttributes(typeof(DataClassificationAttribute), inherit: true) ?? [])
-                .OfType<DataClassificationAttribute>().Select(a => (DataClassification?)a.Classification).FirstOrDefault();
+            DataClassification? classification = MemberAttributes.Of<DataClassificationAttribute>(property)
+                .Select(a => (DataClassification?)a.Classification).FirstOrDefault();
             if (classification is { } c)
             {
                 Redactor redactor = redactors.GetRedactor(new DataClassificationSet(c));
                 string text = value is JsonValue v && v.TryGetValue(out string? s) ? s : value.ToJsonString();
                 obj[property.Name] = JsonValue.Create(redactor.Redact(text));
             }
-            else if (value is JsonObject && info.Options.TryGetTypeInfo(property.PropertyType, out JsonTypeInfo? nested))
+            else if (value is JsonObject or JsonArray && info.Options.TryGetTypeInfo(property.PropertyType, out JsonTypeInfo? nested))
             {
+                if (depth >= MaxDepth)
+                {
+                    obj[property.Name] = JsonValue.Create("[nested too deeply to redact]");
+                    continue;
+                }
+
                 Redact(value, nested, depth + 1);
             }
         }

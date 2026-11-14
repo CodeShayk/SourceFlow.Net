@@ -169,6 +169,16 @@ public sealed record PatientRegistered(
 The subject id itself (`Customer` above) is stored in clear text, so it can be found again for erasure. Use an opaque id
 for it, never a name or an e-mail address.
 
+Where the attribute can go:
+
+- **A positional record parameter**, with or without the `property:` target. `[PersonalData] string Name` on a
+  positional record applies to the constructor parameter; encryption, redaction, the query catalog, the schema and the
+  analyzers read it there too.
+- **Objects in a collection**, for example `IReadOnlyList<OrderLine>` whose `OrderLine` has a `[PersonalData]` member.
+  Each element is encrypted on its own; a `Subject` is looked up in the element first, then in the enclosing objects.
+- **Not** a dictionary value, or anything nested more than 8 objects deep: the host fails at startup rather than store
+  such a member in clear text.
+
 ### Analyzers
 
 | Id | Severity | Rule |
@@ -217,7 +227,8 @@ tenant's data key for the subject, with `tenant|subject|path` as associated data
 
 - **Keys.** A subject's data key belongs to its tenant: it is created on first use, wrapped by the key provider, and
   stored in `data_keys` under (tenant, subject). One key service call is made per new subject and tenant; unwrapped keys
-  are cached in pinned memory. Markers of the earlier `v1` format (no tenant) still read, with the default tenant's key.
+  are cached in pinned memory for at most `KeyCacheTtl` (5 minutes by default, `EncryptPersonalData(o => o.KeyCacheTtl = …)`).
+  Markers of the earlier `v1` format (no tenant) still read, with the default tenant's key.
 - **Where the subject's data lives.** The streams that hold a subject's data are recorded in `subject_streams` before the
   commit.
 - **Snapshots.** Aggregate state that holds `[PersonalData]` members is encrypted the same way in snapshots.
@@ -259,7 +270,14 @@ public sealed class ErasureEndpoint(IPersonalDataEraser eraser)
 4. **Notify.** A `PersonalDataErased` event (type `sourceflow.personal-data.erased`) is appended on stream
    `personal-data-{subject}`, so custom projections can scrub their own read models.
 
-`ErasureResult` reports `SubjectId`, `Streams`, `SnapshotsDeleted` and `DocumentsScrubbed`.
+`ErasureResult` reports `SubjectId`, `Streams`, `SnapshotsDeleted` and `DocumentsScrubbed`. The `PersonalDataErased`
+event records who erased the subject (the actor from `IActorAccessor`), its causation and its trace, for the GDPR
+Art. 30 record.
+
+**Several nodes.** Erasure evicts the key and the cached states only on the node that runs it. Every other node reads
+the key again once its cache entry is older than `KeyCacheTtl`, finds it shredded, and from then on reads the subject's
+data as erased. With encryption on, aggregate cache entries expire after the same time. So across the cluster an erasure
+takes full effect within `KeyCacheTtl`; shorten it if that is too long for you.
 
 ### 4.5 After erasure
 
@@ -432,7 +450,8 @@ Grant the identity encrypt and decrypt on the key (for example `roles/cloudkms.c
 
 `LocalKeyProvider` keeps master keys in memory and wraps data keys with AES-256-GCM. `Rotate()` adds a master key
 version; every version still unwraps. `Failure` makes every call fail, to simulate an outage. **Never use it in
-production**: the master keys die with the process, and so does every encrypted value.
+production**: the master keys die with the process, and so does every encrypted value. Outside the Development
+environment the host refuses to start with it, unless you call `s.AllowLocalKeyProvider()` (tests and demos).
 
 ```csharp
 using var keys = new LocalKeyProvider();

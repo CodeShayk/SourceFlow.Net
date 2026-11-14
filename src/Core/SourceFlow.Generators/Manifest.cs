@@ -212,11 +212,6 @@ namespace SourceFlow.Generators
         // Public instance properties in declaration order, with their JSON names (camelCase unless [JsonPropertyName]).
         private static IEnumerable<ManifestField> Fields(INamedTypeSymbol type)
         {
-            IMethodSymbol? primary = type.InstanceConstructors
-                .Where(c => c.Parameters.Length > 0)
-                .OrderByDescending(c => c.Parameters.Length)
-                .FirstOrDefault();
-
             foreach (IPropertySymbol property in type.GetMembers().OfType<IPropertySymbol>())
             {
                 if (property.IsStatic || property.IsIndexer || property.DeclaredAccessibility != Accessibility.Public || property.Name == "EqualityContract")
@@ -224,13 +219,11 @@ namespace SourceFlow.Generators
                     continue;
                 }
 
-                IParameterSymbol? parameter = primary?.Parameters.FirstOrDefault(p => p.Name == property.Name);
                 string name = property.FindAttribute("System.Text.Json.Serialization.JsonPropertyNameAttribute") is { ConstructorArguments.Length: 1 } renamed
                     && renamed.ConstructorArguments[0].Value is string explicitName
                         ? explicitName
                         : CamelCase(property.Name);
-                bool personal = property.FindAttribute(KnownNames.PersonalDataAttribute) is not null
-                    || parameter?.FindAttribute(KnownNames.PersonalDataAttribute) is not null;
+                bool personal = property.FindMemberAttribute(KnownNames.PersonalDataAttribute) is not null;
                 string kind = FieldType(property.Type, out bool nullable);
                 yield return new ManifestField(name, kind, nullable, personal);
             }

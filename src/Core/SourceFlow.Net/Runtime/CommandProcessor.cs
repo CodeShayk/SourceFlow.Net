@@ -317,7 +317,8 @@ public sealed class CommandProcessor
         return position is { } p ? new ConsistencyToken(p, tenant == MessageEnvelope.DefaultTenant ? null : tenant) : ConsistencyToken.None;
     }
 
-    private static EventMetadata Metadata(MessageEnvelope envelope)
+    // The metadata every appended event carries from its envelope (doc 10 §1: actor, causation and trace for audits).
+    internal static EventMetadata Metadata(MessageEnvelope envelope)
     {
         return new EventMetadata
         {

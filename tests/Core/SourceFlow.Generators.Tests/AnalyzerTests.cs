@@ -464,6 +464,22 @@ public sealed class AnalyzerTests
     }
 
     [Fact]
+    [Trait("Id", "GEN-79")]
+    [Trait("Covers", "doc 10 4")]
+    public void PersonalData_OnAPositionalParameter_IsAnalyzedLikeOnTheProperty()
+    {
+        // As doc 10 §4 writes it: no [property:] target, so the attributes land on the constructor parameter.
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + """
+            [MessageType("t.positional", 1)] public sealed record Positional(Aid A, string Customer,
+                [PersonalData(Subject = "Client")] string Name,
+                [PersonalData, Queryable] string Email) : IEvent;
+            """);
+
+        diagnostics.Where(d => d.Id == "SF0011").ShouldHaveSingleItem().GetMessage().ShouldContain("Client");
+        diagnostics.Where(d => d.Id == "SF0017").ShouldHaveSingleItem().GetMessage().ShouldContain("Positional.Email");
+    }
+
+    [Fact]
     public void BankSample_HasNoDiagnostics()
     {
         Analyze(Id).ShouldBeEmpty();

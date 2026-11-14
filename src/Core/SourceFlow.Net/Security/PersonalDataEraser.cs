@@ -38,13 +38,13 @@ internal sealed partial class PersonalDataEraser(SourceFlowRuntime runtime, Pers
         // (3) Scrub the [PersonalData] members of documents keyed by those streams' aggregates.
         int scrubbed = await ScrubDocumentsAsync(tenant, streams, cancellationToken).ConfigureAwait(false);
 
-        // (4) Tell custom projections.
+        // (4) Tell custom projections. The event records who erased the subject (doc 10 §1, §8: GDPR Art. 30 audit trail).
         await using (IStorageSession session = await runtime.Storage.Sessions.BeginAsync(tenant, cancellationToken).ConfigureAwait(false))
         {
             MessageEnvelope envelope = runtime.CreateEnvelope(new PersonalDataErased(subjectId), tenant: tenant);
             var stream = new StreamId("personal-data-" + subjectId);
             session.Append(stream, "personal-data", ExpectedVersion.Any,
-                [new EventToAppend(envelope.MessageId, envelope.Type, envelope.TypeVersion, envelope.Body, new EventMetadata { Source = envelope.Source, CorrelationId = envelope.CorrelationId }, envelope.Time, [])]);
+                [new EventToAppend(envelope.MessageId, envelope.Type, envelope.TypeVersion, envelope.Body, CommandProcessor.Metadata(envelope), envelope.Time, [])]);
             await session.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
 

@@ -2498,10 +2498,17 @@ namespace SourceFlow.Security
         public PersonalDataErased(string Subject) { }
         public string Subject { get; init; }
     }
+    public sealed class PersonalDataOptions
+    {
+        public PersonalDataOptions() { }
+        public System.TimeSpan KeyCacheTtl { get; set; }
+    }
     public sealed class PersonalDataProtector : System.IDisposable
     {
         public const string Erased = "[erased]";
-        public PersonalDataProtector(SourceFlow.Security.IKeyProvider provider, SourceFlow.Security.IPersonalDataKeyStore store, SourceFlow.Runtime.RuntimeModel model, System.TimeProvider? time = null) { }
+        public static readonly System.TimeSpan DefaultKeyCacheTtl;
+        public PersonalDataProtector(SourceFlow.Security.IKeyProvider provider, SourceFlow.Security.IPersonalDataKeyStore store, SourceFlow.Runtime.RuntimeModel model, System.TimeProvider? time = null, System.TimeSpan? keyCacheTtl = default) { }
+        public System.TimeSpan KeyCacheTtl { get; }
         public void Dispose() { }
         public void Evict(string tenantId, string subjectId) { }
         [return: System.Runtime.CompilerServices.TupleElementNames(new string[] {
@@ -2520,7 +2527,9 @@ namespace SourceFlow.Security
     public sealed class SecurityBuilder
     {
         public Microsoft.Extensions.DependencyInjection.IServiceCollection Services { get; }
+        public SourceFlow.Security.SecurityBuilder AllowLocalKeyProvider() { }
         public SourceFlow.Security.SecurityBuilder EncryptPersonalData() { }
+        public SourceFlow.Security.SecurityBuilder EncryptPersonalData(System.Action<SourceFlow.Security.PersonalDataOptions> configure) { }
         public SourceFlow.Security.SecurityBuilder Protect(System.Action<SourceFlow.Security.PayloadProtectionOptions> configure) { }
         public SourceFlow.Security.SecurityBuilder UseKeyProvider(SourceFlow.Security.IKeyProvider provider) { }
         public SourceFlow.Security.SecurityBuilder UseKeyProvider(System.Func<System.IServiceProvider, SourceFlow.Security.IKeyProvider> factory) { }

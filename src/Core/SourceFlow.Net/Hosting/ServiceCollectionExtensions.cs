@@ -87,7 +87,20 @@ public static class ServiceCollectionExtensions
         Func<IServiceProvider, StoragePorts> storage = builder.StorageFactory ?? throw new InvalidOperationException("No storage is configured. Call UseInMemoryStorage() or a storage package's Use* method.");
         if (builder.SecuritySettings?.KeyProvider is { } keyFactory)
         {
-            services.AddSingleton(keyFactory);   // one provider instance for payload protection and personal data
+            // One provider instance for payload protection and personal data. LocalKeyProvider keeps its master keys in
+            // the process: outside Development, a restart would make every encrypted value unreadable (ADR-027, CR-55).
+            bool allowLocal = builder.SecuritySettings.LocalKeyProviderAllowed;
+            services.AddSingleton(sp =>
+            {
+                Security.IKeyProvider provider = keyFactory(sp);
+                if (provider is Security.LocalKeyProvider && !allowLocal && sp.GetService<IHostEnvironment>() is { } environment && !environment.IsDevelopment())
+                {
+                    throw new InvalidOperationException(
+                        $"LocalKeyProvider is for development only (environment '{environment.EnvironmentName}'): its master keys die with the process. Use UseAwsKms, UseAzureKeyVault or UseGoogleKms, or call AllowLocalKeyProvider() for tests and demos.");
+                }
+
+                return provider;
+            });
         }
 
         if (builder.SecuritySettings?.PersonalDataEncryption == true)
@@ -95,11 +108,23 @@ public static class ServiceCollectionExtensions
             // Crypto-shredding (doc 10 §4): [PersonalData] members are encrypted per subject in the store.
             _ = builder.SecuritySettings.KeyProvider
                 ?? throw new InvalidOperationException("Personal data encryption needs a key provider: call UseAwsKms, UseAzureKeyVault, UseGoogleKms or UseKeyProvider in sf.Security(...).");
-            services.AddSingleton(sp => new Security.PersonalDataProtector(
-                sp.GetRequiredService<Security.IKeyProvider>(),
-                sp.GetRequiredService<StoragePorts>().PersonalData ?? throw new InvalidOperationException("Personal data encryption needs a storage adapter that keeps data keys (IPersonalDataKeyStore)."),
-                sp.GetRequiredService<RuntimeModel>(),
-                sp.GetService<TimeProvider>()));
+            TimeSpan keyCacheTtl = builder.SecuritySettings.PersonalData.KeyCacheTtl;
+            services.AddSingleton(sp =>
+            {
+                RuntimeModel runtimeModel = sp.GetRequiredService<RuntimeModel>();
+                var protector = new Security.PersonalDataProtector(
+                    sp.GetRequiredService<Security.IKeyProvider>(),
+                    sp.GetRequiredService<StoragePorts>().PersonalData ?? throw new InvalidOperationException("Personal data encryption needs a storage adapter that keeps data keys (IPersonalDataKeyStore)."),
+                    runtimeModel,
+                    sp.GetService<TimeProvider>(),
+                    keyCacheTtl);
+
+                // Fail closed at startup: a [PersonalData] member in a shape the plan can't encrypt stops the host here.
+                protector.Validate(runtimeModel.Registry.All.Select(t => t.ClrType)
+                    .Concat(runtimeModel.Aggregates.Values.Select(a => a.StateType))
+                    .Concat(runtimeModel.Projections.OfType<DocumentProjectionDescriptor>().Select(p => p.DocumentType)));
+                return protector;
+            });
             services.AddSingleton<Security.IPersonalDataEraser>(sp => new Security.PersonalDataEraser(
                 sp.GetRequiredService<SourceFlowRuntime>(), sp.GetRequiredService<Security.PersonalDataProtector>(), sp.GetRequiredService<StoragePorts>().PersonalData!));
         }
@@ -128,6 +153,11 @@ public static class ServiceCollectionExtensions
             runtime.Faults = sp.GetService<IFaultInjector>();
             runtime.Protector = sp.GetService<Security.PayloadProtector>();
             runtime.PersonalData = sp.GetService<Security.PersonalDataProtector>();
+            if (runtime.PersonalData is { } personalData)
+            {
+                // Cached states were folded from decrypted data: they live no longer than the keys (doc 10 §4).
+                runtime.AggregateCache.MaxAge = personalData.KeyCacheTtl;
+            }
             runtime.InlineProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Inline)];
             runtime.AsyncProjections = [.. model.Projections.Where(p => builder.ProjectionModes.GetValueOrDefault(p.ProjectionType, ProjectionMode.Async) == ProjectionMode.Async)];
             runtime.ProjectionPolicies = builder.ProjectionPolicies.ToDictionary();

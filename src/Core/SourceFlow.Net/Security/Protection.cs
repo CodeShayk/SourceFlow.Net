@@ -32,6 +32,10 @@ public sealed class SecurityBuilder
 
     internal bool PersonalDataEncryption { get; private set; }
 
+    internal PersonalDataOptions PersonalData { get; } = new();
+
+    internal bool LocalKeyProviderAllowed { get; private set; }
+
     /// <summary>
     /// Encrypts <c>[PersonalData]</c> members per subject in the event store and snapshots, and makes them erasable with
     /// <see cref="IPersonalDataEraser"/> (crypto-shredding, doc 10 §4). Needs a key provider and a storage adapter that
@@ -40,6 +44,25 @@ public sealed class SecurityBuilder
     public SecurityBuilder EncryptPersonalData()
     {
         PersonalDataEncryption = true;
+        return this;
+    }
+
+    /// <summary>Encrypts <c>[PersonalData]</c> members (see <see cref="EncryptPersonalData()"/>) with these options.</summary>
+    public SecurityBuilder EncryptPersonalData(Action<PersonalDataOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        configure(PersonalData);
+        PersonalData.Validate();
+        return EncryptPersonalData();
+    }
+
+    /// <summary>
+    /// Allows <see cref="LocalKeyProvider"/> outside the Development environment (tests, demos). Its master keys live in
+    /// the process and die with it: in production, a restart would make every encrypted value unreadable for good.
+    /// </summary>
+    public SecurityBuilder AllowLocalKeyProvider()
+    {
+        LocalKeyProviderAllowed = true;
         return this;
     }
 
@@ -67,6 +90,24 @@ public sealed class SecurityBuilder
         Protection ??= new PayloadProtectionOptions();
         configure(Protection);
         return this;
+    }
+}
+
+/// <summary>Options of personal data encryption (doc 10 §4).</summary>
+public sealed class PersonalDataOptions
+{
+    /// <summary>
+    /// How long a node caches a subject's unwrapped data key (default 5 minutes). Erasure evicts the key only on the node
+    /// that runs it; every other node stops decrypting the subject's data within this time.
+    /// </summary>
+    public TimeSpan KeyCacheTtl { get; set; } = PersonalDataProtector.DefaultKeyCacheTtl;
+
+    internal void Validate()
+    {
+        if (KeyCacheTtl <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException("PersonalDataOptions.KeyCacheTtl must be positive.");
+        }
     }
 }
 

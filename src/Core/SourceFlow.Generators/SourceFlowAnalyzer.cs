@@ -152,14 +152,14 @@ namespace SourceFlow.Generators
             bool isEvent = type.FindInterface(KnownNames.Event) is not null;
             foreach (ISymbol member in type.GetMembers().Where(m => m is IPropertySymbol or IFieldSymbol))
             {
-                AttributeData? personal = member.FindAttribute(KnownNames.PersonalDataAttribute);
+                AttributeData? personal = member.FindMemberAttribute(KnownNames.PersonalDataAttribute);
                 if (personal is null)
                 {
                     continue;
                 }
 
                 Location location = member.Locations.FirstOrDefault() ?? Location.None;
-                if (member.FindAttribute(KnownNames.QueryableAttribute) is not null)
+                if (member.FindMemberAttribute(KnownNames.QueryableAttribute) is not null)
                 {
                     context.ReportDiagnostic(Diagnostic.Create(Diagnostics.QueryablePersonalData, location, type.Name, member.Name));
                 }
@@ -194,7 +194,7 @@ namespace SourceFlow.Generators
                 return;
             }
 
-            ISymbol? personal = published.GetMembers().FirstOrDefault(m => m is IPropertySymbol && m.FindAttribute(KnownNames.PersonalDataAttribute) is not null);
+            ISymbol? personal = published.GetMembers().FirstOrDefault(m => m is IPropertySymbol && m.FindMemberAttribute(KnownNames.PersonalDataAttribute) is not null);
             if (personal is not null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.PersonalDataPublishedAsIs, invocation.Syntax.GetLocation(), published.Name, personal.Name));

@@ -160,35 +160,32 @@ public static class JsonSchemaGenerator
         foreach (JsonPropertyInfo property in info.Properties.OrderBy(p => p.Name, StringComparer.Ordinal))
         {
             JsonObject schema = Describe(property.PropertyType, null, options, depth + 1);
-            ICustomAttributeProvider? attributes = property.AttributeProvider;
-            if (attributes is not null)
+            // On the property or, for a positional record, on its constructor parameter (doc 10 §4).
+            if (Messaging.MemberAttributes.IsDefined<QueryableAttribute>(property))
             {
-                if (attributes.IsDefined(typeof(QueryableAttribute), inherit: true))
+                schema["x-sourceflow-queryable"] = true;
+            }
+
+            if (Messaging.MemberAttributes.IsDefined<PersonalDataAttribute>(property))
+            {
+                schema["x-sourceflow-personal-data"] = true;
+            }
+
+            if (Messaging.MemberAttributes.First<TagAttribute>(property) is { } tag)
+            {
+                schema["x-sourceflow-tag"] = tag.Name;
+            }
+
+            RenamedFromAttribute[] renames = [.. Messaging.MemberAttributes.Of<RenamedFromAttribute>(property)];
+            if (renames.Length > 0)
+            {
+                var renamed = new JsonObject();
+                foreach (RenamedFromAttribute rename in renames.OrderBy(r => r.Version))
                 {
-                    schema["x-sourceflow-queryable"] = true;
+                    renamed[rename.Version.ToString(System.Globalization.CultureInfo.InvariantCulture)] = rename.Name;
                 }
 
-                if (attributes.IsDefined(typeof(PersonalDataAttribute), inherit: true))
-                {
-                    schema["x-sourceflow-personal-data"] = true;
-                }
-
-                if (attributes.GetCustomAttributes(typeof(TagAttribute), inherit: true).OfType<TagAttribute>().FirstOrDefault() is { } tag)
-                {
-                    schema["x-sourceflow-tag"] = tag.Name;
-                }
-
-                RenamedFromAttribute[] renames = [.. attributes.GetCustomAttributes(typeof(RenamedFromAttribute), inherit: true).OfType<RenamedFromAttribute>()];
-                if (renames.Length > 0)
-                {
-                    var renamed = new JsonObject();
-                    foreach (RenamedFromAttribute rename in renames.OrderBy(r => r.Version))
-                    {
-                        renamed[rename.Version.ToString(System.Globalization.CultureInfo.InvariantCulture)] = rename.Name;
-                    }
-
-                    schema["x-sourceflow-renamed-from"] = renamed;
-                }
+                schema["x-sourceflow-renamed-from"] = renamed;
             }
 
             properties[property.Name] = schema;

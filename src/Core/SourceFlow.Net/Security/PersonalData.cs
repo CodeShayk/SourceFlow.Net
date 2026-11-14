@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
+using SourceFlow.Messaging;
 using SourceFlow.Runtime;
 using SourceFlow.Storage;
 
@@ -134,14 +135,33 @@ public sealed class PersonalDataProtector : IDisposable
     private readonly Lock _gate = new();
     private readonly Dictionary<(string Tenant, string Subject), CachedKey> _keys = [];
 
+    /// <summary>The default <see cref="KeyCacheTtl"/>: 5 minutes.</summary>
+    public static readonly TimeSpan DefaultKeyCacheTtl = TimeSpan.FromMinutes(5);
+
     /// <summary>Creates the protector.</summary>
-    public PersonalDataProtector(IKeyProvider provider, IPersonalDataKeyStore store, RuntimeModel model, TimeProvider? time = null)
+    /// <param name="provider">The key provider that wraps and unwraps data keys.</param>
+    /// <param name="store">The data key store.</param>
+    /// <param name="model">The runtime model (JSON metadata of the types).</param>
+    /// <param name="time">The clock.</param>
+    /// <param name="keyCacheTtl">How long an unwrapped key is cached; <see cref="DefaultKeyCacheTtl"/> when null.</param>
+    public PersonalDataProtector(IKeyProvider provider, IPersonalDataKeyStore store, RuntimeModel model, TimeProvider? time = null, TimeSpan? keyCacheTtl = null)
     {
         _provider = provider ?? throw new ArgumentNullException(nameof(provider));
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _model = model ?? throw new ArgumentNullException(nameof(model));
         _time = time ?? TimeProvider.System;
+        KeyCacheTtl = keyCacheTtl ?? DefaultKeyCacheTtl;
+        if (KeyCacheTtl <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(keyCacheTtl), "The key cache lifetime must be positive.");
+        }
     }
+
+    /// <summary>
+    /// How long an unwrapped data key is cached. It bounds how long a node keeps decrypting a subject erased on another
+    /// node: erasure evicts the key only on the node that runs it.
+    /// </summary>
+    public TimeSpan KeyCacheTtl { get; }
 
     /// <summary>True when <paramref name="type"/> has <c>[PersonalData]</c> members.</summary>
     public bool Protects(Type type)
@@ -172,32 +192,35 @@ public sealed class PersonalDataProtector : IDisposable
         var subjects = new HashSet<string>(StringComparer.Ordinal);
         foreach (PersonalDataMember member in plan.Members)
         {
-            (JsonObject? parent, string name) = Locate(document, member.Path);
-            if (parent is null || !parent.TryGetPropertyValue(name, out JsonNode? value) || value is null || IsMarker(value))
+            IReadOnlyList<string> dataPath = DataPath(member.Path);
+            foreach ((JsonObject parent, string name, JsonObject[] elements) in Locations(document, member.Path))
             {
-                continue;
-            }
+                if (!parent.TryGetPropertyValue(name, out JsonNode? value) || value is null || IsMarker(value))
+                {
+                    continue;
+                }
 
-            string subject = member.SubjectPath is { } subjectPath && Read(document, subjectPath) is { Length: > 0 } named ? named : stream;
-            subjects.Add(subject);
-            KeyState key = await KeyAsync(tenantId, subject, create: true, cancellationToken).ConfigureAwait(false);
-            char kind = KindOf(value);
-            if (key.Shredded)
-            {
-                parent[name] = ErasedValue(kind);   // an erased subject: keep nothing new
-                continue;
-            }
+                string subject = member.SubjectPath is { } subjectPath && ReadSubject(document, subjectPath, elements) is { Length: > 0 } named ? named : stream;
+                subjects.Add(subject);
+                KeyState key = await KeyAsync(tenantId, subject, create: true, cancellationToken).ConfigureAwait(false);
+                char kind = KindOf(value);
+                if (key.Shredded)
+                {
+                    parent[name] = ErasedValue(kind);   // an erased subject: keep nothing new
+                    continue;
+                }
 
-            byte[] plaintext = Encoding.UTF8.GetBytes(value.ToJsonString());
-            byte[] payload = new byte[12 + 16 + plaintext.Length];
-            RandomNumberGenerator.Fill(payload.AsSpan(0, 12));
-            using (AesGcm aes = key.Aes!)
-            {
-                aes.Encrypt(payload.AsSpan(0, 12), plaintext, payload.AsSpan(28), payload.AsSpan(12, 16), AssociatedData(tenantId, subject, member.Path));
-            }
+                byte[] plaintext = Encoding.UTF8.GetBytes(value.ToJsonString());
+                byte[] payload = new byte[12 + 16 + plaintext.Length];
+                RandomNumberGenerator.Fill(payload.AsSpan(0, 12));
+                using (AesGcm aes = key.Aes!)
+                {
+                    aes.Encrypt(payload.AsSpan(0, 12), plaintext, payload.AsSpan(28), payload.AsSpan(12, 16), AssociatedData(tenantId, subject, dataPath));
+                }
 
-            CryptographicOperations.ZeroMemory(plaintext);
-            parent[name] = new JsonObject { [Marker] = $"v2:{Encode(tenantId)}:{Encode(subject)}:{kind}:{Convert.ToBase64String(payload)}" };
+                CryptographicOperations.ZeroMemory(plaintext);
+                parent[name] = new JsonObject { [Marker] = $"v2:{Encode(tenantId)}:{Encode(subject)}:{kind}:{Convert.ToBase64String(payload)}" };
+            }
         }
 
         return (Encoding.UTF8.GetBytes(document.ToJsonString()), subjects);
@@ -256,10 +279,12 @@ public sealed class PersonalDataProtector : IDisposable
 
         foreach (PersonalDataMember member in plan.Members)
         {
-            (JsonObject? parent, string name) = Locate(document, member.Path);
-            if (parent is not null && parent.TryGetPropertyValue(name, out JsonNode? value) && value is not null)
+            foreach ((JsonObject parent, string name, _) in Locations(document, member.Path))
             {
-                parent[name] = ErasedValue(KindOf(value));
+                if (parent.TryGetPropertyValue(name, out JsonNode? value) && value is not null)
+                {
+                    parent[name] = ErasedValue(KindOf(value));
+                }
             }
         }
 
@@ -310,19 +335,45 @@ public sealed class PersonalDataProtector : IDisposable
         });
     }
 
-    // [PersonalData] members of an object and its nested objects; a member's subject is resolved in its own object first,
-    // then in the enclosing objects; none means the stream is the subject.
+    /// <summary>
+    /// Builds the plan of every type that may hold personal data (startup): a <c>[PersonalData]</c> member in a shape the
+    /// plan can't encrypt fails here, not on the first write.
+    /// </summary>
+    internal void Validate(IEnumerable<Type> types)
+    {
+        foreach (Type type in types)
+        {
+            _ = Plan(type);
+        }
+    }
+
+    // The deepest nesting followed (objects and collection elements); a [PersonalData] member below it fails the plan.
+    private const int MaxDepth = 8;
+
+    // [PersonalData] members of an object, its nested objects and the objects in its collections. A member's subject is
+    // resolved in its own object first, then in the enclosing objects; none means the stream is the subject. A personal
+    // data member the plan can't encrypt (below MaxDepth, or in a dictionary value) fails the plan: fail closed.
     private void Collect(JsonTypeInfo info, IReadOnlyList<string> prefix, IReadOnlyList<(IReadOnlyList<string> Prefix, JsonTypeInfo Info)> enclosing, List<PersonalDataMember> members, int depth)
     {
-        if (info.Kind != JsonTypeInfoKind.Object || depth > 4)
+        if (info.Kind != JsonTypeInfoKind.Object)
         {
+            return;
+        }
+
+        if (depth > MaxDepth)
+        {
+            if (info.Properties.Any(MemberAttributes.IsDefined<PersonalDataAttribute>))
+            {
+                throw new InvalidOperationException($"{info.Type.Name} holds [PersonalData] nested more than {MaxDepth} levels deep, which personal data encryption doesn't follow (doc 10 §4).");
+            }
+
             return;
         }
 
         foreach (JsonPropertyInfo property in info.Properties)
         {
             IReadOnlyList<string> path = [.. prefix, property.Name];
-            if (property.AttributeProvider?.GetCustomAttributes(typeof(PersonalDataAttribute), inherit: true).OfType<PersonalDataAttribute>().FirstOrDefault() is { } personal)
+            if (MemberAttributes.First<PersonalDataAttribute>(property) is { } personal)
             {
                 IReadOnlyList<string>? subject = null;
                 if (personal.Subject is { } subjectMember)
@@ -347,12 +398,116 @@ public sealed class PersonalDataProtector : IDisposable
             }
 
             Type nested = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
-            if (!nested.IsPrimitive && nested != typeof(string) && nested != typeof(decimal) && !typeof(IStronglyTypedId).IsAssignableFrom(nested)
-                && _model.TryGetJsonTypeInfo(nested, out JsonTypeInfo? child) && child.Kind == JsonTypeInfoKind.Object)
+            if (nested.IsPrimitive || nested == typeof(string) || nested == typeof(decimal) || typeof(IStronglyTypedId).IsAssignableFrom(nested)
+                || !_model.TryGetJsonTypeInfo(nested, out JsonTypeInfo? child))
             {
-                Collect(child, path, [(prefix, info), .. enclosing], members, depth + 1);
+                continue;
+            }
+
+            IReadOnlyList<(IReadOnlyList<string> Prefix, JsonTypeInfo Info)> scopes = [(prefix, info), .. enclosing];
+            switch (child.Kind)
+            {
+                case JsonTypeInfoKind.Object:
+                    Collect(child, path, scopes, members, depth + 1);
+                    break;
+                case JsonTypeInfoKind.Enumerable when child.ElementType is { } elementType && _model.TryGetJsonTypeInfo(elementType, out JsonTypeInfo? element):
+                    Collect(element, [.. path, ArrayStep], scopes, members, depth + 1);   // each element of the collection
+                    break;
+                case JsonTypeInfoKind.Dictionary when child.ElementType is { } valueType && _model.TryGetJsonTypeInfo(valueType, out JsonTypeInfo? value):
+                    var inDictionary = new List<PersonalDataMember>();
+                    Collect(value, [.. path, ArrayStep], scopes, inDictionary, depth + 1);
+                    if (inDictionary.Count > 0)
+                    {
+                        throw new InvalidOperationException($"{info.Type.Name}.{MemberName(property)} is a dictionary whose values hold [PersonalData], which personal data encryption doesn't support; use a list of objects (doc 10 §4).");
+                    }
+
+                    break;
             }
         }
+    }
+
+    // A path step into every element of a collection; associated data leaves it out, as RestoreAsync does.
+    private const string ArrayStep = "[]";
+
+    private static IReadOnlyList<string> DataPath(IReadOnlyList<string> path)
+    {
+        return path.Contains(ArrayStep, StringComparer.Ordinal) ? [.. path.Where(p => p != ArrayStep)] : path;
+    }
+
+    // Every place a member's path reaches in a document: the object holding it, its name, and the collection elements
+    // passed on the way (a subject inside an element is read from the same element).
+    private static List<(JsonObject Parent, string Name, JsonObject[] Elements)> Locations(JsonObject root, IReadOnlyList<string> path)
+    {
+        var found = new List<(JsonObject, string, JsonObject[])>();
+        var elements = new List<JsonObject>();
+        void Walk(JsonObject current, int index)
+        {
+            if (index == path.Count - 1)
+            {
+                found.Add((current, path[index], [.. elements]));
+                return;
+            }
+
+            if (!current.TryGetPropertyValue(path[index], out JsonNode? next) || next is null)
+            {
+                return;
+            }
+
+            if (path[index + 1] == ArrayStep)
+            {
+                if (next is JsonArray array)
+                {
+                    foreach (JsonNode? item in array)
+                    {
+                        if (item is JsonObject element && index + 2 < path.Count)
+                        {
+                            elements.Add(element);
+                            Walk(element, index + 2);
+                            elements.RemoveAt(elements.Count - 1);
+                        }
+                    }
+                }
+
+                return;
+            }
+
+            if (next is JsonObject nested)
+            {
+                Walk(nested, index + 1);
+            }
+        }
+
+        Walk(root, 0);
+        return found;
+    }
+
+    // A subject's value, from the root or from the collection elements the member was found in.
+    private static string? ReadSubject(JsonObject root, IReadOnlyList<string> path, JsonObject[] elements)
+    {
+        JsonNode? current = root;
+        int element = 0;
+        foreach (string step in path)
+        {
+            if (step == ArrayStep)
+            {
+                if (element >= elements.Length)
+                {
+                    return null;
+                }
+
+                current = elements[element++];
+                continue;
+            }
+
+            if (current is not JsonObject obj || !obj.TryGetPropertyValue(step, out current))
+            {
+                return null;
+            }
+        }
+
+        return current is JsonValue scalar
+            ? scalar.GetValueKind() == JsonValueKind.String ? scalar.GetValue<string>() : scalar.ToJsonString()
+            : null;
     }
 
     private static string MemberName(JsonPropertyInfo property)
@@ -449,13 +604,20 @@ public sealed class PersonalDataProtector : IDisposable
     }
 
     // The tenant's key for the subject as an AesGcm instance of its own (so eviction never races an operation), or Shredded.
+    // A cached key lives at most KeyCacheTtl: an erasure on another node (which evicts only its own cache) takes effect here
+    // within that time, when the key is read again and found shredded (doc 10 §4, "bounded cache").
     private async ValueTask<KeyState> KeyAsync(string tenant, string subject, bool create, CancellationToken cancellationToken)
     {
         lock (_gate)
         {
             if (_keys.TryGetValue((tenant, subject), out CachedKey? cached))
             {
-                return cached.Key is { } bytes ? new KeyState(new AesGcm(bytes, 16), false) : new KeyState(null, true);
+                if (_time.GetUtcNow() - cached.CachedAt < KeyCacheTtl)
+                {
+                    return cached.Key is { } bytes ? new KeyState(new AesGcm(bytes, 16), false) : new KeyState(null, true);
+                }
+
+                Evict(tenant, subject);
             }
         }
 
@@ -491,30 +653,6 @@ public sealed class PersonalDataProtector : IDisposable
             _keys[(tenant, subject)] = new CachedKey(key, _time.GetUtcNow());
             return key is null ? new KeyState(null, true) : new KeyState(new AesGcm(key, 16), false);
         }
-    }
-
-    private static (JsonObject? Parent, string Name) Locate(JsonObject root, IReadOnlyList<string> path)
-    {
-        JsonObject current = root;
-        for (int i = 0; i < path.Count - 1; i++)
-        {
-            if (!current.TryGetPropertyValue(path[i], out JsonNode? next) || next is not JsonObject nested)
-            {
-                return (null, path[^1]);
-            }
-
-            current = nested;
-        }
-
-        return (current, path[^1]);
-    }
-
-    private static string? Read(JsonObject root, IReadOnlyList<string> path)
-    {
-        (JsonObject? parent, string name) = Locate(root, path);
-        return parent is not null && parent.TryGetPropertyValue(name, out JsonNode? value) && value is JsonValue scalar
-            ? scalar.GetValueKind() == JsonValueKind.String ? scalar.GetValue<string>() : scalar.ToJsonString()
-            : null;
     }
 
     private static bool IsMarker(JsonNode node)

@@ -209,6 +209,29 @@ namespace SourceFlow.Generators
             return null;
         }
 
+        /// <summary>
+        /// An attribute on a member, or on the primary constructor parameter of the same name: in a positional record,
+        /// <c>[PersonalData] string GivenName</c> applies to the parameter, not to the generated property (doc 10 §4).
+        /// </summary>
+        public static AttributeData? FindMemberAttribute(this ISymbol member, string metadataName)
+        {
+            if (member.FindAttribute(metadataName) is { } own)
+            {
+                return own;
+            }
+
+            if (member is not IPropertySymbol property)
+            {
+                return null;
+            }
+
+            IMethodSymbol? primary = property.ContainingType.InstanceConstructors
+                .Where(c => c.Parameters.Length > 0)
+                .OrderByDescending(c => c.Parameters.Length)
+                .FirstOrDefault();
+            return primary?.Parameters.FirstOrDefault(p => p.Name == property.Name)?.FindAttribute(metadataName);
+        }
+
         public static T Named<T>(this AttributeData attribute, string name, T fallback)
         {
             foreach (KeyValuePair<string, TypedConstant> pair in attribute.NamedArguments)

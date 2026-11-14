@@ -419,7 +419,9 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
 - Track C, the design-conformance remediation ([plan 11](../../../implementation/11-Design-Conformance-Remediation-Plan.md)):
   the P0 security packages before the release candidate, P1 before GA, P2 before Studio 1.0. Done so far: WP-C.1
   (subqueries are policy-checked; per-query authorization for domain queries), WP-C.2 (row-level security on every
-  events partition and on `data_keys`; the partition detach check sees every tenant).
+  events partition and on `data_keys`; the partition detach check sees every tenant), WP-C.3 (`[PersonalData]` on
+  positional parameters and inside collections; unsupported shapes fail startup; a bounded key cache for erasure across
+  nodes; the erasure audit records the actor; `LocalKeyProvider` needs `AllowLocalKeyProvider()` outside Development).
 
 ### Other notes
 

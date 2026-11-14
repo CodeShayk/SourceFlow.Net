@@ -30,6 +30,12 @@ internal sealed class AggregateCache : IDisposable
 
     public AggregateCacheMode Mode { get; }
 
+    /// <summary>
+    /// The longest an entry lives; null for no limit. Set with personal data encryption, so a state folded from decrypted
+    /// data on this node can't outlive an erasure on another node by more than the key cache does.
+    /// </summary>
+    public TimeSpan? MaxAge { get; set; }
+
     public bool TryGet(string tenant, StreamId stream, Type stateType, out object state, out StreamVersion version)
     {
         if (_cache is not null && _cache.TryGetValue(new Key(tenant, stream.Value), out Entry? entry) && entry is not null && entry.State.GetType() == stateType)
@@ -58,7 +64,7 @@ internal sealed class AggregateCache : IDisposable
             return;
         }
 
-        _cache.Set(key, new Entry(state, version), _entry);
+        _cache.Set(key, new Entry(state, version), MaxAge is { } maxAge ? new MemoryCacheEntryOptions { Size = 1, AbsoluteExpirationRelativeToNow = maxAge } : _entry);
     }
 
     public void Remove(string tenant, StreamId stream)

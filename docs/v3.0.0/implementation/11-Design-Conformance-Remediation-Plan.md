@@ -118,11 +118,12 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
   - **Collections and depth:** discovery and redaction go into collections and below the current depth limits. Where a
     personal-data member sits in a shape the plan cannot encrypt, startup fails (fail closed) instead of skipping it.
   - **Cluster-wide erasure:**
-    - the unwrapped-key cache gets a TTL, `PersonalDataKeyCacheTtl` (default 5 minutes);
-    - every node evicts the subject's key and its aggregate-cache entries when its subscriptions see
-      `PersonalDataErased`;
-    - a read after `shredded_at` returns the erased value even on a cache hit, because the key lookup checks
-      `shredded_at`.
+    - the unwrapped-key cache gets a TTL, `PersonalDataOptions.KeyCacheTtl` (default 5 minutes); an expired entry is
+      read again from the store, which shows it shredded;
+    - with encryption on, aggregate-cache entries expire after the same TTL;
+    - *as built:* eviction on every node through `PersonalDataErased` is not done. Subscriptions are partitioned and
+      leased, so one node, not every node, processes the event. The TTL is the bound on how long other nodes keep
+      decrypting, and doc 10's "bounded cache" is met that way.
   - **Audit metadata:** the erasure event's metadata comes from the shared builder (`CommandProcessor.Metadata`), with
     actor, causation and trace context (CR-27).
   - **Key provider guard:** `LocalKeyProvider` refuses to run outside Development unless the host sets
@@ -131,9 +132,11 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
   - UT-SEC-30: `[PersonalData]` on a positional parameter is encrypted, redacted and analyzed.
   - UT-SEC-31: a personal-data member inside a list is encrypted.
   - UT-SEC-32: an unsupported shape fails startup.
-  - E2E-32: two nodes on PostgreSQL. After an erasure on node A, node B reads the erased value within the TTL, and a
-    rebuild on B writes no plaintext.
+  - UT-SEC-34 (in place of E2E-32): two protectors over one key store, as two nodes; after an erasure on A, B still
+    decrypts within the TTL and reads the erased value after it.
   - UT-SEC-33: the erasure event carries the actor.
+  - UT-SEC-35: `LocalKeyProvider` outside Development needs `AllowLocalKeyProvider()`.
+  - GEN-79: SF0011 and SF0017 on positional parameters.
 - **Acceptance:** doc 10 §4's example compiles unchanged and behaves as documented, on both nodes.
 
 #### WP-C.4 API and Studio host hardening · 1 ew · lane B · findings CR-06, CR-36, CR-37, CR-38, CR-48
