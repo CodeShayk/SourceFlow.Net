@@ -199,6 +199,7 @@ generated from it.
 
 | Instrument | Kind | Unit | Tags | Meaning |
 |------------|------|------|------|---------|
+| `messaging.client.operation.duration` | Histogram | s | `messaging.system`, `messaging.operation.name`, `messaging.destination.name`, `error.type` | Duration of a broker send or publish call. |
 | `messaging.client.sent.messages` | Counter | {message} | `messaging.system`, `messaging.destination.name`, `error.type` | Messages sent to the broker. |
 | `messaging.client.consumed.messages` | Counter | {message} | `messaging.system`, `messaging.destination.name`, `messaging.consumer.group.name` | Messages received from the broker. |
 | `messaging.process.duration` | Histogram | s | `messaging.system`, `messaging.destination.name`, `messaging.consumer.group.name`, `error.type` | Received message processing duration. |
@@ -244,36 +245,41 @@ and `SourceFlow.Security.PersonalDataEraser`. Filter them with the `SourceFlow` 
 { "Logging": { "LogLevel": { "Default": "Information", "SourceFlow": "Information", "SourceFlow.Runtime.CommandProcessor": "Warning" } } }
 ```
 
+Event ids are grouped by area: 1000–1999 commands and the host's lifecycle, 2000–2999 store, 3000–3999 transport (outbox relay 30xx, receive 31xx, Azure 34xx), 4000–4999 subscriptions, 5000–5999 security.
+
 | Event id | Level | Message (template) |
 |----------|-------|--------------------|
 | 1001 | Debug | `Command {CommandType} on {StreamId}: {Outcome} at version {Version}` |
 | 1002 | Information | `Concurrency conflict on {StreamId} (attempt {Attempt}); re-deciding` |
 | 1003 | Warning | `Concurrency retries exhausted on {StreamId} after {Attempts} attempts` |
-| 1101 | Warning | `Outbox dispatch to {Destination} failed (attempt {Attempt}); retrying at {RetryAt}` |
-| 1102 | Error | `Outbox message {MessageId} to {Destination} parked after {Attempts} attempts` |
-| 1103 | Error | `Outbox relay loop failed; continuing` |
-| 1104 | Warning | `Retention cleanup failed; retrying at the next interval` |
-| 1105 | Information | `Retention cleanup deleted {Inbox} inbox rows and {DeadLetters} resolved dead letters` |
-| 1106 | Warning | `Node heartbeat failed; the lease fair share uses the last known node count` |
-| 1107 | Warning | `Schema {Type} v{Version} changed without a new version (...)` (with `SchemaRegistration = Warn`) |
-| 1108 | Debug | `Payload of parked message {MessageId}: {Payload}` (only with `LogPayloads`, redacted) |
-| 1201 | Warning | `Message {MessageId} ({MessageType}) failed transiently on attempt {Attempt}; redelivering after {Delay}` |
-| 1202 | Error | `Message {MessageId} ({MessageType}) parked: {Reason}` |
-| 1203 | Error | `Receive loop for {Endpoint} failed; continuing` |
-| 1210 | Warning | `Message {MessageId} was dead-lettered by the broker on {Endpoint} ({Reason}); parked for replay` |
-| 1211 | Error | `Moving broker dead letters of {Endpoint} into the dead-letter store failed; retrying in {Delay}` |
-| 1212 | Warning | `The monitor could not read {Reading}; the gauges and health checks that use it keep the last sample` |
-| 1301 | Error | `Subscription {Subscription} partition {Partition} failed on event {EventId}; {Policy}` |
-| 1302 | Warning | `Subscription {Subscription} partition {Partition} lost its lease` |
-| 1303 | Warning | `Subscription {Subscription} partition {Partition} skipped event {EventId} at {Position}: {Reason}` |
-| 1304 | Information | `Read model {Projection} switched from {Previous} to {Target}` |
-| 1305 | Information | `Dropped retired read-model generation {Generation}` |
 | 1401 | Information | `SourceFlow service {Service} started: {Modules} module(s), {Aggregates} aggregate(s), {Subscriptions} subscription(s)` |
 | 1402 | Warning | `Workflow versions were not checked for active instances: the storage adapter has no monitor` |
 | 1403 | Warning | `Outbox partition {Partition} lease was not released on stop; it expires after the lease TTL` |
-| 1501 | Information | `Erased a subject: key destroyed, {Streams} stream(s), {Documents} document(s) scrubbed.` |
-| 2301, 2302 | Information, Error | PostgreSQL partition maintenance: partitions created ahead, or creating them failed |
+| 1404 | Warning | `This endpoint is ordered, so delayed retries longer than the transport's maximum delay ({MaxDelay}) wait {MaxDelay} instead: {Delays}` |
+| 1405 | Warning | `{Problem}` (an inbox retention shorter than the broker's longest redelivery, CR-12) |
+| 2001 | Warning | `Retention cleanup failed; retrying at the next interval` |
+| 2002 | Information | `Retention cleanup deleted {Inbox} inbox rows and {DeadLetters} resolved dead letters` |
+| 2003 | Warning | `Schema {Type} v{Version} changed without a new version (...)` (with `SchemaRegistration = Warn`) |
+| 2004 | Warning | `Node heartbeat failed; the lease fair share uses the last known node count` |
+| 2005 | Warning | `The monitor could not read {Reading}; the gauges and health checks that use it keep the last sample` |
+| 3001 | Warning | `Outbox dispatch to {Destination} failed (attempt {Attempt}); retrying at {RetryAt}` |
+| 3002 | Error | `Outbox message {MessageId} to {Destination} parked after {Attempts} attempts` |
+| 3003 | Error | `Outbox relay loop failed; continuing` |
+| 3004 | Debug | `Payload of parked message {MessageId}: {Payload}` (only with `LogPayloads`, redacted) |
+| 3101 | Warning | `Message {MessageId} ({MessageType}) failed transiently on attempt {Attempt}; redelivering after {Delay}` |
+| 3102 | Error | `Message {MessageId} ({MessageType}) parked: {Reason}` |
+| 3103 | Error | `Receive loop for {Endpoint} failed; continuing` |
+| 3110 | Warning | `Message {MessageId} was dead-lettered by the broker on {Endpoint} ({Reason}); parked for replay` |
+| 3111 | Error | `Moving broker dead letters of {Endpoint} into the dead-letter store failed; retrying in {Delay}` |
 | 3401 | Warning | Azure Service Bus transport uses a connection string outside Development |
+| 4001 | Error | `Subscription {Subscription} partition {Partition} failed on event {EventId}; {Policy}` |
+| 4002 | Warning | `Subscription {Subscription} partition {Partition} lost its lease` |
+| 4003 | Warning | `Subscription {Subscription} partition {Partition} skipped event {EventId} at {Position}: {Reason}` |
+| 4004 | Information | `Read model {Projection} switched from {Previous} to {Target}` |
+| 4005 | Information | `Dropped retired read-model generation {Generation}` |
+| 4006 | Error | `Subscription {Subscription} is not run on this node: it is configured with {Configured} partitions, but {Stored} are stored` |
+| 4007 | Information | `Subscription {Subscription} runs for the first time and starts at the head of the log ({Commit}, {Sequence})` |
+| 5001 | Information | `Erased a subject: key destroyed, {Streams} stream(s), {Documents} document(s) scrubbed.` |
 
 Payloads are never logged by default. `SourceFlowOptions.LogPayloads = true` logs the payload of a message that fails
 permanently (event 1108) with `[PersonalData]` and `[Secret]` members redacted through
@@ -508,7 +514,7 @@ Optimistic concurrency retries when many writers hit one stream. `sourceflow.eve
 | No SourceFlow spans | The source is not added | `AddSource(SourceFlowTelemetry.ActivitySourceName)`; check the exporter endpoint. |
 | No SourceFlow metrics | The meter is not added | `AddMeter(SourceFlowTelemetry.MeterName)`. |
 | Spans in service B are not in service A's trace | By design the `process` span links to the `create` span | Follow the link, or set `Telemetry.ParentBasedOnMessage = true`. |
-| Gauges are missing | The store adapter does not implement `IStoreMonitor`, or the first sample has not been taken yet | Wait one `MonitorInterval`; check log event 1212. |
+| Gauges are missing | The store adapter does not implement `IStoreMonitor`, or the first sample has not been taken yet | Wait one `MonitorInterval`; check log event 2005. |
 | Store gauges are multiplied in a dashboard | Every instance reports the same store values | Aggregate with `max`, not `sum`. |
 | Dashboard panels are empty | Metric names differ from the OpenTelemetry Prometheus conventions | Configure the exporter to add unit and `_total` suffixes, or edit the generated queries. |
 | `outbox.age` grows during a broker outage | Expected: commands keep succeeding and the outbox drains in order after recovery | Watch `SourceFlowOutboxDelayed`; fix the broker. |

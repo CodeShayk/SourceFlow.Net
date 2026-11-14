@@ -450,7 +450,9 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   (an existing AWS queue policy keeps its other statements; encryption at rest is validated on AWS and Google Cloud),
   WP-C.14 (every retry runs through a Polly v8 pipeline, `sf.Resilience(...)` customises them, and the outbox relay has
   a circuit breaker per destination), WP-C.15 (the Handle, Publish and Project middleware stages run, Handle for remote
-  commands too, and Receive middleware sees the deserialised message).
+  commands too, and Receive middleware sees the deserialised message), WP-C.16 (the messaging instruments carry the
+  required attributes, span names cost nothing without a listener, and log event ids are renumbered by area: see the
+  Observability guide's table).
 
 ### Other notes
 

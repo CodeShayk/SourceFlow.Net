@@ -327,7 +327,7 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
   - **CLI:** `projection repartition` updates the stored count in the same transaction as the checkpoints.
   *As built:* the count is claimed (insert if absent) on the checkpoint store, and rechecked every `LeaseTtl`, so a
   node notices a repartition or a corrected configuration. A refused subscription is skipped when a node checks whether
-  it has caught up. The mismatch is a gauge plus log event 1306.
+  it has caught up. The mismatch is a gauge plus log event 4006.
 - **Tests:**
   - UT-SUB-31: changing the global default does not change an existing subscription.
   - UT-SUB-32: a node with a mismatched `P` refuses that subscription.
@@ -523,6 +523,13 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
   - **Per-tenant metric tags:** bounded to the top N tenants (ADR-022).
 - **Tests:** UT-HC-11 asserts the required attributes per instrument, not just a subset; UT-HC-16 checks that no
   allocation happens without a listener (BenchmarkDotNet memory diagnoser).
+- **As built:**
+  - `messaging.client.operation.duration` was missing and is added. The relay records it per broker call.
+  - Log ids are renumbered by area: store 20xx, transport 30xx/31xx, subscriptions 40xx, security 50xx. Host
+    lifecycle stays 14xx.
+  - No metric carries a tenant tag, so there is nothing to bound.
+  - UT-HC-16 measures with `GC.GetAllocatedBytesForCurrentThread` in a collection that runs alone, not with
+    BenchmarkDotNet.
 
 #### WP-C.17 Analyzers and generator consistency · 2 ew · findings CR-51, CR-52, CR-53, CR-54, CR-56, CR-57
 - **Deliverables:**

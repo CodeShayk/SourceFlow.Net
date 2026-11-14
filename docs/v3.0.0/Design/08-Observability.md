@@ -75,6 +75,13 @@ Units follow UCUM. Histogram buckets are set through `InstrumentAdvice`: duratio
 | `messaging.client.consumed.messages` | Counter | {message} | `messaging.system`, `messaging.destination.name`, `messaging.consumer.group.name` |
 | `messaging.process.duration` | Histogram | s | `messaging.system`, `messaging.destination.name`, `messaging.consumer.group.name`, `error.type` |
 
+> **As built (WP-C.16, CR-47).**
+> - **The four standard instruments carry the required attributes.** `messaging.client.operation.duration` is new: the outbox relay records it for each broker call, with `messaging.operation.name` set to `send` or `publish`. `messaging.client.sent.messages` also counts failed sends, with `error.type`. `consumed.messages` and `process.duration` add `messaging.system` and `messaging.destination.name` (the endpoint).
+> - **The `process` span** has `messaging.system` and `messaging.destination.name`.
+> - **Span names are built only when a listener is attached** (`SourceFlowTelemetry.Start`). The `process` name is composed once per endpoint.
+> - **Logical names.** The `handle` span and `sourceflow.command.type` use the logical message name (`bank.account.open`).
+> - **Per-tenant tags.** No metric carries a tenant tag, so there is no tenant cardinality to bound (ADR-022). Tenants appear on spans and logs only.
+
 ### 3.2 SourceFlow metrics
 
 | Instrument | Type | Unit | Tags | Why it exists |
@@ -115,7 +122,7 @@ Each measurement is recorded exactly once, at one well-defined place, and the me
 
 ## 4. Logging
 
-- All log statements use **source-generated `[LoggerMessage]`** methods, so the hot path allocates nothing when the level is off. Event ids are grouped in ranges (1000–1999 commands, 2000–2999 store, 3000–3999 transport, 4000–4999 subscriptions, 5000–5999 security).
+- All log statements use **source-generated `[LoggerMessage]`** methods, so the hot path allocates nothing when the level is off. Event ids are grouped in ranges (1000–1999 commands, 2000–2999 store, 3000–3999 transport, 4000–4999 subscriptions, 5000–5999 security). *As built (WP-C.16):* the ids follow these ranges, the host's lifecycle events are 1401–1405, the categories are `SourceFlow.*` type names, and the table in the Observability guide lists every id.
 - Logs are structured, with stable property names that match span attributes (`MessageId`, `MessageType`, `CorrelationId`, `StreamId`, `Outcome`).
 - Payloads are **never logged by default**. When `LogPayloads = true` is set for debugging, payloads go through `Microsoft.Extensions.Compliance.Redaction`: members marked `[PersonalData]` or classified with a data-classification attribute are redacted by the configured redactor ([ADR-013](../ADRs/ADR-013-use-platform-libraries-delete-bespoke-equivalents.md)).
 - Log levels: `Information` for lifecycle (start, stop, provisioning, lease changes); `Debug` per message; `Warning` for retries and conflicts beyond the threshold; `Error` for parks and stalls.

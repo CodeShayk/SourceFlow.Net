@@ -413,7 +413,7 @@ internal sealed class SubscriptionEngine
             return 0;
         }
 
-        using Activity? activity = SourceFlowTelemetry.ActivitySource.StartActivity("project " + definition.Name, ActivityKind.Consumer);
+        using Activity? activity = SourceFlowTelemetry.Start("project", definition.Name, ActivityKind.Consumer);
         activity?.SetTag(SourceFlowTelemetry.Tags.Subscription, definition.Name);
         activity?.SetTag(SourceFlowTelemetry.Tags.Partition, partition);
         activity?.SetTag(SourceFlowTelemetry.Tags.BatchCount, batch.Events.Count);

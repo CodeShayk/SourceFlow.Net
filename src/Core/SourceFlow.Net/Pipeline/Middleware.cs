@@ -249,8 +249,10 @@ public sealed class PermanentException : Exception
 }
 
 /// <summary>Built-in middleware 1: span, duration and outcome metrics (doc 08).</summary>
-internal sealed class TelemetryMiddleware(SourceFlowMetrics metrics, string consumer, bool parentBasedOnMessage = false) : IMessageMiddleware
+internal sealed class TelemetryMiddleware(SourceFlowMetrics metrics, string consumer, bool parentBasedOnMessage = false, string system = "unknown") : IMessageMiddleware
 {
+    private readonly string _name = "process " + consumer;   // composed once (CR-47)
+
     public async ValueTask InvokeAsync(MessageContext context, MessageDelegate next)
     {
         if (context.Stage != PipelineStage.Receive)
@@ -259,19 +261,27 @@ internal sealed class TelemetryMiddleware(SourceFlowMetrics metrics, string cons
             return;
         }
 
-        ActivityContext parent = default;
-        if (context.Envelope.TraceParent is { } traceParent)
+        Activity? activity = null;
+        if (SourceFlowTelemetry.ActivitySource.HasListeners())
         {
-            ActivityContext.TryParse(traceParent, context.Envelope.TraceState, isRemote: true, out parent);
+            ActivityContext parent = default;
+            if (context.Envelope.TraceParent is { } traceParent)
+            {
+                ActivityContext.TryParse(traceParent, context.Envelope.TraceState, isRemote: true, out parent);
+            }
+
+            activity = SourceFlowTelemetry.ActivitySource.StartActivity(
+                ActivityKind.Consumer,
+                parentContext: parentBasedOnMessage ? parent : default,
+                tags: null,
+                links: parent == default ? null : [new ActivityLink(parent)],
+                name: _name);
         }
 
-        using Activity? activity = SourceFlowTelemetry.ActivitySource.StartActivity(
-            ActivityKind.Consumer,
-            parentContext: parentBasedOnMessage ? parent : default,
-            tags: null,
-            links: parent == default ? null : [new ActivityLink(parent)],
-            name: "process " + consumer);
+        using Activity? scoped = activity;
         SemanticConventions.SetOperationType(activity, "process");
+        activity?.SetTag(SourceFlowTelemetry.Tags.MessagingSystem, system);
+        activity?.SetTag(SourceFlowTelemetry.Tags.Destination, consumer);
         activity?.SetTag(SourceFlowTelemetry.Tags.ConsumerGroup, consumer);
         activity?.SetTag(SourceFlowTelemetry.Tags.MessageId, context.Envelope.MessageId.ToString());
         activity?.SetTag(SourceFlowTelemetry.Tags.MessageType, context.Envelope.Type);
@@ -286,6 +296,8 @@ internal sealed class TelemetryMiddleware(SourceFlowMetrics metrics, string cons
             string? error = context.Outcome is HandlingOutcome.Transient or HandlingOutcome.Permanent ? context.Exception?.GetType().Name ?? context.Outcome.ToString() : null;
             metrics.ProcessDuration.Record(
                 Stopwatch.GetElapsedTime(start).TotalSeconds,
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.MessagingSystem, system),
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Destination, consumer),
                 new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.ConsumerGroup, consumer),
                 new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.ErrorType, error));
             activity?.SetTag(SourceFlowTelemetry.Tags.Outcome, context.Outcome.ToString().ToLowerInvariant());

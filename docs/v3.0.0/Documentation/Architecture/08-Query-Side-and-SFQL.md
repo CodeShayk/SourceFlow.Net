@@ -286,7 +286,7 @@ and converters. The SourceFlow source generator emits no schemas.
   contract register the same fingerprint.
 - **Registration.** At startup the host registers the catalog through the optional `ISchemaStore` port (in memory, and
   the PostgreSQL `schemas` table). A changed fingerprint for a published `(type, version)` fails startup with
-  `SchemaConflictException`. `SourceFlowOptions.SchemaRegistration` can be `Enforce` (default), `Warn` (log event 1107)
+  `SchemaConflictException`. `SourceFlowOptions.SchemaRegistration` can be `Enforce` (default), `Warn` (log event 2003)
   or `Off`.
 - **Compatibility in CI.** `dotnet sourceflow schema export --format lock` writes a lock file;
   `dotnet sourceflow schema check --baseline schemas.lock.json` compares the current catalog with it and exits 1 on a

@@ -96,6 +96,6 @@ internal sealed partial class PersonalDataEraser(SourceFlowRuntime runtime, Pers
         return scrubbed;
     }
 
-    [LoggerMessage(EventId = 1501, Level = LogLevel.Information, Message = "Erased a subject: key destroyed, {Streams} stream(s), {Documents} document(s) scrubbed.")]
+    [LoggerMessage(EventId = 5001, Level = LogLevel.Information, Message = "Erased a subject: key destroyed, {Streams} stream(s), {Documents} document(s) scrubbed.")]
     private static partial void SubjectErased(ILogger logger, int streams, int documents);
 }

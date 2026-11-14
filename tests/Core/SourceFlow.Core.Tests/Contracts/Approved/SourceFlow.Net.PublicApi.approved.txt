@@ -675,6 +675,7 @@ namespace SourceFlow.Diagnostics
         public System.Diagnostics.Metrics.Counter<long> InboxDuplicates { get; }
         public System.Diagnostics.Metrics.Histogram<long> LoadEvents { get; }
         public System.Diagnostics.Metrics.Meter Meter { get; }
+        public System.Diagnostics.Metrics.Histogram<double> OperationDuration { get; }
         public System.Diagnostics.Metrics.Histogram<double> OutboxDispatchDuration { get; }
         public System.Diagnostics.Metrics.Histogram<double> ProcessDuration { get; }
         public System.Diagnostics.Metrics.Counter<long> RetryAttempts { get; }
@@ -712,6 +713,7 @@ namespace SourceFlow.Diagnostics
             public const string InboxDuplicates = "sourceflow.inbox.duplicates";
             public const string LeaseOwned = "sourceflow.lease.owned";
             public const string LoadEvents = "sourceflow.aggregate.load.events";
+            public const string OperationDuration = "messaging.client.operation.duration";
             public const string OutboxAge = "sourceflow.outbox.age";
             public const string OutboxDispatchDuration = "sourceflow.outbox.dispatch.duration";
             public const string OutboxPending = "sourceflow.outbox.pending";

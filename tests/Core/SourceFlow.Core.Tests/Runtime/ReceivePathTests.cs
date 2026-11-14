@@ -38,7 +38,7 @@ public sealed class ReceivePathTests
 
         DeadLetter parked = (await host.DeadLetters.ListAsync(new DeadLetterQuery(), Ct)).ShouldHaveSingleItem();
         parked.Reason.ShouldBe("DeserializationFailed");
-        logs.Events.ShouldContain(e => e.Id == 1108);   // CR-10: resolved from the attempt's scope, not a disposed one
+        logs.Events.ShouldContain(e => e.Id == 3004);   // CR-10: resolved from the attempt's scope, not a disposed one
         host.Broker.PendingCount.ShouldBe(0);
     }
 

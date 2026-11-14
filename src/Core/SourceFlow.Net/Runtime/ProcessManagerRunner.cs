@@ -91,7 +91,7 @@ internal sealed class ProcessManagerRunner(SourceFlowRuntime runtime)
             return new ReactOutcome(false, null, null);
         }
 
-        using Activity? activity = SourceFlowTelemetry.ActivitySource.StartActivity("react " + process.Name, ActivityKind.Internal);
+        using Activity? activity = SourceFlowTelemetry.Start("react", process.Name, ActivityKind.Internal);
         activity?.SetTag(SourceFlowTelemetry.Tags.ProcessId, instanceId);
         JsonTypeInfo typeInfo = runtime.Model.JsonTypeInfoFor(process.StateType);
         ProcessState? stored = await session.LoadProcessStateAsync(process.Name, instanceId, cancellationToken).ConfigureAwait(false);
@@ -187,8 +187,7 @@ internal sealed class ProcessManagerRunner(SourceFlowRuntime runtime)
 
         foreach (WorkflowTransition transition in reaction.Transitions)
         {
-            using Activity? span = SourceFlowTelemetry.ActivitySource.StartActivity(
-                "workflow " + name + (transition.Step is null ? string.Empty : " " + transition.Step), ActivityKind.Internal);
+            using Activity? span = SourceFlowTelemetry.ActivitySource.HasListeners() ? SourceFlowTelemetry.Start("workflow", transition.Step is null ? name : name + " " + transition.Step, ActivityKind.Internal) : null;
             span?.SetTag(SourceFlowTelemetry.Tags.WorkflowStep, transition.Step);
             span?.SetTag(SourceFlowTelemetry.Tags.WorkflowAttempt, transition.Attempt);
             span?.SetTag(SourceFlowTelemetry.Tags.WorkflowTransition, transition.Kind);

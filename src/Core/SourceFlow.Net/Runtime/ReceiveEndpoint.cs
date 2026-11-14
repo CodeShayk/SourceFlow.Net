@@ -46,7 +46,7 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
             Channel.CreateBounded<Delivery>(new BoundedChannelOptions(runtime.Options.PrefetchPerWorker) { SingleReader = true, SingleWriter = true }))];
         _builtIns =
         [
-            new TelemetryMiddleware(runtime.Metrics, runtime.Routing.Endpoint, runtime.Options.Telemetry.ParentBasedOnMessage),
+            new TelemetryMiddleware(runtime.Metrics, runtime.Routing.Endpoint, runtime.Options.Telemetry.ParentBasedOnMessage, runtime.Transport.SystemName),
             new LoggingScopeMiddleware(_logger),
             new ErrorClassificationMiddleware(runtime.Classifier),
             .. runtime.Protector is { } protector ? [new Security.PayloadProtectionMiddleware(protector, runtime.Routing.Endpoint)] : Array.Empty<IMessageMiddleware>(),
@@ -97,7 +97,10 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
                         }
 
                         Interlocked.Increment(ref _inFlight);
-                        _runtime.Metrics.ConsumedMessages.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.ConsumerGroup, _runtime.Routing.Endpoint));
+                        _runtime.Metrics.ConsumedMessages.Add(1,
+                            new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.MessagingSystem, _runtime.Transport.SystemName),
+                            new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Destination, _runtime.Routing.Endpoint),
+                            new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.ConsumerGroup, _runtime.Routing.Endpoint));
                         await _channels[WorkerOf(message)].Writer.WriteAsync(new Delivery(message, Interlocked.Increment(ref _received)), cancellationToken).ConfigureAwait(false);
                     }
                 }

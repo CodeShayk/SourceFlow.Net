@@ -62,7 +62,7 @@ public sealed class OpenTelemetryTests
         tracer.ForceFlush();
         Activity[] spans = InTrace(exported, trace);
 
-        Activity handle = spans.Single(s => s.DisplayName == "handle OpenAccount");
+        Activity handle = spans.Single(s => s.DisplayName == "handle bank.account.open");   // the logical message name (CR-47)
         handle.Kind.ShouldBe(ActivityKind.Internal);
         handle.GetTagItem(SourceFlowTelemetry.Tags.Outcome).ShouldBe("accepted");
         Activity append = spans.Single(s => s.DisplayName == "sourceflow.eventstore.append");

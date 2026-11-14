@@ -26,6 +26,15 @@ public static class SourceFlowTelemetry
     /// <summary>The shared ActivitySource. Spans cost one null check when nobody listens.</summary>
     public static readonly ActivitySource ActivitySource = new(new ActivitySourceOptions(ActivitySourceName) { Version = Version, TelemetrySchemaUrl = SemanticConventions.SchemaUrl });
 
+    /// <summary>
+    /// Starts a span named <c>{operation} {target}</c>, building the name only when a listener is attached, so the hot paths
+    /// allocate nothing without one (doc 08 §2, CR-47).
+    /// </summary>
+    internal static Activity? Start(string operation, string target, ActivityKind kind, ActivityContext parent = default)
+    {
+        return ActivitySource.HasListeners() ? ActivitySource.StartActivity(operation + " " + target, kind, parent) : null;
+    }
+
     /// <summary>Duration buckets, 0.5 ms to 10 s (doc 08 §3).</summary>
     public static readonly IReadOnlyList<double> DurationBuckets = [0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
 
@@ -109,6 +118,8 @@ public static class SourceFlowTelemetry
         public const string WorkflowActive = "sourceflow.workflow.active";
         public const string WorkflowManualIntervention = "sourceflow.workflow.manual_intervention";
         public const string SentMessages = "messaging.client.sent.messages";
+
+        public const string OperationDuration = "messaging.client.operation.duration";
         public const string ConsumedMessages = "messaging.client.consumed.messages";
         public const string ProcessDuration = "messaging.process.duration";
 #pragma warning restore CS1591
@@ -149,6 +160,7 @@ public static class SourceFlowTelemetry
         new(Instruments.WorkflowTransitions, InstrumentKind.Counter, "{transition}", "Workflow transitions by kind (success, failure, retry, timeout, compensate, manual, complete).", [Tags.Workflow, Tags.WorkflowVersion, Tags.TransitionKind]),
         new(Instruments.WorkflowActive, InstrumentKind.Gauge, "{instance}", "Workflow instances not finished, per workflow version and status.", [Tags.Workflow, Tags.WorkflowVersion, Tags.WorkflowStatus]),
         new(Instruments.WorkflowManualIntervention, InstrumentKind.Counter, "{instance}", "Workflow instances that entered manual intervention (alert on any).", [Tags.Workflow, Tags.WorkflowVersion]),
+        new(Instruments.OperationDuration, InstrumentKind.Histogram, "s", "Duration of a broker send or publish call.", [Tags.MessagingSystem, Tags.OperationName, Tags.Destination, Tags.ErrorType]),
         new(Instruments.SentMessages, InstrumentKind.Counter, "{message}", "Messages sent to the broker.", [Tags.MessagingSystem, Tags.Destination, Tags.ErrorType]),
         new(Instruments.ConsumedMessages, InstrumentKind.Counter, "{message}", "Messages received from the broker.", [Tags.MessagingSystem, Tags.Destination, Tags.ConsumerGroup]),
         new(Instruments.ProcessDuration, InstrumentKind.Histogram, "s", "Received message processing duration.", [Tags.MessagingSystem, Tags.Destination, Tags.ConsumerGroup, Tags.ErrorType]),
@@ -205,6 +217,7 @@ public sealed class SourceFlowMetrics : IDisposable
         DeadLettersDiscarded = Meter.CreateCounter<long>("sourceflow.deadletter.discarded", "{message}", "Dead letters discarded by an operator.");
         SubscriptionBatchDuration = Meter.CreateHistogram("sourceflow.subscription.batch.duration", "s", "Subscription batch duration.", tags: null, advice: duration);
         SentMessages = Meter.CreateCounter<long>("messaging.client.sent.messages", "{message}", "Messages sent to the broker.");
+        OperationDuration = Meter.CreateHistogram("messaging.client.operation.duration", "s", "Duration of a broker send or publish call.", tags: null, advice: duration);
         ConsumedMessages = Meter.CreateCounter<long>("messaging.client.consumed.messages", "{message}", "Messages received from the broker.");
         ProcessDuration = Meter.CreateHistogram("messaging.process.duration", "s", "Received message processing duration.", tags: null, advice: duration);
         WorkflowTransitions = Meter.CreateCounter<long>("sourceflow.workflow.transitions", "{transition}", "Workflow transitions by kind (success, failure, retry, timeout, compensate, manual, complete).");
@@ -249,6 +262,9 @@ public sealed class SourceFlowMetrics : IDisposable
     public Histogram<double> SubscriptionBatchDuration { get; }
 
     public Counter<long> SentMessages { get; }
+
+    /// <summary><c>messaging.client.operation.duration</c>: one broker send or publish call.</summary>
+    public Histogram<double> OperationDuration { get; }
 
     public Counter<long> ConsumedMessages { get; }
 

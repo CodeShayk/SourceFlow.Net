@@ -155,8 +155,10 @@ public sealed class OutboxRelay
         for (int i = 0; i < rows.Length; i++)
         {
             MessageEnvelope envelope = rows[i].Message.Envelope;
-            Activity? activity = SourceFlowTelemetry.ActivitySource.StartActivity("send " + destination, ActivityKind.Producer,
-                ActivityContext.TryParse(envelope.TraceParent, envelope.TraceState, out ActivityContext parent) ? parent : default);
+            Activity? activity = SourceFlowTelemetry.ActivitySource.HasListeners()
+                ? SourceFlowTelemetry.Start("send", destination, ActivityKind.Producer,
+                    ActivityContext.TryParse(envelope.TraceParent, envelope.TraceState, out ActivityContext parent) ? parent : default)
+                : null;
             activity?.SetTag(SourceFlowTelemetry.Tags.MessagingSystem, _runtime.Transport.SystemName);
             SemanticConventions.SetOperationType(activity, "send");
             activity?.SetTag(SourceFlowTelemetry.Tags.Destination, destination);
@@ -217,8 +219,14 @@ public sealed class OutboxRelay
         }
         finally
         {
-            _runtime.Metrics.OutboxDispatchDuration.Record(Stopwatch.GetElapsedTime(started).TotalSeconds,
+            double elapsed = Stopwatch.GetElapsedTime(started).TotalSeconds;
+            _runtime.Metrics.OutboxDispatchDuration.Record(elapsed,
                 new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.MessagingSystem, _runtime.Transport.SystemName));
+            _runtime.Metrics.OperationDuration.Record(elapsed,
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.MessagingSystem, _runtime.Transport.SystemName),
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.OperationName, kind == OutboxKind.Publish ? "publish" : "send"),
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Destination, destination),
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.ErrorType, failures.Count == 0 ? null : failures.Values.First().GetType().Name));
             for (int i = activities.Length - 1; i >= 0; i--)
             {
                 if (failures.TryGetValue(rows[i].Sequence, out Exception? failure))
@@ -240,6 +248,14 @@ public sealed class OutboxRelay
             _runtime.Metrics.SentMessages.Add(rows.Length - failures.Count,
                 new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.MessagingSystem, _runtime.Transport.SystemName),
                 new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Destination, destination));
+        }
+
+        foreach (IGrouping<string, Exception> failed in failures.Values.GroupBy(e => e.GetType().Name))
+        {
+            _runtime.Metrics.SentMessages.Add(failed.Count(),
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.MessagingSystem, _runtime.Transport.SystemName),
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Destination, destination),
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.ErrorType, failed.Key));
         }
 
         return failures;

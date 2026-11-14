@@ -14,67 +14,67 @@ internal static partial class Log
     [LoggerMessage(1003, LogLevel.Warning, "Concurrency retries exhausted on {StreamId} after {Attempts} attempts")]
     public static partial void ConcurrencyExhausted(ILogger logger, string streamId, int attempts);
 
-    [LoggerMessage(1101, LogLevel.Warning, "Outbox dispatch to {Destination} failed (attempt {Attempt}); retrying at {RetryAt}")]
+    [LoggerMessage(3001, LogLevel.Warning, "Outbox dispatch to {Destination} failed (attempt {Attempt}); retrying at {RetryAt}")]
     public static partial void OutboxRetry(ILogger logger, Exception exception, string destination, int attempt, DateTimeOffset retryAt);
 
-    [LoggerMessage(1102, LogLevel.Error, "Outbox message {MessageId} to {Destination} parked after {Attempts} attempts")]
+    [LoggerMessage(3002, LogLevel.Error, "Outbox message {MessageId} to {Destination} parked after {Attempts} attempts")]
     public static partial void OutboxParked(ILogger logger, Exception exception, string messageId, string destination, int attempts);
 
-    [LoggerMessage(1103, LogLevel.Error, "Outbox relay loop failed; continuing")]
+    [LoggerMessage(3003, LogLevel.Error, "Outbox relay loop failed; continuing")]
     public static partial void OutboxLoopFailed(ILogger logger, Exception exception);
 
-    [LoggerMessage(1104, LogLevel.Warning, "Retention cleanup failed; retrying at the next interval")]
+    [LoggerMessage(2001, LogLevel.Warning, "Retention cleanup failed; retrying at the next interval")]
     public static partial void RetentionFailed(ILogger logger, Exception exception);
 
-    [LoggerMessage(1105, LogLevel.Information, "Retention cleanup deleted {Inbox} inbox rows and {DeadLetters} resolved dead letters")]
+    [LoggerMessage(2002, LogLevel.Information, "Retention cleanup deleted {Inbox} inbox rows and {DeadLetters} resolved dead letters")]
     public static partial void RetentionPurged(ILogger logger, int inbox, int deadLetters);
 
-    [LoggerMessage(1108, LogLevel.Debug, "Payload of parked message {MessageId}: {Payload}")]
+    [LoggerMessage(3004, LogLevel.Debug, "Payload of parked message {MessageId}: {Payload}")]
     public static partial void ParkedPayload(ILogger logger, string messageId, string payload);
 
-    [LoggerMessage(1107, LogLevel.Warning, "Schema {Type} v{Version} changed without a new version (registered {Registered}, now {Current}); a published version is immutable")]
+    [LoggerMessage(2003, LogLevel.Warning, "Schema {Type} v{Version} changed without a new version (registered {Registered}, now {Current}); a published version is immutable")]
     public static partial void SchemaConflict(ILogger logger, string type, int version, string registered, string current);
 
-    [LoggerMessage(1106, LogLevel.Warning, "Node heartbeat failed; the lease fair share uses the last known node count")]
+    [LoggerMessage(2004, LogLevel.Warning, "Node heartbeat failed; the lease fair share uses the last known node count")]
     public static partial void HeartbeatFailed(ILogger logger, Exception exception);
 
-    [LoggerMessage(1201, LogLevel.Warning, "Message {MessageId} ({MessageType}) failed transiently on attempt {Attempt}; redelivering after {Delay}")]
+    [LoggerMessage(3101, LogLevel.Warning, "Message {MessageId} ({MessageType}) failed transiently on attempt {Attempt}; redelivering after {Delay}")]
     public static partial void ReceiveRetry(ILogger logger, Exception exception, string messageId, string messageType, int attempt, TimeSpan delay);
 
-    [LoggerMessage(1202, LogLevel.Error, "Message {MessageId} ({MessageType}) parked: {Reason}")]
+    [LoggerMessage(3102, LogLevel.Error, "Message {MessageId} ({MessageType}) parked: {Reason}")]
     public static partial void ReceiveParked(ILogger logger, Exception? exception, string messageId, string messageType, string reason);
 
-    [LoggerMessage(1203, LogLevel.Error, "Receive loop for {Endpoint} failed; continuing")]
+    [LoggerMessage(3103, LogLevel.Error, "Receive loop for {Endpoint} failed; continuing")]
     public static partial void ReceiveLoopFailed(ILogger logger, Exception exception, string endpoint);
 
-    [LoggerMessage(1210, LogLevel.Warning, "Message {MessageId} was dead-lettered by the broker on {Endpoint} ({Reason}); parked for replay")]
+    [LoggerMessage(3110, LogLevel.Warning, "Message {MessageId} was dead-lettered by the broker on {Endpoint} ({Reason}); parked for replay")]
     public static partial void BrokerDeadLetterIngested(ILogger logger, string messageId, string endpoint, string reason);
 
-    [LoggerMessage(1212, LogLevel.Warning, "The monitor could not read {Reading}; the gauges and health checks that use it keep the last sample")]
+    [LoggerMessage(2005, LogLevel.Warning, "The monitor could not read {Reading}; the gauges and health checks that use it keep the last sample")]
     public static partial void MonitorReadingFailed(ILogger logger, Exception exception, string reading);
 
-    [LoggerMessage(1211, LogLevel.Error, "Moving broker dead letters of {Endpoint} into the dead-letter store failed; retrying in {Delay}")]
+    [LoggerMessage(3111, LogLevel.Error, "Moving broker dead letters of {Endpoint} into the dead-letter store failed; retrying in {Delay}")]
     public static partial void BrokerDeadLetterIngestFailed(ILogger logger, Exception exception, string endpoint, TimeSpan delay);
 
-    [LoggerMessage(1301, LogLevel.Error, "Subscription {Subscription} partition {Partition} failed on event {EventId}; {Policy}")]
+    [LoggerMessage(4001, LogLevel.Error, "Subscription {Subscription} partition {Partition} failed on event {EventId}; {Policy}")]
     public static partial void SubscriptionFailed(ILogger logger, Exception exception, string subscription, int partition, string eventId, string policy);
 
-    [LoggerMessage(1303, LogLevel.Warning, "Subscription {Subscription} partition {Partition} skipped event {EventId} at {Position}: {Reason}")]
+    [LoggerMessage(4003, LogLevel.Warning, "Subscription {Subscription} partition {Partition} skipped event {EventId} at {Position}: {Reason}")]
     public static partial void SubscriptionSkipped(ILogger logger, string subscription, int partition, string eventId, string position, string reason);
 
-    [LoggerMessage(1302, LogLevel.Warning, "Subscription {Subscription} partition {Partition} lost its lease")]
+    [LoggerMessage(4002, LogLevel.Warning, "Subscription {Subscription} partition {Partition} lost its lease")]
     public static partial void SubscriptionLeaseLost(ILogger logger, string subscription, int partition);
 
-    [LoggerMessage(1304, LogLevel.Information, "Read model {Projection} switched from {Previous} to {Target}")]
+    [LoggerMessage(4004, LogLevel.Information, "Read model {Projection} switched from {Previous} to {Target}")]
     public static partial void ReadModelSwitched(ILogger logger, string projection, string previous, string target);
 
-    [LoggerMessage(1305, LogLevel.Information, "Dropped retired read-model generation {Generation}")]
+    [LoggerMessage(4005, LogLevel.Information, "Dropped retired read-model generation {Generation}")]
     public static partial void ReadModelDropped(ILogger logger, string generation);
 
-    [LoggerMessage(1306, LogLevel.Error, "Subscription {Subscription} is not run on this node: it is configured with {Configured} partitions, but {Stored} are stored (doc 06 §3); align the configuration or run `projection repartition`")]
+    [LoggerMessage(4006, LogLevel.Error, "Subscription {Subscription} is not run on this node: it is configured with {Configured} partitions, but {Stored} are stored (doc 06 §3); align the configuration or run `projection repartition`")]
     public static partial void SubscriptionPartitionMismatch(ILogger logger, string subscription, int configured, int stored);
 
-    [LoggerMessage(1307, LogLevel.Information, "Subscription {Subscription} runs for the first time and starts at the head of the log ({Commit}, {Sequence}): it reacts to new events only (doc 15 §5.6)")]
+    [LoggerMessage(4007, LogLevel.Information, "Subscription {Subscription} runs for the first time and starts at the head of the log ({Commit}, {Sequence}): it reacts to new events only (doc 15 §5.6)")]
     public static partial void SubscriptionStartsAtHead(ILogger logger, string subscription, ulong commit, ulong sequence);
 
     [LoggerMessage(1401, LogLevel.Information, "SourceFlow service {Service} started: {Modules} module(s), {Aggregates} aggregate(s), {Subscriptions} subscription(s)")]

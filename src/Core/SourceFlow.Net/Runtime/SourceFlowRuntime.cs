@@ -305,7 +305,7 @@ public sealed class SourceFlowRuntime
     {
         MessageTypeInfo type = Model.Registry.Get(message.GetType());
         MessageId id = messageId ?? MessageIds.New(Time);
-        using Activity? create = SourceFlowTelemetry.ActivitySource.StartActivity("create " + type.Name, ActivityKind.Producer);
+        using Activity? create = SourceFlowTelemetry.Start("create", type.Name, ActivityKind.Producer);
         SemanticConventions.SetOperationType(create, "create");
         create?.SetTag(SourceFlowTelemetry.Tags.MessageType, type.Name);
         Activity? trace = create ?? Activity.Current;

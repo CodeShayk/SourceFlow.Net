@@ -85,7 +85,8 @@ public sealed class CommandProcessor
             return new CommandResult(CommandStatus.Rejected, StreamVersion.None, Error.InvalidCommand(invalid.Message), ConsistencyToken.None);
         }
 
-        using Activity? activity = SourceFlowTelemetry.ActivitySource.StartActivity("handle " + commandType.Name, ActivityKind.Internal);
+        string logicalType = _runtime.Model.Registry.TryGet(commandType, out MessageTypeInfo? commandInfo) ? commandInfo.Name : commandType.Name;   // CR-47
+        using Activity? activity = SourceFlowTelemetry.Start("handle", logicalType, ActivityKind.Internal);
         activity?.SetTag(SourceFlowTelemetry.Tags.AggregateType, aggregate.Name);
         activity?.SetTag(SourceFlowTelemetry.Tags.StreamId, stream.Value);
         long started = Stopwatch.GetTimestamp();
@@ -131,11 +132,11 @@ public sealed class CommandProcessor
             string outcome = result.Status == default ? "failed" : result.Status.ToString().ToLowerInvariant();   // default: an exception (the availability SLO counts these)
             _runtime.Metrics.CommandDuration.Record(
                 Stopwatch.GetElapsedTime(started).TotalSeconds,
-                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.CommandType, commandType.Name),
+                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.CommandType, logicalType),
                 new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Outcome, outcome));
             activity?.SetTag(SourceFlowTelemetry.Tags.Outcome, outcome);
             activity?.SetTag(SourceFlowTelemetry.Tags.ConcurrencyRetries, Math.Max(0, attempts - 1));
-            Log.CommandHandled(_logger, commandType.Name, stream.Value, outcome, result.Version.Value);
+            Log.CommandHandled(_logger, logicalType, stream.Value, outcome, result.Version.Value);
         }
     }
 
