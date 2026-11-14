@@ -177,6 +177,11 @@ internal sealed class SqlText
              WHERE x.fingerprint <> i.f
             """);
         ListSchemas = R("SELECT message_type, type_version, kind, json_schema::text FROM {s}.schemas WHERE tenant_id = '-' ORDER BY message_type, type_version");
+        ReplaceSchemas = R("""
+            UPDATE {s}.schemas x SET json_schema = u.j::jsonb, fingerprint = u.f
+              FROM unnest(@types::text[], @versions::int[], @schemas::text[], @prints::text[]) AS u(t, v, j, f)
+             WHERE x.tenant_id = '-' AND x.message_type = u.t AND x.type_version = u.v
+            """);
         DropCollection = R("DELETE FROM {s}.documents WHERE collection = @collection");
         ListAliases = R("SELECT alias, target, previous, building, switched_at FROM {s}.collection_aliases ORDER BY alias");
         ClaimAlias = R("INSERT INTO {s}.collection_aliases (alias, target) VALUES (@alias, @target) ON CONFLICT (alias) DO NOTHING");
@@ -349,6 +354,8 @@ internal sealed class SqlText
     public string ClearPreviousAlias { get; }
 
     public string RegisterSchemas { get; }
+
+    public string ReplaceSchemas { get; }
 
     public string ListSchemas { get; }
 

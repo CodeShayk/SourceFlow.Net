@@ -229,6 +229,12 @@ public interface ISchemaStore
 
     /// <summary>Reads every registered schema (for export and the CLI).</summary>
     ValueTask<IReadOnlyList<Catalog.SchemaEntry>> ListAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Replaces the stored schema text and fingerprint of registered <c>(type, version)</c> entries. Startup calls it only for
+    /// an entry whose stored schema has the same structure, when the fingerprint was computed by an earlier rule (CR-17).
+    /// </summary>
+    ValueTask ReplaceAsync(IReadOnlyList<Catalog.SchemaEntry> schemas, CancellationToken cancellationToken);
 }
 
 /// <summary>Projection data administration (doc 06 §6): drop a read-model generation's documents in every tenant.</summary>

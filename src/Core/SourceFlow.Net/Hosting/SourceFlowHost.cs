@@ -316,6 +316,23 @@ public sealed class SourceFlowHost : IHostedLifecycleService, IHealthCheck, IAsy
             return;
         }
 
+        // CR-17: fingerprints registered under the earlier rule hashed the annotations too. Recomputed from the stored
+        // schema, an unchanged structure gives today's fingerprint: those are re-registered, once, and are not conflicts.
+        Dictionary<(string, int), Catalog.SchemaEntry> stored = (await store.ListAsync(cancellationToken).ConfigureAwait(false)).ToDictionary(e => (e.Type, e.Version));
+        Catalog.SchemaEntry[] unchanged = [.. conflicts
+            .Where(c => stored.TryGetValue((c.Type, c.Version), out Catalog.SchemaEntry? registered) && registered.Fingerprint == c.CurrentFingerprint)
+            .Select(c => catalog.TryGet(c.Type, c.Version, out Catalog.SchemaEntry? current) ? current : null)
+            .OfType<Catalog.SchemaEntry>()];
+        if (unchanged.Length > 0)
+        {
+            await store.ReplaceAsync(unchanged, cancellationToken).ConfigureAwait(false);
+            conflicts = [.. conflicts.Where(c => !unchanged.Any(u => u.Type == c.Type && u.Version == c.Version))];
+            if (conflicts.Count == 0)
+            {
+                return;
+            }
+        }
+
         if (_runtime.Options.SchemaRegistration == SchemaRegistrationMode.Enforce)
         {
             throw new Catalog.SchemaConflictException(conflicts);

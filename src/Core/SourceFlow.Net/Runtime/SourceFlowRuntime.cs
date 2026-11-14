@@ -393,6 +393,25 @@ public sealed class SourceFlowRuntime
         }
     }
 
+    // Why a locally owned command's target can't identify a stream (default or malformed id), or null when it can.
+    internal string? InvalidTargetOf(ICommand command)
+    {
+        if (!Model.CommandOwners.TryGetValue(command.GetType(), out AggregateDescriptor? owner))
+        {
+            return null;
+        }
+
+        try
+        {
+            _ = owner.StreamOf(command);
+            return null;
+        }
+        catch (InvalidCommandException invalid)
+        {
+            return invalid.Message;
+        }
+    }
+
     /// <summary>Creates a logger.</summary>
     public ILogger Logger<T>()
     {

@@ -16,6 +16,7 @@ namespace SourceFlow.Generators
     {
         /// <inheritdoc />
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
+            Diagnostics.IdBackingMismatch,
             Diagnostics.MissingMessageType,
             Diagnostics.DuplicateMessageType,
             Diagnostics.CommandTarget,
@@ -71,6 +72,7 @@ namespace SourceFlow.Generators
             }
 
             Location location = type.Locations.FirstOrDefault() ?? Location.None;
+            AnalyzeIdBacking(context, type, location);
             string? kind = ModelBuilder.KindOf(type);
             AttributeData? messageType = type.FindAttribute(KnownNames.MessageTypeAttribute);
 
@@ -147,6 +149,42 @@ namespace SourceFlow.Generators
         }
 
         // SF0011 / SF0017 (doc 10 §4): a [PersonalData] member's subject must be a member of the event; [Queryable] on it does nothing.
+        // SF0022 (CR-30): [StronglyTypedId(Backing = …)] must agree with the type of Value, which decides the storage.
+        private static void AnalyzeIdBacking(SymbolAnalysisContext context, INamedTypeSymbol type, Location location)
+        {
+            AttributeData? attribute = type.FindAttribute(KnownNames.StronglyTypedIdAttribute);
+            if (attribute is null)
+            {
+                return;
+            }
+
+            TypedConstant declared = attribute.NamedArguments.FirstOrDefault(a => a.Key == "Backing").Value;
+            if (declared.IsNull || declared.Value is not int backing)
+            {
+                return;   // not set: the value's type decides
+            }
+
+            IPropertySymbol? value = type.GetMembers("Value").OfType<IPropertySymbol>().FirstOrDefault(p => !p.IsStatic);
+            if (value is null)
+            {
+                return;
+            }
+
+            // IdBacking: Guid = 0, String = 1, Int64 = 2.
+            int actual = value.Type.SpecialType switch
+            {
+                SpecialType.System_String => 1,
+                SpecialType.System_Int64 => 2,
+                _ => value.Type.Is("System.Guid") ? 0 : -1,
+            };
+            if (actual >= 0 && actual != backing)
+            {
+                string[] names = ["Guid", "String", "Int64"];
+                string declaredName = backing is >= 0 and <= 2 ? names[backing] : backing.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.IdBackingMismatch, location, type.Name, declaredName, value.Type.ToDisplayString()));
+            }
+        }
+
         private static void AnalyzePersonalData(SymbolAnalysisContext context, INamedTypeSymbol type)
         {
             bool isEvent = type.FindInterface(KnownNames.Event) is not null;

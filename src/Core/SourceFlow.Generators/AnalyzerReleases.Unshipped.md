@@ -22,3 +22,4 @@ SF0018 | SourceFlow.Query | Error | Domain query is not valid
 SF0019 | SourceFlow.Manifest | Warning | Decide outcome can't be determined
 SF0020 | SourceFlow.Workflows | Error | Workflow DSL validation failure
 SF0021 | SourceFlow.Workflows | Error | Workflow hook has no implementation
+SF0022 | SourceFlow.Ids | Error | Id backing disagrees with its value

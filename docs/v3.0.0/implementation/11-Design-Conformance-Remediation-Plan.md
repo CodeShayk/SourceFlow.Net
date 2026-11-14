@@ -290,8 +290,12 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
     - the fingerprint covers only the structural schema;
     - a one-time migration recomputes the stored fingerprints of `(type, version)` pairs whose structure is unchanged.
     - **Design change:** ADR-029 is amended to say which members are fingerprinted.
+    *As built:* the migration runs at startup, on every store: a conflict whose stored schema, fingerprinted under the
+    current rule, matches is re-registered (`ISchemaStore.ReplaceAsync`) instead of reported.
   - **Backing types (CR-30):**
     - the generator emits a static `Backing` member on each id, and the schema catalog and the SFQL catalog read it;
+      *As built:* they read it through the id's generated converter (`IStronglyTypedIdConverter` in the serializer
+      options), since reflecting over the id type is not AOT-safe;
     - a new analyzer error, SF0022, fires when `[StronglyTypedId(Backing = …)]` disagrees with `Value`'s type.
   - **Cross-stream documents (CR-31):**
     - cross-stream document projections store the global position, and skip events at or below it;

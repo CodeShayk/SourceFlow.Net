@@ -319,6 +319,24 @@ public sealed partial class PostgreSqlStore :
     }
 
     /// <inheritdoc />
+    public async ValueTask ReplaceAsync(IReadOnlyList<Catalog.SchemaEntry> schemas, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(schemas);
+        if (schemas.Count == 0)
+        {
+            return;
+        }
+
+        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(Sql.ReplaceSchemas, connection);
+        command.Parameters.Add(new NpgsqlParameter<string[]>("types", [.. schemas.Select(s => s.Type)]));
+        command.Parameters.Add(new NpgsqlParameter<int[]>("versions", [.. schemas.Select(s => s.Version)]));
+        command.Parameters.Add(new NpgsqlParameter<string[]>("schemas", [.. schemas.Select(s => s.Canonical)]));
+        command.Parameters.Add(new NpgsqlParameter<string[]>("prints", [.. schemas.Select(s => s.Fingerprint)]));
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     async ValueTask<IReadOnlyList<Catalog.SchemaEntry>> ISchemaStore.ListAsync(CancellationToken cancellationToken)
     {
         await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);

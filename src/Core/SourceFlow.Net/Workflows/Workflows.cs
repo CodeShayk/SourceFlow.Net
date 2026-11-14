@@ -48,6 +48,10 @@ public readonly record struct WorkflowInstanceId : IStronglyTypedId<WorkflowInst
     /// <inheritdoc />
     public bool IsDefault => string.IsNullOrEmpty(Value);
 
+    /// <inheritdoc />
+    /// <remarks>Any non-empty value is valid: the stream segment is hex, so it never contains a dash.</remarks>
+    public bool IsValid => !IsDefault;
+
     /// <summary>The id of a correlation value.</summary>
     public static WorkflowInstanceId From(string value)
     {

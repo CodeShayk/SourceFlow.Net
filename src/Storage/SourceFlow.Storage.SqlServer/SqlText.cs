@@ -189,6 +189,12 @@ internal sealed class SqlText
              WHERE x.fingerprint <> i.f;
             """);
         ListSchemas = R("SELECT message_type, type_version, kind, json_schema FROM {s}.schemas WHERE tenant_id = N'-' ORDER BY message_type, type_version");
+        ReplaceSchemas = R("""
+            UPDATE x SET json_schema = u.j, fingerprint = u.f
+              FROM {s}.schemas x
+              JOIN OPENJSON(@rows) WITH (t nvarchar(200) COLLATE Latin1_General_100_BIN2 '$.t', v int '$.v', j nvarchar(max) '$.j', f nvarchar(200) COLLATE Latin1_General_100_BIN2 '$.f') u
+                ON x.tenant_id = N'-' AND x.message_type = u.t AND x.type_version = u.v;
+            """);
         DropCollection = R("DELETE FROM {s}.documents WHERE collection = @collection");
         ListAliases = R("SELECT alias, target, previous, building, switched_at FROM {s}.collection_aliases ORDER BY alias");
         ClaimAlias = R("""
@@ -378,6 +384,8 @@ internal sealed class SqlText
     public string NodeLeave { get; }
 
     public string RegisterSchemas { get; }
+
+    public string ReplaceSchemas { get; }
 
     public string ListSchemas { get; }
 

@@ -66,7 +66,7 @@ public sealed class PostgreSqlStoreTests(PostgreSqlServer server) : PostgreSqlTe
         var v1 = new SourceFlow.Catalog.SchemaEntry("t.e", 1, SourceFlow.Catalog.SchemaKind.Event,
             new System.Text.Json.Nodes.JsonObject { ["type"] = "object", ["title"] = "E" });
         var changed = new SourceFlow.Catalog.SchemaEntry("t.e", 1, SourceFlow.Catalog.SchemaKind.Event,
-            new System.Text.Json.Nodes.JsonObject { ["type"] = "object", ["title"] = "E2" });
+            new System.Text.Json.Nodes.JsonObject { ["type"] = "object", ["title"] = "E", ["required"] = new System.Text.Json.Nodes.JsonArray("id") });
         var v2 = new SourceFlow.Catalog.SchemaEntry("t.e", 2, SourceFlow.Catalog.SchemaKind.Event,
             new System.Text.Json.Nodes.JsonObject { ["type"] = "object" });
 
@@ -77,6 +77,25 @@ public sealed class PostgreSqlStoreTests(PostgreSqlServer server) : PostgreSqlTe
         conflict.ShouldBe(new SourceFlow.Catalog.SchemaConflict("t.e", 1, v1.Fingerprint, changed.Fingerprint));
         IReadOnlyList<SourceFlow.Catalog.SchemaEntry> listed = await ((ISchemaStore)store).ListAsync(Ct);
         listed.Select(e => (e.Type, e.Version, e.Fingerprint)).ShouldBe([("t.e", 1, v1.Fingerprint), ("t.e", 2, v2.Fingerprint)]);
+    }
+
+    [Fact]
+    [Trait("Id", "UT-CAT-22")]
+    [Trait("Covers", "ADR-029 2")]
+    public async Task AFingerprintFromTheEarlierRule_IsReplaced_WhenTheStructureIsUnchanged()
+    {
+        await using PostgreSqlStore store = await Server.CreateStoreAsync();
+        var v1 = new SourceFlow.Catalog.SchemaEntry("t.old", 1, SourceFlow.Catalog.SchemaKind.Event,
+            new System.Text.Json.Nodes.JsonObject { ["type"] = "object", ["title"] = "Old" });
+        (await store.RegisterAsync("svc", [v1], Ct)).ShouldBeEmpty();
+        await Server.ExecuteAsync($"UPDATE \"{store.Options.Schema}\".schemas SET fingerprint = 'sha256:earlier-rule' WHERE message_type = 't.old'");
+
+        SourceFlow.Catalog.SchemaConflict stale = (await store.RegisterAsync("svc", [v1], Ct)).ShouldHaveSingleItem();
+        stale.RegisteredFingerprint.ShouldBe("sha256:earlier-rule");
+        (await ((ISchemaStore)store).ListAsync(Ct)).Single(e => e.Type == "t.old").Fingerprint.ShouldBe(v1.Fingerprint, "recomputed from the stored schema, the structure is unchanged");
+        await store.ReplaceAsync([v1], Ct);
+
+        (await store.RegisterAsync("svc", [v1], Ct)).ShouldBeEmpty("re-registered once under the current rule");
     }
 
     [Fact]

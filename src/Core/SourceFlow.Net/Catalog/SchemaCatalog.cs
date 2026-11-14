@@ -45,7 +45,8 @@ public sealed class SchemaEntry
         Kind = kind;
         Schema = schema;
         Canonical = JsonSchemaGenerator.Canonical(schema);
-        Fingerprint = JsonSchemaGenerator.Fingerprint(Canonical);
+        Structure = JsonSchemaGenerator.Canonical(JsonSchemaGenerator.Structure(schema));
+        Fingerprint = JsonSchemaGenerator.Fingerprint(Structure);
     }
 
     /// <summary>The logical type name (message type, projection or process name).</summary>
@@ -60,10 +61,16 @@ public sealed class SchemaEntry
     /// <summary>The JSON Schema 2020-12 document.</summary>
     public JsonObject Schema { get; }
 
-    /// <summary>The canonical schema text (sorted keys, no whitespace).</summary>
+    /// <summary>The canonical schema text (sorted keys, no whitespace), annotations included.</summary>
     public string Canonical { get; }
 
-    /// <summary>The SHA-256 of <see cref="Canonical"/> (<c>sha256:…</c>). A published <c>(type, version)</c> never changes it.</summary>
+    /// <summary>The canonical text of the schema's structure: <see cref="Canonical"/> without the annotations (<see cref="JsonSchemaGenerator.Structure"/>).</summary>
+    public string Structure { get; }
+
+    /// <summary>
+    /// The SHA-256 of <see cref="Structure"/> (<c>sha256:…</c>). A published <c>(type, version)</c> never changes it; renaming
+    /// the CLR type or adding a later version does not either (ADR-029 §2).
+    /// </summary>
     public string Fingerprint { get; }
 
     /// <summary>The version this one upcasts to when read from storage, if any (events, doc 03 §2.1).</summary>

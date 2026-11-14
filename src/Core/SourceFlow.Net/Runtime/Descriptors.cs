@@ -83,6 +83,12 @@ internal sealed class AggregateDescriptor<TAggregate, TId> : AggregateDescriptor
             throw new InvalidCommandException(command.GetType(), $"The target {typeof(TId).Name} of {command.GetType().Name} is the default value (GAP-20).");
         }
 
+        // ADR-015 (CR-16): a malformed id is a malformed command, never a stream that can't be read back.
+        if (!id.IsValid)
+        {
+            throw new InvalidCommandException(command.GetType(), $"The target {typeof(TId).Name} '{id}' of {command.GetType().Name} is not a valid id.");
+        }
+
         return StreamId.For(TAggregate.AggregateName, id.ToStreamSegment());
     }
 }

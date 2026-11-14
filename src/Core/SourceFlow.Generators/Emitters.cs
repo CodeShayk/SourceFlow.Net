@@ -21,7 +21,15 @@ namespace SourceFlow.Generators
                 _ => "global::System.Guid",
             };
 
+            string backingName = model.Backing switch
+            {
+                IdBackingKind.String => "String",
+                IdBackingKind.Int64 => "Int64",
+                _ => "Guid",
+            };
             w.Open($"partial {model.Keyword} {self} : {Sf}IStronglyTypedId<{self}>, global::System.IComparable<{self}>, global::System.ISpanFormattable");
+            w.Line($"/// <summary>How the value is stored and written, from the type of <c>Value</c> (CR-30).</summary>");
+            w.Line($"public static {Sf}IdBacking Backing => {Sf}IdBacking.{backingName};");
             switch (model.Backing)
             {
                 case IdBackingKind.Guid:
@@ -30,6 +38,7 @@ namespace SourceFlow.Generators
                     w.Line($"/// <summary>Creates a new time-ordered (UUIDv7) id using <paramref name=\"time\"/>.</summary>");
                     w.Line($"public static {self} New(global::System.TimeProvider time) => new(global::System.Guid.CreateVersion7((time ?? throw new global::System.ArgumentNullException(nameof(time))).GetUtcNow()));");
                     w.Line("public bool IsDefault => Value == global::System.Guid.Empty;");
+                    w.Line($"bool {Sf}IStronglyTypedId.IsValid => Value != global::System.Guid.Empty;");
                     w.Line("public string ToStreamSegment() => Value.ToString(\"N\", global::System.Globalization.CultureInfo.InvariantCulture);");
                     w.Line("public override string ToString() => Value.ToString(\"D\", global::System.Globalization.CultureInfo.InvariantCulture);");
                     w.Open($"public static bool TryParse(string? value, out {self} id)");
@@ -41,10 +50,13 @@ namespace SourceFlow.Generators
                     break;
                 case IdBackingKind.Int64:
                     w.Line("public bool IsDefault => Value == 0;");
-                    w.Line("public string ToStreamSegment() => Value.ToString(global::System.Globalization.CultureInfo.InvariantCulture);");
+                    w.Line($"bool {Sf}IStronglyTypedId.IsValid => Value > 0;");
+                    w.Open("public string ToStreamSegment()");
+                    w.Line($"if (Value <= 0) throw new global::System.InvalidOperationException($\"{{Value}} is not a valid {self}: ids are positive.\");");
+                    w.Line("return Value.ToString(global::System.Globalization.CultureInfo.InvariantCulture);").Close();
                     w.Line("public override string ToString() => Value.ToString(global::System.Globalization.CultureInfo.InvariantCulture);");
                     w.Open($"public static bool TryParse(string? value, out {self} id)");
-                    w.Open("if (long.TryParse(value, global::System.Globalization.NumberStyles.AllowLeadingSign, global::System.Globalization.CultureInfo.InvariantCulture, out long number) && number != 0)");
+                    w.Open("if (long.TryParse(value, global::System.Globalization.NumberStyles.None, global::System.Globalization.CultureInfo.InvariantCulture, out long number) && number > 0)");
                     w.Line("id = new(number);").Line("return true;").Close();
                     w.Line("id = default;").Line("return false;").Close();
                     w.Line("public string ToString(string? format, global::System.IFormatProvider? formatProvider) => Value.ToString(format, formatProvider);");
@@ -54,8 +66,10 @@ namespace SourceFlow.Generators
                     w.Line($"/// <summary>The maximum length of the id value.</summary>");
                     w.Line($"public const int MaxLength = {model.MaxLength.ToString(CultureInfo.InvariantCulture)};");
                     w.Line("public bool IsDefault => string.IsNullOrEmpty(Value);");
+                    w.Line($"bool {Sf}IStronglyTypedId.IsValid => IsValid(Value);");
                     w.Open("public string ToStreamSegment()");
                     w.Line("if (IsDefault) throw new global::System.InvalidOperationException(\"The default id has no stream segment.\");");
+                    w.Line($"if (!IsValid(Value)) throw new global::System.InvalidOperationException($\"'{{Value}}' is not a valid {self}: at most {{MaxLength}} characters, with no dash, whitespace or control character.\");");
                     w.Line("return Value;").Close();
                     w.Line("public override string ToString() => Value ?? string.Empty;");
                     w.Open($"public static bool TryParse(string? value, out {self} id)");
@@ -80,18 +94,25 @@ namespace SourceFlow.Generators
             w.Line($"public int CompareTo({self} other) => {compare};");
             w.Line();
             w.Line($"/// <summary>Writes the id as a JSON scalar (GEN-19). Registered by the generated module.</summary>");
-            w.Open($"public sealed class SourceFlowJsonConverter : global::System.Text.Json.Serialization.JsonConverter<{self}>");
+            w.Open($"public sealed class SourceFlowJsonConverter : global::System.Text.Json.Serialization.JsonConverter<{self}>, {Sf}IStronglyTypedIdConverter");
+            w.Line($"public global::System.Type IdType => typeof({self});");
+            w.Line($"public {Sf}IdBacking Backing => {self}.Backing;");
             // Malformed ids are JsonException, like any other malformed JSON: the receive pipeline parks them as
             // DeserializationFailed (doc 10 §2), and no FormatException or InvalidOperationException escapes (WP-5.5 fuzzing).
             string read = model.Backing switch
             {
-                IdBackingKind.Int64 => "reader.TokenType == global::System.Text.Json.JsonTokenType.Number && reader.TryGetInt64(out long number) ? new(number) : FromJson(ref reader)",
+                IdBackingKind.Int64 => "reader.TokenType == global::System.Text.Json.JsonTokenType.Number && reader.TryGetInt64(out long number) && number >= 0 ? new(number) : FromJson(ref reader)",
                 IdBackingKind.String => "FromJson(ref reader)",
                 _ => "reader.TokenType == global::System.Text.Json.JsonTokenType.String && reader.TryGetGuid(out global::System.Guid guid) ? new(guid) : FromJson(ref reader)",
             };
-            string write = model.Backing == IdBackingKind.Int64 ? "writer.WriteNumberValue(value.Value);" : "writer.WriteStringValue(value.ToString());";
+            // An id that is neither the default (unset) nor valid is never written, so it can't be stored and read back as
+            // something else (CR-16).
+            string write = (model.Backing == IdBackingKind.Int64 ? "writer.WriteNumberValue(value.Value);" : "writer.WriteStringValue(value.ToString());");
+            string guard = model.Backing == IdBackingKind.Guid
+                ? string.Empty
+                : $"if (!value.IsDefault && !(({Sf}IStronglyTypedId)value).IsValid) throw new global::System.Text.Json.JsonException($\"'{{value}}' is not a valid {self}.\"); ";
             w.Line($"public override {self} Read(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options) => {read};");
-            w.Line($"public override void Write(global::System.Text.Json.Utf8JsonWriter writer, {self} value, global::System.Text.Json.JsonSerializerOptions options) => {write}");
+            w.Line($"public override void Write(global::System.Text.Json.Utf8JsonWriter writer, {self} value, global::System.Text.Json.JsonSerializerOptions options) {{ {guard}{write} }}");
             w.Line($"public override {self} ReadAsPropertyName(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options) => FromJson(ref reader);");
             w.Line($"public override void WriteAsPropertyName(global::System.Text.Json.Utf8JsonWriter writer, {self} value, global::System.Text.Json.JsonSerializerOptions options) => writer.WritePropertyName(value.ToString());");
             w.Open($"private static {self} FromJson(ref global::System.Text.Json.Utf8JsonReader reader)");

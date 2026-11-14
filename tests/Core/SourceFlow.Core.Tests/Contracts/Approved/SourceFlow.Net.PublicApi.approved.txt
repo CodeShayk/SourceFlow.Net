@@ -337,7 +337,13 @@ namespace SourceFlow
     public interface IStronglyTypedId
     {
         bool IsDefault { get; }
+        bool IsValid { get; }
         string ToStreamSegment();
+    }
+    public interface IStronglyTypedIdConverter
+    {
+        SourceFlow.IdBacking Backing { get; }
+        System.Type IdType { get; }
     }
     public interface IStronglyTypedId<TSelf> : SourceFlow.IStronglyTypedId
         where TSelf :  struct, SourceFlow.IStronglyTypedId<TSelf>
@@ -357,6 +363,10 @@ namespace SourceFlow
         Guid = 0,
         String = 1,
         Int64 = 2,
+    }
+    public static class IdBackings
+    {
+        public static SourceFlow.IdBacking Of(System.Type idType, System.Text.Json.JsonSerializerOptions options) { }
     }
     public readonly struct MessageId : System.IComparable<SourceFlow.MessageId>, System.IEquatable<SourceFlow.MessageId>
     {
@@ -561,6 +571,7 @@ namespace SourceFlow.Catalog
         public static string Canonical(System.Text.Json.Nodes.JsonNode node) { }
         public static string Fingerprint(string canonicalSchema) { }
         public static System.Text.Json.Nodes.JsonObject Generate(System.Text.Json.Serialization.Metadata.JsonTypeInfo info, System.Text.Json.JsonSerializerOptions options) { }
+        public static System.Text.Json.Nodes.JsonObject Structure(System.Text.Json.Nodes.JsonObject schema) { }
     }
     public sealed class SchemaCatalog
     {
@@ -595,6 +606,7 @@ namespace SourceFlow.Catalog
         public string Fingerprint { get; }
         public SourceFlow.Catalog.SchemaKind Kind { get; }
         public System.Text.Json.Nodes.JsonObject Schema { get; }
+        public string Structure { get; }
         public string Type { get; }
         public int? UpcastsTo { get; }
         public int Version { get; }
@@ -2739,6 +2751,7 @@ namespace SourceFlow.Storage
     {
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Catalog.SchemaEntry>> ListAsync(System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Catalog.SchemaConflict>> RegisterAsync(string service, System.Collections.Generic.IReadOnlyList<SourceFlow.Catalog.SchemaEntry> schemas, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask ReplaceAsync(System.Collections.Generic.IReadOnlyList<SourceFlow.Catalog.SchemaEntry> schemas, System.Threading.CancellationToken cancellationToken);
     }
     public interface ISnapshotStore
     {
@@ -3002,6 +3015,7 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask RecordSubjectStreamsAsync(string tenantId, string subjectId, System.Collections.Generic.IReadOnlyCollection<SourceFlow.StreamId> streams, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Catalog.SchemaConflict>> RegisterAsync(string service, System.Collections.Generic.IReadOnlyList<SourceFlow.Catalog.SchemaEntry> schemas, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask ReleaseAsync(SourceFlow.Storage.LeaseToken lease, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask ReplaceAsync(System.Collections.Generic.IReadOnlyList<SourceFlow.Catalog.SchemaEntry> schemas, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask RequestAsync(string alias, string currentTarget, string building, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask RetryAsync(SourceFlow.Storage.LeaseToken lease, long sequence, System.DateTimeOffset deliverAt, string error, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask SaveAsync(string tenantId, SourceFlow.Storage.Snapshot snapshot, System.Threading.CancellationToken cancellationToken) { }
@@ -3310,6 +3324,7 @@ namespace SourceFlow.Workflows
     {
         public WorkflowInstanceId(string value) { }
         public bool IsDefault { get; }
+        public bool IsValid { get; }
         public string Value { get; }
         public string ToStreamSegment() { }
         public override string ToString() { }

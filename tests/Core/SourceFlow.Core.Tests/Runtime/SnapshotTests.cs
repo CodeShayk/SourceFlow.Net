@@ -63,6 +63,9 @@ public sealed partial class CoreTestModule;
 [JsonSerializable(typeof(SourceFlow.Core.Tests.Security.PatientRegistered))]
 [JsonSerializable(typeof(SourceFlow.Core.Tests.Security.PatientRenamed))]
 [JsonSerializable(typeof(SourceFlow.Core.Tests.Security.Patient))]
+[JsonSerializable(typeof(TagIt))]
+[JsonSerializable(typeof(Tagged))]
+[JsonSerializable(typeof(Tag))]
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 public sealed partial class CoreTestJsonContext : JsonSerializerContext;
 

@@ -10,7 +10,7 @@ using SourceFlow.Testing;
 
 namespace SourceFlow.Core.Tests.Catalog;
 
-/// <summary>UT-CAT-01..18 (plan 05 §3.8, WP-1.12): the schema catalog, registration, compatibility and AsyncAPI export.</summary>
+/// <summary>UT-CAT-01..20 (plan 05 §3.8, WP-1.12; UT-CAT-19..20 WP-C.8): the schema catalog, registration, compatibility and AsyncAPI export.</summary>
 [Trait("Category", "Unit")]
 public sealed class SchemaCatalogTests
 {
@@ -156,6 +156,42 @@ public sealed class SchemaCatalogTests
     public void SFC02_AddingARequiredField_IsBreaking()
     {
         Finding(Event("a:string!"), Event("a:string!", "b:string!")).ShouldBe(("SFC02", CompatibilitySeverity.Breaking, "b"));
+    }
+
+    [Fact]
+    [Trait("Id", "UT-CAT-19")]
+    [Trait("Covers", "ADR-005;ADR-029 2")]
+    public void RenamingTheClrType_KeepsTheFingerprint_AStructuralChangeDoesNot()
+    {
+        SchemaEntry opened = Catalog().Entries.Single(e => e.Type == "bank.account.opened");
+        JsonObject renamed = opened.Schema.DeepClone().AsObject();
+        renamed["title"] = "AccountWasOpened";   // the CLR type renamed; the wire contract is the same
+        JsonObject changed = opened.Schema.DeepClone().AsObject();
+        changed["properties"]!.AsObject()["branch"] = new JsonObject { ["type"] = "string" };
+
+        var afterRename = new SchemaEntry(opened.Type, opened.Version, opened.Kind, renamed);
+        var afterChange = new SchemaEntry(opened.Type, opened.Version, opened.Kind, changed);
+
+        afterRename.Fingerprint.ShouldBe(opened.Fingerprint, "the title is an annotation, not structure");
+        afterRename.Canonical.ShouldNotBe(opened.Canonical, "the canonical text still carries the title");
+        afterChange.Fingerprint.ShouldNotBe(opened.Fingerprint, "a new property is structure");
+    }
+
+    [Fact]
+    [Trait("Id", "UT-CAT-20")]
+    [Trait("Covers", "doc 03 2.1;ADR-029 2")]
+    public void AddingAVersionWithAnUpcaster_KeepsThePreviousFingerprint()
+    {
+        SchemaEntry v1 = Catalog().Entries.Single(e => e.Type == "bank.account.opened");
+        JsonObject upcast = v1.Schema.DeepClone().AsObject();
+        upcast["x-sourceflow"]!["upcastsTo"] = 2;   // what the catalog adds to v1 once v2 and its upcaster exist
+        JsonObject enumRenamed = JsonNode.Parse("""{"type":"object","properties":{"status":{"type":"string","x-sourceflow-enum":"Status"}}}""")!.AsObject();
+        JsonObject enumRenamedAgain = JsonNode.Parse("""{"type":"object","properties":{"status":{"type":"string","x-sourceflow-enum":"AccountStatus"}}}""")!.AsObject();
+
+        new SchemaEntry(v1.Type, v1.Version, v1.Kind, upcast).Fingerprint.ShouldBe(v1.Fingerprint);
+        new SchemaEntry(v1.Type, v1.Version, v1.Kind, upcast).UpcastsTo.ShouldBe(2);
+        new SchemaEntry("t", 1, SchemaKind.Event, enumRenamed).Fingerprint
+            .ShouldBe(new SchemaEntry("t", 1, SchemaKind.Event, enumRenamedAgain).Fingerprint, "an enum's CLR name is an annotation");
     }
 
     [Fact]

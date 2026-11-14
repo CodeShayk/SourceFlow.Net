@@ -192,7 +192,13 @@ public sealed class QueryCatalog
     private static (QueryType Type, IReadOnlyList<QueryField> Fields, QueryField? Element) Describe(Type clr, JsonSerializerOptions options, int depth)
     {
         Type type = Nullable.GetUnderlyingType(clr) ?? clr;
-        if (type == typeof(string) || typeof(IStronglyTypedId).IsAssignableFrom(type) || type == typeof(char))
+        if (typeof(IStronglyTypedId).IsAssignableFrom(type))
+        {
+            // As the schema catalog: what the converter writes (CR-30). An Int64 id is a JSON number.
+            return (IdBackings.Of(type, options) == IdBacking.Int64 ? QueryType.Integer : QueryType.String, [], null);
+        }
+
+        if (type == typeof(string) || type == typeof(char))
         {
             return (QueryType.String, [], null);
         }

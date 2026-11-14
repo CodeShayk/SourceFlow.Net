@@ -97,6 +97,13 @@ public readonly record struct StreamId
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(aggregateName);
         ArgumentException.ThrowIfNullOrWhiteSpace(segment);
+
+        // The key is the text after the last dash (AggregateKey), so a dash in the segment would make it unreadable (ADR-015).
+        if (segment.Contains('-', StringComparison.Ordinal))
+        {
+            throw new ArgumentException($"The id segment '{segment}' contains a dash; a stream id is {{aggregate}}-{{id}} with no dash in the id (ADR-015).", nameof(segment));
+        }
+
         return new StreamId(aggregateName + "-" + segment);
     }
 

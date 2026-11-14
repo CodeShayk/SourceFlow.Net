@@ -441,6 +441,24 @@ public sealed class InMemoryStore :
     }
 
     /// <inheritdoc />
+    public ValueTask ReplaceAsync(IReadOnlyList<Catalog.SchemaEntry> schemas, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(schemas);
+        lock (_gate)
+        {
+            foreach (Catalog.SchemaEntry schema in schemas)
+            {
+                if (_schemas.ContainsKey((schema.Type, schema.Version)))
+                {
+                    _schemas[(schema.Type, schema.Version)] = schema;
+                }
+            }
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    /// <inheritdoc />
     ValueTask<IReadOnlyList<Catalog.SchemaEntry>> ISchemaStore.ListAsync(CancellationToken cancellationToken)
     {
         lock (_gate)

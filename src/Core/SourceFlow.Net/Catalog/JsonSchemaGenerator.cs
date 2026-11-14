@@ -42,6 +42,48 @@ public static class JsonSchemaGenerator
         return Encoding.UTF8.GetString(buffer.WrittenSpan);
     }
 
+    /// <summary>
+    /// The structure of a schema, which is what its fingerprint covers (ADR-029 §2, CR-17): a copy without the annotations
+    /// that don't change what is on the wire. Those are the root <c>title</c> (the CLR type name), <c>x-sourceflow-enum</c>
+    /// (an enum's CLR name) and <c>x-sourceflow.upcastsTo</c> (set when a later version is added). Renaming a CLR type or
+    /// adding a version with an upcaster therefore keeps a published fingerprint (ADR-005, doc 03 §2.1).
+    /// </summary>
+    public static JsonObject Structure(JsonObject schema)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        var copy = (JsonObject)schema.DeepClone();
+        copy.Remove("title");
+        if (copy["x-sourceflow"] is JsonObject sourceflow)
+        {
+            sourceflow.Remove("upcastsTo");
+        }
+
+        RemoveEnumNames(copy);
+        return copy;
+
+        static void RemoveEnumNames(JsonNode? node)
+        {
+            switch (node)
+            {
+                case JsonObject obj:
+                    obj.Remove("x-sourceflow-enum");
+                    foreach (KeyValuePair<string, JsonNode?> property in obj)
+                    {
+                        RemoveEnumNames(property.Value);
+                    }
+
+                    break;
+                case JsonArray array:
+                    foreach (JsonNode? item in array)
+                    {
+                        RemoveEnumNames(item);
+                    }
+
+                    break;
+            }
+        }
+    }
+
     /// <summary>The SHA-256 fingerprint of a canonical schema text, as <c>sha256:{hex}</c>.</summary>
     public static string Fingerprint(string canonicalSchema)
     {
@@ -64,7 +106,7 @@ public static class JsonSchemaGenerator
 
         if (typeof(IStronglyTypedId).IsAssignableFrom(type))
         {
-            IdBacking backing = type.GetCustomAttribute<StronglyTypedIdAttribute>()?.Backing ?? IdBacking.Guid;
+            IdBacking backing = IdBackings.Of(type, options);   // what the converter writes (CR-30)
             return backing switch
             {
                 IdBacking.Int64 => new JsonObject { ["type"] = "integer", ["format"] = "int64" },

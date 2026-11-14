@@ -8,11 +8,14 @@ namespace Bank.Accounts
 {
     partial record struct AccountId : global::SourceFlow.IStronglyTypedId<AccountId>, global::System.IComparable<AccountId>, global::System.ISpanFormattable
     {
+        /// <summary>How the value is stored and written, from the type of <c>Value</c> (CR-30).</summary>
+        public static global::SourceFlow.IdBacking Backing => global::SourceFlow.IdBacking.Guid;
         /// <summary>Creates a new time-ordered (UUIDv7) id.</summary>
         public static AccountId New() => new(global::System.Guid.CreateVersion7());
         /// <summary>Creates a new time-ordered (UUIDv7) id using <paramref name="time"/>.</summary>
         public static AccountId New(global::System.TimeProvider time) => new(global::System.Guid.CreateVersion7((time ?? throw new global::System.ArgumentNullException(nameof(time))).GetUtcNow()));
         public bool IsDefault => Value == global::System.Guid.Empty;
+        bool global::SourceFlow.IStronglyTypedId.IsValid => Value != global::System.Guid.Empty;
         public string ToStreamSegment() => Value.ToString("N", global::System.Globalization.CultureInfo.InvariantCulture);
         public override string ToString() => Value.ToString("D", global::System.Globalization.CultureInfo.InvariantCulture);
         public static bool TryParse(string? value, out AccountId id)
@@ -31,10 +34,12 @@ namespace Bank.Accounts
         public int CompareTo(AccountId other) => Value.CompareTo(other.Value);
 
         /// <summary>Writes the id as a JSON scalar (GEN-19). Registered by the generated module.</summary>
-        public sealed class SourceFlowJsonConverter : global::System.Text.Json.Serialization.JsonConverter<AccountId>
+        public sealed class SourceFlowJsonConverter : global::System.Text.Json.Serialization.JsonConverter<AccountId>, global::SourceFlow.IStronglyTypedIdConverter
         {
+            public global::System.Type IdType => typeof(AccountId);
+            public global::SourceFlow.IdBacking Backing => AccountId.Backing;
             public override AccountId Read(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options) => reader.TokenType == global::System.Text.Json.JsonTokenType.String && reader.TryGetGuid(out global::System.Guid guid) ? new(guid) : FromJson(ref reader);
-            public override void Write(global::System.Text.Json.Utf8JsonWriter writer, AccountId value, global::System.Text.Json.JsonSerializerOptions options) => writer.WriteStringValue(value.ToString());
+            public override void Write(global::System.Text.Json.Utf8JsonWriter writer, AccountId value, global::System.Text.Json.JsonSerializerOptions options) { writer.WriteStringValue(value.ToString()); }
             public override AccountId ReadAsPropertyName(ref global::System.Text.Json.Utf8JsonReader reader, global::System.Type typeToConvert, global::System.Text.Json.JsonSerializerOptions options) => FromJson(ref reader);
             public override void WriteAsPropertyName(global::System.Text.Json.Utf8JsonWriter writer, AccountId value, global::System.Text.Json.JsonSerializerOptions options) => writer.WritePropertyName(value.ToString());
             private static AccountId FromJson(ref global::System.Text.Json.Utf8JsonReader reader)

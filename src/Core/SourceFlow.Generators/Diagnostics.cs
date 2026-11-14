@@ -82,6 +82,11 @@ namespace SourceFlow.Generators
             "{0}",
             "SourceFlow.Workflows", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: "https://github.com/CodeShayk/SourceFlow.Net/blob/v3.0.0/docs/v3.0.0/Design/15-Workflow-DSL-and-Studio.md#55-code-generation-wfd-29");
 
+        public static readonly DiagnosticDescriptor IdBackingMismatch = new(
+            "SF0022", "Id backing disagrees with its value",
+            "'{0}' declares Backing = {1}, but its Value is {2}; the value's type decides how the id is stored (CR-30)",
+            "SourceFlow.Ids", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpBase);
+
         public static readonly DiagnosticDescriptor NoOwner = new(
             "SF0006", "Command has no Decide or handler",
             "Command '{0}' targets '{1}' but has no Decide method and no ICommandHandler in this compilation; add one or route it (startup fails otherwise)",

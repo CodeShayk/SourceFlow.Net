@@ -480,6 +480,22 @@ public sealed class AnalyzerTests
     }
 
     [Fact]
+    [Trait("Id", "GEN-68")]
+    [Trait("Covers", "ADR-029 2")]
+    public void IdBacking_ThatDisagreesWithValue_IsAnError()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze("""
+            [StronglyTypedId(Backing = IdBacking.String)] public readonly partial record struct Wrong(long Value);
+            [StronglyTypedId(Backing = IdBacking.Int64)] public readonly partial record struct Right(long Value);
+            [StronglyTypedId] public readonly partial record struct Implied(long Value);
+            """);
+
+        Diagnostic error = diagnostics.Where(d => d.Id == "SF0022").ShouldHaveSingleItem();
+        error.Severity.ShouldBe(DiagnosticSeverity.Error);
+        error.GetMessage().ShouldContain("'Wrong' declares Backing = String");
+    }
+
+    [Fact]
     public void BankSample_HasNoDiagnostics()
     {
         Analyze(Id).ShouldBeEmpty();

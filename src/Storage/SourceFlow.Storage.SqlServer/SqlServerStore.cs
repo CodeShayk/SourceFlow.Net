@@ -301,6 +301,27 @@ public sealed partial class SqlServerStore :
     }
 
     /// <inheritdoc />
+    public async ValueTask ReplaceAsync(IReadOnlyList<Catalog.SchemaEntry> schemas, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(schemas);
+        if (schemas.Count == 0)
+        {
+            return;
+        }
+
+        string rows = Rows.Write(schemas, static (w, s) =>
+        {
+            w.WriteString("t", s.Type);
+            w.WriteNumber("v", s.Version);
+            w.WriteString("j", s.Canonical);
+            w.WriteString("f", s.Fingerprint);
+        });
+        await using SqlConnection connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using SqlCommand command = Command(Sql.ReplaceSchemas, connection, null, MaxText("@rows", rows));
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     async ValueTask<IReadOnlyList<Catalog.SchemaEntry>> ISchemaStore.ListAsync(CancellationToken cancellationToken)
     {
         await using SqlConnection connection = await OpenAsync(cancellationToken).ConfigureAwait(false);

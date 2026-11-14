@@ -43,6 +43,13 @@ internal sealed class CommandSender(SourceFlowRuntime runtime, CommandProcessor 
 
         if (runtime.Model.CommandOwners.ContainsKey(type))
         {
+            // ADR-015 (CR-16): a malformed target id is an invalid command, rejected as the processor would, before the id
+            // reaches the serializer (which refuses to write it).
+            if (runtime.InvalidTargetOf(command) is { } invalid)
+            {
+                return new CommandResult(CommandStatus.Rejected, StreamVersion.None, Error.InvalidCommand(invalid), ConsistencyToken.None);
+            }
+
             MessageEnvelope envelope = runtime.CreateEnvelope(command, messageId: id, correlation: options.CorrelationId,
                 subject: runtime.TrySubjectOf(command), headers: options.Headers);
             await using AsyncServiceScope scope = scopes.CreateAsyncScope();
