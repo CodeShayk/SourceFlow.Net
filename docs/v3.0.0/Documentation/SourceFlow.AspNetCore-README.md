@@ -228,6 +228,20 @@ How permissions apply to a domain query: the query is a published contract, so i
 only when the caller holds `sourceflow.query.pii`. Access to the endpoint itself is decided by the authorization policy
 you attach to the group. Rate and concurrency limits apply as for the query API.
 
+A domain query can also name its own policy, which the caller must satisfy as well as the group's:
+
+```csharp
+[DomainQuery("accounts.statement-holders", 1, Policy = "accounts-statements")]
+public sealed partial record StatementHolders : IDomainQuery<StatementHolder> { … }
+
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("sourceflow-query", p => p.RequireAuthenticatedUser())
+    .AddPolicy("accounts-statements", p => p.RequireClaim("scope", "accounts.statements"));
+```
+
+A caller without it doesn't see the query in `GET /queries`, and gets `403` (`SFQ0501`) when it runs it. A policy name
+that isn't registered fails startup (`SFQ0504`), unless you use a custom `IAuthorizationPolicyProvider`.
+
 In process, run the same contract with `IQueryService.ExecuteAsync(new BookingsByStatus(Status: 1))`.
 
 ## The per-service query API

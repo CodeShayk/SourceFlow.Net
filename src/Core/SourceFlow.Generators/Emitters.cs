@@ -308,6 +308,11 @@ namespace SourceFlow.Generators
             w.Line($"private static readonly string[] __sourceFlowResultColumns = [{string.Join(", ", model.Results.Select(r => Literal.Of(r.Name)))}];");
             w.Line($"static string {contract}.QueryName => {Literal.Of(model.QueryName)};");
             w.Line($"static int {contract}.QueryVersion => {model.Version.ToString(CultureInfo.InvariantCulture)};");
+            if (model.Policy is { } policy)
+            {
+                w.Line($"static string? {contract}.QueryPolicy => {Literal.Of(policy)};");
+            }
+
             w.Line($"static string {contract}.QueryText => {model.TextMember};");
             w.Line($"static bool {contract}.IsSql => {(model.IsSql ? "true" : "false")};");
             w.Line($"static global::System.Collections.Generic.IReadOnlyList<{Sf}DomainQueryParameter> {contract}.QueryParameters => __sourceFlowParameters;");

@@ -280,7 +280,8 @@ public sealed class QueryServiceTests : IAsyncLifetime
     {
         var sql = new QueryOptions { Language = QueryLanguage.Sql };
         QueryPage inQuery = await Queries.QueryPageAsync(
-            "SELECT holder FROM readmodel.\"account-summary\" WHERE id IN (SELECT aggregatekey FROM events.\"bank.account.withdrawn\")",
+            // The subquery's events source is under the cost guard like any other (WP-C.1): typed and time-bounded.
+            "SELECT holder FROM readmodel.\"account-summary\" WHERE id IN (SELECT aggregatekey FROM events.\"bank.account.withdrawn\" WHERE time >= ago(7d))",
             options: sql,
             cancellationToken: Ct);
         QueryPage notExists = await Queries.QueryPageAsync(

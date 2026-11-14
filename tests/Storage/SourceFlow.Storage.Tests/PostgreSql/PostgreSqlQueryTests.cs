@@ -126,7 +126,7 @@ public sealed class PostgreSqlQueryTests(PostgreSqlServer server) : PostgreSqlTe
         var sql = new QueryOptions { Language = QueryLanguage.Sql };
         string[] queries =
         [
-            "SELECT holder FROM readmodel.\"account-summary\" WHERE id IN (SELECT aggregatekey FROM events.\"bank.account.withdrawn\") ORDER BY holder",
+            "SELECT holder FROM readmodel.\"account-summary\" WHERE id IN (SELECT aggregatekey FROM events.\"bank.account.withdrawn\" WHERE time >= ago(7d)) ORDER BY holder",
             "SELECT a.holder FROM readmodel.\"account-summary\" a WHERE NOT EXISTS (SELECT 1 FROM events.\"bank.account.deposited\" e WHERE e.aggregatekey = a.id) ORDER BY a.holder",
             "SELECT DISTINCT status FROM readmodel.\"account-summary\" ORDER BY status",
             "SELECT status, COUNT(*) AS n, SUM(balance) AS total FROM readmodel.\"account-summary\" GROUP BY status HAVING SUM(balance) > 100 ORDER BY total DESC",

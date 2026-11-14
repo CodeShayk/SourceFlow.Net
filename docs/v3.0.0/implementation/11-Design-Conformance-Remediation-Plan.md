@@ -84,6 +84,7 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
   - UT-QL-99: a subquery that filters on personal data is refused.
   - QRY-61: the same three cases through the HTTP API on PostgreSQL.
   - UT-ASP-41: a named query with its own policy refuses a caller who passes only the group policy.
+  - GEN-78: the generator emits the policy only when `Policy` is set.
 - **Acceptance:** none of the three subquery forms (`EXISTS`, `IN`, scalar) reaches the engine without the source
   permission.
 

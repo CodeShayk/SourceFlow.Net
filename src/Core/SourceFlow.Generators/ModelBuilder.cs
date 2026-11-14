@@ -268,9 +268,10 @@ namespace SourceFlow.Generators
                 results.Add(new QueryResultModel(parameter.Name, Converter(parameter.Type)));
             }
 
+            string? policy = attribute.NamedArguments.FirstOrDefault(a => a.Key == "Policy").Value.Value as string;
             return new DomainQueryModel(
                 type.Namespace(), type.Name, type.FullName(), type.Keyword(), queryName, version, result.FullName(), text.Name, text.Name == "Sql",
-                parameters.ToEquatableArray(), results.ToEquatableArray());
+                parameters.ToEquatableArray(), results.ToEquatableArray(), string.IsNullOrWhiteSpace(policy) ? null : policy);
         }
 
         // The DomainQueryValues call that converts a column value to a result member's type; {0} is the value expression.

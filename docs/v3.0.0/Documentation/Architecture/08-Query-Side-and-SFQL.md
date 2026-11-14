@@ -351,7 +351,8 @@ Checking happens in two stages:
 Run it in process with `await queries.ExecuteAsync(new LowBalanceAccounts(Below: 100m))` (all pages, typed rows), or over
 HTTP with `GET /queries/accounts.low-balance/v1?below=100` after `app.MapDomainQueries()`. Over HTTP a domain query runs
 with the read permissions whatever the caller holds (it is a contract), and still shows personal data only to a caller
-with `sourceflow.query.pii`. A service that runs DSL workflows also gets a generated `<service>.workflow-instances` v1
+with `sourceflow.query.pii`. `[DomainQuery(…, Policy = "name")]` adds an authorization policy for that query on top of
+the group's: callers without it don't see it in `GET /queries` and get `403` when they run it. A service that runs DSL workflows also gets a generated `<service>.workflow-instances` v1
 domain query.
 
 ## Typed builder and temporal reads
@@ -593,7 +594,6 @@ Design doc 14 is the specification; these are the places where 3.0 differs from 
 | Optional `EXPLAIN` cost ceiling (SFQ0407) | Not built. |
 | `sourceflow.query.*` span and metrics, slow-query log, `LogQueryParameters` | Not built. |
 | Consistency timeout as HTTP 503 | HTTP 504. |
-| Per-query authorization policy for domain queries | One policy on the `MapDomainQueries()` group. |
 | `language = 'sfql/2'` option | No `language` option; the API's `language` field selects `sql` or the pipeline syntax. |
 
 ## Links

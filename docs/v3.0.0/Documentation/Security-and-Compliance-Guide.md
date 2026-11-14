@@ -611,7 +611,10 @@ differently. In-process calls through `IQueryService` use `QueryPermissions.Serv
 | `Validate` | `sourceflow.query.validate` | `/query/validate` |
 | `Explain` | `sourceflow.query.explain` | `/query/explain` (shows the physical schema: operators only) |
 
-A missing permission is SFQ0501.
+A missing permission is SFQ0501. Subqueries (`IN (SELECT …)`, `EXISTS (SELECT …)`) are checked like the query they sit
+in: each source needs its permission, an events source is under the cost guard, and a personal-data field can't be a key
+inside them either. A named domain query can add its own authorization policy with `[DomainQuery(…, Policy = "name")]`
+(see the [AspNetCore README](SourceFlow.AspNetCore-README.md)).
 
 ### 11.3 Personal data in results
 

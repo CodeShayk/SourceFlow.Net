@@ -149,7 +149,7 @@ GA, P2 for Studio 1.0.
 
 | WP | Title | Priority | Estimate (ew) | Status | Findings |
 |----|-------|----------|---------------|--------|----------|
-| WP-C.1 | Query policy covers subqueries | P0 | 1 | planned | CR-01, CR-25 |
+| WP-C.1 | Query policy covers subqueries | P0 | 1 | done | CR-01, CR-25. Every `IN`/`EXISTS` subquery is policy-checked like its outer query (permissions, cost guard, personal-data keys); a subquery on events correlated by an indexed key to a non-events outer source counts as bounded, like a join (G-7, G-8, G-12). `[DomainQuery(…, Policy = "…")]` (generated `QueryPolicy`, `DomainQueryDescriptor.Policy`): the query API hides the query from callers without the policy and refuses it with 403/SFQ0501; an unregistered policy name fails startup (SFQ0504). UT-QL-56 and QRY-19 now bound their subquery scans. Tests: UT-QL-97..99, QRY-61, UT-ASP-41, GEN-78 |
 | WP-C.2 | Row-level security on every tenant table | P0 | 1 | planned | CR-02, CR-03, CR-26, CR-49 |
 | WP-C.3 | Personal data: discovery, erasure and audit | P0 | 2 | planned | CR-04, CR-05, CR-27, CR-55 |
 | WP-C.4 | API and Studio host hardening | P0 | 1 | planned | CR-06, CR-36, CR-37, CR-38, CR-48 |

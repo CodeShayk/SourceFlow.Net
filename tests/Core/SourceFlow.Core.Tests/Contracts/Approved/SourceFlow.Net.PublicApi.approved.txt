@@ -103,6 +103,7 @@ namespace SourceFlow
     {
         public DomainQueryAttribute(string name, int version = 1) { }
         public string Name { get; }
+        public string? Policy { get; set; }
         public int Version { get; }
     }
     public sealed class DomainQueryParameter : System.IEquatable<SourceFlow.DomainQueryParameter>
@@ -247,6 +248,7 @@ namespace SourceFlow
         bool IsSql { get; }
         string QueryName { get; }
         System.Collections.Generic.IReadOnlyList<SourceFlow.DomainQueryParameter> QueryParameters { get; }
+        string? QueryPolicy { get; }
         string QueryText { get; }
         int QueryVersion { get; }
         System.Collections.Generic.IReadOnlyList<string> ResultColumns { get; }
@@ -1462,6 +1464,7 @@ namespace SourceFlow.Query
         public abstract SourceFlow.Query.QueryLanguage Language { get; }
         public abstract string Name { get; }
         public abstract System.Collections.Generic.IReadOnlyList<SourceFlow.DomainQueryParameter> Parameters { get; }
+        public abstract string? Policy { get; }
         public abstract System.Type QueryType { get; }
         public abstract System.Collections.Generic.IReadOnlyList<string> ResultColumns { get; }
         public abstract System.Type ResultType { get; }

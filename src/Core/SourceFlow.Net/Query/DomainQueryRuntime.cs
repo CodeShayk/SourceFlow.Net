@@ -13,6 +13,9 @@ public abstract class DomainQueryDescriptor
     /// <summary>The contract version.</summary>
     public abstract int Version { get; }
 
+    /// <summary>The authorization policy of the query API endpoint, from <see cref="DomainQueryAttribute.Policy"/>; null for none.</summary>
+    public abstract string? Policy { get; }
+
     /// <summary>The query text.</summary>
     public abstract string Text { get; }
 
@@ -41,6 +44,8 @@ internal sealed class DomainQueryDescriptor<TQuery, TResult> : DomainQueryDescri
     public override string Name => TQuery.QueryName;
 
     public override int Version => TQuery.QueryVersion;
+
+    public override string? Policy => TQuery.QueryPolicy;
 
     public override string Text => TQuery.QueryText;
 

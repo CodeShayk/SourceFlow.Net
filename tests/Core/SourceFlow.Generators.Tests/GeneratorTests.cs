@@ -273,6 +273,33 @@ public sealed class GeneratorTests
     }
 
     [Fact]
+    [Trait("Id", "GEN-78")]
+    [Trait("Covers", "Q-B4")]
+    public void DomainQuery_Policy_IsEmittedOnlyWhenDeclared()
+    {
+        GeneratorRun run = GeneratorHarness.Run(Sources.Usings + """
+            namespace Q;
+            public sealed record Row(string Id, decimal Balance);
+
+            [DomainQuery("t.guarded", 1, Policy = "statements")]
+            public sealed partial record Guarded(decimal Below) : IDomainQuery<Row>
+            {
+                public const string Sfql = "from readmodel \"r\" | where balance < @below";
+            }
+
+            [DomainQuery("t.open", 1)]
+            public sealed partial record Open(decimal Below) : IDomainQuery<Row>
+            {
+                public const string Sfql = "from readmodel \"r\" | where balance < @below";
+            }
+            """);
+
+        run.Source("Q.Guarded.DomainQuery.g.cs").ShouldContain("QueryPolicy => \"statements\";");
+        run.Source("Q.Open.DomainQuery.g.cs").ShouldNotContain("QueryPolicy");
+        run.CompilationErrors().ShouldBeEmpty();
+    }
+
+    [Fact]
     [Trait("Id", "GEN-37")]
     public void GeneratedSources_CompileWithWarningsAsErrors()
     {

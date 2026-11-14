@@ -107,21 +107,72 @@ public static class SfqlPolicy
     }
 }
 
-internal sealed class PolicyChecker(BoundQuery query, QueryPermissions permissions, IReadOnlyDictionary<string, object?> parameters, QueryPolicySettings settings, DiagnosticBag diagnostics)
+// A subquery is checked like the query it sits in (doc 14 §8, G-12): its sources need their permissions, an events
+// source is under the cost guard, and personal data can't be a key. Options (allow_scan, tenants) are the outer query's.
+internal sealed class PolicyChecker(BoundQuery query, QueryPermissions permissions, IReadOnlyDictionary<string, object?> parameters, QueryPolicySettings settings, DiagnosticBag diagnostics, BoundQuery? outer = null)
 {
+    private BoundOptions Options => (outer ?? query).Options;
+
     public void Run()
+    {
+        int before = diagnostics.Items.Count;
+        RunOwn();
+        if (diagnostics.Items.Count > before)
+        {
+            return;
+        }
+
+        foreach (QueryAst subquery in Subqueries(query.Ast))
+        {
+            new PolicyChecker(query.Subquery(subquery), permissions, parameters, settings, diagnostics, outer ?? query).Run();
+            if (diagnostics.Items.Count > before)
+            {
+                return;
+            }
+        }
+    }
+
+    private static IEnumerable<QueryAst> Subqueries(QueryAst ast)
+    {
+        var found = new List<QueryAst>();
+        void Walk(Expr? e)
+        {
+            switch (e)
+            {
+                case null:
+                    return;
+                case InSubqueryExpr s:
+                    found.Add(s.Subquery);
+                    break;
+                case ExistsSubqueryExpr s:
+                    found.Add(s.Subquery);
+                    break;
+            }
+
+            foreach (Expr child in Binder.Children(e))
+            {
+                Walk(child);
+            }
+        }
+
+        Walk(ast.Where);
+        Walk(ast.Having);
+        return found;
+    }
+
+    private void RunOwn()
     {
         if (!Permissions() || !PersonalData())
         {
             return;
         }
 
-        bool scan = query.Options.AllowScan && permissions.Has(QueryPermission.Scan);
+        bool scan = Options.AllowScan && permissions.Has(QueryPermission.Scan);
         IReadOnlyList<Expr> conjuncts = Conjuncts(query.Ast.Where);
         var bounded = new Dictionary<int, bool>();
         foreach (BoundSource source in query.Sources.Where(s => s.Kind == SourceKind.Events))
         {
-            bounded[source.Index] = IsBounded(source, conjuncts) || JoinBounded(source);
+            bounded[source.Index] = IsBounded(source, conjuncts) || JoinBounded(source) || CorrelationBounded(source, conjuncts);
         }
 
         // G-8 first: a join of two event sources reports the join, not the scan.
@@ -196,6 +247,11 @@ internal sealed class PolicyChecker(BoundQuery query, QueryPermissions permissio
                 Add(QueryCodes.PermissionDenied, $"Permission '{required}' is required.", source.Syntax.Span);
                 return false;
             }
+        }
+
+        if (outer is not null)
+        {
+            return true;   // the options were checked on the outer query
         }
 
         if (query.Options.AllowScan && !permissions.Has(QueryPermission.Scan))
@@ -342,6 +398,25 @@ internal sealed class PolicyChecker(BoundQuery query, QueryPermissions permissio
         return join.On.Any(e => (query.Column(e.Left).Source == source.Index && query.Column(e.Left).Queryable)
             || (query.Column(e.Right).Source == source.Index && query.Column(e.Right).Queryable))
             && query.Sources[0].Kind != SourceKind.Events;
+    }
+
+    // A subquery's events source correlated to the outer query by an indexed key is a lookup, like a joined events
+    // source (G-7, G-12): bounded by the outer rows, unless the outer source is itself events (G-8: each needs a bound).
+    private bool CorrelationBounded(BoundSource source, IReadOnlyList<Expr> conjuncts)
+    {
+        if (outer is null)
+        {
+            return false;
+        }
+
+        return conjuncts.Any(c => c is BinaryExpr { Operator: BinaryOperator.Equal } eq
+            && ((IsKey(source, eq.Left) && IsOuterLookup(eq.Right)) || (IsKey(source, eq.Right) && IsOuterLookup(eq.Left))));
+
+        bool IsOuterLookup(Expr expr)
+        {
+            return query.TryGetColumn(expr, out BoundColumn? column) && column.OuterDepth == 1
+                && column.Source < outer.Sources.Count && outer.Sources[column.Source].Kind != SourceKind.Events;
+        }
     }
 
     private bool KeyEquality(BoundSource source, Expr key, Expr value)

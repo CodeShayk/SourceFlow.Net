@@ -111,7 +111,8 @@ namespace SourceFlow.Generators
         string TextMember,
         bool IsSql,
         EquatableArray<QueryParameterModel> Parameters,
-        EquatableArray<QueryResultModel> Results);
+        EquatableArray<QueryResultModel> Results,
+        string? Policy);
 
     internal sealed record QueryParameterModel(string Member, string Name, string Type);
 

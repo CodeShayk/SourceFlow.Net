@@ -208,10 +208,49 @@ public sealed class QueryApiScenarios(PostgreSqlServer postgreSql) : IAsyncLifet
         }
     }
 
+    [Fact]
+    [Trait("Id", "QRY-61")]
+    [Trait("Covers", "ADR-026;doc 14 8")]
+    public async Task Subqueries_OverHttp_AreCheckedLikeTheQueryTheySitIn()
+    {
+        // A caller with read models only can't reach the event log through a subquery.
+        (WebApplication app, HttpClient readModelsOnly) = await StartAsync(SourceFlowRoles.Api, _schema, [QueryPermission.Adhoc, QueryPermission.ReadModels]);
+        await using (app)
+        {
+            HttpResponseMessage denied = await PostAsync("/query", Body(
+                "SELECT a.holder FROM readmodel.\"account-summary\" a WHERE EXISTS (SELECT 1 FROM events e WHERE e.aggregatekey = a.id)", language: "sql"), readModelsOnly);
+            string body = await denied.Content.ReadAsStringAsync(Ct);
+            JsonDocument.Parse(body).RootElement.GetProperty("code").GetString().ShouldBe(QueryCodes.PermissionDenied, body);
+        }
+
+        // With the events permission: an unbounded subquery scan and a personal-data filter are still refused.
+        HttpResponseMessage unbounded = await PostAsync("/query", Body(
+            "SELECT holder FROM readmodel.\"account-summary\" WHERE id IN (SELECT aggregatekey FROM events)", language: "sql"));
+        HttpResponseMessage personal = await PostAsync("/query", Body(
+            "SELECT a.balance FROM readmodel.\"account-summary\" a WHERE EXISTS (SELECT 1 FROM events.\"bank.account.opened\" e WHERE e.aggregatekey = a.id AND e.data.holder = 'Ada')", language: "sql"));
+        HttpResponseMessage lookup = await PostAsync("/query", Body(
+            "SELECT a.holder FROM readmodel.\"account-summary\" a WHERE EXISTS (SELECT 1 FROM events e WHERE e.aggregatekey = a.id) ORDER BY a.holder", language: "sql"));
+
+        unbounded.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        JsonDocument.Parse(await unbounded.Content.ReadAsStringAsync(Ct)).RootElement.GetProperty("code").GetString().ShouldBe(QueryCodes.UnboundedScan);
+        personal.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        JsonDocument.Parse(await personal.Content.ReadAsStringAsync(Ct)).RootElement.GetProperty("code").GetString().ShouldBe(QueryCodes.PersonalData);
+        lookup.StatusCode.ShouldBe(HttpStatusCode.OK, "a subquery correlated by aggregatekey is a bounded lookup");
+        lock (_errors)
+        {
+            _errors.ShouldBeEmpty("refused queries never reach the database");
+        }
+    }
+
     // ================================================================ helpers
 
-    private async Task<(WebApplication App, HttpClient Client)> StartAsync(SourceFlowRoles roles, string? schema = null)
+    private async Task<(WebApplication App, HttpClient Client)> StartAsync(SourceFlowRoles roles, string? schema = null, string[]? permissions = null)
     {
+        string[] granted = permissions ??
+        [
+            QueryPermission.Adhoc, QueryPermission.ReadModels, QueryPermission.Events, QueryPermission.Validate,
+            QueryPermission.Explain, QueryPermission.Schema, QueryPermission.PersonalData,
+        ];
         WebApplicationBuilder builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
         builder.Logging.AddProvider(new ErrorCapture(_errors));
@@ -233,11 +272,7 @@ public sealed class QueryApiScenarios(PostgreSqlServer postgreSql) : IAsyncLifet
         builder.Services.AddSourceFlowQueryApi(o =>
         {
             o.RequestsPerMinute = 10_000;
-            o.Permissions = _ => QueryPermissions.Of(
-            [
-                QueryPermission.Adhoc, QueryPermission.ReadModels, QueryPermission.Events, QueryPermission.Validate,
-                QueryPermission.Explain, QueryPermission.Schema, QueryPermission.PersonalData,
-            ]);
+            o.Permissions = _ => QueryPermissions.Of(granted);
         });
         WebApplication app = builder.Build();
         app.MapCommand<OpenAccount>("/accounts/{accountId}");

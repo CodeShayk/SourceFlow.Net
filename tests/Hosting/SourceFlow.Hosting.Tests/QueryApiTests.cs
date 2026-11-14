@@ -6,6 +6,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Bank.Accounts;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -295,9 +296,52 @@ public sealed class QueryApiTests : IAsyncLifetime
         documented.ShouldBe(mapped);
     }
 
+    [Fact]
+    [Trait("Id", "UT-ASP-41")]
+    [Trait("Covers", "Q-B4;doc 14 9.1")]
+    public async Task DomainQueries_WithTheirOwnPolicy_AreHiddenAndRefusedToCallersWithoutIt()
+    {
+        (WebApplication app, HttpClient client) = await StartAsync(
+            api => api.RequireAuthorization("sourceflow-query"),
+            sourceFlow: sf => sf.AddModule<StatementQueriesModule>(),
+            authorization: a => a.AddPolicy(StatementHolders.Policy, p => p.RequireAssertion(c =>
+                (c.User.FindFirst("scope")?.Value ?? string.Empty).Split(' ').Contains("accounts.statements"))));
+        await using (app)
+        {
+            async Task<(HttpStatusCode Status, JsonElement Body)> Get(string path, string scope)
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, path);
+                Authenticate(request, scope, null);
+                HttpResponseMessage response = await client.SendAsync(request, Ct);
+                return (response.StatusCode, JsonDocument.Parse(await response.Content.ReadAsStringAsync(Ct)).RootElement);
+            }
+
+            (_, JsonElement listedWithout) = await Get("/queries", "");
+            (HttpStatusCode refused, JsonElement problem) = await Get("/queries/accounts.statement-holders/v1", "");
+            (_, JsonElement listedWith) = await Get("/queries", "accounts.statements");
+            (HttpStatusCode allowed, _) = await Get("/queries/accounts.statement-holders/v1", "accounts.statements");
+            (HttpStatusCode open, _) = await Get("/queries/accounts.low-balance/v1?below=60", "");
+
+            listedWithout.GetProperty("queries").EnumerateArray().Select(q => q.GetProperty("name").GetString()).ShouldBe(["accounts.low-balance"]);
+            refused.ShouldBe(HttpStatusCode.Forbidden);
+            problem.GetProperty("code").GetString().ShouldBe(QueryCodes.PermissionDenied);
+            listedWith.GetProperty("queries").EnumerateArray().Select(q => q.GetProperty("name").GetString())
+                .ShouldBe(["accounts.low-balance", "accounts.statement-holders"], ignoreOrder: true);
+            allowed.ShouldBe(HttpStatusCode.OK);
+            open.ShouldBe(HttpStatusCode.OK, "a query without its own policy needs the group's policy only");
+        }
+
+        // A policy name that isn't registered fails startup, not every call.
+        InvalidOperationException unknown = await Should.ThrowAsync<InvalidOperationException>(() =>
+            StartAsync(api => api.RequireAuthorization("sourceflow-query"), sourceFlow: sf => sf.AddModule<StatementQueriesModule>()));
+        unknown.Message.ShouldContain(QueryCodes.AuthorizationRequired);
+        unknown.Message.ShouldContain(StatementHolders.Policy);
+    }
+
     // ================================================================ helpers
 
-    private static async Task<(WebApplication App, HttpClient Client)> StartAsync(Action<RouteGroupBuilder> secure, Action<SourceFlowQueryApiOptions>? configure = null)
+    private static async Task<(WebApplication App, HttpClient Client)> StartAsync(
+        Action<RouteGroupBuilder> secure, Action<SourceFlowQueryApiOptions>? configure = null, Action<SourceFlowBuilder>? sourceFlow = null, Action<AuthorizationBuilder>? authorization = null)
     {
         WebApplicationBuilder builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseTestServer();
@@ -308,9 +352,11 @@ public sealed class QueryApiTests : IAsyncLifetime
             sf.UseInMemoryStorage();
             sf.UseInMemoryTransport();
             sf.Projections(p => p.Add<AccountSummaryProjection>().Inline());
+            sourceFlow?.Invoke(sf);
         });
         builder.Services.AddAuthentication("Test").AddScheme<AuthenticationSchemeOptions, HeaderAuthentication>("Test", null);
-        builder.Services.AddAuthorizationBuilder().AddPolicy("sourceflow-query", p => p.RequireAuthenticatedUser());
+        AuthorizationBuilder policies = builder.Services.AddAuthorizationBuilder().AddPolicy("sourceflow-query", p => p.RequireAuthenticatedUser());
+        authorization?.Invoke(policies);
         builder.Services.AddSourceFlowQueryApi(configure);
         WebApplication app = builder.Build();
         app.UseAuthentication();
@@ -414,4 +460,43 @@ public sealed class QueryApiTests : IAsyncLifetime
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, "Test")), "Test")));
         }
     }
+}
+
+/// <summary>A domain query guarded by its own policy, written by hand (this project doesn't run the generator).</summary>
+public sealed record StatementHolders : IDomainQueryRuntime<StatementHolders, StatementHolder>
+{
+    public const string Policy = "accounts-statements";
+
+    private static readonly DomainQueryParameter[] NoParameters = [];
+    private static readonly string[] Columns = ["holder"];
+
+    static string IDomainQueryRuntime<StatementHolders, StatementHolder>.QueryName => "accounts.statement-holders";
+
+    static int IDomainQueryRuntime<StatementHolders, StatementHolder>.QueryVersion => 1;
+
+    static string? IDomainQueryRuntime<StatementHolders, StatementHolder>.QueryPolicy => Policy;
+
+    static string IDomainQueryRuntime<StatementHolders, StatementHolder>.QueryText => "from readmodel \"account-summary\" | project holder | order by holder";
+
+    static bool IDomainQueryRuntime<StatementHolders, StatementHolder>.IsSql => false;
+
+    static IReadOnlyList<DomainQueryParameter> IDomainQueryRuntime<StatementHolders, StatementHolder>.QueryParameters => NoParameters;
+
+    static IReadOnlyList<string> IDomainQueryRuntime<StatementHolders, StatementHolder>.ResultColumns => Columns;
+
+    IReadOnlyDictionary<string, object?> IDomainQueryRuntime<StatementHolders, StatementHolder>.ToParameters() => new Dictionary<string, object?>();
+
+    static StatementHolder IDomainQueryRuntime<StatementHolders, StatementHolder>.Materialize(IQueryRow row) =>
+        new(DomainQueryValues.Get<string>(DomainQueryValues.Column(row, "holder")));
+}
+
+/// <summary>A row of <see cref="StatementHolders"/>.</summary>
+public sealed record StatementHolder(string Holder);
+
+/// <summary>Registers <see cref="StatementHolders"/>.</summary>
+public sealed class StatementQueriesModule : ISourceFlowModule
+{
+    static string ISourceFlowModule.ModuleName => nameof(StatementQueriesModule);
+
+    static void ISourceFlowModule.Register(ISourceFlowModuleBuilder builder) => builder.AddDomainQuery<StatementHolders, StatementHolder>();
 }

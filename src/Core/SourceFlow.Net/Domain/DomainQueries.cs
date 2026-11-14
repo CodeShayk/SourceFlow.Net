@@ -24,6 +24,12 @@ public sealed class DomainQueryAttribute : Attribute
 
     /// <summary>The contract version.</summary>
     public int Version { get; }
+
+    /// <summary>
+    /// The authorization policy a caller of the query API must satisfy to list or run this query (doc 14 §9.1), on top of
+    /// the policy of the endpoint group. Null: the group's policy alone.
+    /// </summary>
+    public string? Policy { get; set; }
 }
 
 /// <summary>A named domain query returning rows of <typeparamref name="TResult"/> (doc 14 Q-B4).</summary>
@@ -48,6 +54,9 @@ public interface IDomainQueryRuntime<TSelf, TResult> : IDomainQuery<TResult>
 
     /// <summary>The contract version.</summary>
     static abstract int QueryVersion { get; }
+
+    /// <summary>The authorization policy of the query API endpoint (<see cref="DomainQueryAttribute.Policy"/>); null for none.</summary>
+    static virtual string? QueryPolicy => null;
 
     /// <summary>The query text.</summary>
     static abstract string QueryText { get; }

@@ -143,7 +143,41 @@ internal sealed class QueryApiAuthorizationCheck : Microsoft.AspNetCore.Hosting.
                     $"{QueryCodes.AuthorizationRequired}: the SourceFlow query API is mapped without an authorization policy ({string.Join(", ", open)}). " +
                     "Add .RequireAuthorization(\"policy\") to the group (or an explicit .AllowAnonymous() for local demos).");
             }
+
+            CheckDomainQueryPolicies(app.ApplicationServices);
         };
+    }
+
+    // A domain query's [DomainQuery(Policy = …)] must name a policy that exists: an unknown one would fail every call.
+    // Only the default provider is checked; a custom IAuthorizationPolicyProvider may create policies on demand.
+    private static void CheckDomainQueryPolicies(IServiceProvider services)
+    {
+        bool mapped = services.GetRequiredService<EndpointDataSource>().Endpoints
+            .Any(e => e.Metadata.GetMetadata<EndpointNameMetadata>()?.EndpointName == "SourceFlowDomainQuery");
+        string[] policies = mapped && services.GetService<RuntimeModel>() is { } model
+            ? [.. model.DomainQueries.Select(q => q.Policy).OfType<string>().Distinct(StringComparer.Ordinal)]
+            : [];
+        if (policies.Length == 0)
+        {
+            return;
+        }
+
+        if (services.GetService<IAuthorizationService>() is null)
+        {
+            throw new InvalidOperationException(
+                $"{QueryCodes.AuthorizationRequired}: domain queries declare authorization policies ({string.Join(", ", policies)}) but authorization isn't registered: call services.AddAuthorization(…).");
+        }
+
+        if (services.GetService<IAuthorizationPolicyProvider>() is DefaultAuthorizationPolicyProvider)
+        {
+            AuthorizationOptions options = services.GetRequiredService<Microsoft.Extensions.Options.IOptions<AuthorizationOptions>>().Value;
+            string[] missing = [.. policies.Where(p => options.GetPolicy(p) is null)];
+            if (missing.Length > 0)
+            {
+                throw new InvalidOperationException(
+                    $"{QueryCodes.AuthorizationRequired}: domain queries name authorization policies that aren't registered ({string.Join(", ", missing)}).");
+            }
+        }
     }
 }
 
@@ -315,11 +349,20 @@ internal static class QueryApi
     {
         SecurityHeaders(http);
         RuntimeModel model = http.RequestServices.GetRequiredService<RuntimeModel>();
+        var visible = new List<DomainQueryDescriptor>();
+        foreach (DomainQueryDescriptor query in model.DomainQueries)
+        {
+            if (await AuthorizedAsync(http, query).ConfigureAwait(false))
+            {
+                visible.Add(query);
+            }
+        }
+
         await WriteJsonAsync(http, StatusCodes.Status200OK, writer =>
         {
             writer.WriteStartObject();
             writer.WriteStartArray("queries");
-            foreach (DomainQueryDescriptor query in model.DomainQueries)
+            foreach (DomainQueryDescriptor query in visible)
             {
                 writer.WriteStartObject();
                 writer.WriteString("name", query.Name);
@@ -356,6 +399,12 @@ internal static class QueryApi
         if (query is null)
         {
             await ProblemAsync(http, StatusCodes.Status404NotFound, "The domain query doesn't exist.", null, []).ConfigureAwait(false);
+            return;
+        }
+
+        if (!await AuthorizedAsync(http, query).ConfigureAwait(false))
+        {
+            await ProblemAsync(http, StatusCodes.Status403Forbidden, "The caller isn't authorized to run this domain query.", QueryCodes.PermissionDenied, []).ConfigureAwait(false);
             return;
         }
 
@@ -737,6 +786,18 @@ internal static class QueryApi
     }
 
     // RFC 9457 problem details with codes and positions; never the caller's text (S-3).
+    // A domain query's own policy (doc 14 §9.1 "per-query policy"), on top of the endpoint group's.
+    private static async Task<bool> AuthorizedAsync(HttpContext http, DomainQueryDescriptor query)
+    {
+        if (query.Policy is not { } policy)
+        {
+            return true;
+        }
+
+        AuthorizationResult result = await http.RequestServices.GetRequiredService<IAuthorizationService>().AuthorizeAsync(http.User, policy).ConfigureAwait(false);
+        return result.Succeeded;
+    }
+
     private static Task ProblemAsync(HttpContext http, int status, string title, string? code, IReadOnlyList<QueryDiagnostic> diagnostics)
     {
         http.Response.ContentType = "application/problem+json";

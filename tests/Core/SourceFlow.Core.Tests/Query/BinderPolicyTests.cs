@@ -369,4 +369,58 @@ public sealed class BinderPolicyTests
         Policy("from readmodel \"account-summary\" | take 5000").ShouldHaveSingleItem().Code.ShouldBe(QueryCodes.Limit);
         Policy("from readmodel \"account-summary\" | take @n", parameters: new Dictionary<string, object?> { ["n"] = 50_000 }).ShouldHaveSingleItem().Code.ShouldBe(QueryCodes.Limit);
     }
+
+    // ---------------------------------------------------------------- subqueries (WP-C.1, CR-01)
+
+    [Fact]
+    [Trait("Id", "UT-QL-97")]
+    [Trait("Covers", "ADR-026")]
+    public void Subqueries_NeedThePermissionOfTheirSource()
+    {
+        QueryPermissions readModelsOnly = QueryPermissions.Of(QueryPermission.ReadModels);
+        const string Exists = """SELECT a.id FROM readmodel."account-summary" a WHERE EXISTS (SELECT e.id FROM events e WHERE e.aggregatekey = a.id)""";
+        const string In = """SELECT a.id FROM readmodel."account-summary" a WHERE a.id IN (SELECT e.aggregatekey FROM events e WHERE e.stream = @s)""";
+
+        QueryDiagnostic exists = Policy(Exists, readModelsOnly, language: QueryLanguage.Sql).ShouldHaveSingleItem();
+        exists.Code.ShouldBe(QueryCodes.PermissionDenied);
+        exists.Message.ShouldContain(QueryPermission.Events);
+        Policy(In, readModelsOnly, language: QueryLanguage.Sql).ShouldHaveSingleItem().Code.ShouldBe(QueryCodes.PermissionDenied);
+        Policy(Exists, QueryPermissions.Of(QueryPermission.ReadModels, QueryPermission.Events), language: QueryLanguage.Sql).ShouldBeEmpty();
+        Policy(In, QueryPermissions.Of(QueryPermission.ReadModels, QueryPermission.Events), language: QueryLanguage.Sql).ShouldBeEmpty();
+    }
+
+    [Fact]
+    [Trait("Id", "UT-QL-98")]
+    [Trait("Covers", "ADR-026")]
+    public void Subqueries_OnEvents_AreUnderTheCostGuard()
+    {
+        // Unbounded: nothing narrows the subquery's scan of the log.
+        Policy("""SELECT a.id FROM readmodel."account-summary" a WHERE a.id IN (SELECT e.aggregatekey FROM events e)""", language: QueryLanguage.Sql)
+            .ShouldHaveSingleItem().Code.ShouldBe(QueryCodes.UnboundedScan);
+
+        // Correlated by an indexed key to a read model, like a join (Example H): bounded by the outer rows.
+        Policy("""SELECT a.id FROM readmodel."account-summary" a WHERE EXISTS (SELECT e.id FROM events e WHERE e.aggregatekey = a.id)""", language: QueryLanguage.Sql)
+            .ShouldBeEmpty();
+
+        // Correlated to another events source: each events source needs its own bound (G-8).
+        Policy("""
+            SELECT o.id FROM events o WHERE o.stream = @s
+              AND EXISTS (SELECT x.id FROM events x WHERE x.stream = o.stream)
+            """, language: QueryLanguage.Sql).ShouldHaveSingleItem().Code.ShouldBe(QueryCodes.UnboundedScan);
+
+        // allow_scan with its permission still overrides the guard.
+        Policy("""SELECT a.id FROM readmodel."account-summary" a WHERE a.id IN (SELECT e.aggregatekey FROM events e) OPTIONS (allow_scan = true)""", language: QueryLanguage.Sql)
+            .ShouldBeEmpty();
+    }
+
+    [Fact]
+    [Trait("Id", "UT-QL-99")]
+    [Trait("Covers", "ADR-026")]
+    public void Subqueries_CantFilterOnPersonalData()
+    {
+        Policy("""SELECT a.id FROM readmodel."account-summary" a WHERE a.customerId IN (SELECT c.id FROM readmodel."customer-profile" c WHERE c.fullName = 'Ada')""", language: QueryLanguage.Sql)
+            .ShouldHaveSingleItem().Code.ShouldBe(QueryCodes.PersonalData);
+        Policy("""SELECT a.id FROM readmodel."account-summary" a WHERE EXISTS (SELECT c.id FROM readmodel."customer-profile" c WHERE c.id = a.customerId AND c.segment = 'retail')""", language: QueryLanguage.Sql)
+            .ShouldBeEmpty();
+    }
 }

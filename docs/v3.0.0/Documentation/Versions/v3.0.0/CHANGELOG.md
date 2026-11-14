@@ -207,6 +207,8 @@ See [Cloud transports](../../Architecture/07-Cloud-Transports.md).
   [ADR-030](../../../ADRs/ADR-030-domain-queries-bind-at-startup.md)) and a typed builder.
 - **Per-service query API**: `AddSourceFlowQueryApi`, `MapSourceFlowQueryApi` (`/query`, `/validate`, `/explain`,
   `/schema`) and `MapDomainQueries`; fails closed without authorization, per-principal limits, NDJSON and CSV output.
+  A domain query can require its own authorization policy (`[DomainQuery(…, Policy = "…")]`), and subqueries are held
+  to the same permissions, cost guard and personal-data rules as the query they sit in.
 
 See [Query side and SFQL](../../Architecture/08-Query-Side-and-SFQL.md).
 
@@ -413,7 +415,10 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
 - the PERF-09 acceptance run (5,000 commands/s per 4 vCPU) on a database sized as design doc 09 assumes;
 - for Studio 1.0: the workflow end-to-end scenarios on the three real clouds, and publishing `@sourceflow/studio` and the
   `workflow-diff` action;
-- the M6 hardening and release-candidate programme (beyond the 63 work packages).
+- the M6 hardening and release-candidate programme (beyond the 63 work packages);
+- Track C, the design-conformance remediation ([plan 11](../../../implementation/11-Design-Conformance-Remediation-Plan.md)):
+  the P0 security packages before the release candidate, P1 before GA, P2 before Studio 1.0. Done so far: WP-C.1
+  (subqueries are policy-checked; per-query authorization for domain queries).
 
 ### Other notes
 
