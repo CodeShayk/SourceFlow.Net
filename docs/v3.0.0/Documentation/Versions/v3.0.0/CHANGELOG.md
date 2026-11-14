@@ -423,7 +423,9 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   positional parameters and inside collections; unsupported shapes fail startup; a bounded key cache for erasure across
   nodes; the erasure audit records the actor; `LocalKeyProvider` needs `AllowLocalKeyProvider()` outside Development),
   WP-C.4 (`MapCommand` refuses a body that contradicts the route; continuation tokens are validated; no request text in
-  SQL; query API status codes as doc 14 §9.1: 413, 503 with `Retry-After`, 429; Studio host file checks).
+  SQL; query API status codes as doc 14 §9.1: 413, 503 with `Retry-After`, 429; Studio host file checks), WP-C.5 (every
+  outbound message goes through the outbox: a command sent inside a handler joins its transaction, a routed API send and
+  a dead-letter replay are written in a session of their own, and only the relay sends to the transport).
 
 ### Other notes
 

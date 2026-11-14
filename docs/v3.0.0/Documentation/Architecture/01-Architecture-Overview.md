@@ -137,7 +137,7 @@ flowchart LR
 
 Two properties are visible in the diagram:
 
-- **Every outbound message goes through the outbox**, written in the same transaction as the events that caused it. The only exception is `ICommandSender.SendAsync` for a routed command, which has no transaction to join and sends directly through the transport ([02](02-Command-Flow.md#remote-routing)).
+- **Every outbound message goes through the outbox**, written in the same transaction as the events that caused it. A command sent inside a handler joins the handler's transaction; a routed command sent from an API call is written in a session of its own ([02](02-Command-Flow.md#remote-routing)). Only the outbox relay sends to the transport (ARCH-09).
 - **Every inbound message goes through one receiver** on the service endpoint. Commands, timers, rejection replies and subscribed events are told apart by envelope `type`, not by separate listeners.
 
 ---
@@ -218,7 +218,7 @@ All packages target `net10.0` and are versioned together. Projects live under `s
 | Path | Guarantee | Mechanism | Detail |
 |------|-----------|-----------|--------|
 | Local `SendAsync` → aggregate | Atomic; effectively once with an idempotency key | One transaction; inbox keyed by the message id | [02](02-Command-Flow.md) |
-| Command → remote owner | At-least-once delivery, effectively-once effect | Outbox (or direct send) → broker → owner's inbox | [02](02-Command-Flow.md) |
+| Command → remote owner | At-least-once delivery, effectively-once effect | Outbox → broker → owner's inbox | [02](02-Command-Flow.md) |
 | Event → inline projection | Atomic with the append | Same transaction | [03](03-Event-Flow.md) |
 | Event → async projection, process manager, event handler (same database) | Exactly-once effect in the store, per-stream order | Checkpoint committed with the effects, fenced leases | [03](03-Event-Flow.md) |
 | Integration event → subscribing service | At-least-once delivery, effectively once per consumer | Outbox → topic → per-service subscription → inbox per consumer | [03](03-Event-Flow.md) |

@@ -132,7 +132,6 @@ Any of them can also be registered with `sf.UseTransport(sp => …)`. A service 
 | Core component | SPI calls | When |
 |----------------|-----------|------|
 | `SourceFlowHost` | `ProvisionAsync(runtime.Topology(), mode)` | Once at startup, before anything else starts |
-| `CommandSender` | `SendAsync(endpoint, [envelope])` | A command routed to a remote owner, sent directly (no outbox) |
 | `OutboxRelay` | `PublishAsync` / `SendAsync`, one row per call, in key order | Integration events, and commands written in a transaction (process managers, workflows, replies) |
 | `ReceiveEndpoint` | `CreateReceiverAsync`, `ReceiveAsync`, then `RenewAsync`, `CompleteAsync`, `AbandonAsync` | On instances with the `Receiver` role |
 | `DeadLetterIngestor` | `CreateDeadLetterReceiverAsync`, `ReceiveAsync(10, 0)`, `CompleteAsync` | On receiver instances, when `NativeDeadLetter` and `IngestBrokerDeadLetters` are true |

@@ -620,7 +620,14 @@ internal sealed class SubscriptionEngine
             definitions.Add(new SubscriptionDefinition(
                 "handler:" + handler.Name,
                 type => type == handler.EventType,
-                ctx => handler.HandleAsync(ctx.Services, ctx.Event, ctx.Stored.ToContext(), ctx.CancellationToken)));
+                async ctx =>
+                {
+                    // Commands the handler sends join the subscription's transaction with the checkpoint (ADR-006).
+                    using (AmbientSend.Enter(ctx.Session, ctx.Stored.ToEnvelope()))
+                    {
+                        await handler.HandleAsync(ctx.Services, ctx.Event, ctx.Stored.ToContext(), ctx.CancellationToken).ConfigureAwait(false);
+                    }
+                }));
         }
 
         return definitions;

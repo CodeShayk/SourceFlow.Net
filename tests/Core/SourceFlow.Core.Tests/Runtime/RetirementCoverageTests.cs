@@ -46,7 +46,7 @@ public sealed class RetirementCoverageTests
     [Fact]
     [Trait("Id", "UT-CMD-23")]
     [Trait("Covers", "ADR-007")]
-    public async Task RoutedCommand_IsSentDirectToItsOwner_AndReturnsDispatched()
+    public async Task RoutedCommand_IsRelayedToItsOwner_AndReturnsDispatched()
     {
         await using SourceFlowTestHost host = await SourceFlowTestHost.StartAsync(sf =>
         {
@@ -64,7 +64,12 @@ public sealed class RetirementCoverageTests
         result.Status.ShouldBe(CommandStatus.Dispatched);
         ReceivedMessage received = (await owner.ReceiveAsync(10, TimeSpan.FromSeconds(1), Ct)).ShouldHaveSingleItem();
         received.Envelope.Type.ShouldBe("bank.account.deposit");
-        host.Store.OutboxSnapshot().ShouldBeEmpty("an API send goes straight to the broker, not through the outbox");
+        for (int i = 0; i < 100 && host.Store.OutboxSnapshot().Count > 0; i++)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(20), TimeProvider.System, Ct);   // the relay completes the row after the send
+        }
+
+        host.Store.OutboxSnapshot().ShouldBeEmpty("an API send goes through the outbox (ADR-006, CR-07), and the relay has sent it");
     }
 
     [Fact]

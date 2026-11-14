@@ -50,13 +50,13 @@ internal sealed class DeadLetterManager(SourceFlowRuntime runtime) : IDeadLetter
                 $"Dead letter {id} came from '{deadLetter.Source}' and has no destination to replay to. Fix the cause and rebuild the subscription instead.");
         }
 
-        if (deadLetter.DestinationIsTopic)
+        // Through the outbox like every outbound message (ADR-006, CR-07): the relay applies payload protection, the size
+        // check and retries. The message id is kept, so the owner's inbox still drops a duplicate.
+        await using (IStorageSession session = await runtime.Storage.Sessions.BeginAsync(deadLetter.Envelope.TenantId, cancellationToken).ConfigureAwait(false))
         {
-            await runtime.Transport.PublishAsync(deadLetter.Destination, [deadLetter.Envelope], cancellationToken).ConfigureAwait(false);
-        }
-        else
-        {
-            await runtime.Transport.SendAsync(deadLetter.Destination, [deadLetter.Envelope], cancellationToken).ConfigureAwait(false);
+            session.EnqueueOutbox(runtime.ToOutbox(deadLetter.Envelope, deadLetter.Destination, deadLetter.DestinationIsTopic ? OutboxKind.Publish : OutboxKind.Send));
+            await session.CommitAsync(cancellationToken).ConfigureAwait(false);
+            runtime.Committed(session);
         }
 
         await runtime.Storage.DeadLetters.SetStatusAsync(id, DeadLetterStatus.Replayed, Audited(note), cancellationToken).ConfigureAwait(false);

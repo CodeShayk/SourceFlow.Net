@@ -317,6 +317,19 @@ public sealed class SourceFlowRuntime
     /// </summary>
     public void EnqueueCommand(IStorageSession session, ICommand command, MessageEnvelope? cause, CorrelationId? correlation, bool replyOnReject = false, MessageId? messageId = null)
     {
+        ArgumentNullException.ThrowIfNull(session);
+        (MessageEnvelope envelope, string destination) = CommandEnvelope(command, cause, correlation, session.TenantId, replyOnReject, messageId, headers: null);
+        session.EnqueueOutbox(ToOutbox(envelope, destination, OutboxKind.Send));
+    }
+
+    /// <summary>
+    /// The envelope of a command for its owner, and the owner's endpoint (this service's when owned here). User
+    /// <paramref name="headers"/> replace the ones inherited from <paramref name="cause"/>.
+    /// </summary>
+    internal (MessageEnvelope Envelope, string Destination) CommandEnvelope(ICommand command, MessageEnvelope? cause, CorrelationId? correlation, string? tenant,
+        bool replyOnReject, MessageId? messageId, IReadOnlyDictionary<string, string>? headers)
+    {
+        ArgumentNullException.ThrowIfNull(command);
         bool local = Model.CommandOwners.ContainsKey(command.GetType());
         CommandRoute? route = null;
         string destination = local
@@ -325,14 +338,13 @@ public sealed class SourceFlowRuntime
                 ? route.Endpoint
                 : throw new NoRouteException(command.GetType());
         string? subject = TrySubjectOf(command);
-        IReadOnlyDictionary<string, string>? headers = null;
         if (replyOnReject && (local || route is { ReplyOnReject: true }) && ExpectsRejection(command.GetType()))
         {
-            headers = new Dictionary<string, string>(Inherited(cause?.Headers), StringComparer.Ordinal) { [CommandReplies.ReplyToHeader] = Routing.Endpoint };
+            headers = new Dictionary<string, string>(headers ?? Inherited(cause?.Headers), StringComparer.Ordinal) { [CommandReplies.ReplyToHeader] = Routing.Endpoint };
         }
 
-        MessageEnvelope envelope = CreateEnvelope(command, cause, messageId: messageId, correlation: correlation, subject: subject, tenant: session.TenantId, headers: headers);
-        session.EnqueueOutbox(ToOutbox(envelope, destination, OutboxKind.Send));
+        MessageEnvelope envelope = CreateEnvelope(command, cause, messageId: messageId, correlation: correlation, subject: subject, tenant: tenant, headers: headers);
+        return (envelope, destination);
     }
 
     // A reply is asked for only when this service registered CommandRejected<T> (a process manager reacts to it);

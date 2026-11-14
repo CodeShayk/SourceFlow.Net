@@ -54,9 +54,14 @@ internal sealed class MessageDispatcher(SourceFlowRuntime runtime, CommandProces
             if (handler.EventType == message.GetType())
             {
                 EventContext eventContext = ContextOf(envelope);
-                await ConsumeAsync($"{runtime.ServiceName}:handler:{handler.Name}", envelope, context.CancellationToken, async _ =>
+                await ConsumeAsync($"{runtime.ServiceName}:handler:{handler.Name}", envelope, context.CancellationToken, async session =>
                 {
-                    await handler.HandleAsync(context.Services, imessage, eventContext, context.CancellationToken).ConfigureAwait(false);
+                    // Commands the handler sends join this transaction (ADR-006): sent only if it commits.
+                    using (AmbientSend.Enter(session, envelope))
+                    {
+                        await handler.HandleAsync(context.Services, imessage, eventContext, context.CancellationToken).ConfigureAwait(false);
+                    }
+
                     return true;
                 }).ConfigureAwait(false);
             }

@@ -48,6 +48,8 @@ public sealed class DeliveryFailureTests
 
         transport.Healthy = true;
         await host.DeadLetters.ReplayAsync(parked.Id, "broker restored");
+        transport.Published.ShouldBeEmpty("a replay goes through the outbox (ADR-006): the relay sends it");
+        (await relay.RunOnceAsync(CancellationToken.None)).ShouldBe(1);
         transport.Published.ShouldHaveSingleItem().Type.ShouldBe("bank.account.opened");
         (await host.DeadLetters.ListAsync(new DeadLetterQuery())).ShouldBeEmpty();
     }

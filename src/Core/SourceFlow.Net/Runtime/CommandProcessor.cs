@@ -131,9 +131,19 @@ public sealed class CommandProcessor
         }
 
         var context = new DecisionContext(_runtime.Time.GetUtcNow(), version, envelope.MessageId, envelope.CorrelationId, envelope.Headers);
-        Decision decision = handler is null
-            ? aggregate.Decide(state, command, context)
-            : await handler.HandleAsync(services, command, state, context, cancellationToken).ConfigureAwait(false);
+        Decision decision;
+        if (handler is null)
+        {
+            decision = aggregate.Decide(state, command, context);
+        }
+        else
+        {
+            // A command handler's own sends join the command's transaction (ADR-006).
+            using (AmbientSend.Enter(session, envelope))
+            {
+                decision = await handler.HandleAsync(services, command, state, context, cancellationToken).ConfigureAwait(false);
+            }
+        }
 
         if (decision.Kind != DecisionKind.Accepted && loaded.Optimistic
             && await session.ReadStreamAsync(stream, version + 1, 1, cancellationToken).ConfigureAwait(false) is { Events.Count: > 0 } newer)

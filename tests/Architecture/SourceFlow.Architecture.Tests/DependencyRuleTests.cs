@@ -111,6 +111,27 @@ public sealed class DependencyRuleTests
         unsealed.ShouldBeEmpty($"Public classes in {adapter} must be sealed unless designed for extension (ARCH-07).");
     }
 
+    [Fact]
+    [Trait("Id", "ARCH-09")]
+    [Trait("Covers", "ADR-006")]
+    public void Only_the_outbox_relay_sends_to_the_transport()
+    {
+        // ADR-006: every outbound message goes through the outbox. A call to ITransport.SendAsync or PublishAsync anywhere
+        // else in the core would skip the outbox's transaction, payload protection, size check and retries (CR-07).
+        using Mono.Cecil.AssemblyDefinition core = Mono.Cecil.AssemblyDefinition.ReadAssembly(Packages.Load(Packages.Core).Location);
+        string[] callers =
+        [
+            .. core.MainModule.GetTypes()
+                .SelectMany(t => t.Methods.Where(m => m.HasBody).Select(m => (Type: t, Method: m)))
+                .Where(c => c.Method.Body.Instructions.Any(i => i.Operand is Mono.Cecil.MethodReference called
+                    && called.DeclaringType.FullName == "SourceFlow.Transport.ITransport" && called.Name is "SendAsync" or "PublishAsync"))
+                .Select(c => (c.Type.DeclaringType ?? c.Type).FullName)
+                .Distinct(),
+        ];
+
+        callers.ShouldBe(["SourceFlow.Runtime.OutboxRelay"], "only the outbox relay may send to the transport (ARCH-09)");
+    }
+
     private static string Describe(NetArchTest.Rules.TestResult result)
     {
         return result.IsSuccessful

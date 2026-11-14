@@ -1086,13 +1086,17 @@ filter runs on the broker where the broker can express it, otherwise on receipt,
 
 - **Owned** (a `Decide` or a handler in this service's modules): processed in-request by the `CommandProcessor`, and the
   caller gets `Accepted`, `NoOp`, `Rejected` or `Conflict`.
-- **Routed** (`Command<T>().To(...)`): sent to the owner's endpoint, and the caller gets `Dispatched`. The owner processes
-  it with its inbox, so a redelivered command is decided once.
+- **Routed** (`Command<T>().To(...)`): written to the outbox for the owner's endpoint, and the caller gets `Dispatched`.
+  The relay sends it, with payload protection and retries; the owner processes it with its inbox, so a redelivered
+  command is decided once.
+- **Inside a handler** (an event handler or a command handler): every command, owned or routed, joins the handler's
+  transaction through the outbox and returns `Dispatched`. It is sent only if the handler commits, under an id derived
+  from the handled message, so a redelivery sends the same ids.
 - **Neither**: `NoRouteException`. **Both**: SF0014 at build time, or a startup failure.
 
-`ICommandSender.SendAsync` for a routed command has no transaction to join, so it sends directly through the transport
-(a transport failure surfaces to the caller). Commands that process managers send, events you publish and timers always
-go through the outbox, committed with the state change that caused them.
+Every outbound message goes through the outbox (ADR-006): routed commands, commands that handlers and process managers
+send, events you publish and timers are all committed with the state change that caused them (or, for an API call, in a
+session of their own) and sent by the relay. A dead-letter replay goes through it too.
 
 ### 6.3 Publishing: domain events stay private by default
 

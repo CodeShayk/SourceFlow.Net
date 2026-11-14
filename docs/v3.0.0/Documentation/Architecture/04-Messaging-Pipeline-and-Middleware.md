@@ -150,7 +150,7 @@ sf.UseMiddleware(
 
 | Invocation stage | When | Terminal step | Exceptions |
 |------------------|------|---------------|------------|
-| `Send` | `ICommandSender.SendAsync` for a **routed** command | `ITransport.SendAsync` to the owner's endpoint; the send returns `Dispatched` | Propagate to the caller |
+| `Send` | `ICommandSender.SendAsync` for a **routed** command, and every command sent inside a handler | The outbox row for the owner's endpoint (the relay sends it); the send returns `Dispatched` | Propagate to the caller |
 | `Send \| Handle` | `ICommandSender.SendAsync` for a **locally owned** command | `CommandProcessor.ProcessAsync`; sets `Result` | Propagate to the caller |
 | `Receive` | Every message delivered to the service endpoint | The dispatcher: registry lookup, deserialization, then the command processor, process managers and event handlers | Classified into an outcome (below) |
 

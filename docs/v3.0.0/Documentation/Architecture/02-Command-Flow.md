@@ -42,7 +42,7 @@ flowchart TD
     ID2 --> O
     O -- yes --> L["Envelope: subject = target stream id<br/>Pipeline stage: Send | Handle<br/>→ CommandProcessor"]
     O -- no --> R{Routed?}
-    R -- yes --> RT["Envelope<br/>Pipeline stage: Send<br/>→ ITransport.SendAsync(endpoint)<br/>→ CommandStatus.Dispatched"]
+    R -- yes --> RT["Envelope<br/>Pipeline stage: Send<br/>→ outbox row (the relay sends it)<br/>→ CommandStatus.Dispatched"]
     R -- no --> NR[NoRouteException]
 ```
 
@@ -239,7 +239,8 @@ sf.Routing(r => r.Command<RequestStatement>().To("notifications"));
 
 | Sent from | Path | Result |
 |-----------|------|--------|
-| `ICommandSender.SendAsync` | Pipeline (`Send` stage), then `ITransport.SendAsync(endpoint, envelope)` directly | `Dispatched` once the broker accepted it. There is no transaction to join, so a broker failure surfaces as an exception to the caller, who can retry with the same idempotency key |
+| `ICommandSender.SendAsync` from an API call | Pipeline (`Send` stage), then an outbox row committed in a session of its own, relayed later | `Dispatched` once the row is committed. The relay applies payload protection and retries; a body over the transport's limit fails the send with `MessageTooLargeException` |
+| `ICommandSender.SendAsync` inside a handler (event handler, command handler) | Pipeline (`Send` stage), then an outbox row in the **handler's own session**, committed with its work and its inbox entry | `Dispatched`. Sent only if the handler commits. The message id is derived from the handled message's id and the send's ordinal, so a redelivery sends the same ids and the owner's inbox drops them |
 | A process manager reaction | Outbox row (`OutboxKind.Send`) committed with the process state, relayed later | Part of the reaction's transaction; effectively once |
 
 A sender must have the command's message type registered (for example through a contracts-only module, see the [README](../SourceFlow.Net-README.md#modules-and-the-source-generator)). The sender does not need the owner's aggregate, and must not register it: a command owned and routed in the same service fails startup.
