@@ -309,7 +309,18 @@ internal sealed class SessionSlot(ServiceBusSessionReceiver receiver)
     public void Release()
     {
         Interlocked.Decrement(ref _held);
+        Touch();
     }
+
+    /// <summary>When the session last delivered or settled a message (UTC ticks).</summary>
+    public DateTimeOffset LastActive => new(Interlocked.Read(ref _lastActiveTicks), TimeSpan.Zero);
+
+    public void Touch()
+    {
+        Interlocked.Exchange(ref _lastActiveTicks, TimeProvider.System.GetUtcNow().UtcTicks);
+    }
+
+    private long _lastActiveTicks = TimeProvider.System.GetUtcNow().UtcTicks;
 }
 
 /// <summary>
@@ -322,6 +333,12 @@ internal sealed class AzureSessionReceiver(AzureTransport transport, string endp
     : AzureReceiverBase(transport, endpoint, deadLetters: false, lockDuration, clientFilters)
 {
     private static readonly TimeSpan SessionReceiveWait = TimeSpan.FromMilliseconds(100);
+
+    // How long a session may stay without a delivery before it is released. One empty receive is not enough: under load a
+    // short receive can come back empty while the session still has messages, and a session released and accepted again
+    // by another instance in that window can see a message that was in flight on the closed link come back after later
+    // ones of its key (seen on the Service Bus emulator, TCK-13).
+    private static readonly TimeSpan SessionIdleRelease = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(50);
     private static readonly TimeSpan RenewMargin = TimeSpan.FromSeconds(2);
 
@@ -357,6 +374,7 @@ internal sealed class AzureSessionReceiver(AzureTransport transport, string endp
                 }
 
                 IReadOnlyList<ServiceBusReceivedMessage> messages;
+                bool lost = false;
                 try
                 {
                     messages = await AzureErrors.CallAsync(Destination, () => slot.Receiver.ReceiveMessagesAsync(max - received.Count, SessionReceiveWait, cancellationToken)).ConfigureAwait(false);
@@ -364,14 +382,20 @@ internal sealed class AzureSessionReceiver(AzureTransport transport, string endp
                 catch (Exception e) when ((e is TransportException && AzureErrors.IsLockLost(e)) || e is ObjectDisposedException)
                 {
                     messages = [];   // the session lock lapsed and the client closed the session: release it
+                    lost = true;
                 }
 
                 if (messages.Count == 0)
                 {
-                    await ReleaseAsync(slot).ConfigureAwait(false);   // idle: let another instance (or a later accept) have it
+                    if (lost || slot.Receiver.IsClosed || TimeProvider.System.GetUtcNow() - slot.LastActive >= SessionIdleRelease)
+                    {
+                        await ReleaseAsync(slot).ConfigureAwait(false);   // idle: let another instance (or a later accept) have it
+                    }
+
                     continue;
                 }
 
+                slot.Touch();
                 foreach (ServiceBusReceivedMessage message in messages)
                 {
                     if (await AcceptAsync(slot.Receiver, message, slot, cancellationToken).ConfigureAwait(false) is { } delivery)
