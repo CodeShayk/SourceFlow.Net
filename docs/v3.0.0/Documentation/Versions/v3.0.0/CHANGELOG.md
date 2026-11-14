@@ -452,7 +452,9 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   a circuit breaker per destination), WP-C.15 (the Handle, Publish and Project middleware stages run, Handle for remote
   commands too, and Receive middleware sees the deserialised message), WP-C.16 (the messaging instruments carry the
   required attributes, span names cost nothing without a listener, and log event ids are renumbered by area: see the
-  Observability guide's table).
+  Observability guide's table), WP-C.17 (stricter purity and determinism analyzers with SF0023–SF0025,
+  `ctx.NewId<TId>(purpose)` for deterministic ids, `AddMessage` checks `[MessageType]`, and generated ids implement
+  `IUtf8SpanFormattable`).
 
 ### Other notes
 

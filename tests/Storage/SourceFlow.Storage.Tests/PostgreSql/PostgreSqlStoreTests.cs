@@ -145,9 +145,10 @@ public sealed class PostgreSqlStoreTests(PostgreSqlServer server) : PostgreSqlTe
         session.SaveProcessState("pm", "1", 0, "{}"u8.ToArray(), completed: false);
         session.SaveCheckpoint("p", 0, new GlobalPosition(1, 1), lease);
 
-        int roundTrips = await CountRoundTripsAsync(() => session.CommitAsync(Ct).AsTask());
+        var seen = new List<string>();
+        int roundTrips = await CountRoundTripsAsync(() => session.CommitAsync(Ct).AsTask(), seen);
 
-        roundTrips.ShouldBe(1);
+        roundTrips.ShouldBe(1, "the commit's statements: " + string.Join(" | ", seen));
         (await store.GetStreamInfoAsync(Tenant, Stream, Ct))!.Version.ShouldBe(new StreamVersion(2));
         (await store.GetAsync("p", 0, Ct)).ShouldBe(new GlobalPosition(1, 1));
     }
@@ -166,7 +167,9 @@ public sealed class PostgreSqlStoreTests(PostgreSqlServer server) : PostgreSqlTe
         (await ((IDocumentReader)store).GetAsync(Tenant, "docs", "1", Ct)).ShouldBeNull();
     }
 
-    private static async Task<int> CountRoundTripsAsync(Func<Task> action)
+    // Counts the Npgsql commands under the action. Npgsql's own catalog reads (type loading on a new physical connection)
+    // are not the session's round trips and are left out; what was counted is listed in seen.
+    private static async Task<int> CountRoundTripsAsync(Func<Task> action, List<string>? seen = null)
     {
         using var source = new System.Diagnostics.ActivitySource("SourceFlow.Tests.RoundTrips");
         int count = 0;
@@ -179,6 +182,20 @@ public sealed class PostgreSqlStoreTests(PostgreSqlServer server) : PostgreSqlTe
             {
                 if (a.Source.Name == "Npgsql" && parent is not null && a.ParentSpanId == parent.SpanId)
                 {
+                    string text = a.GetTagItem("db.query.text") as string ?? a.GetTagItem("db.statement") as string ?? a.DisplayName;
+                    if (text.Contains("pg_catalog", StringComparison.Ordinal) || text.Contains("pg_type", StringComparison.Ordinal))
+                    {
+                        return;
+                    }
+
+                    if (seen is not null)
+                    {
+                        lock (seen)
+                        {
+                            seen.Add(text.Length > 120 ? text[..120] : text);
+                        }
+                    }
+
                     Interlocked.Increment(ref count);
                 }
             },

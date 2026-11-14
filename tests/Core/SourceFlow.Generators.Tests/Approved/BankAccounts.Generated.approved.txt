@@ -6,13 +6,13 @@
 
 namespace Bank.Accounts
 {
-    partial record struct AccountId : global::SourceFlow.IStronglyTypedId<AccountId>, global::System.IComparable<AccountId>, global::System.ISpanFormattable
+    partial record struct AccountId : global::SourceFlow.IStronglyTypedId<AccountId>, global::System.IComparable<AccountId>, global::System.ISpanFormattable, global::System.IUtf8SpanFormattable
     {
         /// <summary>How the value is stored and written, from the type of <c>Value</c> (CR-30).</summary>
         public static global::SourceFlow.IdBacking Backing => global::SourceFlow.IdBacking.Guid;
-        /// <summary>Creates a new time-ordered (UUIDv7) id.</summary>
+        /// <summary>Creates a new random, time-ordered (UUIDv7) id. Not deterministic: in Decide, When and React use <c>ctx.NewId&lt;AccountId&gt;(…)</c> (SF0009).</summary>
         public static AccountId New() => new(global::System.Guid.CreateVersion7());
-        /// <summary>Creates a new time-ordered (UUIDv7) id using <paramref name="time"/>.</summary>
+        /// <summary>Creates a new random, time-ordered (UUIDv7) id using <paramref name="time"/>. Not deterministic (SF0009).</summary>
         public static AccountId New(global::System.TimeProvider time) => new(global::System.Guid.CreateVersion7((time ?? throw new global::System.ArgumentNullException(nameof(time))).GetUtcNow()));
         public bool IsDefault => Value == global::System.Guid.Empty;
         bool global::SourceFlow.IStronglyTypedId.IsValid => Value != global::System.Guid.Empty;
@@ -30,6 +30,7 @@ namespace Bank.Accounts
         }
         public string ToString(string? format, global::System.IFormatProvider? formatProvider) => Value.ToString(string.IsNullOrEmpty(format) ? "D" : format, formatProvider);
         public bool TryFormat(global::System.Span<char> destination, out int charsWritten, global::System.ReadOnlySpan<char> format, global::System.IFormatProvider? provider) => Value.TryFormat(destination, out charsWritten, format.IsEmpty ? global::System.MemoryExtensions.AsSpan("D") : format);
+        public bool TryFormat(global::System.Span<byte> utf8Destination, out int bytesWritten, global::System.ReadOnlySpan<char> format, global::System.IFormatProvider? provider) => Value.TryFormat(utf8Destination, out bytesWritten, format.IsEmpty ? global::System.MemoryExtensions.AsSpan("D") : format);
         public static AccountId Parse(string value) => TryParse(value, out AccountId id) ? id : throw new global::System.FormatException($"'{value}' is not a valid AccountId.");
         public int CompareTo(AccountId other) => Value.CompareTo(other.Value);
 

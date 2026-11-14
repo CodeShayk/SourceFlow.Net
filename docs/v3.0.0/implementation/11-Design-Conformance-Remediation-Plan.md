@@ -550,6 +550,14 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
     - an upcaster without a public parameterless constructor gets a diagnostic, SF0023;
     - generated ids implement `IUtf8SpanFormattable`.
   - **SF0012 (CR-57):** doc 03 §9 is corrected to say it is not built.
+  *As built:*
+  - The mutable-collection warning is its own id, SF0024. A `Decide` for another aggregate's command is SF0025, and
+    the model builder refuses it at startup too.
+  - `ctx.NewId<TId>(purpose = "id")` takes a purpose, so one decision can create several distinct ids. It supports
+    ids backed by a `Guid` or a string.
+  - The shared helpers are `Conventions.RejectedName`, `PrimaryConstructor` and `IsMarkedTarget` in the generator.
+    The runtime keeps `CommandReplies.RejectedTypeName`, because the netstandard2.0 compiler plugin can't share code
+    with the net10.0 runtime.
 - **Tests:** GEN-69..77.
 
 #### WP-C.18 Boundaries, options and documentation alignment · 1.5 ew · findings CR-58, CR-59, CR-60

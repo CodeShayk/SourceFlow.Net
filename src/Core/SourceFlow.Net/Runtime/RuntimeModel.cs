@@ -68,6 +68,14 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
     public void AddMessage<TMessage>(string name, int version)
         where TMessage : class, IMessage
     {
+        // CR-56: the registration must say what the type says (generated modules always do; a hand-written one may not).
+        if (Attribute.GetCustomAttribute(typeof(TMessage), typeof(MessageTypeAttribute)) is MessageTypeAttribute declared
+            && (declared.Name != name || declared.Version != version))
+        {
+            throw new InvalidOperationException(
+                $"{typeof(TMessage).Name} is registered as ('{name}', {version}) but declares [MessageType(\"{declared.Name}\", {declared.Version})].");
+        }
+
         _messages.Add(typeof(TMessage), name, version);
     }
 
@@ -201,6 +209,11 @@ public sealed class SourceFlowModelBuilder : ISourceFlowModuleBuilder
         {
             foreach (Type command in aggregate.DecidedCommands)
             {
+                if (!aggregate.TargetingCommands.Contains(command))
+                {
+                    throw new InvalidOperationException($"{aggregate.Name} decides {command.Name}, which doesn't target it (ICommand<{aggregate.StateType.Name}>); SF0025 (CR-52).");
+                }
+
                 if (owners.TryGetValue(command, out AggregateDescriptor? other))
                 {
                     throw new InvalidOperationException($"Command {command.Name} is decided by two aggregates: {other.Name} and {aggregate.Name}.");

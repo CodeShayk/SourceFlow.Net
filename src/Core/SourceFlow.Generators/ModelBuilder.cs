@@ -85,10 +85,7 @@ namespace SourceFlow.Generators
 
         private static IEnumerable<MemberModel> Members(INamedTypeSymbol type)
         {
-            IMethodSymbol? primary = type.InstanceConstructors
-                .Where(c => c.Parameters.Length > 0)
-                .OrderByDescending(c => c.Parameters.Length)
-                .FirstOrDefault(c => c.Parameters.All(p => type.GetMembers(p.Name).OfType<IPropertySymbol>().Any()));
+            IMethodSymbol? primary = Conventions.PrimaryConstructor(type);
 
             foreach (IPropertySymbol property in type.GetMembers().OfType<IPropertySymbol>())
             {
@@ -97,8 +94,7 @@ namespace SourceFlow.Generators
                     continue;
                 }
 
-                bool marked = property.FindAttribute(KnownNames.AggregateIdAttribute) is not null
-                    || (primary?.Parameters.FirstOrDefault(p => p.Name == property.Name)?.FindAttribute(KnownNames.AggregateIdAttribute) is not null);
+                bool marked = Conventions.IsMarkedTarget(property, primary);
                 yield return new MemberModel(property.Name, property.Type.FullName(), marked);
             }
         }
@@ -190,7 +186,7 @@ namespace SourceFlow.Generators
                         && commandType.ConstructorArguments[0].Value is string commandName)
                     {
                         int commandVersion = commandType.ConstructorArguments.Length > 1 && commandType.ConstructorArguments[1].Value is int v ? v : 1;
-                        rejections.Add(new RejectionModel(reply.FullName(), commandName + ".rejected", commandVersion));
+                        rejections.Add(new RejectionModel(reply.FullName(), Conventions.RejectedName(commandName), commandVersion));
                     }
                 }
                 else if (method.IsStatic && method.Name == "CorrelateBy" && method.Parameters.Length == 1

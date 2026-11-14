@@ -23,3 +23,6 @@ SF0019 | SourceFlow.Manifest | Warning | Decide outcome can't be determined
 SF0020 | SourceFlow.Workflows | Error | Workflow DSL validation failure
 SF0021 | SourceFlow.Workflows | Error | Workflow hook has no implementation
 SF0022 | SourceFlow.Ids | Error | Id backing disagrees with its value
+SF0023 | SourceFlow.Shape | Error | Upcaster has no public parameterless constructor
+SF0024 | SourceFlow.Purity | Warning | Aggregate state holds a mutable collection
+SF0025 | SourceFlow.Commands | Error | Decide for a command that targets another aggregate

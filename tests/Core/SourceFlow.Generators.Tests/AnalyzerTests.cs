@@ -501,6 +501,152 @@ public sealed class AnalyzerTests
         Analyze(Id).ShouldBeEmpty();
     }
 
+    // ================================================================ WP-C.17 (CR-51, CR-52, CR-53, CR-56)
+
+    [Fact]
+    [Trait("Id", "GEN-69")]
+    [Trait("Covers", "ADR-003;CR-51")]
+    public void SF0004_IoInWhen_IsAnError()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + """
+            [MessageType("t.e", 1)] public sealed record E(Aid A) : IEvent;
+            [Aggregate("agg")] public sealed partial record Agg : IAggregate<Agg, Aid>
+            {
+                public static Agg Initial { get; } = new();
+                public string Note { get; init; } = "";
+                private Agg When(E e)
+                {
+                    System.Console.WriteLine("folding");
+                    return this with { Note = System.IO.File.ReadAllText("x") };
+                }
+            }
+            """);
+
+        diagnostics.Count(d => d.Id == "SF0004" && d.GetMessage().Contains("I/O")).ShouldBe(2);
+    }
+
+    [Fact]
+    [Trait("Id", "GEN-70")]
+    [Trait("Covers", "ADR-003;CR-51")]
+    public void SF0004_ChangingStateThroughAMethodCall_IsAnError_ButALocalCopyIsFine()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + """
+            [MessageType("t.e", 1)] public sealed record E(Aid A) : IEvent;
+            [MessageType("t.f", 1)] public sealed record F(Aid A) : IEvent;
+            [Aggregate("agg")] public sealed partial record Agg : IAggregate<Agg, Aid>
+            {
+                public static Agg Initial { get; } = new();
+                public System.Collections.Generic.List<string> Items { get; init; } = [];
+                private Agg When(E e) { Items.Add("x"); return this; }
+                private Agg When(F f) { var copy = new System.Collections.Generic.List<string>(Items); copy.Add("y"); return this with { Items = copy }; }
+            }
+            """);
+
+        diagnostics.Where(d => d.Id == "SF0004").ShouldHaveSingleItem().GetMessage().ShouldContain("in place (Add)");
+    }
+
+    [Fact]
+    [Trait("Id", "GEN-71")]
+    [Trait("Covers", "ADR-003;CR-51")]
+    public void SF0004_InALambdaOrLocalFunctionInsideWhen_IsAnError()
+    {
+        Analyze(Id + """
+            [MessageType("t.e", 1)] public sealed record E(Aid A) : IEvent;
+            [Aggregate("agg")] public sealed partial record Agg : IAggregate<Agg, Aid>
+            {
+                private static int counter;
+                public static Agg Initial { get; } = new();
+                private Agg When(E e) { void Bump() => counter++; Bump(); return this; }
+            }
+            """).ShouldContain(d => d.Id == "SF0004");
+    }
+
+    [Fact]
+    [Trait("Id", "GEN-72")]
+    [Trait("Covers", "CR-51")]
+    public void SF0024_MutableCollectionsInAggregateState_AreAWarning()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + """
+            [Aggregate("agg")] public sealed partial record Agg : IAggregate<Agg, Aid>
+            {
+                public static Agg Initial { get; } = new();
+                public System.Collections.Generic.List<string> Lines { get; init; } = [];
+                public string[] Tags { get; init; } = [];
+                public System.Collections.Immutable.ImmutableList<string> Safe { get; init; } = System.Collections.Immutable.ImmutableList<string>.Empty;
+                public System.Collections.Generic.IReadOnlyList<string> ReadOnly { get; init; } = [];
+            }
+            """);
+
+        diagnostics.Where(d => d.Id == "SF0024").Select(d => d.GetMessage()).ShouldBe(
+            ["'Agg.Lines' is a mutable List: a When that changes it in place changes the previous state too; use an immutable collection (CR-51)",
+             "'Agg.Tags' is a mutable array: a When that changes it in place changes the previous state too; use an immutable collection (CR-51)"],
+            ignoreOrder: true);
+        diagnostics.Where(d => d.Id == "SF0024").ShouldAllBe(d => d.Severity == DiagnosticSeverity.Warning);
+    }
+
+    [Fact]
+    [Trait("Id", "GEN-73")]
+    [Trait("Covers", "ADR-007;CR-52")]
+    public void SF0025_DecidingAnotherAggregatesCommand_IsAnError()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + """
+            [StronglyTypedId] public readonly partial record struct Bid(Guid Value);
+            [MessageType("t.c", 1)] public sealed record C(Bid B) : ICommand<Other>;
+            [MessageType("t.e", 1)] public sealed record E(Aid A) : IEvent;
+            [Aggregate("agg")] public sealed partial record Agg : IAggregate<Agg, Aid>
+            {
+                public static Agg Initial { get; } = new();
+                public Decision Decide(C c, DecisionContext ctx) => Decision.NoOp;
+                private Agg When(E e) => this;
+            }
+            [Aggregate("other")] public sealed partial record Other : IAggregate<Other, Bid>
+            {
+                public static Other Initial { get; } = new();
+            }
+            """);
+
+        diagnostics.ShouldContain(d => d.Id == "SF0025" && d.GetMessage().Contains("ICommand<Other>"));
+    }
+
+    [Fact]
+    [Trait("Id", "GEN-74")]
+    [Trait("Covers", "ADR-003;CR-53")]
+    public void SF0009_RandomIdsInPureMethods_AreFlagged_AndTheDeterministicFactoryIsNot()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + """
+            [MessageType("t.c", 1)] public sealed record C(Aid A) : ICommand<Agg>;
+            [MessageType("t.e", 1)] public sealed record E(Aid A, Aid Child, Guid Raw) : IEvent;
+            [Aggregate("agg")] public sealed partial record Agg : IAggregate<Agg, Aid>
+            {
+                public static Agg Initial { get; } = new();
+                public Decision Decide(C c, DecisionContext ctx) => Decision.Accept(new E(c.A, Aid.New(), Guid.CreateVersion7()));
+                public Decision Decide2(C c, DecisionContext ctx) => Decision.Accept(new E(c.A, ctx.NewId<Aid>("child"), Guid.Empty));
+                private Agg When(E e) => this;
+            }
+            public static class Elsewhere { public static Aid Fine() => Aid.New(); }
+            """);
+
+        string[] flagged = [.. diagnostics.Where(d => d.Id == "SF0009").Select(d => d.GetMessage())];
+        flagged.Length.ShouldBe(2);
+        flagged.ShouldContain(m => m.Contains("Guid.CreateVersion7()"));
+        flagged.ShouldContain(m => m.Contains("Aid.New()") && m.Contains("ctx.NewId<Aid>"));
+    }
+
+    [Fact]
+    [Trait("Id", "GEN-75")]
+    [Trait("Covers", "CR-56")]
+    public void SF0023_AnUpcasterWithoutAPublicParameterlessConstructor_IsAnError()
+    {
+        ImmutableArray<Diagnostic> diagnostics = Analyze(Id + """
+            [MessageType("t.e", 1)] public sealed record E1(Aid A) : IEvent;
+            [MessageType("t.e", 2)] public sealed record E2(Aid A, int N) : IEvent;
+            public sealed class Bad(int n) : IUpcaster<E1, E2> { public E2 Upcast(E1 old) => new(old.A, n); }
+            public sealed class Good : IUpcaster<E1, E2> { public E2 Upcast(E1 old) => new(old.A, 0); }
+            """);
+
+        diagnostics.Where(d => d.Id == "SF0023").ShouldHaveSingleItem().GetMessage().ShouldContain("'Bad'");
+    }
+
     private static ImmutableArray<Diagnostic> Analyze(string body)
     {
         return GeneratorHarness.Analyze(Sources.Usings + "\nnamespace T;\n" + body);

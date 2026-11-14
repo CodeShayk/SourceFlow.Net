@@ -55,6 +55,18 @@ public readonly record struct ReactionContext<TId>(TId Id, DateTimeOffset Now, M
     /// apart (doc 15 §5.5, CR-33).
     /// </summary>
     public MessageId? CausationId { get; init; }
+
+    /// <summary>
+    /// A new id that is the same every time this reaction is replayed or retried: derived from the id of the message being handled and
+    /// <paramref name="purpose"/> (CR-53). Use a different purpose for each id one reaction creates. <c>TId.New()</c> is random and
+    /// therefore not allowed here (SF0009). Ids backed by a <c>Guid</c> or a string are supported.
+    /// </summary>
+    /// <exception cref="NotSupportedException"><typeparamref name="TNew"/> is backed by a number.</exception>
+    public TNew NewId<TNew>(string purpose = "id")
+        where TNew : struct, IStronglyTypedId<TNew>
+    {
+        return DeterministicIds.Create<TNew>(MessageId, purpose);
+    }
 }
 
 /// <summary>A message to deliver at a later time (a durable timer, doc 04 §8).</summary>

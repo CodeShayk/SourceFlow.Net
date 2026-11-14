@@ -375,4 +375,33 @@ namespace SourceFlow.Generators
             return array.IsDefault ? ImmutableArray<T>.Empty : array;
         }
     }
+
+    /// <summary>
+    /// Rules the generator, the analyzers and the manifest share, defined once (CR-54). The runtime's counterpart of
+    /// <see cref="RejectedName"/> is <c>CommandReplies.RejectedTypeName</c>.
+    /// </summary>
+    internal static class Conventions
+    {
+        /// <summary>The logical name of a command's rejection reply: <c>{command}.rejected</c>, at the command's version.</summary>
+        public static string RejectedName(string commandName)
+        {
+            return commandName + ".rejected";
+        }
+
+        /// <summary>The constructor whose parameters name the type's properties (a record's primary constructor), if any.</summary>
+        public static IMethodSymbol? PrimaryConstructor(INamedTypeSymbol type)
+        {
+            return type.InstanceConstructors
+                .Where(c => c.Parameters.Length > 0)
+                .OrderByDescending(c => c.Parameters.Length)
+                .FirstOrDefault(c => c.Parameters.All(p => type.GetMembers(p.Name).OfType<IPropertySymbol>().Any()));
+        }
+
+        /// <summary>True when a command property is marked [AggregateId], on the property or on its primary-constructor parameter.</summary>
+        public static bool IsMarkedTarget(IPropertySymbol property, IMethodSymbol? primary)
+        {
+            return property.FindAttribute(KnownNames.AggregateIdAttribute) is not null
+                || primary?.Parameters.FirstOrDefault(p => p.Name == property.Name)?.FindAttribute(KnownNames.AggregateIdAttribute) is not null;
+        }
+    }
 }

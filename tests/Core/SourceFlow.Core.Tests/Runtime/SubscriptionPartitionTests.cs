@@ -25,11 +25,23 @@ public sealed class SubscriptionPartitionTests
         {
             await first.WaitForIdleAsync();
             subscription = HandlerOf(first);
+
+            // Idle can come before the engine's first pass stores the count: wait for the claim itself.
+            DateTimeOffset deadline = TimeProvider.System.GetUtcNow().AddSeconds(10);
+            while (await store.GetPartitionsAsync(subscription, Ct) is null && TimeProvider.System.GetUtcNow() < deadline)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(20), TimeProvider.System, Ct);
+            }
         }
 
         (await store.GetPartitionsAsync(subscription, Ct)).ShouldBe(1, "the first node stored its count");
         await using SourceFlowTestHost later = await NodeAsync(store, broker, partitions: 4, new TckObservations());
         await later.WaitForIdleAsync();
+        DateTimeOffset until = TimeProvider.System.GetUtcNow().AddSeconds(10);
+        while (!Engine(later).PartitionMismatches.ContainsKey(subscription) && TimeProvider.System.GetUtcNow() < until)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(20), TimeProvider.System, Ct);   // the engine's first pass checks the count
+        }
 
         (await store.GetPartitionsAsync(subscription, Ct)).ShouldBe(1, "the stored count stays; only a repartition changes it");
         Engine(later).PartitionMismatches.ShouldContainKey(subscription, "a node configured otherwise refuses it");

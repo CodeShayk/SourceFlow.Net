@@ -82,6 +82,21 @@ namespace SourceFlow.Generators
             "{0}",
             "SourceFlow.Workflows", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: "https://github.com/CodeShayk/SourceFlow.Net/blob/v3.0.0/docs/v3.0.0/Design/15-Workflow-DSL-and-Studio.md#55-code-generation-wfd-29");
 
+        public static readonly DiagnosticDescriptor UpcasterConstructor = new(
+            "SF0023", "Upcaster has no public parameterless constructor",
+            "Upcaster '{0}' needs a public parameterless constructor: the generated module registers it with new() (CR-56)",
+            "SourceFlow.Shape", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpBase);
+
+        public static readonly DiagnosticDescriptor MutableStateCollection = new(
+            "SF0024", "Aggregate state holds a mutable collection",
+            "'{0}.{1}' is a mutable {2}: a When that changes it in place changes the previous state too; use an immutable collection (CR-51)",
+            "SourceFlow.Purity", DiagnosticSeverity.Warning, isEnabledByDefault: true, helpLinkUri: HelpBase);
+
+        public static readonly DiagnosticDescriptor DecideForOtherAggregate = new(
+            "SF0025", "Decide for a command that targets another aggregate",
+            "'{0}' decides '{1}', but '{1}' implements ICommand<{2}>: a command is decided by the aggregate it targets (CR-52)",
+            "SourceFlow.Commands", DiagnosticSeverity.Error, isEnabledByDefault: true, helpLinkUri: HelpBase);
+
         public static readonly DiagnosticDescriptor IdBackingMismatch = new(
             "SF0022", "Id backing disagrees with its value",
             "'{0}' declares Backing = {1}, but its Value is {2}; the value's type decides how the id is stored (CR-30)",

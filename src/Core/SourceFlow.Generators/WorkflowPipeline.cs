@@ -284,7 +284,7 @@ namespace SourceFlow.Generators
             var registration = new WorkflowRegistration(
                 fullType,
                 workflow.Owner,
-                rejections.Values.Select(r => new RejectionModel(Sf + "CommandRejected<" + r.ClrType + ">", Name(r.Ref) + ".rejected", Version(r.Ref))).ToEquatableArray());
+                rejections.Values.Select(r => new RejectionModel(Sf + "CommandRejected<" + r.ClrType + ">", Conventions.RejectedName(Name(r.Ref)), Version(r.Ref))).ToEquatableArray());
             return new WorkflowOutput(
                 file.Path,
                 diagnostics.ToEquatableArray(),

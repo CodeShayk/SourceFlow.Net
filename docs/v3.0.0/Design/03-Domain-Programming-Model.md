@@ -512,15 +512,15 @@ The generated module registers **only** what it found at compile time, with no a
 | SF0001 | Error | A type implementing `ICommand`, `IEvent` or `IIntegrationEvent` lacks `[MessageType]`. |
 | SF0002 | Error | Duplicate `(name, version)` within the compilation. Cross-assembly duplicates are caught at startup. |
 | SF0003 | Error | A command's target id is missing or ambiguous: no member, or several members, of the aggregate's id type. |
-| SF0004 | Error | A `When` method has side effects: it calls I/O, assigns fields, or has an `async` modifier. |
+| SF0004 | Error | A `When` method has side effects: it calls I/O (`System.IO`, `System.Net`, `System.Data`, EF Core, `Console`), assigns fields, changes a collection reachable from `this` through a method call (`Items.Add`), or has an `async` modifier, including in lambdas and local functions inside it. |
 | SF0005 | Warning | An event produced by `Decide` has no `When` in that aggregate. The state ignores it. |
 | SF0006 | Warning | A command type has no `Decide` or handler in this compilation, and no route. Startup turns this into an error. |
 | SF0007 | Error | `Decide` is `async`, or returns `Task`/`ValueTask`. Use `ICommandHandler` for I/O. |
 | SF0008 | Error | An aggregate or process manager is not a `sealed record`, or has `set` accessors (only `init` is allowed). |
-| SF0009 | Warning | Non-deterministic API in `Decide`, `When` or `React` (`DateTime.*Now`, `Guid.NewGuid`, `Random`, `Environment.TickCount`). Use `ctx`. |
+| SF0009 | Warning | Non-deterministic API in `Decide`, `When` or `React` (`DateTime.*Now`, `Guid.NewGuid`, `Guid.CreateVersion7`, a generated `Id.New()`, `Random`, `Environment.TickCount`). Use `ctx`: `ctx.Now`, and `ctx.NewId<TId>(purpose)` for ids, which derives the id from the command or message id, so a retry creates the same one. |
 | SF0010 | Error | A message member type is not supported by the System.Text.Json source generator. |
 | SF0011 | Error | `[PersonalData]` is used in an event without a resolvable subject key (doc 10 §4). |
-| SF0012 | Error | A process manager handles an event without a correlation (no `CorrelateBy` and not a reply). |
+| SF0012 | — | *Not built* (WP-C.17, CR-57). A message without `CorrelateBy` correlates through the envelope's correlation, which replies to the process manager's commands carry; an event that has neither is dropped at runtime, and the specs fail on it (UT-TST-21). |
 | SF0013 | Warning | `.AsIs()` publishes an event containing `[PersonalData]`. |
 | SF0014 | Error | A command type is both handled locally and routed remotely ([ADR-007](../ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md)). The analyzer catches it when routing uses constant expressions and the aggregate or handler is declared in the same compilation; an aggregate from a referenced assembly is another service's, whose contracts this one uses. Startup validation always catches it. |
 | SF0015 | Error | `IQueryService` or `IAggregateReader` used inside `Decide`, `When`, `React` or projection code. CQRS separation (doc 14 Q-R1). |
@@ -530,3 +530,7 @@ The generated module registers **only** what it found at compile time, with no a
 | SF0020 | Error | Workflow DSL validation failure (rule WF-V01…V16 named in the message), reported at the `.sfflow.yaml` line (doc 15 §5.4) |
 | SF0021 | Error | A workflow `$hook` partial method has no implementation (doc 15 §5.5) |
 | SF0018 | Error | A `[DomainQuery]` doesn't bind against the service's own catalog, or its result columns don't match the result record (doc 14 §1.1, Q-B4). |
+| SF0022 | Error | A strongly typed id's `Backing` disagrees with the type of its `Value` (CR-30). |
+| SF0023 | Error | An upcaster has no public parameterless constructor, so the generated module can't create it (CR-56). |
+| SF0024 | Warning | Aggregate state holds a mutable collection (`List<T>`, `Dictionary<,>`, an array…): a `When` that changes it in place changes the previous state too (CR-51). |
+| SF0025 | Error | A `Decide` for a command that targets another aggregate (`ICommand<Other>`). Startup refuses it too (CR-52). |

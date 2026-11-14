@@ -150,7 +150,7 @@ namespace SourceFlow.Generators
                 if (message is INamedTypeSymbol { IsGenericType: true } reply && reply.Is(KnownNames.CommandRejected)
                     && NameVersion(reply.TypeArguments[0]) is { } rejected)
                 {
-                    handles.Add(rejected.Name + ".rejected.v" + rejected.Version.ToString(CultureInfo.InvariantCulture));
+                    handles.Add(Conventions.RejectedName(rejected.Name) + ".v" + rejected.Version.ToString(CultureInfo.InvariantCulture));
                 }
                 else if (ManifestAnalysis.Ref(message) is { } handled)
                 {

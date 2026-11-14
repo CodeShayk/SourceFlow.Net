@@ -27,15 +27,15 @@ namespace SourceFlow.Generators
                 IdBackingKind.Int64 => "Int64",
                 _ => "Guid",
             };
-            w.Open($"partial {model.Keyword} {self} : {Sf}IStronglyTypedId<{self}>, global::System.IComparable<{self}>, global::System.ISpanFormattable");
+            w.Open($"partial {model.Keyword} {self} : {Sf}IStronglyTypedId<{self}>, global::System.IComparable<{self}>, global::System.ISpanFormattable, global::System.IUtf8SpanFormattable");
             w.Line($"/// <summary>How the value is stored and written, from the type of <c>Value</c> (CR-30).</summary>");
             w.Line($"public static {Sf}IdBacking Backing => {Sf}IdBacking.{backingName};");
             switch (model.Backing)
             {
                 case IdBackingKind.Guid:
-                    w.Line($"/// <summary>Creates a new time-ordered (UUIDv7) id.</summary>");
+                    w.Line($"/// <summary>Creates a new random, time-ordered (UUIDv7) id. Not deterministic: in Decide, When and React use <c>ctx.NewId&lt;{self}&gt;(…)</c> (SF0009).</summary>");
                     w.Line($"public static {self} New() => new(global::System.Guid.CreateVersion7());");
-                    w.Line($"/// <summary>Creates a new time-ordered (UUIDv7) id using <paramref name=\"time\"/>.</summary>");
+                    w.Line($"/// <summary>Creates a new random, time-ordered (UUIDv7) id using <paramref name=\"time\"/>. Not deterministic (SF0009).</summary>");
                     w.Line($"public static {self} New(global::System.TimeProvider time) => new(global::System.Guid.CreateVersion7((time ?? throw new global::System.ArgumentNullException(nameof(time))).GetUtcNow()));");
                     w.Line("public bool IsDefault => Value == global::System.Guid.Empty;");
                     w.Line($"bool {Sf}IStronglyTypedId.IsValid => Value != global::System.Guid.Empty;");
@@ -47,6 +47,7 @@ namespace SourceFlow.Generators
                     w.Line("id = default;").Line("return false;").Close();
                     w.Line("public string ToString(string? format, global::System.IFormatProvider? formatProvider) => Value.ToString(string.IsNullOrEmpty(format) ? \"D\" : format, formatProvider);");
                     w.Line("public bool TryFormat(global::System.Span<char> destination, out int charsWritten, global::System.ReadOnlySpan<char> format, global::System.IFormatProvider? provider) => Value.TryFormat(destination, out charsWritten, format.IsEmpty ? global::System.MemoryExtensions.AsSpan(\"D\") : format);");
+                    w.Line("public bool TryFormat(global::System.Span<byte> utf8Destination, out int bytesWritten, global::System.ReadOnlySpan<char> format, global::System.IFormatProvider? provider) => Value.TryFormat(utf8Destination, out bytesWritten, format.IsEmpty ? global::System.MemoryExtensions.AsSpan(\"D\") : format);");
                     break;
                 case IdBackingKind.Int64:
                     w.Line("public bool IsDefault => Value == 0;");
@@ -61,6 +62,7 @@ namespace SourceFlow.Generators
                     w.Line("id = default;").Line("return false;").Close();
                     w.Line("public string ToString(string? format, global::System.IFormatProvider? formatProvider) => Value.ToString(format, formatProvider);");
                     w.Line("public bool TryFormat(global::System.Span<char> destination, out int charsWritten, global::System.ReadOnlySpan<char> format, global::System.IFormatProvider? provider) => Value.TryFormat(destination, out charsWritten, format, provider);");
+                    w.Line("public bool TryFormat(global::System.Span<byte> utf8Destination, out int bytesWritten, global::System.ReadOnlySpan<char> format, global::System.IFormatProvider? provider) => Value.TryFormat(utf8Destination, out bytesWritten, format, provider);");
                     break;
                 default:
                     w.Line($"/// <summary>The maximum length of the id value.</summary>");
@@ -86,6 +88,7 @@ namespace SourceFlow.Generators
                     w.Line("string text = ToString();");
                     w.Line("if (global::System.MemoryExtensions.AsSpan(text).TryCopyTo(destination)) { charsWritten = text.Length; return true; }");
                     w.Line("charsWritten = 0;").Line("return false;").Close();
+                    w.Line("public bool TryFormat(global::System.Span<byte> utf8Destination, out int bytesWritten, global::System.ReadOnlySpan<char> format, global::System.IFormatProvider? provider) => global::System.Text.Encoding.UTF8.TryGetBytes(ToString(), utf8Destination, out bytesWritten);");
                     break;
             }
 

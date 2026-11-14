@@ -127,4 +127,30 @@ public readonly record struct DecisionContext(
 {
     /// <summary>True when the stream does not exist yet.</summary>
     public bool IsNew => Version == StreamVersion.None;
+
+    /// <summary>
+    /// A new id that is the same every time this decision is replayed or retried: derived from the command id and
+    /// <paramref name="purpose"/> (CR-53). Use a different purpose for each id one decision creates. <c>TId.New()</c> is random and
+    /// therefore not allowed here (SF0009). Ids backed by a <c>Guid</c> or a string are supported.
+    /// </summary>
+    /// <exception cref="NotSupportedException"><typeparamref name="TNew"/> is backed by a number.</exception>
+    public TNew NewId<TNew>(string purpose = "id")
+        where TNew : struct, IStronglyTypedId<TNew>
+    {
+        return DeterministicIds.Create<TNew>(CommandId, purpose);
+    }
+}
+
+/// <summary>Deterministic ids for decisions and reactions (CR-53).</summary>
+internal static class DeterministicIds
+{
+    public static TNew Create<TNew>(MessageId source, string purpose)
+        where TNew : struct, IStronglyTypedId<TNew>
+    {
+        ArgumentException.ThrowIfNullOrEmpty(purpose);
+        Guid value = Messaging.MessageIds.Derive(source, "new-id:" + purpose).Value;
+        return TNew.TryParse(value.ToString("N"), out TNew id) && !id.IsDefault
+            ? id
+            : throw new NotSupportedException($"{typeof(TNew).Name} isn't backed by a Guid or a string, so NewId can't create it; derive it from the command instead.");
+    }
 }

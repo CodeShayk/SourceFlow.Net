@@ -91,6 +91,8 @@ namespace SourceFlow
         public bool IsNew { get; }
         public System.DateTimeOffset Now { get; init; }
         public SourceFlow.StreamVersion Version { get; init; }
+        public TNew NewId<TNew>(string purpose = "id")
+            where TNew :  struct, SourceFlow.IStronglyTypedId<TNew> { }
     }
     public enum DecisionKind
     {
@@ -449,6 +451,8 @@ namespace SourceFlow
         public SourceFlow.MessageId MessageId { get; init; }
         public System.DateTimeOffset Now { get; init; }
         public System.Text.Json.JsonSerializerOptions? Serializer { get; init; }
+        public TNew NewId<TNew>(string purpose = "id")
+            where TNew :  struct, SourceFlow.IStronglyTypedId<TNew> { }
     }
     [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=true, Inherited=false)]
     public sealed class RejectsAttribute : System.Attribute

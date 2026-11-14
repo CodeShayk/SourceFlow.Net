@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -34,7 +35,10 @@ namespace SourceFlow.Generators
             Diagnostics.UnresolvableSubject,
             Diagnostics.PersonalDataPublishedAsIs,
             Diagnostics.QueryablePersonalData,
-            Diagnostics.UndeclaredOutcome);
+            Diagnostics.UndeclaredOutcome,
+            Diagnostics.UpcasterConstructor,
+            Diagnostics.MutableStateCollection,
+            Diagnostics.DecideForOtherAggregate);
 
         /// <inheritdoc />
         public override void Initialize(AnalysisContext context)
@@ -52,6 +56,7 @@ namespace SourceFlow.Generators
                 start.RegisterSymbolAction(symbolContext => AnalyzeType(symbolContext, seen), SymbolKind.NamedType);
                 start.RegisterOperationAction(AnalyzeNonDeterminism, OperationKind.Invocation, OperationKind.PropertyReference, OperationKind.ObjectCreation);
                 start.RegisterOperationAction(AnalyzeWhenAssignment, OperationKind.SimpleAssignment, OperationKind.CompoundAssignment, OperationKind.Increment, OperationKind.Decrement);
+                start.RegisterOperationAction(AnalyzeWhenEffects, OperationKind.Invocation, OperationKind.ObjectCreation, OperationKind.PropertyReference);
                 start.RegisterOperationAction(AnalyzeDecidedEvent, OperationKind.ObjectCreation);
                 start.RegisterOperationAction(AnalyzeCommandRoute, OperationKind.Invocation);
                 start.RegisterOperationAction(AnalyzeAsIsPublication, OperationKind.Invocation);
@@ -109,7 +114,22 @@ namespace SourceFlow.Generators
                     }
                     else if (decide.Parameters.Length == 2 && decide.Parameters[0].Type.Implements(KnownNames.Command))
                     {
+                        if (decide.Parameters[0].Type.FindInterface(KnownNames.CommandOf) is { } target
+                            && !SymbolEqualityComparer.Default.Equals(target.TypeArguments[0], type))
+                        {
+                            context.ReportDiagnostic(Diagnostic.Create(Diagnostics.DecideForOtherAggregate, decide.Locations.FirstOrDefault() ?? location,
+                                type.Name, decide.Parameters[0].Type.Name, target.TypeArguments[0].Name));
+                        }
+
                         AnalyzeOutcome(context, decide, type.Name + ".Decide", decide.Parameters[0].Type, location);
+                    }
+                }
+
+                foreach (IPropertySymbol property in type.GetMembers().OfType<IPropertySymbol>().Where(p => !p.IsStatic && p.Name != "EqualityContract"))
+                {
+                    if (MutableCollection(property.Type) is { } collection)
+                    {
+                        context.ReportDiagnostic(Diagnostic.Create(Diagnostics.MutableStateCollection, property.Locations.FirstOrDefault() ?? location, type.Name, property.Name, collection));
                     }
                 }
 
@@ -133,6 +153,12 @@ namespace SourceFlow.Generators
                         AnalyzeOutcome(context, handle, type.Name + ".HandleAsync", command, location);
                     }
                 }
+            }
+
+            if (!type.IsAbstract && type.AllInterfaces.Any(i => SymbolExtensions.MetadataName(i) == KnownNames.Upcaster)
+                && !type.InstanceConstructors.Any(c => c.Parameters.Length == 0 && c.DeclaredAccessibility == Accessibility.Public))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.UpcasterConstructor, location, type.Name));
             }
 
             if (type.FindAttribute(KnownNames.ProcessManagerAttribute) is not null)
@@ -377,12 +403,11 @@ namespace SourceFlow.Generators
             }
 
             ITypeSymbol idType = contract.TypeArguments[1];
-            IMethodSymbol? primary = command.InstanceConstructors.OrderByDescending(c => c.Parameters.Length).FirstOrDefault();
+            IMethodSymbol? primary = Conventions.PrimaryConstructor(command);   // the generator's rule, shared (CR-54)
             IPropertySymbol[] candidates = command.GetMembers().OfType<IPropertySymbol>()
                 .Where(p => !p.IsStatic && p.DeclaredAccessibility == Accessibility.Public && SymbolEqualityComparer.Default.Equals(p.Type, idType))
                 .ToArray();
-            int marked = candidates.Count(p => p.FindAttribute(KnownNames.AggregateIdAttribute) is not null
-                || primary?.Parameters.FirstOrDefault(x => x.Name == p.Name)?.FindAttribute(KnownNames.AggregateIdAttribute) is not null);
+            int marked = candidates.Count(p => Conventions.IsMarkedTarget(p, primary));
 
             string? problem = candidates.Length == 0
                 ? "it has no member of the id type"
@@ -425,6 +450,9 @@ namespace SourceFlow.Generators
             string? api = context.Operation switch
             {
                 IInvocationOperation { TargetMethod: { Name: "NewGuid", ContainingType: var t } } when t.Is("System.Guid") => "Guid.NewGuid()",
+                IInvocationOperation { TargetMethod: { Name: "CreateVersion7", ContainingType: var t } } when t.Is("System.Guid") => "Guid.CreateVersion7()",
+                IInvocationOperation { TargetMethod: { Name: "New", IsStatic: true, ContainingType: var t } } when t.FindAttribute(KnownNames.StronglyTypedIdAttribute) is not null
+                    => $"{t.Name}.New() (use ctx.NewId<{t.Name}>(…), which is deterministic)",
                 IPropertyReferenceOperation { Property: { Name: "Now" or "UtcNow" or "Today", ContainingType: var t } } p when t.Is("System.DateTime") || t.Is("System.DateTimeOffset") => $"{p.Property.ContainingType.Name}.{p.Property.Name}",
                 IPropertyReferenceOperation { Property: { Name: "TickCount" or "TickCount64", ContainingType: var t } } p when t.Is("System.Environment") => $"Environment.{p.Property.Name}",
                 IPropertyReferenceOperation { Property: { Name: "Shared", ContainingType: var t } } when t.Is("System.Random") => "Random.Shared",
@@ -440,8 +468,7 @@ namespace SourceFlow.Generators
 
         private static void AnalyzeWhenAssignment(OperationAnalysisContext context)
         {
-            if (context.ContainingSymbol is not IMethodSymbol { Name: "When" } method
-                || method.ContainingType?.FindAttribute(KnownNames.AggregateAttribute) is null)
+            if (AggregateWhen(context.ContainingSymbol) is not { } method)
             {
                 return;
             }
@@ -464,6 +491,113 @@ namespace SourceFlow.Generators
             {
                 context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ImpureWhen, context.Operation.Syntax.GetLocation(), method.ContainingType.Name, "it assigns state; return 'this with { … }' instead"));
             }
+        }
+
+        // The aggregate 'When' a symbol belongs to, through lambdas and local functions inside it (CR-51).
+        private static IMethodSymbol? AggregateWhen(ISymbol? symbol)
+        {
+            ISymbol? current = symbol;
+            while (current is IMethodSymbol { MethodKind: MethodKind.LambdaMethod or MethodKind.LocalFunction } local)
+            {
+                current = local.ContainingSymbol;
+            }
+
+            return current is IMethodSymbol { Name: "When" } when && when.ContainingType?.FindAttribute(KnownNames.AggregateAttribute) is not null ? when : null;
+        }
+
+        // I/O in a When (CR-51): files, the network, databases and the console. A When folds history, so it may run any time.
+        private static readonly string[] IoNamespaces = ["System.IO", "System.Net", "System.Data", "Microsoft.EntityFrameworkCore", "Microsoft.Data", "Npgsql", "Dapper"];
+
+        private static readonly HashSet<string> MutatingMethods = new(StringComparer.Ordinal)
+        {
+            "Add", "AddRange", "Remove", "RemoveAt", "RemoveAll", "RemoveRange", "Clear", "Insert", "InsertRange", "Push", "Pop",
+            "Enqueue", "Dequeue", "TryAdd", "TryRemove", "TryUpdate", "AddOrUpdate", "GetOrAdd", "Sort", "Reverse", "Set", "UnionWith",
+            "ExceptWith", "IntersectWith", "SymmetricExceptWith",
+        };
+
+        // SF0004 beyond assignments (CR-51): I/O, and changing a collection reachable from 'this' through a method call.
+        private static void AnalyzeWhenEffects(OperationAnalysisContext context)
+        {
+            if (AggregateWhen(context.ContainingSymbol) is not { } method)
+            {
+                return;
+            }
+
+            INamedTypeSymbol? used = context.Operation switch
+            {
+                IInvocationOperation invocation => invocation.TargetMethod.ContainingType,
+                IObjectCreationOperation creation => creation.Type as INamedTypeSymbol,
+                IPropertyReferenceOperation property => property.Property.ContainingType,
+                _ => null,
+            };
+            string? ns = used?.ContainingNamespace?.ToDisplayString();
+            if (used is not null && ns is not null
+                && (used.Is("System.Console") || IoNamespaces.Any(n => ns == n || ns.StartsWith(n + ".", StringComparison.Ordinal))))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ImpureWhen, context.Operation.Syntax.GetLocation(), method.ContainingType.Name, $"it does I/O ({used.Name})"));
+                return;
+            }
+
+            if (context.Operation is IInvocationOperation { TargetMethod.IsStatic: false } call && MutatingMethods.Contains(call.TargetMethod.Name) && ReachableFromThis(call.Instance))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Diagnostics.ImpureWhen, context.Operation.Syntax.GetLocation(), method.ContainingType.Name,
+                    $"it changes state in place ({call.TargetMethod.Name}); build a new collection and return 'this with {{ … }}'"));
+            }
+        }
+
+        // A member of 'this' (or of a member of 'this'), whatever the depth.
+        private static bool ReachableFromThis(IOperation? instance)
+        {
+            while (true)
+            {
+                switch (instance)
+                {
+                    case IInstanceReferenceOperation { ReferenceKind: InstanceReferenceKind.ContainingTypeInstance }:
+                        return true;
+                    case IFieldReferenceOperation field:
+                        if (field.Field.IsStatic)
+                        {
+                            return true;
+                        }
+
+                        instance = field.Instance;
+                        break;
+                    case IPropertyReferenceOperation property:
+                        if (property.Property.IsStatic)
+                        {
+                            return true;
+                        }
+
+                        instance = property.Instance;
+                        break;
+                    case IConversionOperation conversion:
+                        instance = conversion.Operand;
+                        break;
+                    default:
+                        return false;
+                }
+            }
+        }
+
+        // A mutable collection type for SF0024: arrays and the System.Collections.Generic and Concurrent collections.
+        private static string? MutableCollection(ITypeSymbol type)
+        {
+            if (type is IArrayTypeSymbol)
+            {
+                return "array";
+            }
+
+            string name = SymbolExtensions.MetadataName(type);
+            return name switch
+            {
+                "System.Collections.Generic.List`1" or "System.Collections.Generic.Dictionary`2" or "System.Collections.Generic.HashSet`1"
+                    or "System.Collections.Generic.Queue`1" or "System.Collections.Generic.Stack`1" or "System.Collections.Generic.SortedDictionary`2"
+                    or "System.Collections.Generic.SortedSet`1" or "System.Collections.Generic.LinkedList`1"
+                    or "System.Collections.Generic.IList`1" or "System.Collections.Generic.ICollection`1" or "System.Collections.Generic.IDictionary`2"
+                    or "System.Collections.Generic.ISet`1" => type.Name,
+                _ when name.StartsWith("System.Collections.Concurrent.", StringComparison.Ordinal) => type.Name,
+                _ => null,
+            };
         }
 
         // SF0019: a Decide (or command handler) whose events or rejection codes static analysis can't list.
