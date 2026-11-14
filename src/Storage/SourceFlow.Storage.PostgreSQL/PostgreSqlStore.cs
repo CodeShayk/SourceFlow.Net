@@ -668,8 +668,14 @@ public sealed partial class PostgreSqlStore :
         ], cancellationToken).ConfigureAwait(false);
         NpgsqlDataReader reader = scope.Reader;
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-            ? new StoredDocument(collection, id, reader.GetInt64(0), reader.GetFieldValue<byte[]>(1))
+            ? new StoredDocument(collection, id, reader.GetInt64(0), reader.GetFieldValue<byte[]>(1)) { Position = DocumentPosition(reader, 2) }
             : null;
+    }
+
+    // The stored position of a cross-stream document (CR-31): two nullable columns from ordinal on.
+    internal static GlobalPosition? DocumentPosition(NpgsqlDataReader reader, int ordinal)
+    {
+        return reader.IsDBNull(ordinal) ? null : new GlobalPosition(reader.GetFieldValue<ulong>(ordinal), (ulong)reader.GetInt64(ordinal + 1));
     }
 
     /// <inheritdoc />

@@ -26,9 +26,9 @@ public sealed class SqlServerSchemaTests(SqlServerServer server) : SqlServerTest
         IReadOnlyList<int> first = await migrator.MigrateAsync(Ct);
         IReadOnlyList<int> second = await migrator.MigrateAsync(Ct);
 
-        first.ShouldBe([1, 2]);
+        first.ShouldBe([1, 2, 3]);
         second.ShouldBeEmpty();
-        (await migrator.GetAppliedVersionsAsync(Ct)).ShouldBe([1, 2]);
+        (await migrator.GetAppliedVersionsAsync(Ct)).ShouldBe([1, 2, 3]);
         await migrator.VerifyAsync(Ct);
     }
 
@@ -41,7 +41,7 @@ public sealed class SqlServerSchemaTests(SqlServerServer server) : SqlServerTest
         IReadOnlyList<int>[] results = await Task.WhenAll(Enumerable.Range(0, 4)
             .Select(_ => Task.Run(() => new SqlServerSchemaMigrator(Server.ConnectionString, schema).MigrateAsync(Ct))));
 
-        results.Count(r => r.Count == 2).ShouldBe(1, "the application lock serialises migrators: one applies, the others find nothing to do");
+        results.Count(r => r.Count == 3).ShouldBe(1, "the application lock serialises migrators: one applies, the others find nothing to do");
         results.Count(r => r.Count == 0).ShouldBe(3);
     }
 

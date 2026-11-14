@@ -432,7 +432,11 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   longer hold a key or an Azure session; the relay renews its lease while draining and publishes in batches;
   TCK-46..49), WP-C.7 (fenced writes lock the lease row, so a paused former owner can't commit after a takeover; SQL
   Server's single-document upsert keeps the newer version under concurrency; process managers and handlers back off
-  before parking, and park once across a crash; an append after a flush or raw connection access is refused).
+  before parking, and park once across a crash; an append after a flush or raw connection access is refused), WP-C.8
+  (ids that can't be read back from a stream id are refused; schema fingerprints cover structure only, so renaming a
+  type or adding an upcast version keeps them, with a one-time migration of stored fingerprints; an id's backing has one
+  source and SF0022 checks it; cross-stream documents record their position and skip events already applied; schema
+  PostgreSQL V008 and SQL Server V003).
 
 ### Other notes
 

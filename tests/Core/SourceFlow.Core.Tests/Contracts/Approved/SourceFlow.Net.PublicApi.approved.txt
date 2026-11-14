@@ -2705,6 +2705,7 @@ namespace SourceFlow.Storage
         System.Threading.Tasks.ValueTask<SourceFlow.Storage.StoredDocument?> GetAsync(string collection, string id, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.StoredDocument>> GetManyAsync(string collection, System.Collections.Generic.IReadOnlyCollection<string> ids, System.Threading.CancellationToken cancellationToken);
         void Upsert(string collection, string id, long version, System.ReadOnlyMemory<byte> data);
+        void Upsert(string collection, string id, long version, System.ReadOnlyMemory<byte> data, SourceFlow.GlobalPosition? position);
     }
     public interface IEventLogReader
     {
@@ -2920,6 +2921,7 @@ namespace SourceFlow.Storage
         public string Collection { get; init; }
         public System.ReadOnlyMemory<byte> Data { get; init; }
         public string Id { get; init; }
+        public SourceFlow.GlobalPosition? Position { get; init; }
         public long Version { get; init; }
     }
     public sealed class StoredEvent : System.IEquatable<SourceFlow.Storage.StoredEvent>

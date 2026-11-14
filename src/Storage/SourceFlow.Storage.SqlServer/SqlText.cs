@@ -109,34 +109,34 @@ internal sealed class SqlText
             IF @@ROWCOUNT = 0 BEGIN; THROW 50002, @check, 1; END;
             """);
 
-        GetDocument = R("SELECT version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = @id");
-        GetDocuments = R("SELECT d.id, d.version, d.data FROM {s}.documents d JOIN OPENJSON(@ids) WITH (id nvarchar(200) COLLATE Latin1_General_100_BIN2 '$') i ON d.id = i.id WHERE d.tenant_id = @tenant AND d.collection = @collection");
+        GetDocument = R("SELECT version, data, position_commit, position_seq FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = @id");
+        GetDocuments = R("SELECT d.id, d.version, d.data, d.position_commit, d.position_seq FROM {s}.documents d JOIN OPENJSON(@ids) WITH (id nvarchar(200) COLLATE Latin1_General_100_BIN2 '$') i ON d.id = i.id WHERE d.tenant_id = @tenant AND d.collection = @collection");
         ListDocuments = R("SELECT TOP (@max) id, version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection ORDER BY id COLLATE Latin1_General_BIN2");
         // No key-range locks (two writers of a new document deadlocked on them, SCK-80): update if newer; else insert; and if
         // the insert meets the other writer's row (it waited for that commit), update again, still only if newer. Whatever
         // the interleaving, the newer version wins (doc 05 §5.5, CR-15). Sessions run without XACT_ABORT, so the duplicate
         // key is a statement error the CATCH handles, and the transaction stays committable.
         UpsertDocument = R("""
-            UPDATE {s}.documents SET version = @version, data = @data, updated_at = SYSDATETIMEOFFSET()
+            UPDATE {s}.documents SET version = @version, data = @data, position_commit = @pcommit, position_seq = @pseq, updated_at = SYSDATETIMEOFFSET()
              WHERE tenant_id = @tenant AND collection = @collection AND id = @id AND version <= @version;
             IF @@ROWCOUNT = 0 AND NOT EXISTS (SELECT 1 FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = @id)
             BEGIN
                 BEGIN TRY
-                    INSERT INTO {s}.documents (tenant_id, collection, id, version, data) VALUES (@tenant, @collection, @id, @version, @data);
+                    INSERT INTO {s}.documents (tenant_id, collection, id, version, data, position_commit, position_seq) VALUES (@tenant, @collection, @id, @version, @data, @pcommit, @pseq);
                 END TRY
                 BEGIN CATCH
                     IF ERROR_NUMBER() NOT IN (2601, 2627) THROW;
-                    UPDATE {s}.documents SET version = @version, data = @data, updated_at = SYSDATETIMEOFFSET()
+                    UPDATE {s}.documents SET version = @version, data = @data, position_commit = @pcommit, position_seq = @pseq, updated_at = SYSDATETIMEOFFSET()
                      WHERE tenant_id = @tenant AND collection = @collection AND id = @id AND version <= @version;
                 END CATCH
             END;
             """);
         UpsertDocuments = R("""
             MERGE {s}.documents WITH (HOLDLOCK) AS d
-            USING (SELECT c, i, v, j FROM OPENJSON(@rows) WITH (c nvarchar(200) COLLATE Latin1_General_100_BIN2 '$.c', i nvarchar(200) COLLATE Latin1_General_100_BIN2 '$.i', v bigint '$.v', j nvarchar(max) '$.j')) AS u
+            USING (SELECT c, i, v, j, pc, ps FROM OPENJSON(@rows) WITH (c nvarchar(200) COLLATE Latin1_General_100_BIN2 '$.c', i nvarchar(200) COLLATE Latin1_General_100_BIN2 '$.i', v bigint '$.v', j nvarchar(max) '$.j', pc bigint '$.pc', ps bigint '$.ps')) AS u
                ON d.tenant_id = @tenant AND d.collection = u.c AND d.id = u.i
-             WHEN MATCHED AND d.version <= u.v THEN UPDATE SET version = u.v, data = u.j, updated_at = SYSDATETIMEOFFSET()
-             WHEN NOT MATCHED THEN INSERT (tenant_id, collection, id, version, data) VALUES (@tenant, u.c, u.i, u.v, u.j);
+             WHEN MATCHED AND d.version <= u.v THEN UPDATE SET version = u.v, data = u.j, position_commit = u.pc, position_seq = u.ps, updated_at = SYSDATETIMEOFFSET()
+             WHEN NOT MATCHED THEN INSERT (tenant_id, collection, id, version, data, position_commit, position_seq) VALUES (@tenant, u.c, u.i, u.v, u.j, u.pc, u.ps);
             """);
         DeleteDocuments = R("""
             DELETE d FROM {s}.documents d

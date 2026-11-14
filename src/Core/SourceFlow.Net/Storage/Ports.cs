@@ -124,6 +124,16 @@ public interface IDocumentSession
     /// <summary>Queues an upsert. A write older than the stored version is ignored (at-least-once guard, doc 06 §5).</summary>
     void Upsert(string collection, string id, long version, ReadOnlyMemory<byte> data);
 
+    /// <summary>
+    /// Queues an upsert that also records the global position of the last event applied, read back as
+    /// <see cref="StoredDocument.Position"/> (cross-stream documents, doc 06 §5, CR-31). A store without positions keeps
+    /// the version guard only.
+    /// </summary>
+    void Upsert(string collection, string id, long version, ReadOnlyMemory<byte> data, GlobalPosition? position)
+    {
+        Upsert(collection, id, version, data);
+    }
+
     /// <summary>Queues a delete.</summary>
     void Delete(string collection, string id);
 }

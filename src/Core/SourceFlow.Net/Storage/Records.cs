@@ -168,7 +168,14 @@ public sealed record OutboxRecord(long Sequence, OutboxMessage Message, int Atte
 public sealed record ProcessState(string ProcessType, string ProcessId, long Version, ReadOnlyMemory<byte> State, bool Completed, DateTimeOffset UpdatedAt);
 
 /// <summary>A read-model document with its version (DC-2).</summary>
-public sealed record StoredDocument(string Collection, string Id, long Version, ReadOnlyMemory<byte> Data);
+public sealed record StoredDocument(string Collection, string Id, long Version, ReadOnlyMemory<byte> Data)
+{
+    /// <summary>
+    /// The global position of the last event applied to a cross-stream document (doc 06 §5, CR-31); null for documents keyed
+    /// by their source stream, whose version is the guard.
+    /// </summary>
+    public GlobalPosition? Position { get; init; }
+}
 
 /// <summary>A snapshot of aggregate state (doc 05 §8.1).</summary>
 public sealed record Snapshot(StreamId StreamId, StreamVersion Version, string StateType, string SchemaHash, ReadOnlyMemory<byte> Data);

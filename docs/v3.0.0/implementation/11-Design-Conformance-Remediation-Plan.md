@@ -300,6 +300,9 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
   - **Cross-stream documents (CR-31):**
     - cross-stream document projections store the global position, and skip events at or below it;
     - `projection repartition` exempts only stream-keyed document projections from `--idempotent`.
+    *As built:* every document projection is now guarded, by stream version or by position, so the exemption stays for
+    all of them. The position is two nullable columns (PostgreSQL V008, SQL Server V003) written through an
+    `IDocumentSession.Upsert` overload; a store without it falls back to the version guard.
 - **Tests:**
   - GEN-66: a string id containing a dash is refused at construction or send, never stored.
   - GEN-67: negative Int64 ids are refused.

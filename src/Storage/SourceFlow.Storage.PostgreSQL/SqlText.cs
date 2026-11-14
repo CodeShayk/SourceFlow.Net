@@ -118,18 +118,22 @@ internal sealed class SqlText
             SELECT {s}.sf_assert(count(*) = 1, @check) FROM u
             """);
 
-        GetDocument = R("SELECT version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = @id");
-        GetDocuments = R("SELECT id, version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = ANY(@ids)");
+        GetDocument = R("SELECT version, data, position_commit, position_seq FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = @id");
+        GetDocuments = R("SELECT id, version, data, position_commit, position_seq FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection AND id = ANY(@ids)");
         ListDocuments = R("SELECT id, version, data FROM {s}.documents WHERE tenant_id = @tenant AND collection = @collection ORDER BY id COLLATE \"C\" LIMIT @max");
         UpsertDocument = R("""
-            INSERT INTO {s}.documents AS d (tenant_id, collection, id, version, data) VALUES (@tenant, @collection, @id, @version, @data)
-            ON CONFLICT (tenant_id, collection, id) DO UPDATE SET version = excluded.version, data = excluded.data, updated_at = now()
+            INSERT INTO {s}.documents AS d (tenant_id, collection, id, version, data, position_commit, position_seq)
+            VALUES (@tenant, @collection, @id, @version, @data, @pcommit, @pseq)
+            ON CONFLICT (tenant_id, collection, id) DO UPDATE SET version = excluded.version, data = excluded.data,
+                   position_commit = excluded.position_commit, position_seq = excluded.position_seq, updated_at = now()
              WHERE d.version <= excluded.version
             """);
         UpsertDocuments = R("""
-            INSERT INTO {s}.documents AS d (tenant_id, collection, id, version, data)
-            SELECT @tenant, u.c, u.i, u.v, u.j::json FROM unnest(@collections::text[], @ids::text[], @versions::bigint[], @datas::text[]) AS u(c, i, v, j)
-            ON CONFLICT (tenant_id, collection, id) DO UPDATE SET version = excluded.version, data = excluded.data, updated_at = now()
+            INSERT INTO {s}.documents AS d (tenant_id, collection, id, version, data, position_commit, position_seq)
+            SELECT @tenant, u.c, u.i, u.v, u.j::json, u.pc::xid8, u.ps
+              FROM unnest(@collections::text[], @ids::text[], @versions::bigint[], @datas::text[], @pcommits::text[], @pseqs::bigint[]) AS u(c, i, v, j, pc, ps)
+            ON CONFLICT (tenant_id, collection, id) DO UPDATE SET version = excluded.version, data = excluded.data,
+                   position_commit = excluded.position_commit, position_seq = excluded.position_seq, updated_at = now()
              WHERE d.version <= excluded.version
             """);
         DeleteDocuments = R("DELETE FROM {s}.documents WHERE tenant_id = @tenant AND (collection, id) IN (SELECT * FROM unnest(@collections::text[], @ids::text[]))");

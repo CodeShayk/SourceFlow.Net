@@ -122,7 +122,7 @@ internal sealed partial class SqlServerStorageSession : IStorageSession, IDocume
             DocumentWrite write = _documents[i];
             if (write.Collection == collection && write.Id == id)
             {
-                return ValueTask.FromResult(write.Data is null ? null : new StoredDocument(collection, id, write.Version, write.Data.Value));
+                return ValueTask.FromResult(write.Data is null ? null : new StoredDocument(collection, id, write.Version, write.Data.Value) { Position = write.Position });
             }
         }
 
@@ -143,7 +143,7 @@ internal sealed partial class SqlServerStorageSession : IStorageSession, IDocume
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 string id = reader.GetString(0);
-                found[id] = new StoredDocument(collection, id, reader.GetInt64(1), Encoding.UTF8.GetBytes(reader.GetString(2)));
+                found[id] = new StoredDocument(collection, id, reader.GetInt64(1), Encoding.UTF8.GetBytes(reader.GetString(2))) { Position = SqlServerStore.DocumentPosition(reader, 3) };
             }
         }
 
@@ -152,7 +152,7 @@ internal sealed partial class SqlServerStorageSession : IStorageSession, IDocume
         {
             if (write.Collection == collection && ids.Contains(write.Id))
             {
-                found[write.Id] = write.Data is null ? null : new StoredDocument(collection, write.Id, write.Version, write.Data.Value);
+                found[write.Id] = write.Data is null ? null : new StoredDocument(collection, write.Id, write.Version, write.Data.Value) { Position = write.Position };
             }
         }
 
@@ -225,8 +225,13 @@ internal sealed partial class SqlServerStorageSession : IStorageSession, IDocume
 
     public void Upsert(string collection, string id, long version, ReadOnlyMemory<byte> data)
     {
+        Upsert(collection, id, version, data, position: null);
+    }
+
+    public void Upsert(string collection, string id, long version, ReadOnlyMemory<byte> data, GlobalPosition? position)
+    {
         ThrowIfCompleted();
-        _documents.Add(new DocumentWrite(collection, id, version, data));
+        _documents.Add(new DocumentWrite(collection, id, version, data, position));
         _wroteOther = true;
     }
 
@@ -565,6 +570,8 @@ internal sealed partial class SqlServerStorageSession : IStorageSession, IDocume
                       [
                           SqlServerStore.Text("@tenant", TenantId), SqlServerStore.Text("@collection", write.Collection), SqlServerStore.Text("@id", write.Id),
                           SqlServerStore.Int64("@version", write.Version), SqlServerStore.Json("@data", data),
+                          SqlServerStore.NullableInt64("@pcommit", write.Position is { } p ? (long)p.Commit : null),
+                          SqlServerStore.NullableInt64("@pseq", write.Position is { } q ? (long)q.Sequence : null),
                       ])
                     : new Step(_store.Sql.DeleteDocument, [SqlServerStore.Text("@tenant", TenantId), SqlServerStore.Text("@collection", write.Collection), SqlServerStore.Text("@id", write.Id)]);
             }
@@ -582,6 +589,11 @@ internal sealed partial class SqlServerStorageSession : IStorageSession, IDocume
                 w.WriteString("i", d.Id);
                 w.WriteNumber("v", d.Version);
                 w.WriteString("j", Encoding.UTF8.GetString(d.Data!.Value.Span));
+                if (d.Position is { } position)
+                {
+                    w.WriteNumber("pc", (long)position.Commit);
+                    w.WriteNumber("ps", (long)position.Sequence);
+                }
             });
             yield return new Step(_store.Sql.UpsertDocuments, [SqlServerStore.Text("@tenant", TenantId), SqlServerStore.MaxText("@rows", rows)]);
         }
@@ -649,7 +661,7 @@ internal sealed partial class SqlServerStorageSession : IStorageSession, IDocume
 
     private sealed record ProcessWrite(string Type, string Id, long ExpectedVersion, ReadOnlyMemory<byte> State, bool Completed);
 
-    private sealed record DocumentWrite(string Collection, string Id, long Version, ReadOnlyMemory<byte>? Data);
+    private sealed record DocumentWrite(string Collection, string Id, long Version, ReadOnlyMemory<byte>? Data, GlobalPosition? Position = null);
 }
 
 /// <summary>Source-generated JSON for the few values the adapter serialises (AOT-safe).</summary>

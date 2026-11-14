@@ -591,7 +591,7 @@ public sealed partial class SqlServerStore :
         await using SqlCommand command = Command(Sql.GetDocument, connection, transaction, Text("@tenant", tenantId), Text("@collection", collection), Text("@id", id));
         await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-            ? new StoredDocument(collection, id, reader.GetInt64(0), Encoding.UTF8.GetBytes(reader.GetString(1)))
+            ? new StoredDocument(collection, id, reader.GetInt64(0), Encoding.UTF8.GetBytes(reader.GetString(1))) { Position = DocumentPosition(reader, 2) }
             : null;
     }
 
@@ -709,6 +709,17 @@ public sealed partial class SqlServerStore :
     internal static SqlParameter Int64(string name, long value)
     {
         return new SqlParameter(name, SqlDbType.BigInt) { Value = value };
+    }
+
+    internal static SqlParameter NullableInt64(string name, long? value)
+    {
+        return new SqlParameter(name, SqlDbType.BigInt) { Value = (object?)value ?? DBNull.Value };
+    }
+
+    // The stored position of a cross-stream document (CR-31): two nullable bigint columns from ordinal on.
+    internal static GlobalPosition? DocumentPosition(SqlDataReader reader, int ordinal)
+    {
+        return reader.IsDBNull(ordinal) ? null : new GlobalPosition((ulong)reader.GetInt64(ordinal), (ulong)reader.GetInt64(ordinal + 1));
     }
 
     internal static SqlParameter Bit(string name, bool value)

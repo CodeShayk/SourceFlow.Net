@@ -155,7 +155,7 @@ internal sealed class ProjectionScope : IAsyncDisposable
             else
             {
                 JsonTypeInfo typeInfo = Runtime.Model.JsonTypeInfoFor(document.Projection.DocumentType);
-                Session.Documents.Upsert(collection, id, document.Version, JsonSerializer.SerializeToUtf8Bytes(document.Value, typeInfo));
+                Session.Documents.Upsert(collection, id, document.Version, JsonSerializer.SerializeToUtf8Bytes(document.Value, typeInfo), document.Position);
             }
 
             document.Stored = document.Value is not null;
@@ -190,7 +190,7 @@ internal sealed class ProjectionScope : IAsyncDisposable
     private CachedDocument Cached(DocumentProjectionDescriptor projection, StoredDocument stored)
     {
         JsonTypeInfo typeInfo = Runtime.Model.JsonTypeInfoFor(projection.DocumentType);
-        return new CachedDocument(projection) { Value = JsonSerializer.Deserialize(stored.Data.Span, typeInfo), Version = stored.Version, Stored = true };
+        return new CachedDocument(projection) { Value = JsonSerializer.Deserialize(stored.Data.Span, typeInfo), Version = stored.Version, Position = stored.Position, Stored = true };
     }
 
     private sealed record UnitOfWork(object Instance, string? Generation, Func<CancellationToken, ValueTask> Complete);
@@ -205,6 +205,9 @@ internal sealed class CachedDocument(DocumentProjectionDescriptor projection)
 
     public long Version { get; set; }
 
+    /// <summary>For a cross-stream document, the global position of the last event applied (CR-31).</summary>
+    public GlobalPosition? Position { get; set; }
+
     /// <summary>True when the document exists in the store (so a null value means delete).</summary>
     public bool Stored { get; set; }
 
@@ -213,7 +216,8 @@ internal sealed class CachedDocument(DocumentProjectionDescriptor projection)
 
 /// <summary>
 /// Applies document projections inside a <see cref="ProjectionScope"/>. Document versions follow the source stream when
-/// the document is keyed by the stream's aggregate id, otherwise they count writes (DC-2, doc 06 §5).
+/// the document is keyed by the stream's aggregate id, otherwise they count writes and the document records the global
+/// position of the last event applied (DC-2, doc 06 §5, CR-31).
 /// </summary>
 internal static class ProjectionApplier
 {
@@ -228,7 +232,15 @@ internal static class ProjectionApplier
 
         // DC-2 (doc 06 §5): a document keyed by the event's own stream already reflects every event up to its version;
         // re-applying one (a redelivery, a repartition) would double-count incremental projections, so it is skipped.
-        if (document.Value is not null && id == context.AggregateKey && document.Version >= context.StreamVersion.Value)
+        bool streamKeyed = id == context.AggregateKey;
+        if (document.Value is not null && streamKeyed && document.Version >= context.StreamVersion.Value)
+        {
+            return;
+        }
+
+        // CR-31: a document fed by many streams has no stream version to compare, so it records the global position of
+        // the last event applied; an event at or below it was applied already (a repartition, a replay) and is skipped.
+        if (document.Value is not null && !streamKeyed && document.Position is { } applied && context.Position <= applied)
         {
             return;
         }
@@ -245,7 +257,8 @@ internal static class ProjectionApplier
             return;
         }
 
-        document.Version = id == context.AggregateKey ? context.StreamVersion.Value : document.Version + 1;
+        document.Version = streamKeyed ? context.StreamVersion.Value : document.Version + 1;
+        document.Position = streamKeyed ? null : context.Position;
         document.Value = next;
         document.Dirty = true;
     }

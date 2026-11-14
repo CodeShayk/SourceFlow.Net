@@ -983,7 +983,7 @@ public sealed class InMemoryStore :
                 }
                 else if (!_documents.TryGetValue(key, out StoredDocument? existing) || existing.Version <= write.Version)
                 {
-                    _documents[key] = new StoredDocument(write.Collection, write.Id, write.Version, write.Data.Value.ToArray());
+                    _documents[key] = new StoredDocument(write.Collection, write.Id, write.Version, write.Data.Value.ToArray()) { Position = write.Position };
                 }
             }
 
@@ -1049,7 +1049,7 @@ public sealed class InMemoryStore :
 
     private sealed record ProcessWrite(string Type, string Id, long ExpectedVersion, ReadOnlyMemory<byte> State, bool Completed);
 
-    private sealed record DocumentWrite(string Collection, string Id, long Version, ReadOnlyMemory<byte>? Data);
+    private sealed record DocumentWrite(string Collection, string Id, long Version, ReadOnlyMemory<byte>? Data, GlobalPosition? Position = null);
 
     private sealed class Unsubscriber(InMemoryStore store, Action callback) : IDisposable
     {
@@ -1176,7 +1176,7 @@ public sealed class InMemoryStore :
                 DocumentWrite write = DocumentWrites[i];
                 if (write.Collection == collection && write.Id == id)
                 {
-                    return ValueTask.FromResult(write.Data is null ? null : new StoredDocument(collection, id, write.Version, write.Data.Value));
+                    return ValueTask.FromResult(write.Data is null ? null : new StoredDocument(collection, id, write.Version, write.Data.Value) { Position = write.Position });
                 }
             }
 
@@ -1200,8 +1200,13 @@ public sealed class InMemoryStore :
 
         public void Upsert(string collection, string id, long version, ReadOnlyMemory<byte> data)
         {
+            Upsert(collection, id, version, data, position: null);
+        }
+
+        public void Upsert(string collection, string id, long version, ReadOnlyMemory<byte> data, GlobalPosition? position)
+        {
             ThrowIfCompleted();
-            DocumentWrites.Add(new DocumentWrite(collection, id, version, data));
+            DocumentWrites.Add(new DocumentWrite(collection, id, version, data, position));
             _wroteOther = true;
         }
 

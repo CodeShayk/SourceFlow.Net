@@ -74,6 +74,8 @@ while lease held:
 
 `IDocumentProjection` applies the version guard automatically, and **on read**: before applying an event, it compares the stored document's version with `ctx.StreamVersion` and skips the event when it is already reflected. A write-only guard isn't enough. Re-applying an already-applied event to the *current* document would double-count incremental projections, such as `count += 1` (design correction DC-2, found during the implementation spike). Document reads therefore return `(data, version)`. EF Core and custom projections get `ctx.StreamVersion` and `ctx.Position`, plus a helper (`IdempotentUpsert`).
 
+> **As built (WP-C.8, CR-31).** A document keyed by its source stream is guarded by the stream version, as above. A document fed by many streams (a total, a cross-stream index) has no stream version to compare, so it records the global position of the last event applied (`StoredDocument.Position`; the `position_commit` and `position_seq` columns, PostgreSQL V008, SQL Server V003). An event at or below that position was applied already and is skipped, so a repartition or a replay that starts at an earlier checkpoint doesn't count it twice (UT-PRJ-13). Every document projection is therefore guarded, and `projection repartition` keeps exempting all of them from `--idempotent`. A deleted cross-stream document loses its position: replaying events from before the delete could recreate it.
+
 ## 6. Rebuilds (blue/green)
 
 1. Bump the projection version: `[Projection("account-summary", Version = 2)]`.

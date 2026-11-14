@@ -103,6 +103,7 @@ The schema is two embedded scripts:
 
 - `V001__initial` ([`Schema/V001__initial.sql`](../../../src/Storage/SourceFlow.Storage.SqlServer/Schema/V001__initial.sql)): every table and index. It already contains what PostgreSQL added in its V002 to V005 (`collection_aliases.previous` and `building`, `outbox.first_due_at`).
 - `V002__data_keys_per_tenant` ([`Schema/V002__data_keys_per_tenant.sql`](../../../src/Storage/SourceFlow.Storage.SqlServer/Schema/V002__data_keys_per_tenant.sql)): `data_keys.tenant_id`, keyed by `(tenant_id, subject_id)`, as PostgreSQL's V006. Existing keys move to the default tenant `-`.
+- `V003__document_position` ([`Schema/V003__document_position.sql`](../../../src/Storage/SourceFlow.Storage.SqlServer/Schema/V003__document_position.sql)): `documents.position_commit` and `position_seq`, the position of cross-stream documents, as PostgreSQL's V008.
 
 `SqlServerSchemaMigrator` ([source](../../../src/Storage/SourceFlow.Storage.SqlServer/SqlServerSchemaMigrator.cs)):
 

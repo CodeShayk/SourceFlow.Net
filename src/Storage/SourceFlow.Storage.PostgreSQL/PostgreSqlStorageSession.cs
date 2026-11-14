@@ -125,7 +125,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             DocumentWrite write = _documents[i];
             if (write.Collection == collection && write.Id == id)
             {
-                return ValueTask.FromResult(write.Data is null ? null : new StoredDocument(collection, id, write.Version, write.Data.Value));
+                return ValueTask.FromResult(write.Data is null ? null : new StoredDocument(collection, id, write.Version, write.Data.Value) { Position = write.Position });
             }
         }
 
@@ -148,7 +148,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             while (await scope.Reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 string id = scope.Reader.GetString(0);
-                found[id] = new StoredDocument(collection, id, scope.Reader.GetInt64(1), scope.Reader.GetFieldValue<byte[]>(2));
+                found[id] = new StoredDocument(collection, id, scope.Reader.GetInt64(1), scope.Reader.GetFieldValue<byte[]>(2)) { Position = PostgreSqlStore.DocumentPosition(scope.Reader, 3) };
             }
         }
 
@@ -157,7 +157,7 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         {
             if (write.Collection == collection && ids.Contains(write.Id))
             {
-                found[write.Id] = write.Data is null ? null : new StoredDocument(collection, write.Id, write.Version, write.Data.Value);
+                found[write.Id] = write.Data is null ? null : new StoredDocument(collection, write.Id, write.Version, write.Data.Value) { Position = write.Position };
             }
         }
 
@@ -230,8 +230,13 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
 
     public void Upsert(string collection, string id, long version, ReadOnlyMemory<byte> data)
     {
+        Upsert(collection, id, version, data, position: null);
+    }
+
+    public void Upsert(string collection, string id, long version, ReadOnlyMemory<byte> data, GlobalPosition? position)
+    {
         ThrowIfCompleted();
-        _documents.Add(new DocumentWrite(collection, id, version, data));
+        _documents.Add(new DocumentWrite(collection, id, version, data, position));
         _wroteOther = true;
     }
 
@@ -575,6 +580,8 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
             command.Parameters.Add(new NpgsqlParameter<string[]>("ids", [.. upserts.Select(d => d.Id)]));
             command.Parameters.Add(new NpgsqlParameter<long[]>("versions", [.. upserts.Select(d => d.Version)]));
             command.Parameters.Add(new NpgsqlParameter<string[]>("datas", [.. upserts.Select(d => Encoding.UTF8.GetString(d.Data!.Value.Span))]));
+            command.Parameters.Add(new NpgsqlParameter<string?[]>("pcommits", [.. upserts.Select(d => d.Position?.Commit.ToString(System.Globalization.CultureInfo.InvariantCulture))]));
+            command.Parameters.Add(new NpgsqlParameter<long?[]>("pseqs", [.. upserts.Select(d => d.Position is { } p ? (long?)p.Sequence : null)]));
             yield return new Step(command, null);
         }
 
@@ -598,6 +605,10 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
         {
             command.Parameters.Add(new NpgsqlParameter<long>("version", write.Version));
             command.Parameters.Add(PostgreSqlStore.Json("data", data));
+            command.Parameters.Add(write.Position is { } position
+                ? PostgreSqlStore.Xid("pcommit", position.Commit)
+                : new NpgsqlParameter("pcommit", DBNull.Value) { DataTypeName = "xid8" });
+            command.Parameters.Add(new NpgsqlParameter("pseq", write.Position is { } p ? (long)p.Sequence : DBNull.Value) { DataTypeName = "bigint" });
         }
 
         return command;
@@ -717,5 +728,5 @@ internal sealed class PostgreSqlStorageSession : IStorageSession, IDocumentSessi
 
     private sealed record ProcessWrite(string Type, string Id, long ExpectedVersion, ReadOnlyMemory<byte> State, bool Completed);
 
-    private sealed record DocumentWrite(string Collection, string Id, long Version, ReadOnlyMemory<byte>? Data);
+    private sealed record DocumentWrite(string Collection, string Id, long Version, ReadOnlyMemory<byte>? Data, GlobalPosition? Position = null);
 }
