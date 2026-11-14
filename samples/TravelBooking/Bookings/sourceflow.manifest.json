@@ -1,0 +1,376 @@
+{
+  "manifestVersion": 1,
+  "service": "bookings",
+  "endpoint": "bookings",
+  "sourceflowVersion": "3.0.0",
+  "messages": [
+    {
+      "type": "bookings.booking-confirmed",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bookings.BookingConfirmed",
+      "fields": [
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "bookings.booking-declined",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bookings.BookingDeclined",
+      "fields": [
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "bookings.booking-requested",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bookings.BookingRequested",
+      "fields": [
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        },
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "guest",
+          "type": "string",
+          "personalData": true
+        },
+        {
+          "name": "nights",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "type": "bookings.cancel-by-guest",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bookings.CancelByGuest",
+      "aggregate": "booking",
+      "fields": [
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "bookings.confirm-booking",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bookings.ConfirmBooking",
+      "aggregate": "booking",
+      "fields": [
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "bookings.confirm-by-guest",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bookings.ConfirmByGuest",
+      "aggregate": "booking",
+      "fields": [
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "bookings.decline-booking",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bookings.DeclineBooking",
+      "aggregate": "booking",
+      "fields": [
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        },
+        {
+          "name": "reason",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "bookings.guest-cancelled",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bookings.GuestCancelled",
+      "fields": [
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "bookings.guest-confirmed",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Bookings.GuestConfirmed",
+      "fields": [
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "bookings.request-booking",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Bookings.RequestBooking",
+      "aggregate": "booking",
+      "fields": [
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        },
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "guest",
+          "type": "string"
+        },
+        {
+          "name": "nights",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "type": "hotels.confirm-reservation",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Hotels.ConfirmReservation",
+      "aggregate": "hotel",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "hotels.release-room",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Hotels.ReleaseRoom",
+      "aggregate": "hotel",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "hotels.reservation-confirmed",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Hotels.ReservationConfirmed",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "hotels.reserve-room",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Hotels.ReserveRoom",
+      "aggregate": "hotel",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        },
+        {
+          "name": "nights",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "type": "hotels.room-released",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Hotels.RoomReleased",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "hotels.room-reserved",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Hotels.RoomReserved",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        },
+        {
+          "name": "nights",
+          "type": "integer"
+        }
+      ]
+    }
+  ],
+  "aggregates": [
+    {
+      "name": "booking",
+      "clrType": "Bookings.Booking",
+      "commands": [
+        {
+          "type": "bookings.cancel-by-guest",
+          "version": 1,
+          "emits": [
+            "bookings.guest-cancelled.v1"
+          ],
+          "rejects": [
+            "bookings.not_open"
+          ]
+        },
+        {
+          "type": "bookings.confirm-booking",
+          "version": 1,
+          "emits": [
+            "bookings.booking-confirmed.v1"
+          ],
+          "rejects": []
+        },
+        {
+          "type": "bookings.confirm-by-guest",
+          "version": 1,
+          "emits": [
+            "bookings.guest-confirmed.v1"
+          ],
+          "rejects": [
+            "bookings.not_open"
+          ]
+        },
+        {
+          "type": "bookings.decline-booking",
+          "version": 1,
+          "emits": [
+            "bookings.booking-declined.v1"
+          ],
+          "rejects": []
+        },
+        {
+          "type": "bookings.request-booking",
+          "version": 1,
+          "emits": [
+            "bookings.booking-requested.v1"
+          ],
+          "rejects": [
+            "bookings.guest_required",
+            "bookings.invalid_stay"
+          ]
+        }
+      ],
+      "events": [
+        "bookings.booking-confirmed.v1",
+        "bookings.booking-declined.v1",
+        "bookings.booking-requested.v1",
+        "bookings.guest-cancelled.v1",
+        "bookings.guest-confirmed.v1"
+      ]
+    }
+  ],
+  "processManagers": [],
+  "projections": [
+    {
+      "name": "booking-summary",
+      "version": 1,
+      "clrType": "Bookings.BookingSummaryProjection",
+      "handles": []
+    }
+  ],
+  "publishes": [],
+  "subscribes": [
+    {
+      "topic": "hotels.events"
+    }
+  ],
+  "commandRoutes": [
+    {
+      "command": "hotels.confirm-reservation.v1",
+      "to": "hotels",
+      "replyOnReject": true
+    },
+    {
+      "command": "hotels.release-room.v1",
+      "to": "hotels",
+      "replyOnReject": false
+    },
+    {
+      "command": "hotels.reserve-room.v1",
+      "to": "hotels",
+      "replyOnReject": true
+    }
+  ],
+  "workflows": [
+    {
+      "name": "trip-booking",
+      "version": 1,
+      "file": "Workflows/trip-booking.sfflow.yaml",
+      "fingerprint": "sha256:18bdc871a2cbb58e"
+    }
+  ],
+  "schemas": "catalog://bookings"
+}

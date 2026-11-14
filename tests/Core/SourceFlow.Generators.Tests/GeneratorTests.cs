@@ -306,7 +306,7 @@ public sealed class GeneratorTests
     public void Snapshot_BankSampleGeneratedOutput()
     {
         string root = RepositoryRoot();
-        string[] sources = Directory.GetFiles(Path.Combine(root, "samples", "Bank", "Bank.Accounts"), "*.cs", SearchOption.TopDirectoryOnly)
+        string[] sources = Directory.GetFiles(Path.Combine(root, "tests", "Fixtures", "Bank", "Bank.Accounts"), "*.cs", SearchOption.TopDirectoryOnly)
             .OrderBy(p => p, StringComparer.Ordinal)
             .Select(File.ReadAllText)
             .Prepend("global using System;")

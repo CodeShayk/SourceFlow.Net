@@ -1,0 +1,18 @@
+# The OrderFulfilment domain workspace (doc 15 §4): four services, each with the manifest its build exports
+# (dotnet sourceflow manifest export, checked by CI for drift). Orders owns the order-fulfilment workflow.
+# A test fixture (the user-facing example is samples/TravelBooking). Open it in SourceFlow Studio:
+#   dotnet sourceflow studio --workspace tests/Fixtures/OrderFulfilment
+domain: commerce
+description: Order to delivery
+services:
+  - name: orders     # orchestrator of order-fulfilment
+    manifest: Orders/sourceflow.manifest.json
+    workflows: Orders/Workflows
+    tests: Orders.Tests
+    module: Orders.OrdersModule
+  - name: inventory
+    manifest: Inventory/sourceflow.manifest.json
+  - name: payments
+    manifest: Payments/sourceflow.manifest.json
+  - name: shipping
+    manifest: Shipping/sourceflow.manifest.json

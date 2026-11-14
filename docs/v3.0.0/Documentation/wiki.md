@@ -112,8 +112,9 @@ is no separate abstractions package; the namespace rule and the architecture tes
 
 ### 1.5 Conventions used in this guide
 
-- Code samples come from the repository's samples and tests (`samples/Bank`, `samples/OrderFulfilment`, `tests/`), trimmed
-  for length. `using` directives are shown when they matter.
+- Code samples come from the repository's sample (`samples/TravelBooking`), the domains its tests run against
+  (`tests/Fixtures/Bank`, `tests/Fixtures/OrderFulfilment`) and the tests themselves (`tests/`), trimmed for length.
+  `using` directives are shown when they matter.
 - `sourceflow <command>` means the SourceFlow command line: the `SourceFlow.Tool` .NET tool (`dotnet sourceflow`), the
   repository build (`dotnet run --project src/Tooling/SourceFlow.Tool -- <command>`), or your service
   (`dotnet run -- sourceflow <command>`) ([section 17](#17-the-command-line-tool)).
@@ -353,8 +354,9 @@ and [Event Flow](Architecture/03-Event-Flow.md). Design rationale is in [Design 
 ## 4. Getting started
 
 This section builds a small Accounts service step by step: ids, messages, an aggregate, error codes, a read model, the
-module, registration and HTTP endpoints. It runs first on the in-memory adapters and then on PostgreSQL. The code is the
-Accounts module of the Bank sample ([samples/Bank/Bank.Accounts](../../../samples/Bank/Bank.Accounts)), trimmed down.
+module, registration and HTTP endpoints. It runs first on the in-memory adapters and then on PostgreSQL. The code follows the
+Accounts module of the Bank domain the tests use ([tests/Fixtures/Bank/Bank.Accounts](../../../tests/Fixtures/Bank/Bank.Accounts)),
+trimmed down. For a complete application with two services and a workflow, run the demo ([4.12](#412-the-demo-docker-compose-up)).
 
 ### 4.1 Prerequisites
 
@@ -689,26 +691,53 @@ only verifies that the schema is installed and current, and fails with a message
 
 ### 4.12 The demo: `docker compose up`
 
-The repository root has a compose file that runs the Bank sample on PostgreSQL with a query console:
+The repository root has a compose file that runs the [TravelBooking sample](../../../samples/TravelBooking/README.md): a
+domain split across two services, Bookings and Hotels, each on its own PostgreSQL schema, talking over Amazon SNS and SQS
+(emulated by LocalStack), with the trip-booking workflow between them and SourceFlow Studio for its workspace:
 
 ```bash
-docker compose up -d            # pulls the published images from ghcr.io
-docker compose up -d --build    # or builds them from this checkout
+docker compose up -d --build    # builds the images from this checkout
+docker compose up -d            # or pulls the published images from ghcr.io
 docker compose down -v          # stops the demo and deletes its data
 ```
 
 | What | Where |
 |------|-------|
-| Bank service (Accounts, Transfers and Notifications in one process) | http://localhost:8080 |
-| Studio demo console (a query console for the Bank service) | http://localhost:5080 |
+| Bookings service (bookings, and the trip-booking workflow) | http://localhost:8080 |
+| Hotels service (hotels and their rooms: holds, releases, confirmations) | http://localhost:8081 |
+| SourceFlow Studio (read-only: domain map, statechart, simulation, paths) | http://localhost:5080 |
 | Aspire dashboard (traces and metrics over OTLP) | http://localhost:18888 |
-| PostgreSQL (`sourceflow` / `sourceflow`, database `bank`) | `localhost:55432` |
+| PostgreSQL (`sourceflow` / `sourceflow`, database `travel`, a schema per service) | `localhost:55432` |
+| LocalStack (SNS and SQS between the services) | `localhost:4566` |
 
-`SOURCEFLOW_TAG` selects the image tag (default `v3-latest`). The Studio demo console
-([samples/Studio/SourceFlow.Studio.Demo](../../../samples/Studio/SourceFlow.Studio.Demo)) is a query-API console for the Bank
-service: it runs SFQL and SQL queries, browses the schema, sends commands and shows read-your-writes. It is **not**
-SourceFlow Studio, the workflow designer ([section 10](#10-workflows-and-sourceflow-studio)). The demo's query endpoints
-have no authentication; never expose them. The [samples README](../../../samples/README.md) lists the endpoints.
+Book a room and confirm it:
+
+```bash
+HOTEL=0193a7a0-0000-7000-8000-000000000001
+BOOKING=0193a7a0-0000-7000-8000-0000000000b1
+
+curl -X POST http://localhost:8081/hotels/$HOTEL -H 'Content-Type: application/json' -d '{ "name": "Seaview", "rooms": 1 }'
+curl -X POST http://localhost:8080/bookings/$BOOKING -H 'Content-Type: application/json' \
+  -d "{ \"hotelId\": \"$HOTEL\", \"guest\": \"Ada Lovelace\", \"nights\": 2 }"
+curl -X POST http://localhost:8080/bookings/$BOOKING/confirm -H 'Content-Type: application/json' -d '{}'
+```
+
+Requesting the booking starts the workflow, which holds the room at the hotel; the guest's confirmation lets it confirm
+the reservation (its point of no return) and the booking. `POST /bookings/{id}/cancel` cancels a booking before that,
+and `POST http://localhost:8081/hotels/{hotel}/holds/{booking}/release` releases a hold as hotel staff. Follow the
+workflow through the query API (`GET /queries` lists the named queries, among them `bookings.by-status` and the
+generated `bookings.workflow-instances`; `POST /query` runs SFQL), in the Aspire dashboard, where one trace follows a
+booking through both services and the broker, or with the CLI inside the service:
+
+```bash
+docker compose exec bookings sh -c 'dotnet Bookings.Api.dll sourceflow workflow list --name trip-booking'
+```
+
+`SOURCEFLOW_TAG` selects the image tag (default `v3-latest`) of the three images,
+`ghcr.io/codeshayk/sourceflow-travel-bookings`, `-travel-hotels` and `-travel-studio`. The Studio on port 5080 is a
+static site of the sample's workspace; to edit the workflow, run Studio locally
+([10.7](#107-sourceflow-studio)). The demo's query endpoints have no authentication; never expose them. The
+[sample's README](../../../samples/TravelBooking/README.md) walks through every outcome of the workflow.
 
 ### 4.13 Where to go next
 
@@ -791,7 +820,7 @@ public sealed record RequestTransfer(TransferId TransferId, AccountId From, Acco
 ### 5.4 Command handlers: when a decision needs I/O
 
 When a decision needs I/O (a payment gateway, a rate lookup), implement `ICommandHandler<TCommand, TAggregate>` instead of
-a `Decide` method. From the OrderFulfilment sample ([Payments.cs](../../../samples/OrderFulfilment/Payments/Payments.cs)):
+a `Decide` method. From the OrderFulfilment services the tests use ([Payments.cs](../../../tests/Fixtures/OrderFulfilment/Payments/Payments.cs)):
 
 ```csharp
 public sealed class ChargeHandler(IPaymentGateway gateway) : ICommandHandler<Charge, Payment>
@@ -829,7 +858,8 @@ public sealed class ChargeHandler(IPaymentGateway gateway) : ICommandHandler<Cha
 ### 5.5 Event handlers: side effects
 
 `IEventHandler<TEvent>` runs a side effect for an event or an integration event. It is resolved from a per-message scope
-and runs **at least once**, so make it idempotent with `EventContext.EventId`. From the Bank sample's Notifications module:
+and runs **at least once**, so make it idempotent with `EventContext.EventId`. From the Notifications module of the Bank domain the tests use
+([`tests/Fixtures/Bank/Bank.Notifications`](../../../tests/Fixtures/Bank/Bank.Notifications)):
 
 ```csharp
 public sealed class AccountOpenedHandler(ICommandSender commands) : IEventHandler<AccountOpenedV1>
@@ -947,26 +977,33 @@ is harmless.
 All generated dispatch is a `switch` over types, sorted for deterministic output.
 
 **Contracts-only modules.** A service that only *sends* another service's command, or only *reads* its events, needs those
-message types registered but not the aggregate that decides them. Implement `ISourceFlowModule` by hand, as the Bank sample
-does for Notifications:
+message types registered but not the aggregate that decides them. Implement `ISourceFlowModule` by hand, as the TravelBooking
+sample does for the Hotels contract, which the Bookings service registers
+([Hotels.cs](../../../samples/TravelBooking/Hotels/Hotels.cs)):
 
 ```csharp
-public sealed class NotificationsCommandsModule : ISourceFlowModule
+public sealed class HotelsContractsModule : ISourceFlowModule
 {
-    public static string ModuleName => nameof(NotificationsCommandsModule);
+    public static string ModuleName => nameof(HotelsContractsModule);
 
     public static void Register(ISourceFlowModuleBuilder builder)
     {
-        builder.AddMessage<RequestStatement>("notifications.statement.request", 1);
-        builder.AddJsonTypeInfoResolver(NotificationsJsonContext.Default);
-        builder.AddJsonConverter(new CustomerId.SourceFlowJsonConverter());   // ids travel as strings
+        builder.AddMessage<ReserveRoom>("hotels.reserve-room", 1);              // the commands Bookings sends
+        builder.AddMessage<ReleaseRoom>("hotels.release-room", 1);
+        builder.AddMessage<ConfirmReservation>("hotels.confirm-reservation", 1);
+        builder.AddMessage<RoomReserved>("hotels.room-reserved", 1);            // the events it awaits
+        builder.AddMessage<RoomReleased>("hotels.room-released", 1);
+        builder.AddMessage<ReservationConfirmed>("hotels.reservation-confirmed", 1);
+        builder.AddJsonTypeInfoResolver(HotelsJsonContext.Default);
+        builder.AddJsonConverter(new HotelId.SourceFlowJsonConverter());       // ids travel as strings
+        builder.AddJsonConverter(new BookingId.SourceFlowJsonConverter());
     }
 }
 ```
 
-A hand-written module can also compose others: the OrderFulfilment `OrdersModule` calls `OrdersDomainModule.Register(builder)`
-and the three other services' contract modules
-([Orders.cs](../../../samples/OrderFulfilment/Orders/Orders.cs)).
+A hand-written module can also compose others: the TravelBooking `BookingsModule` calls
+`BookingsDomainModule.Register(builder)` and `HotelsContractsModule.Register(builder)`
+([Bookings.cs](../../../samples/TravelBooking/Bookings/Bookings.cs)).
 
 ### 5.10 Analyzer diagnostics
 
@@ -1061,7 +1098,8 @@ go through the outbox, committed with the state change that caused them.
 
 Domain events (`IEvent`) are a service's internal history. They leave the service only through a `Publish` route. Prefer
 mapping them to an **integration event** (`IIntegrationEvent`): a separate, deliberately small, versioned public contract.
-The Bank sample maps `AccountOpened` (which holds the holder's name) to an `AccountOpenedV1` without personal data:
+The Bank domain the tests use ([`tests/Fixtures/Bank`](../../../tests/Fixtures/Bank)) maps `AccountOpened` (which holds the
+holder's name) to an `AccountOpenedV1` without personal data:
 
 ```csharp
 [MessageType("accounts.account-opened", 1)]
@@ -1080,10 +1118,11 @@ sf.Routing(r => r.Subscribe("accounts.events"));
 ```
 
 The mapping runs inside the command transaction and the result is an outbox row: the integration event is published if
-and only if the domain event was committed. `AsIs()` is convenient between services you own together (the OrderFulfilment
-services publish `PaymentCaptured` and `Refunded` as they are), but it couples subscribers to your internal history.
+and only if the domain event was committed. `AsIs()` is convenient between services you own together (the TravelBooking
+Hotels service publishes `RoomReserved`, `RoomReleased` and `ReservationConfirmed` as they are), but it couples
+subscribers to your internal history.
 
-Put integration events in a contracts assembly with its own module ([`Bank.Contracts`](../../../samples/Bank/Bank.Contracts/AccountContracts.cs)),
+Put integration events in a contracts assembly with its own module ([`Bank.Contracts`](../../../tests/Fixtures/Bank/Bank.Contracts/AccountContracts.cs)),
 and register that module in both the publisher and every subscriber.
 
 ### 6.4 Subscriptions
@@ -1106,74 +1145,68 @@ It carries the command's correlation id, which is the process instance id. On th
 `{command type}.rejected`, for example `bank.account.withdraw.rejected.v1`.
 
 ```csharp
-// Orders routes the commands its workflow sends, asking for rejection replies where it handles them
-r.Command<ReserveStock>().To("inventory").ReplyOnReject();
-r.Command<Charge>().To("payments").ReplyOnReject();
+// Bookings routes the commands its workflow sends, asking for rejection replies where it handles them
+r.Command<ReserveRoom>().To("hotels").ReplyOnReject();
+r.Command<ConfirmReservation>().To("hotels").ReplyOnReject();
 
 // and lists the replies in its JSON context
-[JsonSerializable(typeof(CommandRejected<ReserveStock>))]
-[JsonSerializable(typeof(CommandRejected<Charge>))]
+[JsonSerializable(typeof(CommandRejected<ReserveRoom>))]
+[JsonSerializable(typeof(CommandRejected<ConfirmReservation>))]
 ```
 
 ### 6.6 A multi-service example
 
-The OrderFulfilment sample ([samples/OrderFulfilment](../../../samples/OrderFulfilment)) runs four services, one per
-process, each with its own PostgreSQL schema, over a cloud transport. Each service exposes an `Add...Service` extension
-that the host, the design-time manifest export and the tests share:
+The [TravelBooking sample](../../../samples/TravelBooking/README.md) runs two services, each in its own process with its
+own PostgreSQL schema, over a cloud transport. Each service exposes an `Add...Service` extension that its host, the
+design-time manifest export and the tests share:
 
 ```csharp
-public static SourceFlowBuilder AddPaymentsService(this SourceFlowBuilder sf)
+public static SourceFlowBuilder AddHotelsService(this SourceFlowBuilder sf)
 {
-    sf.ServiceName = "payments";
-    sf.AddModule<PaymentsModule>();
+    sf.ServiceName = "hotels";
+    sf.AddModule<HotelsModule>();
+    sf.Projections(p => p.Add<HotelRoomsProjection>().Inline());
     sf.Routing(r =>
     {
-        r.Publish<PaymentCaptured>().AsIs().To("payments.events");
-        r.Publish<Refunded>().AsIs().To("payments.events");
+        r.Publish<RoomReserved>().AsIs().To("hotels.events");
+        r.Publish<RoomReleased>().AsIs().To("hotels.events");
+        r.Publish<ReservationConfirmed>().AsIs().To("hotels.events");
     });
     return sf;
 }
 
-public static SourceFlowBuilder AddOrdersService(this SourceFlowBuilder sf)
+public static SourceFlowBuilder AddBookingsService(this SourceFlowBuilder sf)
 {
-    sf.ServiceName = "orders";
-    sf.AddModule<OrdersModule>();   // its domain plus the other services' contract modules
+    sf.ServiceName = "bookings";
+    sf.AddModule<BookingsModule>();   // its domain plus the Hotels contract module
+    sf.Projections(p => p.Add<BookingSummaryProjection>().Inline());
     sf.Routing(r =>
     {
-        r.Command<ReserveStock>().To("inventory").ReplyOnReject();
-        r.Command<ReleaseStock>().To("inventory");
-        r.Command<Charge>().To("payments").ReplyOnReject();
-        r.Command<Refund>().To("payments");
-        r.Command<CreateShipment>().To("shipping").ReplyOnReject();
-        r.Subscribe("inventory.events");
-        r.Subscribe("payments.events");
-        r.Subscribe("shipping.events");
+        r.Command<ReserveRoom>().To("hotels").ReplyOnReject();
+        r.Command<ReleaseRoom>().To("hotels");
+        r.Command<ConfirmReservation>().To("hotels").ReplyOnReject();
+        r.Subscribe("hotels.events");
     });
     return sf;
 }
 ```
 
+Each host adds its service and the infrastructure both share
+([ServiceHost.cs](../../../samples/TravelBooking/Shared/ServiceHost.cs)):
+
 ```csharp
-// OrderFulfilment.Host/Program.cs: one service per process, chosen by --Service
-builder.Services.AddSourceFlow(sf =>
-{
-    _ = service switch
-    {
-        "orders" => sf.AddOrdersService(),
-        "inventory" => sf.AddInventoryService(),
-        "payments" => sf.AddPaymentsService(),
-        "shipping" => sf.AddShippingService(),
-        _ => throw new InvalidOperationException($"Unknown service '{service}'."),
-    };
-    sf.UsePostgreSql(connectionString, o => o.Schema = service);
-    sf.UseAwsTransport(o => o.Region = "eu-west-1");
-});
+// Bookings.Api/Program.cs (Hotels.Api is the same with AddHotelsService)
+builder.Services.AddSourceFlow(sf => sf.AddBookingsService().UseInfrastructure(configuration));
+
+// ServiceHost.UseInfrastructure: a schema per service, and the transport chosen by Transport:Kind
+sf.UsePostgreSql(connectionString, o => o.Schema = sf.ServiceName);
+sf.UseAwsTransport(o => o.Region = "eu-west-1");   // or UseAzureTransport, UseGcpTransport
 ```
 
 ### 6.7 Several services in one process
 
-Modules from several bounded contexts can also run in one service, as the Bank API does (Accounts, Transfers and
-Notifications under `ServiceName = "bank"`). Commands between them are then local, events are read from the shared log,
+Modules from several bounded contexts can also run in one service, as the Bank domain the tests use does (Accounts,
+Transfers and Notifications under `ServiceName = "bank"`). Commands between them are then local, events are read from the shared log,
 and the in-memory transport is enough. Split them later by moving modules to new hosts and adding routes; the domain code
 does not change.
 
@@ -1537,7 +1570,7 @@ order's fulfilment, a subscription renewal. Details: [Process Managers and Workf
 
 ### 9.1 A hand-written process manager
 
-From the Bank sample ([Transfers.cs](../../../samples/Bank/Bank.Transfers/Transfers.cs)): move money from one account to
+From the Bank domain the tests use ([Transfers.cs](../../../tests/Fixtures/Bank/Bank.Transfers/Transfers.cs)): move money from one account to
 another, fail if the withdrawal is rejected, and compensate if the transfer times out after the withdrawal.
 
 ```csharp
@@ -1674,23 +1707,20 @@ Both run on the same runtime: a workflow **is** a generated process manager.
 ### 10.2 The domain workspace and service manifests
 
 Studio and the validator see the whole domain through a workspace file, `sourceflow.domain.yaml`, which lists each
-service and its manifest. From the OrderFulfilment sample:
+service and its manifest. From the TravelBooking sample
+([sourceflow.domain.yaml](../../../samples/TravelBooking/sourceflow.domain.yaml)):
 
 ```yaml
-domain: commerce
-description: Order to delivery
+domain: travel
+description: A guest books a hotel room
 services:
-  - name: orders
-    manifest: Orders/sourceflow.manifest.json
-    workflows: Orders/Workflows          # the workflows orders owns
-    tests: Orders.Tests                  # where Studio writes their specs
-    module: Orders.OrdersModule          # the module the specs register
-  - name: inventory
-    manifest: Inventory/sourceflow.manifest.json
-  - name: payments
-    manifest: Payments/sourceflow.manifest.json
-  - name: shipping
-    manifest: Shipping/sourceflow.manifest.json
+  - name: bookings
+    manifest: Bookings/sourceflow.manifest.json
+    workflows: Bookings/Workflows        # the workflows bookings owns
+    tests: TravelBooking.Tests           # where Studio writes their specs
+    module: Bookings.BookingsModule      # the module the specs register
+  - name: hotels
+    manifest: Hotels/sourceflow.manifest.json
 ```
 
 A **service manifest** (`sourceflow.manifest.json`) says what a service owns and how it is wired: its messages and fields,
@@ -1701,8 +1731,8 @@ design-time export adds the routing configuration without starting the service:
 
 ```bash
 dotnet run --project src/Tooling/SourceFlow.Tool -- manifest export \
-  --project samples/OrderFulfilment/OrderFulfilment.Host \
-  --output samples/OrderFulfilment/Orders/sourceflow.manifest.json -- --Service=orders
+  --project samples/TravelBooking/Bookings.Api \
+  --output samples/TravelBooking/Bookings/sourceflow.manifest.json -- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
 ```
 
 Commit the manifests and run the export with `--check` in CI, so a manifest that no longer matches its service fails the
@@ -1710,90 +1740,69 @@ build.
 
 ### 10.3 Writing a workflow
 
-The OrderFulfilment workflow ([order-fulfilment.sfflow.yaml](../../../samples/OrderFulfilment/Orders/Workflows/order-fulfilment.sfflow.yaml)),
-abridged:
+The trip-booking workflow of the TravelBooking sample
+([trip-booking.sfflow.yaml](../../../samples/TravelBooking/Bookings/Workflows/trip-booking.sfflow.yaml)): hold a room at
+the hotel, wait for the guest to confirm, then confirm the reservation.
 
 ```yaml
 sourceflow.workflow: 1
-name: order-fulfilment
+name: trip-booking
 version: 1
-owner: orders                         # generated into the orders service
-description: Reserve stock, take payment, ship.
+owner: bookings                       # generated into the bookings service
+description: Hold a room, wait for the guest, confirm with the hotel.
 
 start:
-  on: orders.order-placed.v1          # local domain event of the owner
-  correlate: data.orderId             # instance id
-data:
-  orderId: { from: start.data.orderId }
-  amount:  { from: start.data.total }
-  lines:   { from: start.data.lines }
-  address: { from: start.data.shippingAddress }
+  on: bookings.booking-requested.v1   # local domain event of the owner
+  correlate: data.bookingId           # instance id; hotels' events carry it too
+data:                                 # instance data (the guest's name is not kept)
+  bookingId: { from: start.data.bookingId }
+  hotelId:   { from: start.data.hotelId }
+  nights:    { from: start.data.nights }
 
 steps:
-  - id: reserve-stock
-    send:  { command: inventory.reserve-stock.v1, map: { orderId: $data.orderId, lines: $data.lines } }
+  - id: hold-room
+    send:  { command: hotels.reserve-room.v1, map: { hotelId: $data.hotelId, bookingId: $data.bookingId, nights: $data.nights } }
     await:
-      success: inventory.stock-reserved.v1
+      success: hotels.room-reserved.v1
       failure:
-        - rejected: inventory.out_of_stock
+        - rejected: hotels.sold_out
+          then: fail                  # nothing to undo yet: the booking is declined
+        - rejected: hotels.unknown_hotel
           then: fail
-    timeout: { after: PT5M, retry: { max: 2 }, then: fail }
-    compensate:
-      send:  { command: inventory.release-stock.v1, map: { orderId: $data.orderId } }
-      await: { success: inventory.stock-released.v1 }
-      retry: { max: 5, backoff: exponential, initial: PT30S, cap: PT10M }
-      timeout: { after: PT15M }
+    timeout: { after: PT1M, retry: { max: 2 }, then: fail }    # the hotels service is down: try twice more
+    compensate:                       # undo the hold when a later step fails
+      send:  { command: hotels.release-room.v1, map: { hotelId: $data.hotelId, bookingId: $data.bookingId } }
+      await: { success: hotels.room-released.v1 }
+      retry: { max: 5, backoff: exponential, initial: PT10S, cap: PT5M }
+      timeout: { after: PT10M }
 
-  - id: charge-payment
-    send:  { command: payments.charge.v1, map: { orderId: $data.orderId, amount: $data.amount } }
-    await:
-      success:
-        on: payments.payment-captured.v1
-        capture: { paymentId: event.data.paymentId }
+  - id: await-guest
+    await:                            # no command: wait for the guest
+      success: bookings.guest-confirmed.v1
       failure:
-        - rejected: payments.declined
-          retry: { max: 3, backoff: fixed, initial: PT10M }    # business retry
-          then: fail
-        - rejected: payments.fraud_suspected
-          then: fail
-    timeout: { after: PT2M, retry: { max: 2 }, then: fail }
-    compensate:
-      send:  { command: payments.refund.v1, map: { orderId: $data.orderId, paymentId: $data.paymentId, amount: $data.amount } }
-      await: { success: payments.refunded.v1 }
+        - on: bookings.guest-cancelled.v1
+          then: fail                  # release the hold, decline the booking
+    timeout: { after: PT15M, then: fail }    # the hold lapses
 
-  - id: review-large-order
-    when: "$data.amount > 5000"        # CESQL guard; skipped when false
+  - id: confirm-reservation
+    pivot: true                       # point of no return: the guest was told the booking stands
+    send:  { command: hotels.confirm-reservation.v1, map: { hotelId: $data.hotelId, bookingId: $data.bookingId } }
     await:
-      success: orders.order-approved.v1
+      success: hotels.reservation-confirmed.v1
       failure:
-        - on: orders.order-rejected-by-review.v1
-          then: fail
-    timeout: { after: P1D, then: manual }
-
-  - id: create-shipment
-    pivot: true                        # point of no return
-    send:  { command: shipping.create-shipment.v1, map: { orderId: $data.orderId, lines: $data.lines, address: $data.address } }
-    await:
-      success: shipping.shipment-created.v1
-      failure:
-        - rejected: shipping.address_invalid
-          then: { goto: await-address-fix }    # forward recovery after the pivot
-    timeout: { after: PT1H, retry: { max: 3, backoff: exponential, initial: PT5M }, then: manual }
-    next: complete
-
-  - id: await-address-fix
-    await:
-      success:
-        on: orders.address-corrected.v1
-        capture: { address: event.data.address }
-    timeout: { after: P2D, then: manual }
-    next: create-shipment
+        - rejected: hotels.hold_lost
+          then: manual                # hotel staff released the hold: an operator rebooks the guest
+    timeout: { after: PT1M, retry: { max: 3, backoff: exponential, initial: PT10S }, then: manual }
 
 on:
-  completed:   { send: { command: orders.mark-fulfilled.v1, map: { orderId: $data.orderId } } }
-  compensated: { send: { command: orders.cancel-order.v1,   map: { orderId: $data.orderId, reason: $failure.code } } }
-  manual:      { alert: true }
+  completed:   { send: { command: bookings.confirm-booking.v1, map: { bookingId: $data.bookingId } } }
+  compensated: { send: { command: bookings.decline-booking.v1, map: { bookingId: $data.bookingId, reason: $failure.code } } }
+  manual:      { alert: true }        # metric, structured log, and the instance waits for an operator
 ```
+
+The workflow uses neither guards nor captures. A step with `when: "$data.nights > 14"` would be skipped for shorter
+stays, and `capture: { roomNumber: event.data.roomNumber }` on a success would add a field from the awaited event to the
+instance data. After a pivot, `then: { goto: step }` recovers forward instead of stopping for an operator.
 
 The main concepts:
 
@@ -1817,8 +1826,8 @@ Durations are ISO 8601 (`PT30S`, `PT5M`, `P1D`).
 
 The `SourceFlow.Net` package adds `*.sfflow.yaml` files to the build. The generator validates each workflow against its
 own and the referenced static manifests and reports problems as **SF0020** at the YAML line and column (SF0021 for a
-missing `$hook` implementation). It generates a `[ProcessManager("order-fulfilment@1")]` partial record (here
-`OrderFulfilmentWorkflowV1`) that runs the shared workflow engine, registered by the owner's module. Cross-service rules for
+missing `$hook` implementation). It generates a `[ProcessManager("trip-booking@1")]` partial record (here
+`TripBookingWorkflowV1`) that runs the shared workflow engine, registered by the owner's module. Cross-service rules for
 services the owner does not reference run only in Studio or through the `SourceFlow.Studio` library.
 
 Wiring rules for the owner:
@@ -1828,27 +1837,31 @@ Wiring rules for the owner:
 - register the other services' contract modules in the owner's module, and list the `CommandRejected<T>` replies in its
   JSON context.
 
+The TravelBooking sample does all three in `AddBookingsService` and `BookingsModule`
+([Bookings.cs](../../../samples/TravelBooking/Bookings/Bookings.cs)); see [6.6](#66-a-multi-service-example).
+
 ### 10.5 Testing workflows
 
 `WorkflowSpec` drives a generated workflow in memory, outcome by outcome:
 
 ```csharp
-var spec = WorkflowSpec.For<Orders.OrderFulfilmentWorkflowV1, Orders.OrdersModule>();
-spec.Start("orders.order-placed.v1", """{"orderId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","lines":[],"total":100,"shippingAddress":"sample-shippingAddress"}""")
-    .ThenSends("inventory.reserve-stock.v1");
-spec.Succeed("inventory.stock-reserved.v1", """{"orderId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","lines":[]}""")
-    .ThenSends("payments.charge.v1");
-spec.Reject("payments.fraud_suspected")
-    .ThenSends("inventory.release-stock.v1");
-spec.Succeed("inventory.stock-released.v1", """{"orderId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","lines":[]}""")
-    .ThenSends("orders.cancel-order.v1");
+var spec = WorkflowSpec.For<Bookings.TripBookingWorkflowV1, Bookings.BookingsModule>();
+spec.Start("bookings.booking-requested.v1", """{"bookingId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","hotelId":"71905a65-5f08-5214-94c5-0c0cdfe13aac","guest":"sample-guest","nights":1}""")
+    .ThenSends("hotels.reserve-room.v1");
+spec.Succeed("hotels.room-reserved.v1", """{"hotelId":"71905a65-5f08-5214-94c5-0c0cdfe13aac","bookingId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","nights":1}""")
+    .ThenSends();
+spec.FireTimer()                                   // the guest doesn't confirm within 15 minutes
+    .ThenSends("hotels.release-room.v1");
+spec.Succeed("hotels.room-released.v1", """{"hotelId":"71905a65-5f08-5214-94c5-0c0cdfe13aac","bookingId":"bdcbea6c-2dc6-58e2-8f01-846c12116012"}""")
+    .ThenSends("bookings.decline-booking.v1");
 spec.ThenStatus(WorkflowStatus.Compensated);
 ```
 
 Studio enumerates every path (retry loops at 0, 1 and the maximum), selects a minimal set that covers every transition and
-end status, and writes one spec per path to `{tests}/Workflows/{Name}V{version}PathTests.cs`. The order-fulfilment
-workflow has 437 paths and a minimal cover of 6
-([OrderFulfilmentV1PathTests.cs](../../../samples/OrderFulfilment/Orders.Tests/Workflows/OrderFulfilmentV1PathTests.cs)).
+end status, and writes one spec per path to `{tests}/Workflows/{Name}V{version}PathTests.cs`. The trip-booking
+workflow has 27 paths, ending `Completed`, `Compensated` or `ManualIntervention`, and a minimal cover of 6
+([TripBookingV1PathTests.cs](../../../samples/TravelBooking/TravelBooking.Tests/Workflows/TripBookingV1PathTests.cs)).
+The end-to-end scenarios TB-E2E-01..06 run the same workflow between the two services as separate hosts.
 Regenerate them after changing the workflow; Studio only overwrites files it generated.
 
 ### 10.6 Running and operating workflows
@@ -1863,11 +1876,9 @@ Regenerate them after changing the workflow; Studio only overwrites files it gen
 | Operator actions | `sourceflow workflow list`, `show`, `resume`, `retry-step`, `abort` |
 
 ```bash
-# inside the owning service
-dotnet run --project samples/OrderFulfilment/OrderFulfilment.Host -- --Service=orders \
-  sourceflow workflow list --status ManualIntervention
-dotnet run --project samples/OrderFulfilment/OrderFulfilment.Host -- --Service=orders \
-  sourceflow workflow retry-step order-fulfilment@1 bdcbea6c-2dc6-58e2-8f01-846c12116012 --note "gateway back up"
+# inside the owning service: the TravelBooking demo's Bookings container ($BOOKING as in 4.12)
+docker compose exec bookings sh -c 'dotnet Bookings.Api.dll sourceflow workflow list --name trip-booking --status ManualIntervention'
+docker compose exec bookings sh -c "dotnet Bookings.Api.dll sourceflow workflow abort trip-booking@1 $BOOKING --reason 'rebooked by phone'"
 ```
 
 `resume` continues a stopped compensation or runs the current (or a given `--step`) step again; `retry-step` re-sends the
@@ -1877,7 +1888,7 @@ actions are `WorkflowControl` messages queued in the owner's outbox, so they run
 **Versions.** A structural change to a published workflow needs a new `version` (the validator compares structural
 fingerprints). Deploy both versions: new instances start on the latest; running instances finish on the version they
 started on. A service refuses to start when a version that still has active instances was removed
-(`WorkflowVersionRemovedException`); `sourceflow workflow list --name order-fulfilment --version 1` tells you when it can go.
+(`WorkflowVersionRemovedException`); `sourceflow workflow list --name trip-booking --version 1` tells you when it can go.
 
 **Limits in 3.0.** Workflow instance data is JSON in the process state, so fields marked `personal: true` are not
 crypto-shredded in workflow state yet. Studio's live "observe" mode is planned for Studio 1.1.
@@ -1887,8 +1898,8 @@ crypto-shredded in workflow state yet. Studio's live "observe" mode is planned f
 Run Studio locally on a workspace (it listens on `127.0.0.1` only):
 
 ```bash
-dotnet run --project src/Tooling/SourceFlow.Tool -- studio --workspace samples/OrderFulfilment --open
-dotnet run --project src/Tooling/SourceFlow.Tool -- studio --workspace samples/OrderFulfilment --read-only
+dotnet run --project src/Tooling/SourceFlow.Tool -- studio --workspace samples/TravelBooking --open
+dotnet run --project src/Tooling/SourceFlow.Tool -- studio --workspace samples/TravelBooking --read-only
 ```
 
 The tool serves the Studio app and the WebAssembly core it embeds when they were built first (in `studio/`: `npm ci`,
@@ -1909,8 +1920,11 @@ The tool serves the Studio app and the WebAssembly core it embeds when they were
 from this repository, after building the app and the core:
 
 ```bash
-node studio/app/bin/studio.mjs build --workspace samples/OrderFulfilment --out site
+node studio/app/bin/studio.mjs build --workspace samples/TravelBooking --out site
 ```
+
+The `docker compose` demo ([4.12](#412-the-demo-docker-compose-up)) serves such a site for the TravelBooking workspace on
+http://localhost:5080.
 
 **Diagrams on pull requests.** The `workflow-diff` action comments on pull requests that change `*.sfflow.yaml` files with
 the changes in words and before and after diagrams. Until it is published, use it from the repository
@@ -2269,8 +2283,9 @@ in binary mode (attributes as message attributes or properties, the body byte fo
 oversized body fails the command that produced it (`MessageTooLargeException`), so keep large payloads in your own
 storage and send a reference.
 
-The OrderFulfilment host shows choosing a transport from configuration
-([Program.cs](../../../samples/OrderFulfilment/OrderFulfilment.Host/Program.cs)).
+The TravelBooking sample's hosts choose the transport from configuration (`Transport:Kind` is `aws`, `azure` or `gcp`;
+[ServiceHost.cs](../../../samples/TravelBooking/Shared/ServiceHost.cs)); the `docker compose` demo runs them on AWS,
+against LocalStack.
 
 ### 12.4 Provisioning
 
@@ -2971,8 +2986,10 @@ if (await SourceFlow.Tool.SourceFlowCli.TryRunAsync(args, app.Services) is { } e
 ```
 
 ```bash
-dotnet run --project samples/Bank/Bank.Api -- sourceflow query 'from readmodel "account-summary" | take 5'
-dotnet run --project samples/OrderFulfilment/OrderFulfilment.Host -- --Service=orders sourceflow workflow list --active
+dotnet run --project Accounts.Api -- sourceflow query 'from readmodel "account-summary" | take 5'
+
+# the TravelBooking demo's Bookings service, inside its container
+docker compose exec bookings sh -c 'dotnet Bookings.Api.dll sourceflow workflow list --name trip-booking --active'
 ```
 
 `TryRunAsync` returns `null` unless the first argument is `sourceflow`, so normal starts are unaffected. Host
@@ -3020,7 +3037,7 @@ dotnet run --project src/Tooling/SourceFlow.Tool -- dlq list --connection "$PG" 
 dotnet run --project src/Tooling/SourceFlow.Tool -- dlq replay 0193b0c2-... --connection "$PG" --schema accounts --note "fixed template"
 
 # Ad-hoc query through the service, as CSV
-dotnet run --project samples/Bank/Bank.Api -- sourceflow query --sql \
+dotnet run --project Accounts.Api -- sourceflow query --sql \
   'SELECT id, holder, balance FROM readmodel."account-summary" WHERE balance < @below ORDER BY balance' \
   --param below=100 --format csv
 
@@ -3039,13 +3056,29 @@ There is no command to browse streams or the outbox directly: use `query` (`from
 ### 18.1 The SourceFlow builder
 
 `services.AddSourceFlow(sf => ...)` composes a service. Modules, routing and projection configuration are validated when
-it runs; options and topology when the host starts.
+it runs; options and topology when the host starts. Every member returns the builder, so a service and its features are
+enabled in one chain, each feature off until a call enables it:
+
+```csharp
+builder.Services.AddSourceFlow(sf => sf
+    .WithServiceName("bookings")
+    .AddModule<BookingsModule>()
+    .UsePostgreSql(connectionString)
+    .UseAwsTransport(o => o.Region = "eu-west-1")
+    .WithHealthChecks()
+    .When(configuration.GetValue<bool>("Features:QueryApi"), s => s.WithQueryApi()));
+
+app.MapSourceFlowHealthChecks();   // /health, /health/ready, /health/sourceflow
+```
 
 | Member | Meaning |
 |--------|---------|
-| `ServiceName` | Required. Lowercase letters, digits and dashes, starting with a letter (at most 63). The envelope `source`, the default endpoint and the inbox consumer name |
-| `Roles` | `SourceFlowRoles`: `Api`, `Receiver`, `Relay`, `Subscriptions` or `All` (default) ([19.3](#193-scaling-out)) |
-| `Provisioning` | `ProvisioningMode` (`None`, `Validate`, `CreateIfMissing`); default by environment ([12.4](#124-provisioning)) |
+| `WithServiceName(name)`, `ServiceName` | Required. Lowercase letters, digits and dashes, starting with a letter (at most 63). The envelope `source`, the default endpoint and the inbox consumer name |
+| `WithRoles(roles)`, `Roles` | `SourceFlowRoles`: `Api`, `Receiver`, `Relay`, `Subscriptions` or `All` (default) ([19.3](#193-scaling-out)) |
+| `WithProvisioning(mode)`, `Provisioning` | `ProvisioningMode` (`None`, `Validate`, `CreateIfMissing`); default by environment ([12.4](#124-provisioning)) |
+| `WithHealthChecks(prefix)` | Adds the SourceFlow health checks ([15](#15-observability)); map them with `app.MapSourceFlowHealthChecks()` |
+| `WithQueryApi(o => ...)` | SourceFlow.AspNetCore: enables the query API ([11](#11-the-query-side)) |
+| `When(condition, configure)` | Applies `configure` only when `condition` is true: features that follow configuration |
 | `AddModule<TModule>()` | Adds a generated or hand-written module |
 | `Configure(o => ...)` | Sets `SourceFlowOptions` (below) |
 | `Routing(r => ...)` | Routes, publications and subscriptions ([6.1](#61-the-routing-api)) |
@@ -3130,8 +3163,8 @@ Full detail: [Observability and Performance](Observability-and-Performance.md#pe
 ### 19.1 Measured numbers
 
 From the component baseline ([perf-baseline.md](../implementation/perf-baseline.md); a developer workstation with
-PostgreSQL 17 in Docker, so indicative only) and the tier-M load test of the Bank API
-([load-test-report.md](../implementation/load-test-report.md)):
+PostgreSQL 17 in Docker, so indicative only) and the first tier-M load test, against the single Bank
+service that the TravelBooking sample later replaced ([load-test-report.md](../implementation/load-test-report.md)):
 
 | Measurement | Target | Result |
 |-------------|--------|--------|
@@ -3473,7 +3506,8 @@ Put the messages in a contracts assembly with a module (generated, or hand-writt
 and register it in every service that sends or receives them. A sender must not register the owner's aggregate module.
 
 **Can several bounded contexts run in one process?**
-Yes. Add several modules to one service, as the Bank API does. Split them into separate services later by moving modules
+Yes. Add several modules to one service, as the Bank domain the tests use does (Accounts, Transfers and
+Notifications in one service). Split them into separate services later by moving modules
 and adding routes.
 
 **How do timeouts work, and do they survive a restart?**
@@ -3520,8 +3554,10 @@ No. `sourceflow studio` runs it locally on `127.0.0.1` against your workspace. A
 sharing, and the `workflow-diff` action draws diagrams on pull requests. The npm packages are not published yet; use them
 from the repository.
 
-**What is the Studio demo in `docker compose`?**
-A query console for the Bank sample's query API ([samples/Studio](../../../samples/Studio)). It is not SourceFlow Studio.
+**What is the Studio in `docker compose`?**
+SourceFlow Studio itself, read-only: a static site of the TravelBooking sample's workspace on http://localhost:5080, with
+the domain map, the statechart, simulation and paths. To edit the workflow or generate its specs, run `sourceflow studio`
+locally ([10.7](#107-sourceflow-studio)).
 
 **Can I migrate a v2 service without downtime?**
 Yes, in waves: run the AWS wire bridge so the v3 service accepts v2 messages, import with `--limit`, and gate the cut-over
@@ -3543,7 +3579,7 @@ Not in 3.0. `[Tag]` exists for forward compatibility; DCB is planned for 3.1 ([A
 | Architecture | [Index](Architecture/README.md): [01 Overview](Architecture/01-Architecture-Overview.md), [02 Command Flow](Architecture/02-Command-Flow.md), [03 Event Flow](Architecture/03-Event-Flow.md), [04 Messaging Pipeline](Architecture/04-Messaging-Pipeline-and-Middleware.md), [05 Event Store](Architecture/05-Event-Store-and-Persistence.md), [06 Projections](Architecture/06-Projections-and-Read-Models.md), [07 Cloud Transports](Architecture/07-Cloud-Transports.md), [08 Query Side](Architecture/08-Query-Side-and-SFQL.md), [09 Process Managers and Workflows](Architecture/09-Process-Managers-and-Workflows.md), [10 Security and Multi-Tenancy](Architecture/10-Security-and-Multi-Tenancy.md) |
 | Guides | [Message idempotency](Message-Idempotency-Guide.md), [Security and compliance](Security-and-Compliance-Guide.md), [Observability and performance](Observability-and-Performance.md), [Cloud integration testing](Cloud-Integration-Testing.md), [GitHub Actions setup](GitHub-Actions-Setup.md), [Workflows](../guides/workflows.md), [Workflow DSL reference](../guides/workflow-dsl-reference.md), [OpenTelemetry](../guides/opentelemetry.md), [Reading generated code](../guides/reading-generated-code.md), [Migrating from v2](../guides/migrating-from-v2.md) |
 | Design and decisions | [Design documents](../Design/README.md) (01 to 15), [architecture decision records](../ADRs/README.md), [implementation status](../implementation/STATUS.md) |
-| Samples | [Bank](../../../samples/Bank), [OrderFulfilment](../../../samples/OrderFulfilment), [Studio demo console](../../../samples/Studio), [samples README](../../../samples/README.md) |
+| Samples | [TravelBooking](../../../samples/TravelBooking/README.md), [samples README](../../../samples/README.md); the test fixtures [Bank](../../../tests/Fixtures/Bank) and [OrderFulfilment](../../../tests/Fixtures/OrderFulfilment) |
 | Infrastructure | [Topology IaC modules](../../../deploy/topology/README.md), [dashboards and alerts](../../../deploy/observability/README.md) |
 
 ### 25.2 Community and support

@@ -1,4 +1,4 @@
-// STU-E2E-01 on the OrderFulfilment sample (samples/OrderFulfilment, WP-S.13) and STU-A11Y-04 (plan 10 §3.3): the real
+// STU-E2E-01 on the OrderFulfilment workspace (tests/Fixtures/OrderFulfilment, WP-S.13) and STU-A11Y-04 (plan 10 §3.3): the real
 // four-service workspace opens, its workflow is valid against every manifest and has the doc 15 §5.1 path set; and what
 // the views draw meets WCAG 2.1 AA contrast in both themes (text 4.5:1, the boundaries of states, edges and controls 3:1),
 // measured on the rendered elements against what is behind them.

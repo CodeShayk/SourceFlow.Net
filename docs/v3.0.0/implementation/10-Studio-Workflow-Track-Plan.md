@@ -24,7 +24,7 @@ studio/                                 # WP-S.8…S.12 React 19 + TypeScript SP
 └─ actions/workflow-diff/               #   GitHub Action (Node 24 LTS)
 schemas/
 └─ workflow-1.json                      # normative JSON Schema of the DSL (WP-S.3)
-samples/OrderFulfilment/                # WP-S.13 orders, payments, inventory, shipping + sourceflow.domain.yaml
+tests/Fixtures/OrderFulfilment/         # WP-S.13 orders, payments, inventory, shipping + sourceflow.domain.yaml
 tests/
 ├─ Workflows/SourceFlow.Studio.Tests/   # UT-WF, UT-MAN, WF-GOLD, WF-DIFF
 ├─ EndToEnd/SourceFlow.EndToEnd.Tests/  # + WF-E2E (Category=Workflow, parameterised over transports)
@@ -89,7 +89,7 @@ tests/
 - **Tests**: STU-E2E-14..15, an Action integration test against a fixture repository.
 
 ### WP-S.13 OrderFulfilment sample, docs, hardening · 2 ew · depends: all above, WP-3.6
-- **Deliverables**: `samples/OrderFulfilment` (four services, contract packages, `sourceflow.domain.yaml`, the doc 15 §5.1 workflow, generated specs); user guide (DSL reference generated from the schema); accessibility and performance fixes.
+- **Deliverables**: `tests/Fixtures/OrderFulfilment` (four services, contract packages, `sourceflow.domain.yaml`, the doc 15 §5.1 workflow, generated specs); user guide (DSL reference generated from the schema); accessibility and performance fixes.
 - **Tests**: **WF-E2E-01..12** across transports; STU-A11Y-04..05; STU-PERF-03.
 
 **Schedule.** 32 ew over lane F (2 engineers ≈ 4 ew per sprint at 85 % focus, about 8 sprints). It starts at sprint 6 (after the v3 M1 exit) and is due at sprint 13, ahead of the 3.0.0 GA target ([plan 03 §10](03-Work-Breakdown-Structure.md#10-schedule-critical-path-and-staffing)).
@@ -169,7 +169,7 @@ Extends [plan 08](08-CI-CD-and-Quality-Gates.md).
 
 | Workflow / job | Trigger | Steps |
 |----------------|---------|-------|
-| `studio-pr.yml` | PRs into `v3.0.0` touching `studio/**`, `src/Workflows/**`, `schemas/**`, `samples/OrderFulfilment/**` | pnpm install (frozen lockfile) → ESLint + Prettier check → `tsc --noEmit` → install the .NET `wasm-tools` workload → build the WASM core → Vitest (+ coverage) → WASM-01..08 → Playwright (3 browsers) + axe → STU-PERF budgets → static-build smoke → coverage gate |
+| `studio-pr.yml` | PRs into `v3.0.0` touching `studio/**`, `src/Workflows/**`, `schemas/**`, `tests/Fixtures/OrderFulfilment/**` | pnpm install (frozen lockfile) → ESLint + Prettier check → `tsc --noEmit` → install the .NET `wasm-tools` workload → build the WASM core → Vitest (+ coverage) → WASM-01..08 → Playwright (3 browsers) + axe → STU-PERF budgets → static-build smoke → coverage gate |
 | `v3-pr.yml` (existing) | as before | + `SourceFlow.Studio.Tests`, WF-GOLD, WF-DIFF (bounded), WF-E2E (in-memory + emulators), manifest drift check |
 | `v3-nightly.yml` (existing) | schedule | + WF-DIFF long run; WF-E2E on real AWS, Azure and Google Cloud; WF-E2E-12 chaos |
 | `workflow-diff` Action | PRs touching `**/*.sfflow.yaml` | Render before/after SVGs, comment on the PR |

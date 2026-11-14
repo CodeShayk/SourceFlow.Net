@@ -41,8 +41,6 @@ This document covers the tooling. The [workflows guide](../guides/workflows.md) 
 
 One semantics: parsing, validation and simulation are written once, in C#, under `src/Workflows/SourceFlow.Studio/Dsl`. The Roslyn generator compiles those sources into itself, the browser runs them as WebAssembly, and the generated process manager embeds the simulator as its engine. TypeScript only renders, edits and calls the core ([ADR-025](../ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md), [ADR-027 §6](../ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md)).
 
-> `samples/Studio/SourceFlow.Studio.Demo` is an unrelated demo console for the query API of the Bank sample. It is not SourceFlow Studio.
-
 ## Installation
 
 Everything .NET targets `net10.0` only.
@@ -69,82 +67,82 @@ npm run build          # builds studio/app/dist
 
 ## Quick start
 
-This walk-through uses [`samples/OrderFulfilment`](../../../samples/OrderFulfilment): four services (orders, inventory, payments, shipping) and the `order-fulfilment` workflow, owned by orders.
+This walk-through uses the [TravelBooking sample](../../../samples/TravelBooking/README.md): two services, bookings and hotels, and the `trip-booking` workflow, owned by bookings. To look before you build, `docker compose up -d --build` at the repository root serves SourceFlow Studio for this workspace, read-only, on http://localhost:5080.
 
-**1. Export each service's manifest.** The sample's host runs one service per process (`--Service=…`), so the export passes that setting to the application after `--`:
+**1. Export each service's manifest.** Each service has its own host. The host's configuration requires a connection string, so the export passes a placeholder after `--` (the host is built, never started):
 
 ```bash
-dotnet sourceflow manifest export --project samples/OrderFulfilment/OrderFulfilment.Host \
-  --output samples/OrderFulfilment/Orders/sourceflow.manifest.json -- --Service=orders
+dotnet sourceflow manifest export --project samples/TravelBooking/Bookings.Api \
+  --output samples/TravelBooking/Bookings/sourceflow.manifest.json -- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
+dotnet sourceflow manifest export --project samples/TravelBooking/Hotels.Api \
+  --output samples/TravelBooking/Hotels/sourceflow.manifest.json -- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
 ```
 
-**2. Describe the domain** in `samples/OrderFulfilment/sourceflow.domain.yaml`:
+**2. Describe the domain** in `samples/TravelBooking/sourceflow.domain.yaml`:
 
 ```yaml
-domain: commerce
-description: Order to delivery
+domain: travel
+description: A guest books a hotel room
 services:
-  - name: orders     # orchestrator of order-fulfilment
-    manifest: Orders/sourceflow.manifest.json
-    workflows: Orders/Workflows
-    tests: Orders.Tests
-    module: Orders.OrdersModule
-  - name: inventory
-    manifest: Inventory/sourceflow.manifest.json
-  - name: payments
-    manifest: Payments/sourceflow.manifest.json
-  - name: shipping
-    manifest: Shipping/sourceflow.manifest.json
+  - name: bookings   # orchestrator of trip-booking
+    manifest: Bookings/sourceflow.manifest.json
+    workflows: Bookings/Workflows
+    tests: TravelBooking.Tests
+    module: Bookings.BookingsModule
+  - name: hotels
+    manifest: Hotels/sourceflow.manifest.json
 ```
 
-**3. Write the workflow** in the owning service, `Orders/Workflows/order-fulfilment.sfflow.yaml` (the [guide](../guides/workflows.md#2-writing-a-workflow) explains each part):
+**3. Write the workflow** in the owning service, `Bookings/Workflows/trip-booking.sfflow.yaml` (the [guide](../guides/workflows.md#2-writing-a-workflow) explains each part):
 
 ```yaml
 sourceflow.workflow: 1
-name: order-fulfilment
+name: trip-booking
 version: 1
-owner: orders
+owner: bookings
 
 start:
-  on: orders.order-placed.v1
-  correlate: data.orderId
+  on: bookings.booking-requested.v1
+  correlate: data.bookingId
 data:
-  orderId: { from: start.data.orderId }
-  amount:  { from: start.data.total }
-  lines:   { from: start.data.lines }
+  bookingId: { from: start.data.bookingId }
+  hotelId:   { from: start.data.hotelId }
+  nights:    { from: start.data.nights }
 
 steps:
-  - id: reserve-stock
-    send:  { command: inventory.reserve-stock.v1, map: { orderId: $data.orderId, lines: $data.lines } }
+  - id: hold-room
+    send:  { command: hotels.reserve-room.v1, map: { hotelId: $data.hotelId, bookingId: $data.bookingId, nights: $data.nights } }
     await:
-      success: inventory.stock-reserved.v1
+      success: hotels.room-reserved.v1
       failure:
-        - rejected: inventory.out_of_stock
+        - rejected: hotels.sold_out
           then: fail
-    timeout: { after: PT5M, retry: { max: 2 }, then: fail }
+        - rejected: hotels.unknown_hotel
+          then: fail
+    timeout: { after: PT1M, retry: { max: 2 }, then: fail }
     compensate:
-      send:  { command: inventory.release-stock.v1, map: { orderId: $data.orderId } }
-      await: { success: inventory.stock-released.v1 }
-      retry: { max: 5, backoff: exponential, initial: PT30S, cap: PT10M }
-      timeout: { after: PT15M }
-  # charge-payment, review-large-order, create-shipment, await-address-fix …
+      send:  { command: hotels.release-room.v1, map: { hotelId: $data.hotelId, bookingId: $data.bookingId } }
+      await: { success: hotels.room-released.v1 }
+      retry: { max: 5, backoff: exponential, initial: PT10S, cap: PT5M }
+      timeout: { after: PT10M }
+  # await-guest, confirm-reservation (the pivot) …
 ```
 
-**4. Build the service.** `SourceFlow.Net` adds every `*.sfflow.yaml` in the project to the compilation. Problems are reported as `SF0020` at the line and column of the YAML file; a clean build produces `Orders.OrderFulfilmentWorkflowV1`, registered by the service's module.
+**4. Build the service.** `SourceFlow.Net` adds every `*.sfflow.yaml` in the project to the compilation. Problems are reported as `SF0020` at the line and column of the YAML file; a clean build produces `Bookings.TripBookingWorkflowV1`, registered by the service's module.
 
 **5. Open the workspace in Studio:**
 
 ```bash
-dotnet sourceflow studio --workspace samples/OrderFulfilment --open
+dotnet sourceflow studio --workspace samples/TravelBooking --open
 # SourceFlow Studio: http://127.0.0.1:5180/. Press Ctrl+C to stop.
 ```
 
-The domain map shows the four services. Open the workflow: it is valid against all four manifests, and the Paths tab lists 437 paths with a minimal cover of 6.
+The domain map shows the two services. Open the workflow: it is valid against both manifests, and the Paths tab lists 27 paths with a minimal cover of 6.
 
-**6. Generate and run the specs.** In the Paths tab, keep the minimal cover selected, **Preview specs**, then **Write specs**. Studio writes `Orders.Tests/Workflows/OrderFulfilmentV1PathTests.cs`:
+**6. Generate and run the specs.** In the Paths tab, keep the minimal cover selected, **Preview specs**, then **Write specs**. Studio writes `TravelBooking.Tests/Workflows/TripBookingV1PathTests.cs`:
 
 ```bash
-dotnet test --project samples/OrderFulfilment/Orders.Tests
+dotnet test --project samples/TravelBooking/TravelBooking.Tests
 ```
 
 ## Service manifests
@@ -166,35 +164,35 @@ A manifest describes one service as data. Studio, the validator and the generato
 | `subscribes[]` | `{ topic, only?, where? }` | Configuration |
 | `commandRoutes[]` | `{ command, to, replyOnReject }` | Configuration |
 | `workflows[]` | `{ name, version, file, fingerprint }` of the DSL workflows the service owns (`fingerprint` is `sha256:` and 16 hex digits) | Build |
-| `schemas` | A reference to the service's schema catalog, for example `catalog://payments` | |
+| `schemas` | A reference to the service's schema catalog, for example `catalog://hotels` | |
 
-Message references use the CloudEvents form `{name}.v{version}`, for example `payments.payment-captured.v1`. Command entries keep `type` and `version` apart. An excerpt of the sample's payments manifest:
+Message references use the CloudEvents form `{name}.v{version}`, for example `hotels.room-reserved.v1`. Command entries keep `type` and `version` apart. An excerpt of the TravelBooking sample's hotels manifest ([`samples/TravelBooking/Hotels/sourceflow.manifest.json`](../../../samples/TravelBooking/Hotels/sourceflow.manifest.json)):
 
 ```json
 {
   "manifestVersion": 1,
-  "service": "payments",
-  "endpoint": "payments",
+  "service": "hotels",
+  "endpoint": "hotels",
   "sourceflowVersion": "3.0.0",
   "aggregates": [
     {
-      "name": "payment",
-      "clrType": "Payments.Payment",
+      "name": "hotel",
+      "clrType": "Hotels.Hotel",
       "commands": [
         {
-          "type": "payments.charge",
+          "type": "hotels.reserve-room",
           "version": 1,
-          "emits": [ "payments.payment-captured.v1" ],
-          "rejects": [ "payments.declined", "payments.fraud_suspected", "payments.invalid_amount" ]
+          "emits": [ "hotels.room-reserved.v1" ],
+          "rejects": [ "hotels.sold_out", "hotels.unknown_hotel" ]
         }
       ],
-      "events": [ "payments.payment-captured.v1", "payments.refunded.v1" ]
+      "events": [ "hotels.hotel-registered.v1", "hotels.reservation-confirmed.v1", "hotels.room-released.v1", "hotels.room-reserved.v1" ]
     }
   ],
   "publishes": [
-    { "domainEvent": "payments.payment-captured.v1", "as": "payments.payment-captured.v1", "topic": "payments.events" }
+    { "domainEvent": "hotels.room-reserved.v1", "as": "hotels.room-reserved.v1", "topic": "hotels.events" }
   ],
-  "schemas": "catalog://payments"
+  "schemas": "catalog://hotels"
 }
 ```
 
@@ -235,28 +233,28 @@ The runtime model decides which messages, aggregates, process managers and proje
 | `--configuration`, `-c` | `Debug` | Build configuration |
 | `--no-build` | off | Don't build first |
 | `--check` | off | Compare with the file at `--output` instead of writing; exit 1 on drift, naming the first differing line. CRLF in the committed file is ignored |
-| `-- <app args>` | none | Passed to the application, for example `-- --Service=orders` or a placeholder connection string |
+| `-- <app args>` | none | Passed to the application, for example a placeholder connection string (`-- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"`) |
 
 Requirements: the application must build a generic host (`Host.CreateApplicationBuilder`, `WebApplication.CreateBuilder` or `HostBuilder`) that calls `AddSourceFlow`; the design-time run times out after 5 minutes. Inside a service that hosts the CLI (`SourceFlowCli.TryRunAsync`), `dotnet run -- sourceflow manifest export` exports from the service's own provider (`SourceFlowManifestExporter.Export(IServiceProvider)`).
 
 ### Drift check in CI
 
-Manifests are build artifacts that you commit, so Studio and other services can read them. Regenerate them in CI with `--check`. This repository's `v3-pr.yml` does it for the Bank sample and for each OrderFulfilment service:
+Manifests are build artifacts that you commit, so Studio and other services can read them. Regenerate them in CI with `--check`. This repository's `v3-pr.yml` does it for both TravelBooking services (and for the services of the OrderFulfilment test fixture):
 
 ```yaml
-- name: OrderFulfilment manifest drift check
+- name: TravelBooking manifest drift check
   shell: bash
   run: |
     set -e
-    for service in orders inventory payments shipping; do
+    for service in Bookings Hotels; do
       dotnet src/Tooling/SourceFlow.Tool/bin/Release/net10.0/SourceFlow.Tool.dll manifest export \
-        --project samples/OrderFulfilment/OrderFulfilment.Host -c Release --no-build --check \
-        --output "samples/OrderFulfilment/${service^}/sourceflow.manifest.json" \
-        -- "--Service=$service" "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
+        --project "samples/TravelBooking/$service.Api" -c Release --no-build --check \
+        --output "samples/TravelBooking/$service/sourceflow.manifest.json" \
+        -- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
     done
 ```
 
-The unreachable connection string is never used: the host is built but not started. Keep committed manifests outside an ignored `artifacts/` folder (the samples commit them next to the project).
+The unreachable connection string is never used: the host is built but not started. Keep committed manifests outside an ignored `artifacts/` folder (the sample commits them next to each service's project).
 
 ## The domain workspace (`sourceflow.domain.yaml`)
 
@@ -299,7 +297,7 @@ A workflow is a `*.sfflow.yaml` file in the owning service's project. The [DSL r
 
 | Property | Use |
 |----------|-----|
-| `SourceFlowServiceName` | The compiling service. When set, a workflow whose `owner` differs is an error (WF-V02), and the generated domain query is named after it. The sample sets `<SourceFlowServiceName>orders</SourceFlowServiceName>` in `Orders.csproj` |
+| `SourceFlowServiceName` | The compiling service. When set, a workflow whose `owner` differs is an error (WF-V02), and the generated domain query is named after it. The TravelBooking sample sets `<SourceFlowServiceName>bookings</SourceFlowServiceName>` in `Bookings.csproj` |
 | `RootNamespace` | Fallback namespace for generated types when the module has none |
 | `ProjectDir` | Makes the manifest's `workflows[].file` relative to the project |
 
@@ -308,7 +306,7 @@ A workflow is a `*.sfflow.yaml` file in the owning service's project. The [DSL r
 At build time only some manifests are known: the compilation's own static manifest and those of referenced SourceFlow assemblies. The generator validates in *partial mode*: rules about a command whose owner is unknown are skipped, but unknown message types are still reported, with a hint to reference the assembly that declares them. Every WF diagnostic becomes **SF0020** at the YAML line and column, with the rule id first in the message; warnings (WF-V09, WF-V14) stay warnings:
 
 ```text
-Workflows/order-fulfilment.sfflow.yaml(16,5): error SF0020: WF-V06: Step 'reserve-stock' waits without a timeout; add 'timeout: { after: PT…, then: … }', or 'timeout: { none: true, reason: … }'.
+Workflows/trip-booking.sfflow.yaml(35,5): error SF0020: WF-V06: Step 'await-guest' waits without a timeout; add 'timeout: { after: PT…, then: … }', or 'timeout: { none: true, reason: … }'.
 ```
 
 The generator also reports SF0020 when a referenced message has no CLR type in the compilation (`WF-V01: … has no CLR type in this compilation; reference the contract package that declares it.`), and when the project has no `[SourceFlowModule]` to register the workflow.
@@ -317,18 +315,18 @@ Validate against the whole domain in Studio, or with the library, to get the cro
 
 ### What is generated
 
-For `name: order-fulfilment`, `version: 1`, in a project whose module is in namespace `Orders`:
+For `name: trip-booking`, `version: 1`, in a project whose module is in namespace `Bookings`:
 
 | Generated | Shape |
 |-----------|-------|
-| The process manager | `[ProcessManager("order-fulfilment@1")] public sealed partial record OrderFulfilmentWorkflowV1 : IProcessManagerRuntime<OrderFulfilmentWorkflowV1, WorkflowInstanceId>, IWorkflowState<OrderFulfilmentWorkflowV1>`, with `ProcessName`, `Initial`, `State` (the engine state as JSON) and `Status` |
+| The process manager | `[ProcessManager("trip-booking@1")] public sealed partial record TripBookingWorkflowV1 : IProcessManagerRuntime<TripBookingWorkflowV1, WorkflowInstanceId>, IWorkflowState<TripBookingWorkflowV1>`, with `ProcessName`, `Initial`, `State` (the engine state as JSON) and `Status` |
 | Correlation | The start message and awaited events that carry the instance key (the last segment of `start.correlate`) correlate by that member; `WorkflowTimer` and `WorkflowControl` by their instance; replies through the envelope correlation |
 | The engine | The simulator's sources, injected once per assembly as internal types in `SourceFlow.Workflows.Engine`. Services without workflows get none of it |
 | Module registration | A `RegisterWorkflows` part on the module: the shared `WorkflowTimer`/`WorkflowControl` messages, each workflow's state metadata, `CommandRejected<T>` for every command with `rejected:` failures, and the process manager |
 | A domain query | `WorkflowInstancesQuery(string Workflow)`, registered as `<service>.workflow-instances` version 1 |
 | Manifest entry | `workflows[]` with `name`, `version`, `file` and `fingerprint` |
 
-The owner must be able to build the other services' commands and read their events, so its module must register their message types and id converters, and its JSON context must list `CommandRejected<T>` for each command whose rejections the workflow handles. The sample's `OrdersModule` registers the generated domain module plus the three contract modules ([`samples/OrderFulfilment/Orders/Orders.cs`](../../../samples/OrderFulfilment/Orders/Orders.cs)).
+The owner must be able to build the other services' commands and read their events, so its module must register their message types and id converters, and its JSON context must list `CommandRejected<T>` for each command whose rejections the workflow handles. The TravelBooking sample's `BookingsModule` registers the service's generated module plus the Hotels contract module, and its JSON context lists `CommandRejected<ReserveRoom>` and `CommandRejected<ConfirmReservation>` ([`samples/TravelBooking/Bookings/Bookings.cs`](../../../samples/TravelBooking/Bookings/Bookings.cs)).
 
 ### Hooks and SF0021
 
@@ -374,7 +372,7 @@ public sealed partial record ApproveOrderWorkflowV1 : SourceFlow.Workflows.IWork
 
 ### Example: validate, enumerate, export, generate specs
 
-Adapted from the sample's tests (`tests/Workflows/SourceFlow.Studio.Tests/OrderFulfilmentSampleTests.cs`):
+Adapted from the sample's tests (`tests/Workflows/SourceFlow.Studio.Tests/TravelBookingSampleTests.cs`):
 
 ```csharp
 using SourceFlow.Studio.Dsl;
@@ -384,7 +382,7 @@ using SourceFlow.Studio.Dsl.Specs;
 using SourceFlow.Studio.Dsl.Validation;
 using SourceFlow.Studio.Workspace;
 
-DomainWorkspace workspace = await DomainWorkspace.LoadAsync("samples/OrderFulfilment");
+DomainWorkspace workspace = await DomainWorkspace.LoadAsync("samples/TravelBooking");
 var environment = new WorkflowEnvironment(workspace.Manifests);
 
 foreach (WorkspaceService service in workspace.Services)
@@ -410,9 +408,9 @@ foreach (WorkspaceService service in workspace.Services)
         string bpmn = BpmnExporter.Export(workflow);
         string specs = SpecGenerator.Generate(workflow, environment, new SpecOptions
         {
-            Namespace = "Orders.Tests.Workflows",
-            ModuleType = "Orders.OrdersModule",
-            WorkflowType = "Orders.OrderFulfilmentWorkflowV1",
+            Namespace = "TravelBooking.Tests.Workflows",
+            ModuleType = "Bookings.BookingsModule",
+            WorkflowType = "Bookings.TripBookingWorkflowV1",
         });
     }
 }
@@ -487,22 +485,23 @@ The enumerator re-runs the simulator per path prefix and branches on every outco
 | `AllPaths` | `false` | Every path instead of the minimal cover |
 | `PathIds` | none | Only these paths (`P01`, …) |
 
-A generated test reads like this (`samples/OrderFulfilment/Orders.Tests/Workflows/OrderFulfilmentV1PathTests.cs`):
+A generated test reads like this (`samples/TravelBooking/TravelBooking.Tests/Workflows/TripBookingV1PathTests.cs`):
 
 ```csharp
+/// <summary>P09 hold-room: success → await-guest: timeout → hold-room: compensated ⇒ Compensated</summary>
 [Fact]
-public void P23_ManualIntervention()
+public void P09_Compensated()
 {
-    var spec = WorkflowSpec.For<Orders.OrderFulfilmentWorkflowV1, Orders.OrdersModule>();
-    spec.Start("orders.order-placed.v1", """{"orderId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","lines":[],"total":5001,"shippingAddress":"sample-shippingAddress"}""")
-        .ThenSends("inventory.reserve-stock.v1");
-    spec.Succeed("inventory.stock-reserved.v1", """{"orderId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","lines":[]}""")
-        .ThenSends("payments.charge.v1");
-    spec.Succeed("payments.payment-captured.v1", """{"paymentId":"4c2c1c1b-efe8-55fa-ba4c-a3259738ac48","orderId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","amount":100}""")
+    var spec = WorkflowSpec.For<Bookings.TripBookingWorkflowV1, Bookings.BookingsModule>();
+    spec.Start("bookings.booking-requested.v1", """{"bookingId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","hotelId":"71905a65-5f08-5214-94c5-0c0cdfe13aac","guest":"sample-guest","nights":1}""")
+        .ThenSends("hotels.reserve-room.v1");
+    spec.Succeed("hotels.room-reserved.v1", """{"hotelId":"71905a65-5f08-5214-94c5-0c0cdfe13aac","bookingId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","nights":1}""")
         .ThenSends();
     spec.FireTimer()
-        .ThenSends();
-    spec.ThenStatus(WorkflowStatus.ManualIntervention);
+        .ThenSends("hotels.release-room.v1");
+    spec.Succeed("hotels.room-released.v1", """{"hotelId":"71905a65-5f08-5214-94c5-0c0cdfe13aac","bookingId":"bdcbea6c-2dc6-58e2-8f01-846c12116012"}""")
+        .ThenSends("bookings.decline-booking.v1");
+    spec.ThenStatus(WorkflowStatus.Compensated);
 }
 ```
 
@@ -583,8 +582,8 @@ for (const d of result.diagnostics) {
 ### Running it: `dotnet sourceflow studio`
 
 ```bash
-dotnet sourceflow studio --workspace samples/OrderFulfilment
-dotnet sourceflow studio --workspace samples/OrderFulfilment --read-only --port 0 --open
+dotnet sourceflow studio --workspace samples/TravelBooking
+dotnet sourceflow studio --workspace samples/TravelBooking --read-only --port 0 --open
 ```
 
 | Option | Default | Meaning |
@@ -724,8 +723,10 @@ A read-only snapshot of a workspace for a docs portal or GitHub Pages, with simu
 ```bash
 npx @sourceflow/studio build --workspace . --out site
 # in this repository, after building the app and the core:
-node studio/app/bin/studio.mjs build --workspace samples/OrderFulfilment --out site
+node studio/app/bin/studio.mjs build --workspace samples/TravelBooking --out site
 ```
+
+The TravelBooking demo's Studio image ([`samples/TravelBooking/Studio.Dockerfile`](../../../samples/TravelBooking/Studio.Dockerfile)) is this site for the sample's workspace, served by nginx; `docker compose up -d --build` at the repository root serves it on http://localhost:5080.
 
 | Option | Default | Meaning |
 |--------|---------|---------|
@@ -847,5 +848,5 @@ Once published as `sourceflow/workflow-diff`, the build step is replaced by `use
 - [Design doc 15: Workflow DSL and SourceFlow Studio](../Design/15-Workflow-DSL-and-Studio.md)
 - [ADR-020 Process managers](../ADRs/ADR-020-process-managers-with-durable-state-and-timers.md), [ADR-024 Workflow DSL](../ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md), [ADR-025 Studio](../ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md), [ADR-027 §6](../ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md)
 - [SourceFlow.Net](SourceFlow.Net-README.md), [SourceFlow.Testing](SourceFlow.Testing-README.md), [SourceFlow.Tool](SourceFlow.Tool-README.md)
-- Sample: [`samples/OrderFulfilment`](../../../samples/OrderFulfilment); golden suite: [`tests/workflow-golden`](../../../tests/workflow-golden)
+- Sample: [`samples/TravelBooking`](../../../samples/TravelBooking/README.md); golden suite: [`tests/workflow-golden`](../../../tests/workflow-golden)
 - Schema: [`schemas/workflow-1.json`](../../../schemas/workflow-1.json); action: [`studio/action/action.yml`](../../../studio/action/action.yml)

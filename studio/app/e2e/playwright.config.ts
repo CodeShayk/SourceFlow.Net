@@ -41,7 +41,7 @@ export default defineConfig({
     // STU-PERF-02: a generated workspace of 20 services and 50 workflows.
     host(5197, true, '../../artifacts/studio-e2e/large', 'node e2e/generate.mjs large-workspace ../../artifacts/studio-e2e/large && '),
     // STU-E2E-01 and STU-A11Y-04: the OrderFulfilment sample's workspace, as committed (read-only).
-    host(5194, true, '../../samples/OrderFulfilment'),
+    host(5194, true, '../../tests/Fixtures/OrderFulfilment'),
     // STU-E2E-07..10: a fresh, writable copy of the golden workspace for each run.
     host(5196, false, '../../artifacts/studio-e2e/editable', 'node e2e/generate.mjs editable-workspace ../../artifacts/studio-e2e/editable && '),
     // STU-E2E-15: the static site of e2e/workspace (npx @sourceflow/studio build), on a plain file server under a sub-path.

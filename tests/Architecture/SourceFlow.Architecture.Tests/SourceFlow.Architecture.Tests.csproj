@@ -15,9 +15,9 @@
     <ProjectReference Include="..\..\..\src\Cloud\SourceFlow.Cloud.Gcp\SourceFlow.Cloud.Gcp.csproj" />
     <ProjectReference Include="..\..\..\src\Hosting\SourceFlow.AspNetCore\SourceFlow.AspNetCore.csproj" />
     <ProjectReference Include="..\..\..\src\Workflows\SourceFlow.Studio\SourceFlow.Studio.csproj" />
-    <ProjectReference Include="..\..\..\samples\Bank\Bank.Contracts\Bank.Contracts.csproj" />
-    <ProjectReference Include="..\..\..\samples\Bank\Bank.Accounts\Bank.Accounts.csproj" />
-    <ProjectReference Include="..\..\..\samples\Bank\Bank.Transfers\Bank.Transfers.csproj" />
-    <ProjectReference Include="..\..\..\samples\Bank\Bank.Notifications\Bank.Notifications.csproj" />
+    <ProjectReference Include="..\..\..\tests\Fixtures\Bank\Bank.Contracts\Bank.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\tests\Fixtures\Bank\Bank.Accounts\Bank.Accounts.csproj" />
+    <ProjectReference Include="..\..\..\tests\Fixtures\Bank\Bank.Transfers\Bank.Transfers.csproj" />
+    <ProjectReference Include="..\..\..\tests\Fixtures\Bank\Bank.Notifications\Bank.Notifications.csproj" />
   </ItemGroup>
 </Project>

@@ -21,8 +21,10 @@ builder.Services.AddOpenTelemetry()
     .UseOtlpExporter();                                      // OTEL_EXPORTER_OTLP_ENDPOINT
 ```
 
-That is all the wiring there is. The Bank sample (`samples/Bank/Bank.Api/Program.cs`) does exactly this, and
-`docker compose up -d` at the repository root sends its telemetry to an Aspire dashboard on <http://localhost:18888>.
+That is all the wiring there is. The TravelBooking sample's services do exactly this
+([`samples/TravelBooking/Shared/ServiceHost.cs`](../../../samples/TravelBooking/Shared/ServiceHost.cs)), and
+`docker compose up -d --build` at the repository root sends their telemetry to an Aspire dashboard on
+<http://localhost:18888>, where one trace follows a booking through both services and the broker.
 
 You do not need views for histogram buckets. Every SourceFlow histogram declares its boundaries with
 `InstrumentAdvice<T>`, which the SDK applies:

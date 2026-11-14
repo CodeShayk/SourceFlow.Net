@@ -64,9 +64,10 @@ How the framework works inside: [Architecture](Architecture/README.md).
 
 | Sample | Shows |
 |--------|-------|
-| [Bank](../../../samples/Bank) | One service with three modules: aggregates, a process manager, projections, domain queries, HTTP endpoints, health checks, OpenTelemetry |
-| [OrderFulfilment](../../../samples/OrderFulfilment) | Four services on PostgreSQL and a cloud transport, and the order-fulfilment workflow between them, with its Studio workspace and generated specs |
-| [Studio demo](../../../samples/Studio) | A query console for the Bank service's query API, started by `docker compose up` (not SourceFlow Studio itself) |
+| [TravelBooking](../../../samples/TravelBooking/README.md) | Two services, Bookings and Hotels, on PostgreSQL with Amazon SNS/SQS (LocalStack) between them, and the trip-booking workflow: retries, timeouts, compensation, a point of no return and manual intervention. Aggregates, projections, a domain query, HTTP endpoints, the query API, health checks, OpenTelemetry, the in-service CLI, the Studio workspace and generated specs. `docker compose up -d --build` from the repository root starts it with SourceFlow Studio (read-only) and the Aspire dashboard. |
+
+The test suites also run against two fixture domains in [`tests/Fixtures`](../../../tests/Fixtures): a Bank domain and the
+OrderFulfilment services. They are test data, not examples.
 
 ## Design and decisions
 

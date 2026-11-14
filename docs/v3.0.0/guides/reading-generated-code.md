@@ -38,7 +38,7 @@ Each file is named `<Namespace>.<Type>.<Kind>.g.cs`, for example `Bank.Accounts.
 
 ### Example: an aggregate
 
-From the Bank sample (`samples/Bank/Bank.Accounts/BankAccount.cs`):
+From the Bank domain the tests use (`tests/Fixtures/Bank/Bank.Accounts/BankAccount.cs`):
 
 ```csharp
 static Decision IAggregateRuntime<BankAccount, AccountId>.Decide(BankAccount state, ICommand command, in DecisionContext context)
@@ -98,6 +98,6 @@ Some diagnostics come from the same package (doc 03 §9):
 
 ## Reviewing changes
 
-Generated output is reproducible: the same sources always produce the same files. In this repository, the Bank sample's output is also kept as an approved snapshot (GEN-39). To see what a domain change does to the generated code, build and diff the `obj/…/generated` folder, or let the snapshot test show the change.
+Generated output is reproducible: the same sources always produce the same files. In this repository, the generated output of the Bank test fixture (`tests/Fixtures/Bank/Bank.Accounts`) is also kept as an approved snapshot (GEN-39). To see what a domain change does to the generated code, build and diff the `obj/…/generated` folder, or let the snapshot test show the change.
 
 The generator is incremental. An edit that doesn't touch a SourceFlow type (`[Aggregate]`, `[Projection]`, `[ProcessManager]`, `[MessageType]`, `[StronglyTypedId]` or a module) produces no new generator work (GEN-38).

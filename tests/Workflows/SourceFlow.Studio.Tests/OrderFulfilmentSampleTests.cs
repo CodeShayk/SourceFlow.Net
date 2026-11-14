@@ -9,14 +9,14 @@ using SourceFlow.Studio.Workspace;
 namespace SourceFlow.Studio.Tests;
 
 /// <summary>
-/// The OrderFulfilment sample (samples/OrderFulfilment, WP-S.13) as a workspace: its exported manifests are exact (the
+/// The OrderFulfilment fixture (tests/Fixtures/OrderFulfilment, WP-S.13) as a workspace: its exported manifests are exact (the
 /// WP-S.1 acceptance), its workflow validates against all four services with no diagnostic, enumerates the §5.1 path set,
 /// and the specs Studio generated for it are current.
 /// </summary>
 [Trait("Category", "Unit")]
 public sealed class OrderFulfilmentSampleTests
 {
-    private static readonly string Sample = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "samples", "OrderFulfilment"));
+    private static readonly string Sample = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "tests", "Fixtures", "OrderFulfilment"));
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 

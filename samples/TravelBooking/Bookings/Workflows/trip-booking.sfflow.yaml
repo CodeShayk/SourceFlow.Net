@@ -1,0 +1,56 @@
+# The trip-booking workflow, which the bookings service runs between itself and the hotels service: hold a room, wait
+# for the guest to confirm, then confirm the reservation with the hotel. Open it in SourceFlow Studio to see it drawn,
+# simulate it, and walk its paths (docker compose up, then http://localhost:5080).
+sourceflow.workflow: 1
+name: trip-booking
+version: 1
+owner: bookings                       # generated into the bookings service
+description: Hold a room, wait for the guest, confirm with the hotel.
+
+start:
+  on: bookings.booking-requested.v1   # local domain event of the owner
+  correlate: data.bookingId           # the instance id; hotels' events carry it too
+data:                                 # instance data, typed from the manifests (the guest's name is not kept)
+  bookingId: { from: start.data.bookingId }
+  hotelId:   { from: start.data.hotelId }
+  nights:    { from: start.data.nights }
+
+steps:
+  - id: hold-room
+    send:  { command: hotels.reserve-room.v1, map: { hotelId: $data.hotelId, bookingId: $data.bookingId, nights: $data.nights } }
+    await:
+      success: hotels.room-reserved.v1
+      failure:
+        - rejected: hotels.sold_out
+          then: fail                  # nothing to undo yet: the booking is declined
+        - rejected: hotels.unknown_hotel
+          then: fail
+    timeout: { after: PT1M, retry: { max: 2 }, then: fail }    # the hotels service is down: try twice more
+    compensate:                       # undo the hold when a later step fails
+      send:  { command: hotels.release-room.v1, map: { hotelId: $data.hotelId, bookingId: $data.bookingId } }
+      await: { success: hotels.room-released.v1 }
+      retry: { max: 5, backoff: exponential, initial: PT10S, cap: PT5M }
+      timeout: { after: PT10M }
+
+  - id: await-guest
+    await:                            # no command: wait for the guest
+      success: bookings.guest-confirmed.v1
+      failure:
+        - on: bookings.guest-cancelled.v1
+          then: fail                  # release the hold, decline the booking
+    timeout: { after: PT15M, then: fail }    # the hold lapses
+
+  - id: confirm-reservation
+    pivot: true                       # point of no return: the guest was told the booking stands
+    send:  { command: hotels.confirm-reservation.v1, map: { hotelId: $data.hotelId, bookingId: $data.bookingId } }
+    await:
+      success: hotels.reservation-confirmed.v1
+      failure:
+        - rejected: hotels.hold_lost
+          then: manual                # hotel staff released the hold: an operator rebooks the guest
+    timeout: { after: PT1M, retry: { max: 3, backoff: exponential, initial: PT10S }, then: manual }
+
+on:
+  completed:   { send: { command: bookings.confirm-booking.v1, map: { bookingId: $data.bookingId } } }
+  compensated: { send: { command: bookings.decline-booking.v1, map: { bookingId: $data.bookingId, reason: $failure.code } } }
+  manual:      { alert: true }        # metric, structured log, and the instance waits for an operator

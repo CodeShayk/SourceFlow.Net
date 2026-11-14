@@ -49,9 +49,9 @@ jobs:
       - run: dotnet restore SourceFlow.slnx
       - run: dotnet build SourceFlow.slnx -c Release --no-restore -warnaserror
       - name: AOT publish check (ARCH-06)
-        if: matrix.os == 'ubuntu-latest' && hashFiles('samples/Bank/Bank.Api/Bank.Api.csproj') != ''
-        # PublishAot is set inside Bank.Api.csproj: as a global property it would reach the netstandard2.0 generator (NETSDK1207).
-        run: dotnet publish samples/Bank/Bank.Api/Bank.Api.csproj -c Release -p:SourceFlowAotCheck=true -warnaserror
+        if: matrix.os == 'ubuntu-latest'
+        # PublishAot is set inside the project: as a global property it would reach the netstandard2.0 generator (NETSDK1207).
+        run: dotnet publish tests/Fixtures/Bank/Bank.AotCheck/Bank.AotCheck.csproj -c Release -p:SourceFlowAotCheck=true -warnaserror
 
   unit:
     needs: build
@@ -271,22 +271,26 @@ jobs:
         run: >-
           dotnet test --solution SourceFlow.slnx -c Release --no-build --ignore-exit-code 8
           --filter-trait "Category=PublicApi" --filter-trait "Category=Architecture"
-      - name: Service manifest drift check (doc 15 §3.2, WP-S.2)
-        # Design-time export: the host is built but never started, so the unreachable connection string is never used.
-        run: >-
-          dotnet src/Tooling/SourceFlow.Tool/bin/Release/net10.0/SourceFlow.Tool.dll manifest export
-          --project samples/Bank/Bank.Api -c Release --no-build --check
-          --output samples/Bank/Bank.Api/sourceflow.manifest.json
-          -- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
-      - name: OrderFulfilment manifest drift check (WP-S.13)
-        # The sample's host runs one service per Service setting; each service's manifest is exported and compared.
+      - name: TravelBooking manifest drift check (doc 15 §3.2, WP-S.2)
+        # Design-time export: each host is built but never started, so the unreachable connection string is never used.
+        shell: bash
+        run: |
+          set -e
+          for service in Bookings Hotels; do
+            dotnet src/Tooling/SourceFlow.Tool/bin/Release/net10.0/SourceFlow.Tool.dll manifest export \
+              --project "samples/TravelBooking/$service.Api" -c Release --no-build --check \
+              --output "samples/TravelBooking/$service/sourceflow.manifest.json" \
+              -- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
+          done
+      - name: OrderFulfilment fixture manifest drift check (WP-S.13)
+        # The fixture's host runs one service per Service setting; each service's manifest is exported and compared.
         shell: bash
         run: |
           set -e
           for service in orders inventory payments shipping; do
             dotnet src/Tooling/SourceFlow.Tool/bin/Release/net10.0/SourceFlow.Tool.dll manifest export \
-              --project samples/OrderFulfilment/OrderFulfilment.Host -c Release --no-build --check \
-              --output "samples/OrderFulfilment/${service^}/sourceflow.manifest.json" \
+              --project tests/Fixtures/OrderFulfilment/OrderFulfilment.Host -c Release --no-build --check \
+              --output "tests/Fixtures/OrderFulfilment/${service^}/sourceflow.manifest.json" \
               -- "--Service=$service" "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
           done
 

@@ -1,5 +1,7 @@
 # Build context for the demo images (samples/**/Dockerfile). Keep it small: sources and build props only.
 **/bin
+# ...except the Studio site builder (npx @sourceflow/studio build), which lives in a bin folder.
+!studio/app/bin
 **/obj
 **/.vs
 **/.vscode

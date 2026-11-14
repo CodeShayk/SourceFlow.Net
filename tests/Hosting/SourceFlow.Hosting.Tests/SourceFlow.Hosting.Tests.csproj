@@ -7,6 +7,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Hosting\SourceFlow.AspNetCore\SourceFlow.AspNetCore.csproj" />
     <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
-    <ProjectReference Include="..\..\..\samples\Bank\Bank.Accounts\Bank.Accounts.csproj" />
+    <ProjectReference Include="..\..\..\tests\Fixtures\Bank\Bank.Accounts\Bank.Accounts.csproj" />
   </ItemGroup>
 </Project>

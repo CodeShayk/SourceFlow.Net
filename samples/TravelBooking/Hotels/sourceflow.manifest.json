@@ -1,0 +1,239 @@
+{
+  "manifestVersion": 1,
+  "service": "hotels",
+  "endpoint": "hotels",
+  "sourceflowVersion": "3.0.0",
+  "messages": [
+    {
+      "type": "hotels.confirm-reservation",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Hotels.ConfirmReservation",
+      "aggregate": "hotel",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "hotels.hotel-registered",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Hotels.HotelRegistered",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "rooms",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "type": "hotels.register-hotel",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Hotels.RegisterHotel",
+      "aggregate": "hotel",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "rooms",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "type": "hotels.release-room",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Hotels.ReleaseRoom",
+      "aggregate": "hotel",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "hotels.reservation-confirmed",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Hotels.ReservationConfirmed",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "hotels.reserve-room",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Hotels.ReserveRoom",
+      "aggregate": "hotel",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        },
+        {
+          "name": "nights",
+          "type": "integer"
+        }
+      ]
+    },
+    {
+      "type": "hotels.room-released",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Hotels.RoomReleased",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "hotels.room-reserved",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Hotels.RoomReserved",
+      "fields": [
+        {
+          "name": "hotelId",
+          "type": "uuid"
+        },
+        {
+          "name": "bookingId",
+          "type": "uuid"
+        },
+        {
+          "name": "nights",
+          "type": "integer"
+        }
+      ]
+    }
+  ],
+  "aggregates": [
+    {
+      "name": "hotel",
+      "clrType": "Hotels.Hotel",
+      "commands": [
+        {
+          "type": "hotels.confirm-reservation",
+          "version": 1,
+          "emits": [
+            "hotels.reservation-confirmed.v1"
+          ],
+          "rejects": [
+            "hotels.hold_lost"
+          ]
+        },
+        {
+          "type": "hotels.register-hotel",
+          "version": 1,
+          "emits": [
+            "hotels.hotel-registered.v1"
+          ],
+          "rejects": [
+            "hotels.invalid_rooms"
+          ]
+        },
+        {
+          "type": "hotels.release-room",
+          "version": 1,
+          "emits": [
+            "hotels.room-released.v1"
+          ],
+          "rejects": []
+        },
+        {
+          "type": "hotels.reserve-room",
+          "version": 1,
+          "emits": [
+            "hotels.room-reserved.v1"
+          ],
+          "rejects": [
+            "hotels.sold_out",
+            "hotels.unknown_hotel"
+          ]
+        }
+      ],
+      "events": [
+        "hotels.hotel-registered.v1",
+        "hotels.reservation-confirmed.v1",
+        "hotels.room-released.v1",
+        "hotels.room-reserved.v1"
+      ]
+    }
+  ],
+  "processManagers": [],
+  "projections": [
+    {
+      "name": "hotel-rooms",
+      "version": 1,
+      "clrType": "Hotels.HotelRoomsProjection",
+      "handles": []
+    }
+  ],
+  "publishes": [
+    {
+      "domainEvent": "hotels.reservation-confirmed.v1",
+      "as": "hotels.reservation-confirmed.v1",
+      "topic": "hotels.events"
+    },
+    {
+      "domainEvent": "hotels.room-released.v1",
+      "as": "hotels.room-released.v1",
+      "topic": "hotels.events"
+    },
+    {
+      "domainEvent": "hotels.room-reserved.v1",
+      "as": "hotels.room-reserved.v1",
+      "topic": "hotels.events"
+    }
+  ],
+  "subscribes": [],
+  "commandRoutes": [],
+  "workflows": [],
+  "schemas": "catalog://hotels"
+}

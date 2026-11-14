@@ -23,6 +23,9 @@ and the [migration guide](docs/v3.0.0/guides/migrating-from-v2.md); v2 is docume
 
 ### Key features
 
+- **Fluent configuration.** One `AddSourceFlow(sf => sf…)` chain enables a service and its features: storage, broker,
+  health checks, the query API, security, provisioning and node roles, each off until enabled, and `When(…)` to follow
+  configuration.
 - **Event-sourced aggregates as pure deciders.** `Decide(command, context)` returns a `Decision` (accept with events,
   reject with an error, or no-op); `When(event)` evolves the state. No base classes, no I/O in the domain, trivial to test.
 - **Business rejections are values.** A rejection is an `Error` with a stable code, returned to the caller (HTTP 422) or
@@ -82,14 +85,16 @@ public sealed partial class AccountsModule;
 ```
 
 ```csharp
-builder.Services.AddSourceFlow(sf =>
-{
-    sf.ServiceName = "bank";
-    sf.AddModule<AccountsModule>();
-    sf.UsePostgreSql(connectionString);
-    sf.UseAwsTransport(o => o.Region = "eu-west-1");    // or UseAzureTransport, UseGcpTransport, UseInMemoryTransport
-});
+// One fluent chain enables the service and the features it uses
+builder.Services.AddSourceFlow(sf => sf
+    .WithServiceName("bank")
+    .AddModule<AccountsModule>()
+    .UsePostgreSql(connectionString)
+    .UseAwsTransport(o => o.Region = "eu-west-1")      // or UseAzureTransport, UseGcpTransport, UseInMemoryTransport
+    .WithHealthChecks()
+    .When(configuration.GetValue<bool>("Features:QueryApi"), s => s.WithQueryApi()));
 
+app.MapSourceFlowHealthChecks();                      // /health, /health/ready, /health/sourceflow
 // 200 with an ETag, 202 when sent on to its owner, 422 for a rejection, 409 for a conflict
 app.MapCommand<Deposit>("/accounts/{accountId}/deposits");
 ```
@@ -99,8 +104,7 @@ CommandResult result = await sender.SendAsync(new Deposit(accountId, 50m));   //
 // result.Status: Accepted, NoOp, Rejected, Conflict, Duplicate or Dispatched (sent to its owner)
 ```
 
-The [Bank sample](samples/Bank) is a complete service; the [OrderFulfilment sample](samples/OrderFulfilment) is four services
-and the workflow between them.
+The [TravelBooking sample](samples/TravelBooking) is two services, Bookings and Hotels, and the workflow between them.
 
 ### Architecture
 
@@ -163,19 +167,25 @@ runs inside your service (`dotnet run -- sourceflow …`, after `SourceFlowCli.T
 this repository (`dotnet run --project src/Tooling/SourceFlow.Tool -- …`); see the
 [CLI README](docs/v3.0.0/Documentation/SourceFlow.Tool-README.md).
 
-Start the demo: PostgreSQL, the [Bank sample](samples/Bank) service on http://localhost:8080, a query console for it on
-http://localhost:5080 and the Aspire dashboard on http://localhost:18888 (see [samples/README.md](samples/README.md)):
+Start the demo, the [TravelBooking sample](samples/TravelBooking): the Bookings service on http://localhost:8080, the
+Hotels service on http://localhost:8081, SourceFlow Studio (read-only) on http://localhost:5080 and the Aspire dashboard on
+http://localhost:18888, with PostgreSQL and LocalStack (SNS/SQS) between the services:
 
 ```bash
-docker compose up -d
-curl -X POST http://localhost:8080/accounts/0193a7a0-0000-7000-8000-000000000001 \
-  -H 'Content-Type: application/json' -d '{ "holder": "Ada", "initialDeposit": 100 }'
+docker compose up -d --build
+HOTEL=0193a7a0-0000-7000-8000-000000000001
+BOOKING=0193a7a0-0000-7000-8000-0000000000b1
+curl -X POST http://localhost:8081/hotels/$HOTEL -H 'Content-Type: application/json' -d '{ "name": "Seaview", "rooms": 1 }'
+curl -X POST http://localhost:8080/bookings/$BOOKING -H 'Content-Type: application/json' \
+  -d "{ \"hotelId\": \"$HOTEL\", \"guest\": \"Ada Lovelace\", \"nights\": 2 }"
+curl -X POST http://localhost:8080/bookings/$BOOKING/confirm -H 'Content-Type: application/json' -d '{}'
 ```
 
-Open the OrderFulfilment workflow in SourceFlow Studio:
+The [sample's README](samples/TravelBooking/README.md) walks through it. To edit the trip-booking workflow in SourceFlow
+Studio:
 
 ```bash
-dotnet run --project src/Tooling/SourceFlow.Tool -- studio --workspace samples/OrderFulfilment
+dotnet run --project src/Tooling/SourceFlow.Tool -- studio --workspace samples/TravelBooking
 ```
 
 ## Documentation

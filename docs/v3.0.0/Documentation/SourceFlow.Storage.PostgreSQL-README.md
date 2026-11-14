@@ -43,11 +43,11 @@ The `dotnet sourceflow` tool runs migrations and other store commands; see [Sour
 
 ## Quick start
 
-Register the adapter on the SourceFlow builder. This is the shape of the Bank sample host ([`samples/Bank/Bank.Api/Program.cs`](../../../samples/Bank/Bank.Api/Program.cs)):
+Register the adapter on the SourceFlow builder. This is the shape of the TravelBooking sample's hosts, which share a database
+and keep each service in its own schema ([`samples/TravelBooking/Shared/ServiceHost.cs`](../../../samples/TravelBooking/Shared/ServiceHost.cs)):
 
 ```csharp
-using Bank.Accounts;
-using Bank.Contracts;
+using Bookings;
 using SourceFlow.Hosting;
 using SourceFlow.Storage.PostgreSQL;
 
@@ -57,15 +57,13 @@ string connectionString = builder.Configuration.GetConnectionString("SourceFlow"
 
 builder.Services.AddSourceFlow(sf =>
 {
-    sf.ServiceName = "bank";
-    sf.AddModule<ContractsModule>();
-    sf.AddModule<AccountsModule>();
+    sf.AddBookingsService();                                   // service name "bookings", its module, projections and routes
     sf.UsePostgreSql(connectionString, o =>
     {
-        o.Schema = "sourceflow";                              // the default
+        o.Schema = "bookings";                                // one schema per service; the default is "sourceflow"
         o.AutoMigrate = builder.Environment.IsDevelopment();   // the default when left null
     });
-    sf.UseInMemoryTransport();
+    sf.UseInMemoryTransport();                                 // the sample uses UseAwsTransport, UseAzureTransport or UseGcpTransport
 });
 
 builder.Services.AddHealthChecks().AddSourceFlow();
@@ -158,7 +156,7 @@ The schema is defined by versioned SQL scripts embedded in the package ([`Schema
 | Local development | Leave `AutoMigrate` null (on in `Development`), or set it to `true`. |
 | Production, migration job | `dotnet sourceflow db migrate --connection "<owner connection>" [--schema s] [--rls] [--partition-events]` |
 | Production, DBA review | `dotnet sourceflow db script [--schema s] [--from N] [--rls] [--partition-events] > migrate.sql`, reviewed and applied by a DBA. The script takes the same lock and writes the same history rows. |
-| Inside the service | `dotnet run --project <service> -- sourceflow db migrate` when the host calls `SourceFlowCli.TryRunAsync` (the Bank sample does). It uses the service's data source and schema. |
+| Inside the service | `dotnet run --project <service> -- sourceflow db migrate` when the host calls `SourceFlowCli.TryRunAsync` (the TravelBooking services do). It uses the service's data source and schema. |
 | From code | `await store.CreateMigrator().MigrateAsync()` on a resolved `PostgreSqlStore`, or `new PostgreSqlSchemaMigrator(dataSource, schema, isolation, partitionEvents)`. |
 
 The global tool reads the connection from `--connection` or the `SOURCEFLOW_CONNECTION` environment variable. With the global tool, pass the same `--rls` and `--partition-events` choices that the service configures: the migrator applies the isolation you ask for, and the service's startup verification fails if they differ. Inside the service, `db migrate` uses the service's own `TenantIsolation` and `PartitionEvents`, so `--rls` is not needed there; passing `--rls` to a service configured for `Runtime` isolation is refused.
@@ -338,8 +336,8 @@ The process is described in [Architecture/06 Projections and Read Models](Archit
 For fast predicates on payload fields, mark them `[Queryable]` and sync the expression indexes from inside the service:
 
 ```bash
-dotnet run --project samples/Bank/Bank.Api -- sourceflow db index sync          # show the plan
-dotnet run --project samples/Bank/Bank.Api -- sourceflow db index sync --apply  # create missing, drop stale
+dotnet run --project samples/TravelBooking/Bookings.Api -- sourceflow db index sync          # show the plan
+dotnet run --project samples/TravelBooking/Bookings.Api -- sourceflow db index sync --apply  # create missing, drop stale
 ```
 
 Indexes are created `CONCURRENTLY` (without it on a partitioned events table, which PostgreSQL requires). The query language, the compiler and the query API are described in [Architecture/08 Query Side and SFQL](Architecture/08-Query-Side-and-SFQL.md).

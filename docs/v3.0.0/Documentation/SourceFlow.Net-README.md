@@ -89,7 +89,7 @@ To see what the generator writes, add this to the project file and look under `o
 
 ## Quick start
 
-The example is the Accounts service from the Bank sample ([samples/Bank/Bank.Accounts](../../../samples/Bank/Bank.Accounts)), trimmed down.
+The example is the Accounts module of the Bank domain the tests use ([tests/Fixtures/Bank/Bank.Accounts](../../../tests/Fixtures/Bank/Bank.Accounts)), trimmed down. For a complete application, see the [TravelBooking sample](../../../samples/TravelBooking/README.md).
 
 ### 1. Id, commands and events
 
@@ -237,7 +237,7 @@ Console.WriteLine($"Balance {account.State.Balance} at version {account.Version.
 await host.StopAsync();
 ```
 
-For production, replace the in-memory adapters with a storage package (`sf.UsePostgreSql(connectionString)`) and a cloud transport. The Bank sample's [Program.cs](../../../samples/Bank/Bank.Api/Program.cs) shows a complete ASP.NET Core host with PostgreSQL, OpenTelemetry, health checks and `MapCommand<T>()` endpoints.
+For production, replace the in-memory adapters with a storage package (`sf.UsePostgreSql(connectionString)`) and a cloud transport. The TravelBooking sample's Bookings service ([Program.cs](../../../samples/TravelBooking/Bookings.Api/Program.cs), with [ServiceHost.cs](../../../samples/TravelBooking/Shared/ServiceHost.cs)) shows a complete ASP.NET Core host with PostgreSQL, a cloud transport, OpenTelemetry, health checks, `MapCommand<T>()` endpoints and the query API.
 
 ---
 
@@ -409,7 +409,7 @@ On positional records, target the property: `[property: PersonalData] string Hol
 
 ## Command handlers
 
-When a decision needs I/O (a rate lookup, a payment gateway), implement `ICommandHandler<TCommand, TAggregate>` instead of a `Decide` method. From the OrderFulfilment sample ([Payments.cs](../../../samples/OrderFulfilment/Payments/Payments.cs)):
+When a decision needs I/O (a rate lookup, a payment gateway), implement `ICommandHandler<TCommand, TAggregate>` instead of a `Decide` method. From the OrderFulfilment services the tests use ([Payments.cs](../../../tests/Fixtures/OrderFulfilment/Payments/Payments.cs)):
 
 ```csharp
 public sealed class ChargeHandler(IPaymentGateway gateway) : ICommandHandler<Charge, Payment>
@@ -446,7 +446,7 @@ public sealed class ChargeHandler(IPaymentGateway gateway) : ICommandHandler<Cha
 
 ## Process managers
 
-A process manager coordinates several aggregates or services over time: it reacts to events, sends commands, schedules durable timers and keeps its own state. It is a `sealed partial record` marked `[ProcessManager(name)]` that implements `IProcessManager<TSelf, TId>` with pure `React` methods returning a `Reaction`. From the Bank sample ([Transfers.cs](../../../samples/Bank/Bank.Transfers/Transfers.cs)):
+A process manager coordinates several aggregates or services over time: it reacts to events, sends commands, schedules durable timers and keeps its own state. It is a `sealed partial record` marked `[ProcessManager(name)]` that implements `IProcessManager<TSelf, TId>` with pure `React` methods returning a `Reaction`. From the Bank domain the tests use ([Transfers.cs](../../../tests/Fixtures/Bank/Bank.Transfers/Transfers.cs)):
 
 ```csharp
 [ProcessManager("money-transfer")]
@@ -499,7 +499,7 @@ Process managers can also be generated from a YAML workflow (`*.sfflow.yaml`) an
 
 ## Event handlers
 
-`IEventHandler<TEvent>` runs a side effect for an event. It is resolved from a per-message DI scope and runs **at least once**, so make it idempotent with `EventContext.EventId`. From the Bank sample's Notifications module:
+`IEventHandler<TEvent>` runs a side effect for an event. It is resolved from a per-message DI scope and runs **at least once**, so make it idempotent with `EventContext.EventId`. From the Notifications module of the Bank domain the tests use ([`tests/Fixtures/Bank/Bank.Notifications`](../../../tests/Fixtures/Bank/Bank.Notifications)):
 
 ```csharp
 public sealed class AccountOpenedHandler(ICommandSender commands) : IEventHandler<AccountOpenedV1>
@@ -560,18 +560,26 @@ Mark one `partial class` per assembly with `[SourceFlowModule(typeof(YourJsonCon
 
 All generated dispatch is a `switch` over types, sorted for deterministic output. Walk through real output in [Reading generated code](../guides/reading-generated-code.md).
 
-**Contracts-only modules.** A service that only *sends* another service's command needs the command's type registered, but not the aggregate that decides it. Implement `ISourceFlowModule` by hand, as the Bank sample does for Notifications:
+**Contracts-only modules.** A service that only *sends* another service's command needs the command's type registered, but not the aggregate that decides it. Implement `ISourceFlowModule` by hand, as the TravelBooking sample does for the Hotels contract, which the Bookings
+service registers so its workflow can send the Hotels commands and read the Hotels events
+([Hotels.cs](../../../samples/TravelBooking/Hotels/Hotels.cs)):
 
 ```csharp
-public sealed class NotificationsCommandsModule : ISourceFlowModule
+public sealed class HotelsContractsModule : ISourceFlowModule
 {
-    public static string ModuleName => nameof(NotificationsCommandsModule);
+    public static string ModuleName => nameof(HotelsContractsModule);
 
     public static void Register(ISourceFlowModuleBuilder builder)
     {
-        builder.AddMessage<RequestStatement>("notifications.statement.request", 1);
-        builder.AddJsonTypeInfoResolver(NotificationsJsonContext.Default);
-        builder.AddJsonConverter(new CustomerId.SourceFlowJsonConverter());
+        builder.AddMessage<ReserveRoom>("hotels.reserve-room", 1);
+        builder.AddMessage<ReleaseRoom>("hotels.release-room", 1);
+        builder.AddMessage<ConfirmReservation>("hotels.confirm-reservation", 1);
+        builder.AddMessage<RoomReserved>("hotels.room-reserved", 1);
+        builder.AddMessage<RoomReleased>("hotels.room-released", 1);
+        builder.AddMessage<ReservationConfirmed>("hotels.reservation-confirmed", 1);
+        builder.AddJsonTypeInfoResolver(HotelsJsonContext.Default);
+        builder.AddJsonConverter(new HotelId.SourceFlowJsonConverter());
+        builder.AddJsonConverter(new BookingId.SourceFlowJsonConverter());
     }
 }
 ```
@@ -732,15 +740,48 @@ sf.Errors(e => e
 
 ---
 
+## Fluent configuration
+
+Every builder method returns the builder, so a service and the features it uses are enabled in one chain. Each feature is
+off until a call enables it:
+
+```csharp
+builder.Services.AddSourceFlow(sf => sf
+    .WithServiceName("bookings")                       // required: endpoint, envelope source, inbox consumer
+    .AddModule<BookingsModule>()                       // the generated module: aggregates, handlers, workflows, messages
+    .Projections(p => p.Add<BookingSummaryProjection>().Inline())
+    .Routing(r => r.Command<ReserveRoom>().To("hotels").ReplyOnReject())
+    .UsePostgreSql(connectionString)                   // storage: or UseSqlServer, UseInMemoryStorage
+    .UseAwsTransport(o => o.Region = "eu-west-1")      // broker: or UseAzureTransport, UseGcpTransport, UseInMemoryTransport
+    .WithProvisioning(ProvisioningMode.Validate)       // create, validate or leave transport resources
+    .WithRoles(SourceFlowRoles.All)                    // what this node runs besides the API
+    .WithHealthChecks()                                // store, transport, outbox, subscriptions, leases, keys
+    .Security(s => s.UseAwsKms(k => k.KeyId = "alias/bookings").EncryptPersonalData())
+    .Configure(o => o.PollInterval = TimeSpan.FromMilliseconds(200))
+    .When(configuration.GetValue<bool>("Features:QueryApi"), s => s.WithQueryApi()));   // SourceFlow.AspNetCore
+```
+
+- **`When(condition, configure)`** applies a step only when the condition holds, so features follow configuration without
+  leaving the chain.
+- **A service's own setup** is best written as an extension method that returns the builder, as the TravelBooking sample's
+  `AddBookingsService()` and `UseInfrastructure(configuration)` do
+  ([Bookings.cs](../../../samples/TravelBooking/Bookings/Bookings.cs), [ServiceHost.cs](../../../samples/TravelBooking/Shared/ServiceHost.cs)).
+- **In ASP.NET Core**, `WithQueryApi(...)` enables the query API, and `app.MapSourceFlowHealthChecks()` maps `/health`,
+  `/health/ready` and `/health/sourceflow` ([SourceFlow.AspNetCore](SourceFlow.AspNetCore-README.md)).
+- **OpenTelemetry** stays with the OpenTelemetry SDK: `AddSource(SourceFlowTelemetry.ActivitySourceName)` and
+  `AddMeter(SourceFlowTelemetry.MeterName)` ([Observability](Observability-and-Performance.md)).
+
 ## The SourceFlow builder
 
 `services.AddSourceFlow(sf => ...)` composes a service. Modules, routing and projection configuration are validated when it runs; options and topology when the host starts.
 
 | Member | Meaning |
 |--------|---------|
-| `ServiceName` | Required. Lowercase letters, digits and dashes, starting with a letter (max 63). Used as the envelope `source`, the default endpoint and the inbox consumer |
-| `Roles` | `SourceFlowRoles`: `Api` (send only), `Receiver`, `Relay`, `Subscriptions`, or `All` (default). Lets API and worker instances scale separately |
-| `Provisioning` | `ProvisioningMode` (`None`, `Validate`, `CreateIfMissing`). Default: `CreateIfMissing` in Development, with the in-memory transport or without a host environment; `Validate` otherwise |
+| `WithServiceName(name)`, `ServiceName` | Required. Lowercase letters, digits and dashes, starting with a letter (max 63). Used as the envelope `source`, the default endpoint and the inbox consumer |
+| `WithRoles(roles)`, `Roles` | `SourceFlowRoles`: `Api` (send only), `Receiver`, `Relay`, `Subscriptions`, or `All` (default). Lets API and worker instances scale separately |
+| `WithProvisioning(mode)`, `Provisioning` | `ProvisioningMode` (`None`, `Validate`, `CreateIfMissing`). Default: `CreateIfMissing` in Development, with the in-memory transport or without a host environment; `Validate` otherwise |
+| `WithHealthChecks(prefix)` | Adds the SourceFlow health checks (`{prefix}.ready`, `.store`, `.transport`, `.outbox`, `.subscriptions`, `.leases`, `.keys`; default prefix `sourceflow`) |
+| `When(condition, configure)` | Applies `configure` only when `condition` is true |
 | `AddModule<TModule>()` | Adds a generated (or hand-written) module |
 | `Configure(o => ...)` | Sets `SourceFlowOptions` (below) |
 | `Routing(r => ...)` | Routes, publications and subscriptions |
@@ -927,4 +968,4 @@ See the [SourceFlow.Testing README](SourceFlow.Testing-README.md).
 - Packages: [PostgreSQL](SourceFlow.Storage.PostgreSQL-README.md), [SQL Server](SourceFlow.Storage.SqlServer-README.md), [EF Core](SourceFlow.Storage.EntityFrameworkCore-README.md), [AWS](SourceFlow.Cloud.Aws-README.md), [Azure](SourceFlow.Cloud.Azure-README.md), [Google Cloud](SourceFlow.Cloud.Gcp-README.md), [ASP.NET Core](SourceFlow.AspNetCore-README.md), [Testing](SourceFlow.Testing-README.md), [CLI](SourceFlow.Tool-README.md), [Studio](SourceFlow.Studio-README.md)
 - Guides: [Message idempotency](Message-Idempotency-Guide.md), [Security and compliance](Security-and-Compliance-Guide.md), [Reading generated code](../guides/reading-generated-code.md), [Migrating from v2](../guides/migrating-from-v2.md), [Workflows](../guides/workflows.md)
 - Design: [01 Architecture Overview](../Design/01-Architecture-Overview.md), [03 Domain Programming Model](../Design/03-Domain-Programming-Model.md), [04 Messaging Pipeline](../Design/04-Messaging-Pipeline.md)
-- Samples: [Bank](../../../samples/Bank), [OrderFulfilment](../../../samples/OrderFulfilment)
+- Sample: [TravelBooking](../../../samples/TravelBooking/README.md). Test fixtures: [Bank](../../../tests/Fixtures/Bank), [OrderFulfilment](../../../tests/Fixtures/OrderFulfilment)

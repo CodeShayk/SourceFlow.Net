@@ -1,0 +1,14 @@
+# The TravelBooking domain workspace (doc 15 §4): two services, each with the manifest its host exports
+# (dotnet sourceflow manifest export, checked by CI for drift). Bookings owns the trip-booking workflow.
+# Open it in SourceFlow Studio: docker compose up (read-only site on http://localhost:5080), or edit it locally with
+#   dotnet run --project src/Tooling/SourceFlow.Tool -- studio --workspace samples/TravelBooking
+domain: travel
+description: A guest books a hotel room
+services:
+  - name: bookings   # orchestrator of trip-booking
+    manifest: Bookings/sourceflow.manifest.json
+    workflows: Bookings/Workflows
+    tests: TravelBooking.Tests
+    module: Bookings.BookingsModule
+  - name: hotels
+    manifest: Hotels/sourceflow.manifest.json

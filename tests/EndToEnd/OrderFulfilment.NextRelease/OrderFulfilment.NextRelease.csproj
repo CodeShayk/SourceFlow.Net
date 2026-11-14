@@ -23,6 +23,6 @@
     <Using Remove="Shouldly" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\samples\OrderFulfilment\Orders\Orders.csproj" />
+    <ProjectReference Include="..\..\..\tests\Fixtures\OrderFulfilment\Orders\Orders.csproj" />
   </ItemGroup>
 </Project>

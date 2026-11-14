@@ -1,45 +1,49 @@
 # Load tests
 
-`k6/bank-tier-m.js` drives the Bank API at capacity tier M (doc 09 §5: 1,000 commands/s at peak) and checks the SLOs
-of doc 08 §6 at the HTTP edge. It is the WP-4.7 load scenario; results are in
+`k6/travel-tier-m.js` drives the TravelBooking sample's Bookings service at capacity tier M (doc 09 §5: 1,000 commands/s
+at peak), with the trip-booking workflow running to the Hotels service over the broker, and checks the SLOs of doc 08 §6
+at the HTTP edge. It is the WP-4.7 load scenario; the results of its first version, against the Bank sample that the
+TravelBooking sample replaced, are in
 [`docs/v3.0.0/implementation/load-test-report.md`](../docs/v3.0.0/implementation/load-test-report.md).
 
 ## What it does
 
 | Scenario | Load | Measures |
 |----------|------|----------|
-| `commands` | Ramps to `RATE` commands/s, then holds it for `DURATION`. 30 % open an account, 55 % deposit and 15 % withdraw. Every virtual user works on its own accounts, so the streams are distinct. | `command_duration`, `command_failed` |
-| `freshness` | Every 2 s, opens an account and polls the query API until its summary appears | `read_model_freshness` |
-| `health` | Every 1 s, reads `/health/sourceflow` | `sourceflow_healthy`: store, transport, outbox age, subscriptions and leases are all Healthy |
+| `setup` | Registers one hotel with more rooms than the test can book, so no booking is declined as sold out | |
+| `commands` | Ramps to `RATE` commands/s, then holds it for `DURATION`. 60 % request a booking (each starts a workflow) and 40 % confirm one of the virtual user's own bookings as the guest. | `command_duration`, `command_failed` |
+| `workflow` | Every 2 s, requests a booking and polls the `workflow-instances` read model until the room is held: the hold went to Hotels over the broker and Hotels' event came back | `workflow_room_held` |
+| `health` | Every 1 s, reads the Bookings service's `/health/ready` | `sourceflow_healthy`: the store and the transport are Healthy |
 
 | Threshold | SLO (doc 08 §6) |
 |-----------|-----------------|
 | `command_failed` rate < 0.1 % | write availability 99.9 % |
 | `command_duration` p99 < 50 ms | write latency |
-| `read_model_freshness` p99 < 5 s | read-model freshness |
-| `sourceflow_healthy` > 99 % | delivery durability: the outbox age stays under the health threshold, and nothing is stalled |
+| `workflow_room_held` p99 < 5 s | cross-service latency: one workflow step, there and back |
+| `sourceflow_healthy` > 99 % | the service stays ready |
 
 k6 exits non-zero when a threshold fails.
 
 ## Running it
 
-Start PostgreSQL and the Bank API from this checkout, then run k6 on the same Docker network:
+Start the two services, PostgreSQL and LocalStack from this checkout, then run k6 on the same Docker network:
 
 ```bash
-docker compose up -d --build postgres bank-api
+docker compose up -d --build --wait postgres localstack hotels bookings
 docker run --rm -i --network sourceflow-demo_default \
-  -e BASE_URL=http://bank-api:8080 -e RATE=1000 -e DURATION=5m \
-  grafana/k6:2.3.0 run - < loadtest/k6/bank-tier-m.js
+  -e BOOKINGS_URL=http://bookings:8080 -e HOTELS_URL=http://hotels:8080 -e RATE=1000 -e DURATION=5m \
+  grafana/k6:2.3.0 run - < loadtest/k6/travel-tier-m.js
 ```
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `BASE_URL` | `http://localhost:8080` | The Bank API |
+| `BOOKINGS_URL` | `http://localhost:8080` | The Bookings service |
+| `HOTELS_URL` | `http://localhost:8081` | The Hotels service (the setup registers the hotel there) |
 | `RATE` | `1000` | Commands per second at the plateau |
 | `DURATION` | `5m` | Length of the plateau |
 | `RAMP` | `30s` | Time to ramp up to `RATE` |
 
-The freshness probe needs the sample query endpoint, which `docker-compose.yml` turns on (`Demo__QueryApi=true`).
+The workflow probe needs the sample query endpoint, which the compose file turns on (`Demo__QueryApi=true`).
 
 Run k6 inside the Docker network, not from Windows or macOS against a published port. The desktop port forwarding adds
 hundreds of milliseconds at p95 and measures the forwarding, not the service.
@@ -56,7 +60,7 @@ the client's ephemeral ports. The reference run uses `Maximum Pool Size=60`.
 
 ## Nightly
 
-The `load test (tier M)` job in `.github/workflows/v3-nightly.yml` runs the scenario for 5 minutes against the image
+The `load test (tier M)` job in `.github/workflows/v3-nightly.yml` runs the scenario for 5 minutes against the images
 built from the checkout, and uploads the k6 summary. On the hosted runner, the service, PostgreSQL and k6 share 4
 vCPUs, so the job reports results and does not fail the build.
 

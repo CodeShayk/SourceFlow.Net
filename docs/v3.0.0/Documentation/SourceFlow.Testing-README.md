@@ -68,7 +68,9 @@ public sealed class AggregateSpec<TAggregate, TId>
 `Given` folds past events with the generated `Evolve`. `When` decides one command against that state. Then assert one
 of the three possible outcomes. These examples are from
 [`tests/Tooling/SourceFlow.Tooling.Tests/SpecTests.cs`](../../../tests/Tooling/SourceFlow.Tooling.Tests/SpecTests.cs),
-using the Bank sample:
+using the Bank domain the tests use ([`tests/Fixtures/Bank`](../../../tests/Fixtures/Bank)). The TravelBooking sample's
+aggregate specs are in
+[`samples/TravelBooking/TravelBooking.Tests/DomainTests.cs`](../../../samples/TravelBooking/TravelBooking.Tests/DomainTests.cs):
 
 ```csharp
 using Bank.Accounts;
@@ -211,31 +213,33 @@ public void The_summary_tracks_the_balance()
 Workflows written in the SourceFlow workflow DSL (`*.sfflow.yaml`) are compiled to process managers. `WorkflowSpec`
 drives a generated workflow with messages given by CloudEvents type name and JSON data, so a spec reads like the path
 it tests. SourceFlow Studio generates these specs, one per path of a minimal path cover; see
-[`samples/OrderFulfilment/Orders.Tests/Workflows/OrderFulfilmentV1PathTests.cs`](../../../samples/OrderFulfilment/Orders.Tests/Workflows/OrderFulfilmentV1PathTests.cs).
+[`samples/TravelBooking/TravelBooking.Tests/Workflows/TripBookingV1PathTests.cs`](../../../samples/TravelBooking/TravelBooking.Tests/Workflows/TripBookingV1PathTests.cs),
+the six specs of the TravelBooking sample's trip-booking workflow.
 
 ```csharp
 using SourceFlow.Testing;
 using SourceFlow.Workflows;
 
+/// <summary>P02 hold-room: success → await-guest: success → confirm-reservation: rejected hotels.hold_lost ⇒ ManualIntervention</summary>
 [Fact]
-public void P127_Compensated()
+public void P02_ManualIntervention()
 {
-    var spec = WorkflowSpec.For<Orders.OrderFulfilmentWorkflowV1, Orders.OrdersModule>();
-    spec.Start("orders.order-placed.v1", """{"orderId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","lines":[],"total":100,"shippingAddress":"sample-shippingAddress"}""")
-        .ThenSends("inventory.reserve-stock.v1");
-    spec.Succeed("inventory.stock-reserved.v1", """{"orderId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","lines":[]}""")
-        .ThenSends("payments.charge.v1");
-    spec.Reject("payments.fraud_suspected")
-        .ThenSends("inventory.release-stock.v1");
-    spec.Succeed("inventory.stock-released.v1", """{"orderId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","lines":[]}""")
-        .ThenSends("orders.cancel-order.v1");
-    spec.ThenStatus(WorkflowStatus.Compensated);
+    var spec = WorkflowSpec.For<Bookings.TripBookingWorkflowV1, Bookings.BookingsModule>();
+    spec.Start("bookings.booking-requested.v1", """{"bookingId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","hotelId":"71905a65-5f08-5214-94c5-0c0cdfe13aac","guest":"sample-guest","nights":1}""")
+        .ThenSends("hotels.reserve-room.v1");
+    spec.Succeed("hotels.room-reserved.v1", """{"hotelId":"71905a65-5f08-5214-94c5-0c0cdfe13aac","bookingId":"bdcbea6c-2dc6-58e2-8f01-846c12116012","nights":1}""")
+        .ThenSends();
+    spec.Succeed("bookings.guest-confirmed.v1", """{"bookingId":"bdcbea6c-2dc6-58e2-8f01-846c12116012"}""")
+        .ThenSends("hotels.confirm-reservation.v1");
+    spec.Reject("hotels.hold_lost")
+        .ThenSends();
+    spec.ThenStatus(WorkflowStatus.ManualIntervention);
 }
 ```
 
 `WorkflowSpec.For<TWorkflow, TModule>()` builds the runtime model of `TModule`, so message types are read with the
 module's own JSON metadata, as the runtime does. The module must register every message the workflow sends or awaits,
-including the other services' contracts (the OrderFulfilment `OrdersModule` does this).
+including the other services' contracts (the TravelBooking `BookingsModule` registers the Hotels contract).
 
 | Member | Meaning |
 |--------|---------|
@@ -249,7 +253,7 @@ including the other services' contracts (the OrderFulfilment `OrdersModule` does
 | `Status()`, `State`, `Now`, `Sent`, `LastReaction` | The current status, state, simulated time, every command sent with its message id, and the last reaction. |
 
 Regenerate the specs from Studio after changing the workflow; the generated file says so in its header. The
-[workflows guide](../guides/workflows.md) walks through the OrderFulfilment workflow and its specs.
+[workflows guide](../guides/workflows.md) walks through the TravelBooking sample's trip-booking workflow and its specs.
 
 ## The in-memory test host
 
@@ -315,7 +319,7 @@ Dispose the host (`await using`) to stop its hosted services.
 
 ### Several services on one broker
 
-Pass the same `InMemoryBroker` to each host. This is how the end-to-end tests run the Bank sample as two services
+Pass the same `InMemoryBroker` to each host. This is how the end-to-end tests run the Bank domain ([`tests/Fixtures/Bank`](../../../tests/Fixtures/Bank)) as two services
 ([`tests/EndToEnd/SourceFlow.EndToEnd.Tests/BankSystem.cs`](../../../tests/EndToEnd/SourceFlow.EndToEnd.Tests/BankSystem.cs)):
 
 ```csharp
@@ -540,4 +544,4 @@ kits use; it throws `ConformanceException`.
 - ADRs: [ADR-014](../ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md),
   [ADR-033](../ADRs/ADR-033-final-transport-spi-pull-receivers-and-the-in-memory-reference-broker.md).
 - Guides: [workflows](../guides/workflows.md), [OpenTelemetry (testing your telemetry)](../guides/opentelemetry.md#testing-your-telemetry).
-- Samples: [`samples/OrderFulfilment/Orders.Tests`](../../../samples/OrderFulfilment/Orders.Tests).
+- Sample: [`samples/TravelBooking/TravelBooking.Tests`](../../../samples/TravelBooking/TravelBooking.Tests).

@@ -43,7 +43,7 @@ internal sealed record OrderFulfilmentOptions
 }
 
 /// <summary>
-/// The OrderFulfilment sample as four services (samples/OrderFulfilment), each with its own store (an in-memory store or a
+/// The OrderFulfilment fixture as four services (tests/Fixtures/OrderFulfilment), each with its own store (an in-memory store or a
 /// PostgreSQL schema) and its own transport client on one broker, configured exactly as the sample's host configures
 /// them (<c>AddOrdersService</c>, <c>AddInventoryService</c>, …). The orders service owns the order-fulfilment workflow.
 /// </summary>

@@ -15,9 +15,9 @@
     <ProjectReference Include="..\..\src\Cloud\SourceFlow.Cloud.Aws\SourceFlow.Cloud.Aws.csproj" />
     <ProjectReference Include="..\..\src\Cloud\SourceFlow.Cloud.Gcp\SourceFlow.Cloud.Gcp.csproj" />
     <ProjectReference Include="..\..\src\Cloud\SourceFlow.Cloud.Azure\SourceFlow.Cloud.Azure.csproj" />
-    <ProjectReference Include="..\..\samples\Bank\Bank.Contracts\Bank.Contracts.csproj" />
-    <ProjectReference Include="..\..\samples\Bank\Bank.Accounts\Bank.Accounts.csproj" />
-    <ProjectReference Include="..\..\samples\Bank\Bank.Transfers\Bank.Transfers.csproj" />
+    <ProjectReference Include="..\..\tests\Fixtures\Bank\Bank.Contracts\Bank.Contracts.csproj" />
+    <ProjectReference Include="..\..\tests\Fixtures\Bank\Bank.Accounts\Bank.Accounts.csproj" />
+    <ProjectReference Include="..\..\tests\Fixtures\Bank\Bank.Transfers\Bank.Transfers.csproj" />
     <PackageReference Include="SharpFuzz" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>

@@ -157,7 +157,7 @@ Guidelines from the existing fixtures:
 
 ## Emulators
 
-The repository's root [`docker-compose.yml`](../../../docker-compose.yml) is the **demo** stack (PostgreSQL on 55432, the Bank API on 8080, the Studio demo console on 5080 and the Aspire dashboard on 18888). The cloud emulators are separate compose files under [`.github/emulators`](../../../.github/emulators/README.md), pinned to exact images:
+The repository's root [`docker-compose.yml`](../../../docker-compose.yml) is the **demo** stack, the [TravelBooking sample](../../../samples/TravelBooking/README.md) (the Bookings service on 8080, the Hotels service on 8081, SourceFlow Studio on 5080, the Aspire dashboard on 18888, PostgreSQL on 55432 and LocalStack on 4566). The cloud emulators are separate compose files under [`.github/emulators`](../../../.github/emulators/README.md), pinned to exact images:
 
 | Emulator | Compose file | Image | Ports | Health gate |
 |----------|--------------|-------|-------|-------------|

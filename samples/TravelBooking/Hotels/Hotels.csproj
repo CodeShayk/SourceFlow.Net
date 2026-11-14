@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    TravelBooking sample, Hotels service: a hotel's rooms, held for bookings and then confirmed. Its public commands and
+    events are its contract (HotelsContractsModule); the Bookings service references this assembly for those types only.
+  -->
+  <PropertyGroup>
+    <SourceFlowServiceName>hotels</SourceFlowServiceName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+  </ItemGroup>
+</Project>

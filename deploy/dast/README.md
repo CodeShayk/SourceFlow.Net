@@ -1,7 +1,7 @@
 # DAST: OWASP ZAP scan of the query API
 
-The nightly `dast` job (`.github/workflows/v3-nightly.yml`) runs the OWASP ZAP API scan against the Bank sample's
-per-service query API (doc 14 §9, plan 08). Any medium or high finding fails the night.
+The nightly `dast` job (`.github/workflows/v3-nightly.yml`) runs the OWASP ZAP API scan against the TravelBooking
+sample's Bookings service, on its per-service query API (doc 14 §9, plan 08). Any medium or high finding fails the night.
 
 | File | What it is |
 |------|------------|
@@ -16,10 +16,10 @@ in any response, and no writes to the event, stream or document tables.
 ## Running it locally
 
 ```bash
-docker compose up -d --build postgres bank-api
+docker compose up -d --build --wait postgres localstack hotels bookings
 mkdir -p zap && cp deploy/dast/* zap/
 docker run --rm --network sourceflow-demo_default -v "$PWD/zap:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable \
-  zap-api-scan.py -t /zap/wrk/query-api.openapi.json -f openapi -O http://bank-api:8080 \
+  zap-api-scan.py -t /zap/wrk/query-api.openapi.json -f openapi -O http://bookings:8080 \
   -c zap-rules.tsv -J zap-report.json -r zap-report.html
 ```
 

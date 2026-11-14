@@ -1,4 +1,5 @@
-# Demo images (Bank sample service and Studio demo console) on GitHub Container Registry.
+# Demo images of the TravelBooking sample (the Bookings and Hotels services, and SourceFlow Studio for its workspace) on
+# GitHub Container Registry.
 # Tags: the branch name, the short commit SHA and v3-latest (the tag docker-compose.yml pulls by default).
 name: v3-images
 
@@ -6,10 +7,10 @@ on:
   push:
     branches: [ "v3.0.0", "v3/**" ]
     paths:
-      - "src/Core/**"
-      - "src/Hosting/**"
-      - "src/Storage/SourceFlow.Storage.PostgreSQL/**"
+      - "src/**"
       - "samples/**"
+      - "studio/**"
+      - "schemas/**"
       - "Directory.Build.props"
       - "Directory.Build.targets"
       - "Directory.Packages.props"
@@ -34,10 +35,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: sourceflow-bank-api
-            dockerfile: samples/Bank/Bank.Api/Dockerfile
-          - image: sourceflow-studio-demo
-            dockerfile: samples/Studio/SourceFlow.Studio.Demo/Dockerfile
+          - image: sourceflow-travel-bookings
+            dockerfile: samples/TravelBooking/Dockerfile
+            service: Bookings
+          - image: sourceflow-travel-hotels
+            dockerfile: samples/TravelBooking/Dockerfile
+            service: Hotels
+          - image: sourceflow-travel-studio
+            dockerfile: samples/TravelBooking/Studio.Dockerfile
+            service: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -67,6 +73,8 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
+          build-args: |
+            SERVICE=${{ matrix.service }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

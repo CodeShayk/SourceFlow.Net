@@ -1,0 +1,117 @@
+# The TravelBooking sample: two services and the workflow between them, with SourceFlow Studio.
+#
+#   docker compose up -d --build        # from the repository root (docker-compose.yml there includes this file)
+#   docker compose down -v              # stops the demo and deletes its data
+#
+#   Bookings service   http://localhost:8080   (owns the trip-booking workflow)
+#   Hotels service     http://localhost:8081
+#   SourceFlow Studio  http://localhost:5080   (read-only: domain map, statechart, simulation, paths)
+#   Aspire dashboard   http://localhost:18888  (one trace follows a booking across both services)
+#   PostgreSQL         localhost:55432         (sourceflow / sourceflow / travel; a schema per service)
+#   LocalStack         localhost:4566          (SNS and SQS between the services)
+#
+# SOURCEFLOW_TAG selects the published image tag (default v3-latest); --build builds the images from this checkout.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: sourceflow
+      POSTGRES_PASSWORD: sourceflow
+      POSTGRES_DB: travel
+    ports:
+      - "55432:5432"
+    volumes:
+      - travel-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sourceflow -d travel"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # The broker between the two services: Amazon SNS and SQS, emulated (the services also run on Azure Service Bus and
+  # Google Cloud Pub/Sub; see the sample's README).
+  localstack:
+    image: localstack/localstack:3.8
+    environment:
+      SERVICES: sqs,sns
+      EAGER_SERVICE_LOADING: "1"
+      SKIP_SSL_CERT_DOWNLOAD: "1"
+    ports:
+      - "4566:4566"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  hotels:
+    image: ghcr.io/codeshayk/sourceflow-travel-hotels:${SOURCEFLOW_TAG:-v3-latest}
+    build:
+      context: ../..
+      dockerfile: samples/TravelBooking/Dockerfile
+      args:
+        SERVICE: Hotels
+    environment: &service
+      ConnectionStrings__SourceFlow: "Host=postgres;Database=travel;Username=sourceflow;Password=sourceflow;GSS Encryption Mode=Disable"
+      SourceFlow__AutoMigrate: "true"
+      SourceFlow__Provisioning: "CreateIfMissing"       # create the queues and topics in LocalStack at startup
+      Transport__Kind: "aws"
+      Transport__Region: "eu-west-1"
+      Transport__ServiceUrl: "http://localstack:4566"
+      AWS_ACCESS_KEY_ID: "test"                         # LocalStack's dummy credentials
+      AWS_SECRET_ACCESS_KEY: "test"
+      # Sample only: anonymous read access to the query API. Never expose it publicly.
+      Demo__QueryApi: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "hotels"
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    restart: unless-stopped
+
+  bookings:
+    image: ghcr.io/codeshayk/sourceflow-travel-bookings:${SOURCEFLOW_TAG:-v3-latest}
+    build:
+      context: ../..
+      dockerfile: samples/TravelBooking/Dockerfile
+      args:
+        SERVICE: Bookings
+    environment:
+      <<: *service
+      OTEL_SERVICE_NAME: "bookings"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      hotels:
+        condition: service_started
+    restart: unless-stopped
+
+  studio:
+    image: ghcr.io/codeshayk/sourceflow-travel-studio:${SOURCEFLOW_TAG:-v3-latest}
+    build:
+      context: ../..
+      dockerfile: samples/TravelBooking/Studio.Dockerfile
+    ports:
+      - "5080:80"
+    restart: unless-stopped
+
+  # Sample only: the dashboard accepts anonymous browsers and OTLP clients. Never expose it publicly.
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:9.4
+    environment:
+      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+      - "18888:18888"
+    restart: unless-stopped
+
+volumes:
+  travel-data:

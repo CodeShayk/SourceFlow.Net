@@ -38,7 +38,7 @@ Process managers and event handlers have their own subscriptions and checkpoints
 
 ### Document projections
 
-A document projection maintains one JSON document per key. The Bank sample's account summary ([`samples/Bank/Bank.Accounts/AccountSummary.cs`](../../../../samples/Bank/Bank.Accounts/AccountSummary.cs)):
+A document projection maintains one JSON document per key. The account summary of the Bank domain the tests use ([`tests/Fixtures/Bank/Bank.Accounts/AccountSummary.cs`](../../../../tests/Fixtures/Bank/Bank.Accounts/AccountSummary.cs)); the TravelBooking sample's `booking-summary` and `hotel-rooms` projections ([`Bookings.cs`](../../../../samples/TravelBooking/Bookings/Bookings.cs), [`Hotels.cs`](../../../../samples/TravelBooking/Hotels/Hotels.cs)) have the same shape:
 
 ```csharp
 public sealed record AccountSummary(AccountId Id, string Holder, decimal Balance, [property: Queryable] AccountStatus Status, long Version);

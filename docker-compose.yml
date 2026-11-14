@@ -1,72 +1,13 @@
-# SourceFlow.Net v3 demo: PostgreSQL, the Bank sample service and the Studio demo console.
+# SourceFlow.Net v3 demo: the TravelBooking sample (samples/TravelBooking): the Bookings and Hotels services on
+# PostgreSQL and LocalStack, the trip-booking workflow between them, SourceFlow Studio and the Aspire dashboard.
 #
-#   docker compose up -d            # pull the published images (ghcr.io), or build them if not available
 #   docker compose up -d --build    # build the images from this checkout
+#   docker compose up -d            # or pull the published images (ghcr.io)
+#   docker compose down -v          # stop the demo and delete its data
 #
-# Studio demo console: http://localhost:5080    Bank service: http://localhost:8080    PostgreSQL: localhost:55432
-# Aspire dashboard (traces and SourceFlow metrics over OTLP): http://localhost:18888
-# Health: http://localhost:8080/health (liveness), /health/ready (readiness), /health/sourceflow (every SourceFlow check)
-# SOURCEFLOW_TAG selects the image tag (default v3-latest).
+# Bookings http://localhost:8080 · Hotels http://localhost:8081 · Studio http://localhost:5080 · Aspire http://localhost:18888
+# The walkthrough is in samples/TravelBooking/README.md.
 name: sourceflow-demo
 
-services:
-  postgres:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: sourceflow
-      POSTGRES_PASSWORD: sourceflow
-      POSTGRES_DB: bank
-    ports:
-      - "55432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sourceflow -d bank"]
-      interval: 2s
-      timeout: 3s
-      retries: 30
-
-  bank-api:
-    image: ghcr.io/codeshayk/sourceflow-bank-api:${SOURCEFLOW_TAG:-v3-latest}
-    build:
-      context: .
-      dockerfile: samples/Bank/Bank.Api/Dockerfile
-    environment:
-      ConnectionStrings__SourceFlow: "Host=postgres;Database=bank;Username=sourceflow;Password=sourceflow;GSS Encryption Mode=Disable"
-      SourceFlow__AutoMigrate: "true"
-      # Sample-only query endpoint used by the console (no authentication): never expose it publicly.
-      Demo__QueryApi: "true"
-      Demo__PersonalData: "false"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
-      OTEL_SERVICE_NAME: "bank"
-    ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-
-  studio:
-    image: ghcr.io/codeshayk/sourceflow-studio-demo:${SOURCEFLOW_TAG:-v3-latest}
-    build:
-      context: .
-      dockerfile: samples/Studio/SourceFlow.Studio.Demo/Dockerfile
-    environment:
-      Studio__ServiceUrl: "http://bank-api:8080/"
-    ports:
-      - "5080:8080"
-    depends_on:
-      - bank-api
-    restart: unless-stopped
-
-  # Sample only: the dashboard accepts anonymous browsers and OTLP clients. Never expose it publicly.
-  aspire-dashboard:
-    image: mcr.microsoft.com/dotnet/aspire-dashboard:9.4
-    environment:
-      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
-    ports:
-      - "18888:18888"
-    restart: unless-stopped
-
-volumes:
-  postgres-data:
+include:
+  - samples/TravelBooking/docker-compose.yml

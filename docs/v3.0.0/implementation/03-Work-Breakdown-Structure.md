@@ -32,7 +32,7 @@ Every WP also meets the Definition of Done in [plan 09 §1](09-Definition-of-Don
 - **Acceptance**: GitVersion yields `3.0.0-alpha.1` on `v3.0.0` and `3.0.0-v3-wp-…` on a sample work branch (verified in CI logs). `master` versioning is unchanged.
 
 ### WP-0.2 Repository scaffold · 1 ew · depends: WP-0.1
-- **Deliverables**: `global.json`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`, `SourceFlow.slnx`. Empty projects for every v3 package in plan 02 §3 (categorised `src/<Category>/`), with correct references and the dependency rules from design doc 01 §5. One test project per category (plan 04 §3). `samples/Bank/*` and `benchmarks/SourceFlow.Benchmarks` skeletons.
+- **Deliverables**: `global.json`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`, `SourceFlow.slnx`. Empty projects for every v3 package in plan 02 §3 (categorised `src/<Category>/`), with correct references and the dependency rules from design doc 01 §5. One test project per category (plan 04 §3). `tests/Fixtures/Bank/*` and `benchmarks/SourceFlow.Benchmarks` skeletons.
 - **Tasks**: delete `SourceFlow.Net.sln` and `tests/SourceFlow.Net.EntityFramework.Tests`; remove v2 projects from the build (folders kept, plan 02 §4); verify package majors against nuget.org and pin them; enable SourceLink and deterministic builds.
 - **Tests**: ARCH-01..05 (stubs that already pass on empty projects).
 - **Acceptance**: `dotnet build SourceFlow.slnx -c Release` and `dotnet test` succeed on Windows and Linux with zero warnings. The v2 folders are not part of the build.
@@ -157,7 +157,7 @@ Every WP also meets the Definition of Done in [plan 09 §1](09-Definition-of-Don
 
 ### WP-1.14 Bank sample (ported v2 E2E domain) · 1.5 ew · depends: WP-1.11
 - **v2 input**: `tests/SourceFlow.Core.Tests/E2E/**` (BankAccount, AccountAggregate, AccountSaga, AccountView, the commands and events).
-- **Deliverables**: `samples/Bank/Bank.Accounts` (BankAccount aggregate, AccountSummary projection, `AccountOpenedV1` integration event, JSON context), `samples/Bank/Bank.Transfers` (Transfer aggregate + MoneyTransfer process manager with timeout), `samples/Bank/Bank.Notifications` (a second service: owns a `Statement` aggregate, subscribes to `accounts.events`), and `samples/Bank/Bank.Api` (minimal API host).
+- **Deliverables**: `tests/Fixtures/Bank/Bank.Accounts` (BankAccount aggregate, AccountSummary projection, `AccountOpenedV1` integration event, JSON context), `tests/Fixtures/Bank/Bank.Transfers` (Transfer aggregate + MoneyTransfer process manager with timeout), `tests/Fixtures/Bank/Bank.Notifications` (a second service: owns a `Statement` aggregate, subscribes to `accounts.events`), and `samples/Bank/Bank.Api` (minimal API host).
 - **Tests**: the sample's own specs; it is the domain for E2E-01..16.
 - **Acceptance**: the v2 account lifecycle (open, activate, deposit, withdraw, close) is expressible in v3, with the differences documented in a migration note.
 

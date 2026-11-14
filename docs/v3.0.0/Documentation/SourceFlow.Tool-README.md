@@ -79,16 +79,21 @@ if (await SourceFlow.Tool.SourceFlowCli.TryRunAsync(args, app.Services) is { } e
 }
 ```
 
-`TryRunAsync` runs the CLI only when the first argument is `sourceflow`, and returns `null` otherwise. The Bank and
-OrderFulfilment hosts do this. A generic host (`Host.CreateApplicationBuilder`) works the same way with
-`host.Services`.
+`TryRunAsync` runs the CLI only when the first argument is `sourceflow`, and returns `null` otherwise. The two services
+of the [TravelBooking sample](../../../samples/TravelBooking/README.md) do this. A generic host
+(`Host.CreateApplicationBuilder`) works the same way with `host.Services`.
 
 ```bash
-dotnet run --project samples/Bank/Bank.Api -- sourceflow query 'from readmodel "account-summary" | take 5'
-dotnet run --project samples/OrderFulfilment/OrderFulfilment.Host -- --Service=orders sourceflow workflow list --active
+# In the demo's container (docker compose up -d --build at the repository root)
+docker compose exec bookings sh -c 'dotnet Bookings.Api.dll sourceflow workflow list --name trip-booking --active'
+
+# From the source, against the demo's database
+export ConnectionStrings__SourceFlow="Host=localhost;Port=55432;Username=sourceflow;Password=sourceflow;Database=travel"
+dotnet run --project samples/TravelBooking/Bookings.Api -- sourceflow query 'from readmodel "booking-summary" | take 5'
 ```
 
-Configuration arguments for the host (`--Service=orders`, `--ConnectionStrings:SourceFlow=...`) go before `sourceflow`.
+Configuration arguments for the host (`--ConnectionStrings:SourceFlow=...`, `--Transport:Kind=gcp`) go before
+`sourceflow`.
 
 ## Global or in the service
 
@@ -206,8 +211,8 @@ instead (the events table is append-only for it); run them as the owner after th
 ### `db index sync` [S]
 
 ```bash
-dotnet run --project samples/Bank/Bank.Api -- sourceflow db index sync           # show the plan
-dotnet run --project samples/Bank/Bank.Api -- sourceflow db index sync --apply   # create and drop
+dotnet run --project samples/TravelBooking/Bookings.Api -- sourceflow db index sync           # show the plan
+dotnet run --project samples/TravelBooking/Bookings.Api -- sourceflow db index sync --apply   # create and drop
 ```
 
 Compares the expression indexes SFQL relies on (one per `[Queryable]` event field and read-model field) with the
@@ -288,16 +293,16 @@ dotnet sourceflow projection drop account-summary@1 --connection "$PG" --schema 
 ## query
 
 ```bash
-dotnet run --project samples/Bank/Bank.Api -- sourceflow query \
-  'from events of "bank.account.deposited" | where data.amount >= @min and time >= ago(7d) | project stream, time, amount = data.amount | order by time desc | take 20' \
-  --param min=1000
+dotnet run --project samples/TravelBooking/Bookings.Api -- sourceflow query \
+  'from events of "bookings.booking-requested" | where data.nights >= @min and time >= ago(7d) | project stream, time, nights = data.nights | order by time desc | take 20' \
+  --param min=7
 
-dotnet run --project samples/Bank/Bank.Api -- sourceflow query --sql \
-  'SELECT id, holder, balance FROM readmodel."account-summary" WHERE balance < @below ORDER BY balance' \
-  --param below=100 --format csv > low-balances.csv
+dotnet run --project samples/TravelBooking/Bookings.Api -- sourceflow query --sql \
+  'SELECT id, hotelId, nights FROM readmodel."booking-summary" WHERE status = @status ORDER BY nights' \
+  --param status=3 --format csv > declined.csv
 
-dotnet run --project samples/Bank/Bank.Api -- sourceflow query --explain \
-  'from readmodel "account-summary" | where status = 1 and balance < 0'
+dotnet run --project samples/TravelBooking/Bookings.Api -- sourceflow query --explain \
+  'from readmodel "booking-summary" | where status = 1 and nights > 14'
 ```
 
 | Option | Default | Meaning |
@@ -356,12 +361,12 @@ generator's static manifest merged with the routing configured at startup.
 
 ```bash
 # Design time: build the project and run its configuration without starting it.
-dotnet sourceflow manifest export --project samples/OrderFulfilment/OrderFulfilment.Host \
-  --output samples/OrderFulfilment/Orders/sourceflow.manifest.json -- --Service=orders
+dotnet sourceflow manifest export --project samples/TravelBooking/Bookings.Api \
+  --output samples/TravelBooking/Bookings/sourceflow.manifest.json -- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
 
 # CI: fail when the committed manifest is out of date.
-dotnet sourceflow manifest export --project samples/Bank/Bank.Api -c Release --no-build --check \
-  --output samples/Bank/Bank.Api/sourceflow.manifest.json -- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
+dotnet sourceflow manifest export --project samples/TravelBooking/Hotels.Api -c Release --no-build --check \
+  --output samples/TravelBooking/Hotels/sourceflow.manifest.json -- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
 ```
 
 | Option | Default | Meaning |
@@ -384,24 +389,24 @@ Operations on DSL workflow instances. Instances are read from the `workflow-inst
 instance's own transaction.
 
 ```bash
-dotnet run --project samples/OrderFulfilment/OrderFulfilment.Host -- --Service=orders \
-  sourceflow workflow list --status ManualIntervention
+# Inside the TravelBooking demo's Bookings service, which owns the trip-booking workflow
+docker compose exec bookings sh -c 'dotnet Bookings.Api.dll sourceflow workflow list --name trip-booking --status ManualIntervention'
 
-dotnet run --project samples/OrderFulfilment/OrderFulfilment.Host -- --Service=orders \
-  sourceflow workflow show order-fulfilment@1 bdcbea6c-2dc6-58e2-8f01-846c12116012
+docker compose exec bookings sh -c 'dotnet Bookings.Api.dll sourceflow workflow show trip-booking@1 0193a7a0-0000-7000-8000-0000000000b1'
 
-dotnet run --project samples/OrderFulfilment/OrderFulfilment.Host -- --Service=orders \
-  sourceflow workflow retry-step order-fulfilment@1 bdcbea6c-2dc6-58e2-8f01-846c12116012 --note "gateway back up"
+docker compose exec bookings sh -c "dotnet Bookings.Api.dll sourceflow workflow retry-step trip-booking@1 0193a7a0-0000-7000-8000-0000000000b1 --note 'hotel restored the hold'"
 
-dotnet sourceflow workflow abort order-fulfilment@1 bdcbea6c-2dc6-58e2-8f01-846c12116012 \
-  --reason "customer cancelled by phone" --compensate \
-  --endpoint orders --connection "$PG" --schema orders
+# The same from the global tool, against the demo's database
+PG="Host=localhost;Port=55432;Username=sourceflow;Password=sourceflow;Database=travel"
+dotnet sourceflow workflow abort trip-booking@1 0193a7a0-0000-7000-8000-0000000000b1 \
+  --reason "rebooked by phone" \
+  --endpoint bookings --connection "$PG" --schema bookings
 ```
 
 | Command | Notes |
 |---------|-------|
 | `list` | Filters: `--name` (without version), `--version`, `--status` (`Running`, `Compensating`, `ManualIntervention`, `Completed`, `Compensated`, `Aborted`), `--active` (unfinished only), `--limit` (default 100), `--tenant` (default the default tenant). With `--name` and `--version` it also says whether that version still has active instances in any tenant, and so whether it can be removed. |
-| `show <workflow> <instance>` | `<workflow>` is `name@version`; `<instance>` is the correlation value (for example the order id). |
+| `show <workflow> <instance>` | `<workflow>` is `name@version`; `<instance>` is the correlation value (for example the booking id). |
 | `resume` | Only for an instance in `ManualIntervention`: the compensation continues, or the step runs again. `--step` resumes at another step. |
 | `retry-step` | Only for `ManualIntervention`: re-sends the current step or compensation as a new attempt. |
 | `abort` | For any unfinished instance. `--reason` is required; `--compensate` rolls back completed steps first, and the instance ends `Aborted`. |
@@ -415,8 +420,8 @@ service changed it, `--outbox-partitions`. The owner's relay must be running to 
 ## studio
 
 ```bash
-dotnet sourceflow studio --workspace samples/OrderFulfilment --open
-dotnet run --project src/Tooling/SourceFlow.Tool -- studio --workspace samples/OrderFulfilment --port 0 --read-only
+dotnet sourceflow studio --workspace samples/TravelBooking --open
+dotnet run --project src/Tooling/SourceFlow.Tool -- studio --workspace samples/TravelBooking --port 0 --read-only
 ```
 
 | Option | Default | Meaning |

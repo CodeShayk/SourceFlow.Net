@@ -89,18 +89,18 @@ public sealed class ManifestCliTests
     [Trait("Category", "Integration")]
     [Trait("Id", "UT-MAN-15")]
     [Trait("Covers", "WFD-11;WFD-NFR-3")]
-    public async Task Export_DesignTimeRunOfBankApi_MatchesTheCommittedManifest_WithoutADatabase()
+    public async Task Export_DesignTimeRunOfASampleHost_MatchesTheCommittedManifest_WithoutADatabase()
     {
         string root = RepositoryRoot();
-        string project = Path.Combine(root, "samples", "Bank", "Bank.Api", "Bank.Api.csproj");
+        string project = Path.Combine(root, "samples", "TravelBooking", "Bookings.Api", "Bookings.Api.csproj");
         string configuration = AppContext.BaseDirectory.Contains($"{Path.DirectorySeparatorChar}Release{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ? "Release" : "Debug";
-        bool built = File.Exists(Path.Combine(root, "samples", "Bank", "Bank.Api", "bin", configuration, "net10.0", "Bank.Api.dll"));
+        bool built = File.Exists(Path.Combine(root, "samples", "TravelBooking", "Bookings.Api", "bin", configuration, "net10.0", "Bookings.Api.dll"));
 
         // Port 1 refuses connections: a design-time run that touched the database would fail.
         (int code, string output, string error) = await RunAsync(
             null,
             ["manifest", "export", "--project", project, "-c", configuration, .. built ? new[] { "--no-build" } : [], "--check",
-             "--output", Path.Combine(root, "samples", "Bank", "Bank.Api", "sourceflow.manifest.json"),
+             "--output", Path.Combine(root, "samples", "TravelBooking", "Bookings", "sourceflow.manifest.json"),
              "--", "--ConnectionStrings:SourceFlow=Host=localhost;Port=1;Timeout=1"]);
 
         code.ShouldBe(0, error);

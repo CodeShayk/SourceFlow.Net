@@ -130,7 +130,7 @@ switch (result.Status)
 - The first send records the outcome (accepted, rejected or no-op) in the inbox. A repeat returns `CommandStatus.Duplicate` with that outcome; a rejection is reported with its original error code.
 - Keys are remembered for `InboxRetention` (7 days by default). A retry after that is processed as new.
 
-Over HTTP, `MapCommand<TCommand>` in `SourceFlow.AspNetCore` reads the `Idempotency-Key` header into `SendOptions.IdempotencyKey`, and the Bank sample's endpoints accept it. See [SourceFlow.AspNetCore](SourceFlow.AspNetCore-README.md).
+Over HTTP, `MapCommand<TCommand>` in `SourceFlow.AspNetCore` reads the `Idempotency-Key` header into `SendOptions.IdempotencyKey`, and the [TravelBooking sample](../../../samples/TravelBooking)'s endpoints accept it. See [SourceFlow.AspNetCore](SourceFlow.AspNetCore-README.md).
 
 An idempotency key is not the same as an expected version. `SendOptions.ExpectedVersion` (HTTP `If-Match`) protects against deciding on stale state; the key protects against deciding twice. Use both for "update if unchanged, exactly once" semantics.
 
@@ -161,7 +161,7 @@ Make the outside call idempotent with a key that is stable across those repeats:
 | Command handler | `DecisionContext.CommandId`: the command's message id, the same on every re-decide and every redelivery |
 | Event handler | `EventContext.EventId`: the event's id, the same on every delivery |
 
-The Payments service of the OrderFulfilment sample ([`samples/OrderFulfilment/Payments/Payments.cs`](../../../samples/OrderFulfilment/Payments/Payments.cs)) does exactly this. Every gateway call carries the command id as the gateway's idempotency key:
+The Payments service of the OrderFulfilment domain the tests use ([`tests/Fixtures/OrderFulfilment/Payments/Payments.cs`](../../../tests/Fixtures/OrderFulfilment/Payments/Payments.cs)) does exactly this. Every gateway call carries the command id as the gateway's idempotency key:
 
 ```csharp
 /// <summary>A payment service provider. Every call carries an idempotency key, so a repeated call has no second effect.</summary>

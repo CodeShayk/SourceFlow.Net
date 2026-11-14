@@ -1,0 +1,15 @@
+<Project>
+  <!--
+    Test fixtures: domains the tests run against (the Bank domain, the OrderFulfilment services and their workflow), compiled
+    with the SourceFlow generator as an application would consume SourceFlow.Net. They are libraries and hosts, not test
+    projects, so they import the repository's props directly instead of tests/Directory.Build.props. The user-facing
+    example is samples/TravelBooking.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\Directory.Build.props" />
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <UseSourceFlowGenerator>true</UseSourceFlowGenerator>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+</Project>

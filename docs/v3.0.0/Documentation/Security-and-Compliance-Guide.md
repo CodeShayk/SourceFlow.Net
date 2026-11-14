@@ -133,15 +133,16 @@ Two attributes in the `SourceFlow` namespace classify members. Both are
 | `[PersonalData]` | `SourceFlowTaxonomy.PersonalData` | Redacted in logs. Encrypted per subject when `EncryptPersonalData()` is on. Never a filter, sort, group or join key in SFQL (SFQ0301). Redacted in query results without the `sourceflow.query.pii` permission. |
 | `[Secret]` | `SourceFlowTaxonomy.Secret` | Redacted in logs. |
 
-On positional records, target the property, as the Bank sample does:
+On positional records, target the property, as the TravelBooking sample does for the guest's name
+([`Bookings.cs`](../../../samples/TravelBooking/Bookings/Bookings.cs)):
 
 ```csharp
-[MessageType("bank.account.opened")]
-public sealed record AccountOpened(
-    AccountId AccountId,
-    [property: PersonalData] string Holder,
-    decimal InitialDeposit,
-    DateTimeOffset OpenedAt) : IEvent;
+[MessageType("bookings.booking-requested", 1)]
+public sealed record BookingRequested(
+    BookingId BookingId,
+    Guid HotelId,
+    [property: PersonalData] string Guest,
+    int Nights) : IEvent;
 ```
 
 ### Subjects
@@ -589,7 +590,7 @@ app.MapSourceFlowQueryApi().RequireAuthorization("sourceflow-query");
 app.MapDomainQueries().RequireAuthorization("sourceflow-query");
 ```
 
-`.AllowAnonymous()` is accepted as an explicit decision; the Bank sample uses it for its local demo only.
+`.AllowAnonymous()` is accepted as an explicit decision; the TravelBooking sample uses it for its local demo only (`Demo:QueryApi`).
 
 ### 11.2 Permissions
 
@@ -632,7 +633,8 @@ source. With PostgreSQL row-level security, the database enforces it again.
 - Responses carry `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`,
   `Cache-Control: no-store` and `Cross-Origin-Resource-Policy: same-origin`.
 - CSV output neutralises spreadsheet formulas.
-- The nightly OWASP ZAP API scan of the Bank sample's query API fails on any medium or high finding.
+- The nightly OWASP ZAP API scan of the query API of the TravelBooking sample's Bookings service fails on any medium or high
+  finding.
 
 ## 12. Audit: who did what
 

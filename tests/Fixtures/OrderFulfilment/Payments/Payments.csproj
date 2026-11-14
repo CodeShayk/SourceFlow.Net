@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    OrderFulfilment sample, Payments service (WP-S.13): charges and refunds orders through a payment gateway. Its public commands and
+    events are its contract (PaymentsContractsModule); the orders service references this assembly for those types only.
+  -->
+  <PropertyGroup>
+    <SourceFlowServiceName>payments</SourceFlowServiceName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+  </ItemGroup>
+</Project>

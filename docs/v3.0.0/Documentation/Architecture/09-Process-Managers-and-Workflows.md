@@ -38,7 +38,7 @@ flowchart LR
 
 ## 2. Hand-written process managers
 
-The Bank sample's money transfer ([`samples/Bank/Bank.Transfers/Transfers.cs`](../../../../samples/Bank/Bank.Transfers/Transfers.cs)) withdraws from one account, deposits to another, fails on a rejection, and compensates on a timeout:
+The money transfer of the Bank domain the tests use ([`tests/Fixtures/Bank/Bank.Transfers/Transfers.cs`](../../../../tests/Fixtures/Bank/Bank.Transfers/Transfers.cs)) withdraws from one account, deposits to another, fails on a rejection, and compensates on a timeout:
 
 ```csharp
 [MessageType("bank.transfer.timed-out", 1)]
@@ -178,14 +178,14 @@ A workflow is a state machine in YAML owned by one service. Rather than interpre
 
 ```mermaid
 flowchart TD
-    Y["Orders/Workflows/order-fulfilment.sfflow.yaml<br/>(AdditionalFiles via build/SourceFlow.Net.props)"] --> R["WorkflowReader<br/>WF-S01..S06"]
+    Y["Bookings/Workflows/trip-booking.sfflow.yaml<br/>(AdditionalFiles via build/SourceFlow.Net.props)"] --> R["WorkflowReader<br/>WF-S01..S06"]
     M1["Own static manifest<br/>[assembly: SourceFlowManifest]"] --> V
     M2["Referenced assemblies' static manifests"] --> V
     S["Sibling workflows of the owner"] --> V
     R --> V["WorkflowValidator, partial mode<br/>WF-V01..V16"]
     V -->|diagnostics| D["SF0020 at YAML line:column<br/>SF0021 missing $hook"]
     V -->|valid| E["Emit"]
-    E --> G1["OrderFulfilmentWorkflowV1<br/>[ProcessManager(#quot;order-fulfilment@1#quot;)]"]
+    E --> G1["TripBookingWorkflowV1<br/>[ProcessManager(#quot;trip-booking@1#quot;)]"]
     E --> G2["SourceFlow.Workflows.Engine<br/>(simulator sources, internal)"]
     E --> G3["Module RegisterWorkflows part<br/>+ WorkflowInstancesQuery"]
     E --> G4["Manifest workflows[] entry<br/>name, version, file, fingerprint"]
@@ -197,7 +197,7 @@ flowchart TD
 |-----------|--------|
 | `[ProcessManager("name@v")] public sealed partial record {Name}WorkflowV{v}` | In the module's namespace. Implements `IProcessManagerRuntime<…, WorkflowInstanceId>` and `IWorkflowState<…>`. Its only state is `string? State`, the engine state as JSON; `Status` reads it |
 | `HandledMessages` | The start message, every awaited success and failure event, `CommandRejected<T>` for each command with `rejected:` failures, `WorkflowTimer` and `WorkflowControl` |
-| `TryCorrelate` | The start message and awaited events that carry the instance key (the last segment of `start.correlate`, for example `orderId`) correlate by that member; `WorkflowTimer` and `WorkflowControl` by their `Instance`; anything else falls back to the envelope correlation |
+| `TryCorrelate` | The start message and awaited events that carry the instance key (the last segment of `start.correlate`, for example `bookingId`) correlate by that member; `WorkflowTimer` and `WorkflowControl` by their `Instance`; anything else falls back to the envelope correlation |
 | `React` | Passes the message to the engine: `Start`, `Receive`, `Rejected`, `Timer` or `Control`. The engine ignores what the instance isn't waiting for (a late event, a reply to an earlier attempt) |
 | Commands | Built from the engine's field values through the service's JSON metadata (`ReactionContext.Serializer`), and sent with a deterministic id (`Reaction.AndSend(command, messageId)`) |
 | Hooks | `private static partial object? {Name}(IReadOnlyDictionary<string, object?> data)` declarations for each `$hook` you implemented; a missing one is SF0021 |
@@ -276,36 +276,33 @@ Business retries and timeout retries are counted separately. A re-sent attempt g
 
 ### A run across services
 
-The order-fulfilment workflow of [`samples/OrderFulfilment`](../../../../samples/OrderFulfilment), when the payment is declined until its business retries are used up:
+The trip-booking workflow of the [TravelBooking sample](../../../../samples/TravelBooking/README.md), when the Hotels service answers the hold late and the guest then never confirms:
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant O as orders (workflow owner)
-    participant I as inventory
-    participant P as payments
-    O->>O: OrderPlaced starts order-fulfilment@1
-    O->>I: ReserveStock (attempt 1), timer PT5M
-    I-->>O: StockReserved (via inventory.events)
-    Note over O: push compensation of reserve-stock
-    O->>P: Charge (attempt 1), timer PT2M
-    P-->>O: CommandRejected Charge, payments.declined
-    Note over O: Retrying, retry timer PT10M
-    O->>P: Charge (attempt 2, new message id)
-    P-->>O: CommandRejected Charge, payments.declined
-    Note over O: ... until retry max 3 is used, then fail
-    Note over O: Compensating, pop the stack
-    O->>I: ReleaseStock, timer PT15M
-    I-->>O: StockReleased
-    Note over O: Compensated
-    O->>O: CancelOrder (on.compensated, reason = $failure.code)
+    participant B as bookings (workflow owner)
+    participant H as hotels
+    B->>B: BookingRequested starts trip-booking@1
+    B->>H: ReserveRoom (attempt 1), timer PT1M
+    Note over B: no answer within PT1M: timeout retry
+    B->>H: ReserveRoom (attempt 2, new message id), timer PT1M
+    H-->>B: RoomReserved (via hotels.events)
+    Note over B: push compensation of hold-room
+    Note over B: await-guest, timer PT15M
+    Note over B: the timer fires, then fail
+    Note over B: Compensating, pop the stack
+    B->>H: ReleaseRoom, timer PT10M
+    H-->>B: RoomReleased
+    Note over B: Compensated
+    B->>B: DeclineBooking (on.compensated, reason = $failure.code)
 ```
 
-The owner routes `ReserveStock`, `Charge` and `CreateShipment` with `ReplyOnReject()`, subscribes to the other services' event topics, and its module registers their contracts ([`Orders.cs`](../../../../samples/OrderFulfilment/Orders/Orders.cs)).
+The owner routes `ReserveRoom` and `ConfirmReservation` to `hotels` with `ReplyOnReject()` (and `ReleaseRoom` without it), subscribes to `hotels.events`, and its module (`BookingsModule`) registers the Hotels contract ([`Bookings.cs`](../../../../samples/TravelBooking/Bookings/Bookings.cs)).
 
 ## 5. Versioning running instances
 
-The process name includes the version (`order-fulfilment@1`). Changing the structure of a published workflow requires a new `version`: WF-V15 compares the workflow's structural fingerprint with the one the owner's manifest records (`workflows[].fingerprint`). Comments, the description and map-key order don't change the fingerprint.
+The process name includes the version (`trip-booking@1`). Changing the structure of a published workflow requires a new `version`: WF-V15 compares the workflow's structural fingerprint with the one the owner's manifest records (`workflows[].fingerprint`). Comments, the description and map-key order don't change the fingerprint.
 
 Deploy both versions side by side, in the same module or in different modules and assemblies:
 
@@ -326,7 +323,7 @@ Deploy both versions side by side, in the same module or in different modules an
 
 ```csharp
 IReadOnlyList<WorkflowInstanceSummary> rows =
-    await services.GetRequiredService<IQueryService>().ExecuteAsync(new WorkflowInstancesQuery("order-fulfilment"));
+    await services.GetRequiredService<IQueryService>().ExecuteAsync(new WorkflowInstancesQuery("trip-booking"));
 ```
 
 The query binds at startup like every domain query (SF0018); see [08 Query side and SFQL](08-Query-Side-and-SFQL.md) and [Observability and performance](../Observability-and-Performance.md).
@@ -343,7 +340,7 @@ The query binds at startup like every domain query (SF0018); see [08 Query side 
 | `retry-step <name@v> <instance> [--note]` | Needs `ManualIntervention` |
 | `abort <name@v> <instance> --reason [--compensate]` | Needs an unfinished instance |
 
-The instance is the correlation value (for example the order id). The operator's user and machine name are recorded with the audit note or reason. Details and the store options are in [SourceFlow.Tool](../SourceFlow.Tool-README.md).
+The instance is the correlation value (for example the booking id). The operator's user and machine name are recorded with the audit note or reason. Details and the store options are in [SourceFlow.Tool](../SourceFlow.Tool-README.md).
 
 ## 8. SourceFlow Studio architecture
 
@@ -423,4 +420,4 @@ flowchart LR
 - ADRs: [ADR-020](../../ADRs/ADR-020-process-managers-with-durable-state-and-timers.md), [ADR-024](../../ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md), [ADR-025](../../ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md), [ADR-007](../../ADRs/ADR-007-single-command-ownership-route-local-xor-remote.md), [ADR-018](../../ADRs/ADR-018-business-rejections-are-values-not-exceptions.md)
 - Related architecture: [04 Messaging pipeline and middleware](04-Messaging-Pipeline-and-Middleware.md), [05 Event store and persistence](05-Event-Store-and-Persistence.md), [08 Query side and SFQL](08-Query-Side-and-SFQL.md)
 - Code: [`src/Core/SourceFlow.Net/Runtime/ProcessManagerRunner.cs`](../../../../src/Core/SourceFlow.Net/Runtime/ProcessManagerRunner.cs), [`src/Core/SourceFlow.Net/Workflows/Workflows.cs`](../../../../src/Core/SourceFlow.Net/Workflows/Workflows.cs), [`src/Core/SourceFlow.Generators/WorkflowPipeline.cs`](../../../../src/Core/SourceFlow.Generators/WorkflowPipeline.cs), [`src/Workflows/SourceFlow.Studio/Dsl/Simulation/WorkflowSimulator.cs`](../../../../src/Workflows/SourceFlow.Studio/Dsl/Simulation/WorkflowSimulator.cs)
-- Samples: [`samples/Bank/Bank.Transfers`](../../../../samples/Bank/Bank.Transfers), [`samples/OrderFulfilment`](../../../../samples/OrderFulfilment)
+- Sample: [`samples/TravelBooking`](../../../../samples/TravelBooking/README.md). Test fixtures: [`tests/Fixtures/Bank/Bank.Transfers`](../../../../tests/Fixtures/Bank/Bank.Transfers), [`tests/Fixtures/OrderFulfilment`](../../../../tests/Fixtures/OrderFulfilment)

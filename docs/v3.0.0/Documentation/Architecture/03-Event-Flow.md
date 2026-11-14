@@ -181,7 +181,7 @@ sequenceDiagram
     RX->>T: complete
 ```
 
-If one consumer fails, the message is retried, and only the consumers without an inbox entry run again. Handlers that call external systems still run at least once (the inbox row is written after the handler returns), so make them idempotent with `EventContext.EventId`, as the Bank sample's welcome handler does with an idempotency key.
+If one consumer fails, the message is retried, and only the consumers without an inbox entry run again. Handlers that call external systems still run at least once (the inbox row is written after the handler returns), so make them idempotent with `EventContext.EventId`, as the welcome handler of the Bank domain the tests use ([`tests/Fixtures/Bank/Bank.Notifications`](../../../../tests/Fixtures/Bank/Bank.Notifications)) does with an idempotency key.
 
 ---
 

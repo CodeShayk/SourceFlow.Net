@@ -1,6 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <!-- Bank sample published language (WP-1.14): integration events shared between services. No domain logic. -->
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
-  </ItemGroup>
-</Project>

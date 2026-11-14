@@ -727,7 +727,7 @@ Release train: **Studio 1.0** is versioned on its own, but its DSL schema (`sour
 
 **As built (WP-S.13): the OrderFulfilment sample, the guide and hardening.**
 
-- **The sample** (`samples/OrderFulfilment`, its README walks through it).
+- **The sample** (`tests/Fixtures/OrderFulfilment`, its README walks through it).
   - **Services.** Orders, Inventory, Payments and Shipping, each a library with its aggregate, its public commands and events, a contracts module (only those messages and their id converters) and an `Add…Service` method. The host, the design-time export and the end-to-end tests share these methods. `OrderFulfilment.Host` runs one service per process (`--Service=orders`) on PostgreSQL and a cloud transport, and maps the order's commands over HTTP.
   - **The outside world.** Inventory asks a warehouse port (`IStockLevels`) and Payments a payment gateway port (`IPaymentGateway`, keyed by the command id), both in command handlers, so the static manifests still list every `emits` and `rejects`.
   - **The workflow** is §5.1 with two additions that real services need: the delivery address travels to shipping (and is captured again from `orders.address-corrected.v1`), and the refund names the order. The path set is unchanged: 437 paths, a minimal cover of 6.

@@ -20,7 +20,7 @@ Every v2 test file gets exactly one disposition. The retirement work packages (W
 
 | v2 file (tests) | Disposition | v3 tests | Notes |
 |-----------------|-------------|----------|-------|
-| `E2E/E2E.Tests` (1 scenario) | **Port** | E2E-01, E2E-02, E2E-08 | The bank-account domain becomes `samples/Bank` (WP-1.14). Replay becomes a rebuild |
+| `E2E/E2E.Tests` (1 scenario) | **Port** | E2E-01, E2E-02, E2E-08 | The bank-account domain becomes `tests/Fixtures/Bank` (WP-1.14). Replay becomes a rebuild |
 | `Middleware/CommandDispatchMiddlewareTests` (9) | **Port** | UT-MW-01..11, UT-CMD-24 | Nesting, short-circuit, exceptions, double-`next`. Metadata mutation becomes immutable-envelope + `Items` |
 | `Middleware/CommandSubscribeMiddlewareTests` (8) | **Port** | UT-MW-01..08 | Stage = Handle/Receive |
 | `Middleware/EventDispatchMiddlewareTests` (8) | **Port** | UT-MW-01..10 | Stage = Publish |

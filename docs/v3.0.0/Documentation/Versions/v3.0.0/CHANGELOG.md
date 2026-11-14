@@ -187,6 +187,9 @@ See [Cloud transports](../../Architecture/07-Cloud-Transports.md).
 
 - `AddSourceFlow` with `Use*` slots, options validated at startup, and node roles (`Api`, `Receiver`, `Relay`,
   `Subscriptions`).
+- **Fluent configuration**: a service and its features in one chain: `WithServiceName`, `WithRoles`,
+  `WithProvisioning`, `WithHealthChecks`, `WithQueryApi` (SourceFlow.AspNetCore) and `When(condition, …)` to enable a
+  feature from configuration; `app.MapSourceFlowHealthChecks()` maps the liveness, readiness and full health endpoints.
 - **`MapCommand<T>`**: command endpoints with `Idempotency-Key`, `If-Match`, `ETag`, a consistency token header and
   ProblemDetails.
 - **Health checks** (`AddHealthChecks().AddSourceFlow()`): ready, store, transport, outbox, subscriptions, leases and keys.
@@ -296,12 +299,15 @@ and the [workflows guide](../../../guides/workflows.md).
 
 ### Samples
 
-- **[Bank](../../../../../samples/Bank)**: accounts, transfers and notifications; the v2 end-to-end domain ported; an HTTP
-  host (`Bank.Api`) with commands, domain queries, health checks and OTLP export; ghcr.io images and a
-  `docker compose` demo.
-- **[OrderFulfilment](../../../../../samples/OrderFulfilment)**: four services (Orders, Inventory, Payments, Shipping) with
-  the order-fulfilment workflow between them, its Studio workspace and generated specs.
-- **[Studio demo](../../../../../samples/Studio)**: the Studio demo console.
+- **[TravelBooking](../../../../../samples/TravelBooking/README.md)**: two services, Bookings and Hotels, on PostgreSQL
+  (a schema per service) with Amazon SNS/SQS between them, and the trip-booking workflow: retries, timeouts,
+  compensation, a point of no return and manual intervention. HTTP endpoints, domain queries, the query API, health
+  checks, OTLP export and the in-service CLI; its Studio workspace and the specs Studio generated (27 paths, a minimal
+  cover of 6). `docker compose up -d --build` at the repository root starts it with SourceFlow Studio (read-only) and the
+  Aspire dashboard; images `ghcr.io/codeshayk/sourceflow-travel-bookings`, `-travel-hotels` and `-travel-studio`.
+- The Bank domain (accounts, transfers and notifications; the v2 end-to-end domain ported) and the OrderFulfilment
+  services (Orders, Inventory, Payments, Shipping, with the order-fulfilment workflow) are test fixtures in
+  [`tests/Fixtures`](../../../../../tests/Fixtures), not samples.
 
 ### Migration from v2
 
@@ -428,12 +434,12 @@ All 63 work packages are done (138.5 of 138.5 engineer-weeks).
 | Milestone | Work packages | Scope |
 |-----------|---------------|-------|
 | M0 Foundations | 5 | Branch and versioning, repository scaffold, CI, quality harness, design baseline |
-| M1 Core | 15 | Contracts, generator and analyzers, messaging, storage SPI, routing, command processing, middleware, outbox and transport SPI, subscriptions and process managers, hosting, testing toolkit, schema catalog, SFQL front end, Bank sample, v2 core retired |
+| M1 Core | 15 | Contracts, generator and analyzers, messaging, storage SPI, routing, command processing, middleware, outbox and transport SPI, subscriptions and process managers, hosting, testing toolkit, schema catalog, SFQL front end, Bank domain (now a test fixture), v2 core retired |
 | M2 PostgreSQL | 11 | Schema and migrator, append, global log, outbox and friends, snapshots and cache, row-level security, EF Core read models and blue/green generations, SFQL on PostgreSQL, storage kit, performance baseline, v2 EF stores retired |
 | M3 Cloud transports | 7 | Final SPI and TCK, AWS, Google Cloud, Azure, provisioning and IaC, cross-service end-to-end, v2 cloud providers retired |
 | M4 Tooling and operations | 7 | CLI, ASP.NET Core and the query API, health checks and dashboards, SQL Server, partitioning and archiving, OpenTelemetry, chaos and load tests |
 | M5 Security and migration | 5 | Payload protection and KMS providers, crypto-shredding, redaction, v2 migration and bridge, fuzzing and security review |
-| Track S: Workflow DSL and Studio | 13 | Manifests, design-time export, DSL core, simulator and exporters, code generation, workflow operations, WebAssembly core, Studio shell, views, editing, simulation UI, exports and PR diagrams, OrderFulfilment sample |
+| Track S: Workflow DSL and Studio | 13 | Manifests, design-time export, DSL core, simulator and exporters, code generation, workflow operations, WebAssembly core, Studio shell, views, editing, simulation UI, exports and PR diagrams, OrderFulfilment services (now a test fixture) |
 
 The per-package detail, including deviations from the design, is in [STATUS.md](../../../implementation/STATUS.md).
 

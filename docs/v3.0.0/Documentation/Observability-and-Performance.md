@@ -45,15 +45,17 @@ OpenTelemetry package, and the SDK stays your application's dependency.
 using SourceFlow.Diagnostics;
 
 builder.Services.AddOpenTelemetry()
-    .ConfigureResource(r => r.AddService("bank"))
+    .ConfigureResource(r => r.AddService("bookings"))
     .WithTracing(t => t.AddSource(SourceFlowTelemetry.ActivitySourceName))   // "SourceFlow"
     .WithMetrics(m => m.AddMeter(SourceFlowTelemetry.MeterName))             // "SourceFlow"
     .UseOtlpExporter();                                                      // OTEL_EXPORTER_OTLP_ENDPOINT
 ```
 
-This is what [`samples/Bank/Bank.Api/Program.cs`](../../../samples/Bank/Bank.Api/Program.cs) does when
-`OTEL_EXPORTER_OTLP_ENDPOINT` is set. `docker compose up -d` at the repository root starts the Bank service with an
-Aspire dashboard at <http://localhost:18888> that receives its traces and metrics.
+This is what the TravelBooking sample's hosts do when `OTEL_EXPORTER_OTLP_ENDPOINT` is set
+([`samples/TravelBooking/Shared/ServiceHost.cs`](../../../samples/TravelBooking/Shared/ServiceHost.cs)).
+`docker compose up -d --build` at the repository root starts the Bookings and Hotels services with an Aspire dashboard at
+<http://localhost:18888> that receives their traces and metrics: one trace follows a booking from the HTTP request through
+both services and the broker.
 
 Histogram bucket boundaries are declared on the instruments with `InstrumentAdvice<T>`, so you need no views:
 
@@ -413,18 +415,21 @@ workstation (Windows 11, .NET 10, PostgreSQL 17 in Docker), so treat the numbers
 
 ### Load test
 
-[`loadtest/k6/bank-tier-m.js`](../../../loadtest/k6/bank-tier-m.js) drives the Bank API at capacity tier M (1,000
-commands/s: 30 % open, 55 % deposit, 15 % withdraw), probes read-model freshness through the query API every 2 s, and
-reads `/health/sourceflow` every second. k6 exits non-zero when a threshold (an SLO) fails.
+[`loadtest/k6/travel-tier-m.js`](../../../loadtest/k6/travel-tier-m.js) drives the TravelBooking sample's Bookings
+service at capacity tier M (1,000 commands/s: 60 % request a booking, each starting a trip-booking workflow, and 40 %
+confirm one as the guest). Every 2 s it requests a booking and polls the `workflow-instances` read model until the room is
+held, which measures one workflow step across both services and the broker, and it reads the Bookings service's
+`/health/ready` every second. k6 exits non-zero when a threshold (an SLO) fails.
 
 ```bash
-docker compose up -d --build postgres bank-api
+docker compose up -d --build --wait postgres localstack hotels bookings
 docker run --rm -i --network sourceflow-demo_default \
-  -e BASE_URL=http://bank-api:8080 -e RATE=1000 -e DURATION=5m \
-  grafana/k6:2.3.0 run - < loadtest/k6/bank-tier-m.js
+  -e BOOKINGS_URL=http://bookings:8080 -e HOTELS_URL=http://hotels:8080 -e RATE=1000 -e DURATION=5m \
+  grafana/k6:2.3.0 run - < loadtest/k6/travel-tier-m.js
 ```
 
-The reference run met every SLO at 1,000 commands/s for 3 minutes (196,498 commands): 0 failures, p99 37.7 ms (p50
+The reference run, with the first version of the script against the single Bank service that the TravelBooking sample
+replaced, met every SLO at 1,000 commands/s for 3 minutes (196,498 commands): 0 failures, p99 37.7 ms (p50
 7.4 ms), read-model freshness p99 247 ms, and `/health/sourceflow` healthy in 180 of 180 samples. The API used about 1.8
 of its 4 cores and PostgreSQL about 3.6. Above that rate the shared PostgreSQL saturated first; the service itself used
 about 0.8 ms of CPU per command. Run k6 inside the Docker network, not against a published port, which measures the

@@ -72,7 +72,7 @@ app.Run();
 
 At startup, `UseAwsTransport` validates the options, so a value the SDK cannot honour (an unknown region, a timeout out of range) fails before the host starts. When the host starts it provisions or validates the service's topology ([Provisioning](#provisioning)), opens one receiver on the endpoint queue, starts the outbox relay, and starts the dead-letter ingestor.
 
-The [OrderFulfilment sample host](../../../samples/OrderFulfilment/OrderFulfilment.Host/Program.cs) selects AWS, Azure or Google Cloud from configuration (`Transport:Kind`, `Transport:Region`, `Transport:ServiceUrl`, `Transport:NamePrefix`).
+The TravelBooking sample's hosts ([`samples/TravelBooking/Shared/ServiceHost.cs`](../../../samples/TravelBooking/Shared/ServiceHost.cs)) select AWS, Azure or Google Cloud from configuration (`Transport:Kind`, `Transport:Region`, `Transport:ServiceUrl`, `Transport:NamePrefix`). The `docker compose` demo runs them on AWS, against LocalStack.
 
 ## How SourceFlow maps to SQS and SNS
 

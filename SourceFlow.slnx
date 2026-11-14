@@ -62,23 +62,27 @@
   <Folder Name="/tests/Fuzz/">
     <Project Path="tests/Fuzz/SourceFlow.Fuzz.Tests/SourceFlow.Fuzz.Tests.csproj" />
   </Folder>
-  <Folder Name="/samples/Bank/">
-    <Project Path="samples/Bank/Bank.Contracts/Bank.Contracts.csproj" />
-    <Project Path="samples/Bank/Bank.Accounts/Bank.Accounts.csproj" />
-    <Project Path="samples/Bank/Bank.Transfers/Bank.Transfers.csproj" />
-    <Project Path="samples/Bank/Bank.Notifications/Bank.Notifications.csproj" />
-    <Project Path="samples/Bank/Bank.Api/Bank.Api.csproj" />
+  <Folder Name="/tests/Fixtures/Bank/">
+    <Project Path="tests/Fixtures/Bank/Bank.Contracts/Bank.Contracts.csproj" />
+    <Project Path="tests/Fixtures/Bank/Bank.Accounts/Bank.Accounts.csproj" />
+    <Project Path="tests/Fixtures/Bank/Bank.Transfers/Bank.Transfers.csproj" />
+    <Project Path="tests/Fixtures/Bank/Bank.Notifications/Bank.Notifications.csproj" />
+    <Project Path="tests/Fixtures/Bank/Bank.AotCheck/Bank.AotCheck.csproj" />
   </Folder>
-  <Folder Name="/samples/OrderFulfilment/">
-    <Project Path="samples/OrderFulfilment/Orders/Orders.csproj" />
-    <Project Path="samples/OrderFulfilment/Inventory/Inventory.csproj" />
-    <Project Path="samples/OrderFulfilment/Payments/Payments.csproj" />
-    <Project Path="samples/OrderFulfilment/Shipping/Shipping.csproj" />
-    <Project Path="samples/OrderFulfilment/OrderFulfilment.Host/OrderFulfilment.Host.csproj" />
-    <Project Path="samples/OrderFulfilment/Orders.Tests/Orders.Tests.csproj" />
+  <Folder Name="/tests/Fixtures/OrderFulfilment/">
+    <Project Path="tests/Fixtures/OrderFulfilment/Orders/Orders.csproj" />
+    <Project Path="tests/Fixtures/OrderFulfilment/Inventory/Inventory.csproj" />
+    <Project Path="tests/Fixtures/OrderFulfilment/Payments/Payments.csproj" />
+    <Project Path="tests/Fixtures/OrderFulfilment/Shipping/Shipping.csproj" />
+    <Project Path="tests/Fixtures/OrderFulfilment/OrderFulfilment.Host/OrderFulfilment.Host.csproj" />
+    <Project Path="tests/Fixtures/OrderFulfilment/Orders.Tests/Orders.Tests.csproj" />
   </Folder>
-  <Folder Name="/samples/Studio/">
-    <Project Path="samples/Studio/SourceFlow.Studio.Demo/SourceFlow.Studio.Demo.csproj" />
+  <Folder Name="/samples/TravelBooking/">
+    <Project Path="samples/TravelBooking/Bookings/Bookings.csproj" />
+    <Project Path="samples/TravelBooking/Hotels/Hotels.csproj" />
+    <Project Path="samples/TravelBooking/Bookings.Api/Bookings.Api.csproj" />
+    <Project Path="samples/TravelBooking/Hotels.Api/Hotels.Api.csproj" />
+    <Project Path="samples/TravelBooking/TravelBooking.Tests/TravelBooking.Tests.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/SourceFlow.Benchmarks/SourceFlow.Benchmarks.csproj" />

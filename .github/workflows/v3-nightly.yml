@@ -124,8 +124,8 @@ jobs:
           ${{ env.TEST_ARGS }} --filter-trait "Category=Chaos"
 
   load-tier-m:
-    # WP-4.7: the tier-M load test (doc 09 §5, PERF-09) against the Bank API image built from this checkout, with k6 on the
-    # same Docker network. The hosted runner shares 4 vCPUs between the service, PostgreSQL and k6, so it reports rather
+    # WP-4.7: the tier-M load test (doc 09 §5, PERF-09) against the TravelBooking services built from this checkout (the
+    # Bookings service, its workflow to Hotels over LocalStack), with k6 on the same Docker network. The hosted runner shares 4 vCPUs between the service, PostgreSQL and k6, so it reports rather
     # than gates; the milestone acceptance run is on a dedicated 4-vCPU service instance (loadtest/README.md).
     name: load test (tier M)
     runs-on: ubuntu-latest
@@ -134,12 +134,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: v3.0.0
-      - run: docker compose up -d --build --wait postgres bank-api
+      - run: docker compose up -d --build --wait postgres localstack hotels bookings
       - name: k6 at 1,000 commands/s
         run: >-
           docker run --rm -i --network sourceflow-demo_default
-          -e BASE_URL=http://bank-api:8080 -e RATE=1000 -e DURATION=5m
-          grafana/k6:2.3.0 run - < loadtest/k6/bank-tier-m.js | tee loadtest-summary.txt
+          -e BOOKINGS_URL=http://bookings:8080 -e HOTELS_URL=http://hotels:8080 -e RATE=1000 -e DURATION=5m
+          grafana/k6:2.3.0 run - < loadtest/k6/travel-tier-m.js | tee loadtest-summary.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -181,7 +181,7 @@ jobs:
           ${{ env.TEST_ARGS }} --filter-trait "Category=Performance" --output Detailed
 
   dast:
-    # WP-4.7 (plan 08): OWASP ZAP API scan of the Bank sample's query API, driven by deploy/dast/query-api.openapi.json
+    # WP-4.7 (plan 08): OWASP ZAP API scan of the TravelBooking Bookings service's query API, driven by deploy/dast/query-api.openapi.json
     # (a unit test keeps it equal to the mapped routes). Any medium or high finding fails the night. The injection corpus
     # over HTTP (QRY-57..59) runs with the end-to-end tests.
     name: dast (OWASP ZAP)
@@ -190,11 +190,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: v3.0.0
-      - run: docker compose up -d --build --wait postgres bank-api
+      - run: docker compose up -d --build --wait postgres localstack hotels bookings
       - name: ZAP API scan
         run: |
           mkdir -p zap && cp deploy/dast/* zap/ && chmod 777 zap
-          docker run --rm --network sourceflow-demo_default -v "$PWD/zap:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable             zap-api-scan.py -t /zap/wrk/query-api.openapi.json -f openapi -O http://bank-api:8080             -c zap-rules.tsv -J zap-report.json -r zap-report.html || true
+          docker run --rm --network sourceflow-demo_default -v "$PWD/zap:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable             zap-api-scan.py -t /zap/wrk/query-api.openapi.json -f openapi -O http://bookings:8080             -c zap-rules.tsv -J zap-report.json -r zap-report.html || true
           high=$(jq '[.site[].alerts[] | select((.riskcode | tonumber) >= 2)] | length' zap/zap-report.json)
           echo "medium or high findings: $high"
           test "$high" -eq 0

@@ -397,7 +397,7 @@ public sealed class ManifestTests
     {
         string root = RepositoryRoot();
         string[] sources = new[] { "Bank.Contracts", "Bank.Accounts", "Bank.Transfers", "Bank.Notifications" }
-            .SelectMany(project => Directory.GetFiles(Path.Combine(root, "samples", "Bank", project), "*.cs", SearchOption.TopDirectoryOnly))
+            .SelectMany(project => Directory.GetFiles(Path.Combine(root, "tests", "Fixtures", "Bank", project), "*.cs", SearchOption.TopDirectoryOnly))
             .Order(StringComparer.Ordinal)
             .Select(File.ReadAllText)
             .Prepend("global using System;")

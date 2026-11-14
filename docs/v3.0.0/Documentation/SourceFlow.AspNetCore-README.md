@@ -40,62 +40,58 @@ Use a web project (`Microsoft.NET.Sdk.Web`) that targets `net10.0`.
 
 ## Quick start
 
-This is the Bank sample's host, [`samples/Bank/Bank.Api/Program.cs`](../../../samples/Bank/Bank.Api/Program.cs),
-trimmed to the HTTP parts:
+This is the TravelBooking sample's Bookings service,
+[`samples/TravelBooking/Bookings.Api/Program.cs`](../../../samples/TravelBooking/Bookings.Api/Program.cs), without its
+demo query API (see [The per-service query API](#the-per-service-query-api)):
 
 ```csharp
-using Bank.Accounts;
-using Bank.Contracts;
-using Bank.Notifications;
-using Bank.Transfers;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Bookings;
 using SourceFlow.AspNetCore;
 using SourceFlow.Hosting;
-using SourceFlow.Storage.PostgreSQL;
+using TravelBooking;
 
+// The Bookings service: takes bookings from guests and runs the trip-booking workflow against the Hotels service.
 WebApplicationBuilder builder = WebApplication.CreateSlimBuilder(args);
-string connectionString = builder.Configuration.GetConnectionString("SourceFlow")
-    ?? throw new InvalidOperationException("Set ConnectionStrings__SourceFlow to a PostgreSQL connection string.");
+IConfiguration configuration = builder.Configuration;
 
-builder.Services.AddSourceFlow(sf =>
-{
-    sf.ServiceName = "bank";
-    sf.AddModule<ContractsModule>();
-    sf.AddModule<AccountsModule>();
-    sf.AddModule<TransfersModule>();
-    sf.AddModule<NotificationsModule>();
-    sf.UsePostgreSql(connectionString);
-    sf.UseInMemoryTransport();
-});
-
-builder.Services.AddHealthChecks().AddSourceFlow();
+builder.Services.AddSourceFlow(sf => sf.AddBookingsService().UseInfrastructure(configuration));
+builder.Services.AddObservability(configuration, BookingsService.Name);
 
 WebApplication app = builder.Build();
 
-// `dotnet run -- sourceflow <command>` runs the CLI with this service's model and storage (ADR-031).
+// `dotnet Bookings.Api.dll sourceflow workflow list --name trip-booking` runs the SourceFlow CLI in this service (ADR-031).
 if (await SourceFlow.Tool.SourceFlowCli.TryRunAsync(args, app.Services) is { } exitCode)
 {
     return exitCode;
 }
 
-app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false });
-app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains(SourceFlowHealthChecks.ReadyTag) });
+app.MapHealth();
 
-app.MapCommand<OpenAccount>("/accounts/{accountId}");
-app.MapCommand<Deposit>("/accounts/{accountId}/deposits");
-app.MapCommand<Withdraw>("/accounts/{accountId}/withdrawals");
-app.MapCommand<CloseAccount>("/accounts/{accountId}/close");
-app.MapCommand<RequestTransfer>("/transfers/{transferId}");
+// The guest's commands: POST with a JSON body; the route fills the booking id.
+app.MapCommand<RequestBooking>("/bookings/{bookingId}");
+app.MapCommand<ConfirmByGuest>("/bookings/{bookingId}/confirm");
+app.MapCommand<CancelByGuest>("/bookings/{bookingId}/cancel");
 
 app.Run();
 return 0;
 ```
 
-Send a command:
+`AddBookingsService` ([`Bookings.cs`](../../../samples/TravelBooking/Bookings/Bookings.cs)) sets the service name and adds
+its module, its read model and the routes to the Hotels service. `UseInfrastructure`, `AddObservability` and `MapHealth`
+([`Shared/ServiceHost.cs`](../../../samples/TravelBooking/Shared/ServiceHost.cs)) add PostgreSQL (a schema per service),
+the cloud transport, OpenTelemetry and the health checks; `MapHealth` maps them like this:
+
+```csharp
+app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains(SourceFlowHealthChecks.ReadyTag) });
+```
+
+Send a command (`docker compose up -d --build` at the repository root starts the service on port 8080):
 
 ```bash
-curl -i -X POST http://localhost:8080/accounts/0193a7a0-0000-7000-8000-000000000001 \
-  -H 'Content-Type: application/json' -d '{ "holder": "Ada", "initialDeposit": 100 }'
+curl -i -X POST http://localhost:8080/bookings/0193a7a0-0000-7000-8000-0000000000b1 \
+  -H 'Content-Type: application/json' \
+  -d '{ "hotelId": "0193a7a0-0000-7000-8000-000000000001", "guest": "Ada Lovelace", "nights": 2 }'
 ```
 
 ```http
@@ -126,7 +122,7 @@ public static IEndpointConventionBuilder MapCommand<TCommand>(this IEndpointRout
 1. The body is read as a JSON object. An empty body (`Content-Length: 0`) counts as `{}`.
 2. Every route value is added to the object **when the body does not already have that member**. Route keys are
    converted with the command's JSON naming policy (camelCase by default), and the comparison with body members ignores
-   case. So `/accounts/{accountId}` fills `accountId`, and a body that already carries `accountId` wins.
+   case. So `/bookings/{bookingId}` fills `bookingId`, and a body that already carries `bookingId` wins.
 3. The object is deserialised with the command's source-generated `JsonTypeInfo` from the message type registry: the
    same contract the runtime uses, with no reflection.
 
@@ -159,28 +155,24 @@ client that wants to read its own write passes it to a query with `consistency =
 
 ```bash
 # Read the current version from the previous response's ETag, then make the write conditional on it.
-curl -i -X POST http://localhost:8080/accounts/$ID/withdrawals \
-  -H 'Content-Type: application/json' -H 'If-Match: "3"' -H 'Idempotency-Key: 7f6c1c2e' \
-  -d '{ "amount": 25 }'
+curl -i -X POST http://localhost:8080/bookings/$BOOKING/confirm \
+  -H 'Content-Type: application/json' -H 'If-Match: "1"' -H 'Idempotency-Key: 7f6c1c2e' \
+  -d '{}'
 ```
 
 Without `If-Match` the command processor re-decides automatically after a concurrency conflict
 (`SourceFlowOptions.MaxConcurrencyRetries`, ADR-008), so `409` only appears when the retries are exhausted. With
 `If-Match` the client has asked for a specific version, so a stale version is reported as `412` straight away.
 
-### A multi-service host
+### One host per service
 
-[`samples/OrderFulfilment/OrderFulfilment.Host/Program.cs`](../../../samples/OrderFulfilment/OrderFulfilment.Host/Program.cs)
-runs one of four services per process and maps commands only for the service that owns them:
+Each service of the TravelBooking sample is its own host and maps only the commands it owns. The Hotels service
+([`samples/TravelBooking/Hotels.Api/Program.cs`](../../../samples/TravelBooking/Hotels.Api/Program.cs)) maps the hotel
+staff's commands:
 
 ```csharp
-if (service == OrdersService.Name)
-{
-    app.MapCommand<PlaceOrder>("/orders/{orderId}");
-    app.MapCommand<ApproveOrder>("/orders/{orderId}/approve");
-    app.MapCommand<RejectOrder>("/orders/{orderId}/reject");
-    app.MapCommand<CorrectAddress>("/orders/{orderId}/address");
-}
+app.MapCommand<RegisterHotel>("/hotels/{hotelId}");
+app.MapCommand<ReleaseRoom>("/hotels/{hotelId}/holds/{bookingId}/release");
 ```
 
 You can also map a command that another service owns. Routing sends it through the outbox and the endpoint answers
@@ -189,23 +181,26 @@ You can also map a command that another service owns. Routing sends it through t
 ## Named domain queries over HTTP
 
 A named domain query is a versioned query contract declared with `[DomainQuery]` and `IDomainQuery<TResult>` (ADR-030).
-It is the stable way for other services and UIs to read a service's data. The Bank sample declares one in
-[`samples/Bank/Bank.Accounts/AccountSummary.cs`](../../../samples/Bank/Bank.Accounts/AccountSummary.cs):
+It is the stable way for other services and UIs to read a service's data. The TravelBooking sample's Bookings service
+declares one in [`samples/TravelBooking/Bookings/Bookings.cs`](../../../samples/TravelBooking/Bookings/Bookings.cs):
 
 ```csharp
-[DomainQuery("accounts.low-balance", 1)]
-public sealed partial record LowBalanceAccounts(decimal Below) : IDomainQuery<LowBalanceAccount>
+[DomainQuery("bookings.by-status", 1)]
+public sealed partial record BookingsByStatus(int Status) : IDomainQuery<BookingRow>
 {
     public const string Sfql = """
-        from readmodel "account-summary"
-        | where status = 1 and balance < @below
-        | project accountId = id, holder, balance
-        | order by balance
+        from readmodel "booking-summary"
+        | where status = @status
+        | project bookingId = id, hotelId, nights, confirmedByGuest, reason
+        | order by bookingId
         """;
 }
 
-public sealed record LowBalanceAccount(AccountId AccountId, string Holder, decimal Balance);
+public sealed record BookingRow(BookingId BookingId, Guid HotelId, int Nights, bool ConfirmedByGuest, string? Reason);
 ```
+
+A service that runs workflows also has a generated domain query for their instances (`bookings.workflow-instances` in
+the Bookings service).
 
 Map every registered domain query with one call:
 
@@ -219,10 +214,10 @@ app.MapDomainQueries()                             // default prefix "/queries"
 | Method and path | What it does |
 |-----------------|--------------|
 | `GET /queries` | Lists the domain queries: `name`, `version`, `path`, `parameters` (names), `columns` (result columns). |
-| `GET /queries/{name}/v{version}` | Runs one. Each parameter comes from the query string by its name (`?below=100`). `pageSize` and `continuation` are optional query-string values. |
+| `GET /queries/{name}/v{version}` | Runs one. Each parameter comes from the query string by its name (`?status=1`). `pageSize` and `continuation` are optional query-string values. |
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" 'http://localhost:8080/queries/accounts.low-balance/v1?below=100'
+curl -H "Authorization: Bearer $TOKEN" 'http://localhost:8080/queries/bookings.by-status/v1?status=1'
 ```
 
 The response has the same shape as an ad-hoc query (see [Response formats](#response-formats)). An unknown name or
@@ -233,7 +228,7 @@ How permissions apply to a domain query: the query is a published contract, so i
 only when the caller holds `sourceflow.query.pii`. Access to the endpoint itself is decided by the authorization policy
 you attach to the group. Rate and concurrency limits apply as for the query API.
 
-In process, run the same contract with `IQueryService.ExecuteAsync(new LowBalanceAccounts(Below: 100m))`.
+In process, run the same contract with `IQueryService.ExecuteAsync(new BookingsByStatus(Status: 1))`.
 
 ## The per-service query API
 
@@ -263,6 +258,15 @@ app.MapSourceFlowQueryApi("/query").RequireAuthorization("sourceflow-query");
 app.MapDomainQueries("/queries").RequireAuthorization("sourceflow-query");
 ```
 
+In the SourceFlow builder chain, `WithQueryApi(...)` does the same as `AddSourceFlowQueryApi(...)`, and `When` switches
+it on from configuration:
+
+```csharp
+builder.Services.AddSourceFlow(sf => sf
+    .AddBookingsService()
+    .When(configuration.GetValue<bool>("Features:QueryApi"), s => s.WithQueryApi(o => o.RequestsPerMinute = 120)));
+```
+
 `AddSourceFlowQueryApi` registers the options, the rate and concurrency limiters, and a startup filter.
 `MapSourceFlowQueryApi` and `MapDomainQueries` throw `InvalidOperationException` ("Call
 services.AddSourceFlowQueryApi() before mapping the query API.") if it was not called. Both return a
@@ -281,8 +285,8 @@ System.InvalidOperationException: SFQ0504: the SourceFlow query API is mapped wi
 .AllowAnonymous() for local demos).
 ```
 
-There is no way to expose the query API by accident. A demo opts out explicitly, as the Bank sample does when
-`Demo:QueryApi` is `true`:
+There is no way to expose the query API by accident. A demo opts out explicitly, as the TravelBooking sample does
+unless `Demo:QueryApi` is `false`:
 
 ```csharp
 app.MapSourceFlowQueryApi().AllowAnonymous();
@@ -425,12 +429,21 @@ fails when its paths differ from the routes the package maps.
 
 ## Health checks
 
-The health checks live in the core package (`SourceFlow.Hosting`), and a web host maps them with ASP.NET Core's health
-check middleware:
+The health checks live in the core package (`SourceFlow.Hosting`). Enable them in the builder chain and map the three
+standard endpoints in one call:
 
 ```csharp
-builder.Services.AddHealthChecks().AddSourceFlow();          // prefix "sourceflow" by default
+builder.Services.AddSourceFlow(sf => sf
+    .AddBookingsService()
+    .WithHealthChecks());                                    // prefix "sourceflow" by default
 
+app.MapSourceFlowHealthChecks();                             // /health, /health/ready, /health/sourceflow
+```
+
+`MapSourceFlowHealthChecks(prefix = "/health")` is the same as mapping them with ASP.NET Core's health check middleware
+yourself, which you can still do (with `builder.Services.AddHealthChecks().AddSourceFlow()`):
+
+```csharp
 app.MapHealthChecks("/health", new HealthCheckOptions { Predicate = _ => false });     // liveness: no dependencies
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains(SourceFlowHealthChecks.ReadyTag) });
 app.MapHealthChecks("/health/sourceflow", new HealthCheckOptions { Predicate = c => c.Tags.Contains(SourceFlowHealthChecks.Tag) });
@@ -471,8 +484,8 @@ if (await SourceFlow.Tool.SourceFlowCli.TryRunAsync(args, app.Services) is { } e
 through the host:
 
 ```bash
-dotnet run --project samples/Bank/Bank.Api -- sourceflow query 'from readmodel "account-summary" | take 10'
-dotnet run --project samples/OrderFulfilment/OrderFulfilment.Host -- --Service=orders sourceflow workflow list
+dotnet run --project samples/TravelBooking/Bookings.Api -- sourceflow query 'from readmodel "booking-summary" | take 10'
+docker compose exec bookings sh -c 'dotnet Bookings.Api.dll sourceflow workflow list --name trip-booking'   # in the demo container
 ```
 
 See the [SourceFlow.Tool README](SourceFlow.Tool-README.md) for every command.
@@ -521,10 +534,10 @@ The statement timeout is a storage option: `PostgreSqlStorageOptions.QueryTimeou
 ## Operational notes
 
 - **Security.** The query API is not a SQL pass-through. Queries are parsed by SourceFlow's own grammar, bound against
-  the service's catalog and compiled to parameterised SQL in a read-only transaction. The Bank sample's query API is
-  scanned nightly with OWASP ZAP ([`deploy/dast`](../../../deploy/dast/README.md)).
-- **Anonymous access** is only for demos. `Demo:QueryApi` and `Demo:PersonalData` in the Bank sample grant every
-  permission to every caller; never copy that into a real service.
+  the service's catalog and compiled to parameterised SQL in a read-only transaction. The query API of the TravelBooking
+  sample's Bookings service is scanned nightly with OWASP ZAP ([`deploy/dast`](../../../deploy/dast/README.md)).
+- **Anonymous access** is only for demos. `Demo:QueryApi` in the TravelBooking sample grants every caller every
+  permission except personal data; never copy that into a real service.
 - **Authorization order.** Call `UseAuthentication()` and `UseAuthorization()` before the endpoints run, as usual. The
   SFQ0504 check only verifies that a decision is attached, not what the policy says.
 - **CORS** is off unless you add it. If you enable it, list origins explicitly.
@@ -565,5 +578,5 @@ The statement timeout is a storage option: `PostgreSqlStorageOptions.QueryTimeou
   [ADR-026](../ADRs/ADR-026-per-service-query-api-with-sql-syntax-and-injection-proof-compilation.md),
   [ADR-030](../ADRs/ADR-030-domain-queries-bind-at-startup.md),
   [ADR-031](../ADRs/ADR-031-cli-runs-store-commands-globally-and-model-commands-in-the-service.md).
-- Samples: [Bank.Api](../../../samples/Bank/Bank.Api/Program.cs),
-  [OrderFulfilment.Host](../../../samples/OrderFulfilment/OrderFulfilment.Host/Program.cs).
+- Sample: [Bookings.Api](../../../samples/TravelBooking/Bookings.Api/Program.cs),
+  [Hotels.Api](../../../samples/TravelBooking/Hotels.Api/Program.cs).

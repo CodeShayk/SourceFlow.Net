@@ -331,7 +331,9 @@ public sealed partial record LowBalanceAccounts(decimal Below) : IDomainQuery<Lo
 public sealed record LowBalanceAccount(AccountId AccountId, string Holder, decimal Balance);
 ```
 
-(From [`samples/Bank/Bank.Accounts/AccountSummary.cs`](../../../../samples/Bank/Bank.Accounts/AccountSummary.cs).) The
+(From the Bank domain the tests use, [`tests/Fixtures/Bank/Bank.Accounts/AccountSummary.cs`](../../../../tests/Fixtures/Bank/Bank.Accounts/AccountSummary.cs);
+the TravelBooking sample's `bookings.by-status` query in [`Bookings.cs`](../../../../samples/TravelBooking/Bookings/Bookings.cs)
+is written the same way.) The
 record's members are the parameters (camelCase, matching `@below`); a `const string Sfql` (or `Sql` for the SQL syntax)
 holds the text; the result record's constructor parameters are matched to output columns ignoring case.
 
@@ -450,10 +452,10 @@ follow the schema and are never hand-written.
   only, or `null` for the interpreter), `ParameterCount` and `QueryHash`. Nothing runs.
 
 ```text
-$ dotnet run --project samples/Bank/Bank.Api -- sourceflow query --explain 'from readmodel "account-summary" | where balance < @b' --param b=0
+$ dotnet run --project samples/TravelBooking/Bookings.Api -- sourceflow query --explain 'from readmodel "booking-summary" | where status = @s | project id, nights' --param s=1
 engine:     postgresql
-columns:    id string, holder string, balance decimal, status integer, version integer
-sources:    readmodel.account-summary (eventual)
+columns:    id string, nights integer
+sources:    readmodel.booking-summary (eventual)
 parameters: ...
 hash:       sha256:...
 statement:
@@ -513,7 +515,6 @@ services.AddSingleton(QueryPolicySettings.Default with
 | `IQueryService`, typed builder, domain queries | `SourceFlow.Net` | Inject `IQueryService`; in-process calls hold every permission unless you pass `QueryOptions.Permissions`. |
 | HTTP query API | `SourceFlow.AspNetCore` | `AddSourceFlowQueryApi()`, then `MapSourceFlowQueryApi()` (`POST /query`, `/query/validate`, `/query/explain`, `GET /query/schema`) and `MapDomainQueries()` (`GET /queries`, `GET /queries/{name}/v{n}`). Startup fails without an authorization decision (SFQ0504). JSON, NDJSON or CSV. See the [SourceFlow.AspNetCore README](../SourceFlow.AspNetCore-README.md#the-per-service-query-api). |
 | CLI | `SourceFlow.Tool` | `dotnet run --project <service> -- sourceflow query "<query>" [--sql] [--param n=v] [--validate] [--explain] [--format table\|json\|csv]`. See the [SourceFlow.Tool README](../SourceFlow.Tool-README.md#query). |
-| Studio demo console | `samples/Studio` | Proxies `query`, `query/schema` and `query/validate` to the Bank service's query API. |
 
 ## Guarantees and failure behaviour
 

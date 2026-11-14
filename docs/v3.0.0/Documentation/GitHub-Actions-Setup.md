@@ -34,7 +34,7 @@ the plan differ, this document describes the workflows as they are in the reposi
 | `v3-codeql.yml` | PR into or push to `v3.0.0`; Mondays 05:17 UTC | CodeQL for C# (`security-extended`) |
 | `v3-scorecard.yml` | Push to `v3.0.0`; Mondays 04:30 UTC; manual | OpenSSF Scorecard |
 | `v3-release.yml` | Push to `v3.0.0`; tags `v3.*`; manual | Pack, SBOM, sign, attest, publish |
-| `v3-images.yml` | Push to `v3.0.0` or `v3/**` touching the sample's inputs; manual | Bank API and Studio demo images on ghcr.io |
+| `v3-images.yml` | Push to `v3.0.0` or `v3/**` touching the sample's inputs; manual | TravelBooking demo images (Bookings, Hotels, Studio) on ghcr.io |
 | `v3-nightly.yml` | Daily 02:00 UTC; manual | Database matrix, real cloud, chaos, load, relay latency, DAST, benchmarks |
 | `v3-weekly.yml` | Sundays 03:00 UTC; manual | Coverage-guided fuzzing, 2 hours per target |
 | `Master-Build.yml`, `Release-CI.yml`, `GCP-Build.yml`, `Master-CodeQL.yml`, `Release-CodeQL.yml` | v2 branches only | The v2 line (section 9) |
@@ -71,7 +71,7 @@ Permissions: `contents: read`.
 ```mermaid
 flowchart LR
     DR["dependency-review<br/>(PRs only)"]
-    B["build<br/>ubuntu + windows<br/>-warnaserror · AOT publish of Bank.Api"] --> U[unit]
+    B["build<br/>ubuntu + windows<br/>-warnaserror · AOT publish of Bank.AotCheck"] --> U[unit]
     B --> S["storage<br/>Testcontainers"]
     B --> T["transports<br/>aws · gcp · azure"]
     B --> I["iac<br/>Terraform · Bicep · promtool"]
@@ -84,14 +84,14 @@ flowchart LR
 | Job | Runs on | What it does |
 |-----|---------|--------------|
 | `dependency-review` | ubuntu | `actions/dependency-review-action`; fails on new or updated dependencies with a moderate or worse vulnerability. Pull requests only. |
-| `build (ubuntu)`, `build (windows)` | both | `dotnet restore` and `dotnet build SourceFlow.slnx -c Release -warnaserror`. On Linux also `dotnet publish samples/Bank/Bank.Api -p:SourceFlowAotCheck=true -warnaserror` (ARCH-06: the core and adapters stay AOT-clean). The project sets `PublishAot` itself when `SourceFlowAotCheck` is true: `-p:PublishAot=true` on the command line would also reach the `netstandard2.0` source generator, which cannot be AOT-compiled (NETSDK1207). The check builds the service without `SourceFlow.Tool`: the CLI is not an AOT-marked package (System.CommandLine handlers, the Studio host's minimal APIs, SqlClient for the v2 migration). |
+| `build (ubuntu)`, `build (windows)` | both | `dotnet restore` and `dotnet build SourceFlow.slnx -c Release -warnaserror`. On Linux also `dotnet publish tests/Fixtures/Bank/Bank.AotCheck -p:SourceFlowAotCheck=true -warnaserror` (ARCH-06: the core and adapters stay AOT-clean). `Bank.AotCheck` is a test fixture: a service built from the AOT-marked packages (core, PostgreSQL, ASP.NET Core) and the Bank domain, published but never run. The project sets `PublishAot` itself when `SourceFlowAotCheck` is true: `-p:PublishAot=true` on the command line would also reach the `netstandard2.0` source generator, which cannot be AOT-compiled (NETSDK1207). The check leaves out `SourceFlow.Tool` and the cloud adapters' SDKs: the CLI is not an AOT-marked package (System.CommandLine handlers, the Studio host's minimal APIs, SqlClient for the v2 migration). |
 | `unit` | ubuntu | `dotnet test --solution SourceFlow.slnx` excluding the traits `Requires=Docker`, `LocalStack`, `PubSubEmulator`, `ServiceBusEmulator`, `RealCloud`, `Terraform` and `Category=Chaos`, `Performance`. This includes unit, architecture, workflow golden and fuzz-seed tests and the in-memory storage and transport conformance kits. |
 | `storage` | ubuntu | `tests/Storage/SourceFlow.Storage.Tests` with Testcontainers (PostgreSQL, PostgreSQL with row-level security, SQL Server), excluding `Category=Chaos`. |
 | `transports (aws\|gcp\|azure)` | ubuntu | Starts the emulator from `.github/emulators/<name>` and waits for its health gate, then runs `tests/Cloud/SourceFlow.Cloud.Tests` filtered by `Cloud=Aws\|Gcp\|Azure`, excluding `RealCloud` and `Terraform`. |
 | `iac` | ubuntu | `terraform fmt -check` over `deploy/topology/terraform`; `promtool check rules` over `deploy/observability/sourceflow-alerts.yaml`; the `Requires=Terraform` tests, which apply the Terraform modules to LocalStack and the Pub/Sub emulator, run every module's `terraform test`, and build the Bicep module. |
-| `e2e` | ubuntu | Starts all three emulators, then runs `tests/EndToEnd/SourceFlow.EndToEnd.Tests` excluding `Chaos`, `Performance` and `RealCloud`: the Bank cross-service scenarios on PostgreSQL over every transport, the OrderFulfilment workflow scenarios, and the v2 bridge. |
+| `e2e` | ubuntu | Starts all three emulators, then runs `tests/EndToEnd/SourceFlow.EndToEnd.Tests` excluding `Chaos`, `Performance` and `RealCloud`: the TravelBooking scenarios (TB-E2E-01..06, TB-E2E-01 on PostgreSQL over every transport), the Bank cross-service scenarios on PostgreSQL over every transport, the OrderFulfilment fixture's workflow scenarios, and the v2 bridge. |
 | `coverage` | ubuntu | Downloads every job's Cobertura files, merges them with ReportGenerator, runs `tools/CoverageGate` against `tools/CoverageGate/thresholds.json`, and writes a summary to the job page. |
-| `api-traceability` | ubuntu | Runs `Category=PublicApi` and `Category=Architecture` (public API approval files and ARCH-08 traceability), then `dotnet sourceflow manifest export --check` for the Bank sample and the four OrderFulfilment services (manifest drift). |
+| `api-traceability` | ubuntu | Runs `Category=PublicApi` and `Category=Architecture` (public API approval files and ARCH-08 traceability), then `dotnet sourceflow manifest export --check` for the two TravelBooking services (Bookings, Hotels) and the four services of the OrderFulfilment fixture (manifest drift). |
 | `pack` | ubuntu | `dotnet pack SourceFlow.slnx -o artifacts`, then checks that `SourceFlow.Net` contains `analyzers/dotnet/cs/SourceFlow.Generators.dll` and that no package has a `lib/` folder other than `lib/net10.0/`. Uploads the packages as the `packages` artifact (nothing is published). |
 
 Test runs share these arguments: `-c Release --no-build --ignore-exit-code 8 --coverage --coverage-output-format cobertura
@@ -116,8 +116,8 @@ See [Cloud integration testing](Cloud-Integration-Testing.md) for the tests them
 ### `studio-pr.yml`
 
 Triggered by pull requests into and pushes to `v3.0.0` that touch `studio/**`, `src/Workflows/**`,
-`src/Tooling/SourceFlow.Tool/**`, `schemas/**`, `tests/workflow-golden/**`, `samples/OrderFulfilment/**`, the DSL
-reference or either Studio workflow. One job, `core-client`, in `studio/` with Node 22.18 and npm:
+`src/Tooling/SourceFlow.Tool/**`, `schemas/**`, `tests/workflow-golden/**`, `tests/Fixtures/OrderFulfilment/**`,
+`samples/TravelBooking/**`, the DSL reference or either Studio workflow. One job, `core-client`, in `studio/` with Node 22.18 and npm:
 
 | Step | Command |
 |------|---------|
@@ -189,17 +189,18 @@ What ships: every project under `src/` that is packable, which is `SourceFlow.Ne
 
 ## 6. Demo images (`v3-images.yml`)
 
-Builds two multi-architecture images (`linux/amd64`, `linux/arm64`) with Buildx and pushes them to
-`ghcr.io/<owner>/…`:
+Builds the three images of the TravelBooking demo, multi-architecture (`linux/amd64`, `linux/arm64`), with Buildx and
+pushes them to `ghcr.io/<owner>/…`:
 
 | Image | Dockerfile |
 |-------|------------|
-| `sourceflow-bank-api` | `samples/Bank/Bank.Api/Dockerfile` |
-| `sourceflow-studio-demo` | `samples/Studio/SourceFlow.Studio.Demo/Dockerfile` |
+| `sourceflow-travel-bookings` | `samples/TravelBooking/Dockerfile` (`SERVICE=Bookings`) |
+| `sourceflow-travel-hotels` | `samples/TravelBooking/Dockerfile` (`SERVICE=Hotels`) |
+| `sourceflow-travel-studio` | `samples/TravelBooking/Studio.Dockerfile` (SourceFlow Studio, read-only, for the sample's workspace) |
 
 Tags: the branch name, the short commit SHA, and `v3-latest` (the tag [`docker-compose.yml`](../../../docker-compose.yml)
-pulls by default). It runs on pushes to `v3.0.0` and `v3/**` that change `src/Core`, `src/Hosting`, the PostgreSQL
-adapter, `samples`, the build props, `global.json`, `.dockerignore` or the workflow itself. Permissions:
+pulls by default). It runs on pushes to `v3.0.0` and `v3/**` that change `src`, `samples`, `studio`, `schemas`,
+the build props, `global.json`, `.dockerignore` or the workflow itself. Permissions:
 `packages: write`, with `GITHUB_TOKEN`.
 
 ## 7. Nightly (`v3-nightly.yml`)
@@ -213,9 +214,9 @@ to the cloud sandboxes).
 | `component benchmarks` | `dotnet run -c Release --project benchmarks/SourceFlow.Benchmarks -- baseline`; uploads `benchmarks/baselines/*.json` and the BenchmarkDotNet results. No regression gate yet. |
 | `real cloud (aws\|azure\|gcp)` | Only when the repository variable `SOURCEFLOW_REAL_CLOUD` is `true`. Signs in by OIDC (`aws-actions/configure-aws-credentials`, `azure/login`, `google-github-actions/auth`), then runs the transport conformance kit, the real KMS tests and the end-to-end scenarios against the real cloud. The job sets the environment variable `SOURCEFLOW_REAL_CLOUD` to the cloud name, which switches the tests from emulators to real resources. |
 | `chaos` | `Category=Chaos` (CH-01..10 and the workflow chaos scenario). |
-| `load test (tier M)` | `docker compose up -d --build --wait postgres bank-api`, then k6 (`grafana/k6:2.3.0`) runs `loadtest/k6/bank-tier-m.js` at 1,000 commands/s for 5 minutes. Reports only (`continue-on-error`): the hosted runner shares its CPUs between the service, PostgreSQL and k6. |
+| `load test (tier M)` | `docker compose up -d --build --wait postgres localstack hotels bookings` (the TravelBooking demo), then k6 (`grafana/k6:2.3.0`) runs `loadtest/k6/travel-tier-m.js` against the Bookings service at 1,000 commands/s for 5 minutes, with the trip-booking workflow running to the Hotels service over LocalStack. Reports only (`continue-on-error`): the hosted runner shares its CPUs between the services, PostgreSQL, LocalStack and k6. |
 | `relay latency (emulators)` | `Category=Performance` on the three emulators (PERF-07: outbox commit to broker acknowledgement). |
-| `dast (OWASP ZAP)` | Starts the Bank API and runs `zap-api-scan.py` against `deploy/dast/query-api.openapi.json` with `deploy/dast/zap-rules.tsv`. Fails on any medium or high finding; the report is uploaded. |
+| `dast (OWASP ZAP)` | Starts the TravelBooking demo and runs `zap-api-scan.py` against the Bookings service's query API, described by `deploy/dast/query-api.openapi.json`, with the rules in `deploy/dast/zap-rules.tsv`. Fails on any medium or high finding; the report is uploaded. |
 | `long-properties` | `Category=Property` with `CsCheck_Iter=50000`: the CsCheck property tests (snapshot fold equivalence, storage linearizability on every store, SFQL parameterisation on both SQL engines, workflow runtime against the simulator) run with many more iterations than in the PR gate. |
 
 Not built from plan 08 §3: the sweeper for leftover cloud resources (the real-cloud tests delete their own prefixed
@@ -291,7 +292,7 @@ No long-lived cloud credential is stored: the cloud identities are federated wit
 
 | Gate | Where | As built |
 |------|-------|----------|
-| Zero build warnings, analyzers clean, AOT analysis clean | `build` | Enforced (`-warnaserror`, AOT publish of the Bank API) |
+| Zero build warnings, analyzers clean, AOT analysis clean | `build` | Enforced (`-warnaserror`, AOT publish of `Bank.AotCheck`) |
 | Unit, conformance kits, emulator TCK and end-to-end tests green | `unit`, `storage`, `transports`, `e2e` | Enforced |
 | Infrastructure as code valid | `iac` | Enforced |
 | Public API approved, traceability, manifests without drift | `api-traceability` | Enforced |
@@ -336,7 +337,7 @@ Prerequisites: the .NET SDK from `global.json`, Docker, and for Studio Node 22.1
 ```bash
 # build (as the build job)
 dotnet build SourceFlow.slnx -c Release -warnaserror
-dotnet publish samples/Bank/Bank.Api/Bank.Api.csproj -c Release -p:SourceFlowAotCheck=true -warnaserror   # needs the native toolchain
+dotnet publish tests/Fixtures/Bank/Bank.AotCheck/Bank.AotCheck.csproj -c Release -p:SourceFlowAotCheck=true -warnaserror   # needs the native toolchain
 
 # unit job: no Docker needed
 dotnet test --solution SourceFlow.slnx -c Release --no-build --ignore-exit-code 8 \

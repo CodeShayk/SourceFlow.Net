@@ -268,7 +268,7 @@ public sealed class BankScenarios
     [Trait("Covers", "RT-R4")]
     public async Task OneService_ReceivesItsOwnPublication_ThroughItsOwnSubscription()
     {
-        // Bank.Api's composition: every module in one service, which publishes AccountOpenedV1 and subscribes to it.
+        // Every Bank module in one service, which publishes AccountOpenedV1 and receives it through its own subscription.
         var time = new FakeTimeProvider(new DateTimeOffset(2026, 1, 31, 12, 0, 0, TimeSpan.Zero));
         var broker = new InMemoryBroker(time);
         await using SourceFlowTestHost bank = await SourceFlowTestHost.StartAsync(sf =>

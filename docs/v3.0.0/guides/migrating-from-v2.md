@@ -33,7 +33,7 @@ builder.Services.AddSourceFlow(sf =>
 v2 used a `TableNamingConvention`.
 
 Run the commands below inside the service: `dotnet run --project <service> -- sourceflow migrate v2 …`. The service's
-`Program.cs` must call `SourceFlowCli.TryRunAsync` (the Bank sample does). `plan`, `scaffold` and `archive` also run from
+`Program.cs` must call `SourceFlowCli.TryRunAsync` (the TravelBooking sample's services do). `plan`, `scaffold` and `archive` also run from
 the global tool with `--v2-connection`, `--v2-provider postgresql|sqlserver` and `--v2-schema`.
 
 ## 2. Plan

@@ -3,7 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
     <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Tool\SourceFlow.Tool.csproj" />
-    <ProjectReference Include="..\..\..\samples\Bank\Bank.Accounts\Bank.Accounts.csproj" />
-    <ProjectReference Include="..\..\..\samples\Bank\Bank.Transfers\Bank.Transfers.csproj" />
+    <ProjectReference Include="..\..\..\tests\Fixtures\Bank\Bank.Accounts\Bank.Accounts.csproj" />
+    <ProjectReference Include="..\..\..\tests\Fixtures\Bank\Bank.Transfers\Bank.Transfers.csproj" />
   </ItemGroup>
 </Project>
