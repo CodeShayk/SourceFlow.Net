@@ -120,7 +120,7 @@ The runtime options that drive the adapter's work (poll interval, lease TTL, out
 | `OutboxPartitions` | 16 | Outbox partitions, each relayed under its own lease. |
 | `SubscriptionPartitions` | 1 | Partitions per async subscription (a power of two). |
 | `SubscriptionBatchSize` | 1000 | The largest subscription batch (batches start at 100 and grow while catching up). |
-| `InboxRetention` | 7 days | How long processed inbox rows are kept for deduplication. |
+| `InboxRetention` | 14 days | How long processed inbox rows are kept for deduplication. |
 | `DeadLetterRetention` | 30 days | How long replayed or discarded dead letters are kept. |
 | `RetentionInterval` | 1 hour | How often the relay role runs retention cleanup. |
 | `RetentionBatchSize` | 5000 | Rows deleted per cleanup statement. |

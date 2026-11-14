@@ -63,6 +63,12 @@ public sealed record MessageEnvelope
     /// <summary>The protection scheme when the body is encrypted, for example <c>kms:aws:…</c>.</summary>
     public string? Protection { get; init; }
 
+    /// <summary>
+    /// Delivery attempts already made, when the message was re-sent for a delayed retry longer than the broker can wait
+    /// (doc 04 §7, CloudEvents extension <c>sfattempt</c>). The receiver adds the broker's delivery count to it.
+    /// </summary>
+    public int? Attempts { get; init; }
+
     /// <summary>User extension headers (bounded, see <see cref="EnvelopeLimits"/>).</summary>
     public IReadOnlyDictionary<string, string> Headers { get; init; } = FrozenDictionary<string, string>.Empty;
 
@@ -95,6 +101,7 @@ public sealed record MessageEnvelope
             && TraceState == other.TraceState
             && ContentType == other.ContentType
             && Protection == other.Protection
+            && Attempts == other.Attempts
             && Headers.Count == other.Headers.Count
             && Headers.All(h => other.Headers.TryGetValue(h.Key, out string? v) && v == h.Value)
             && Body.Span.SequenceEqual(other.Body.Span);

@@ -38,6 +38,7 @@ public static class CloudEvents
     public const string Tenant = "sftenant";
     public const string Actor = "sfactor";
     public const string Protection = "sfenc";
+    public const string Attempts = "sfattempt";
     public const string TraceParent = "traceparent";
     public const string TraceState = "tracestate";
 #pragma warning restore CS1591
@@ -98,6 +99,7 @@ public static class CloudEvents
         AddIfPresent(attributes, StreamVersion, envelope.StreamVersion?.ToString(CultureInfo.InvariantCulture));
         AddIfPresent(attributes, Actor, envelope.Actor);
         AddIfPresent(attributes, Protection, envelope.Protection);
+        AddIfPresent(attributes, Attempts, envelope.Attempts?.ToString(CultureInfo.InvariantCulture));
         AddIfPresent(attributes, TraceParent, envelope.TraceParent);
         AddIfPresent(attributes, TraceState, envelope.TraceState);
         if (envelope.Headers.Count > 0)
@@ -188,6 +190,7 @@ public static class CloudEvents
             TenantId = Optional(all, Tenant) ?? MessageEnvelope.DefaultTenant,
             Actor = Optional(all, Actor),
             Protection = Optional(all, Protection),
+            Attempts = Optional(all, Attempts) is { } attempts ? int.Parse(attempts, NumberStyles.None, CultureInfo.InvariantCulture) : null,
             TraceParent = Optional(all, TraceParent),
             TraceState = Optional(all, TraceState),
             Headers = Optional(all, HeadersAttribute) is { } headers ? ReadObject(headers).ToFrozenDictionary(StringComparer.Ordinal) : FrozenDictionary<string, string>.Empty,

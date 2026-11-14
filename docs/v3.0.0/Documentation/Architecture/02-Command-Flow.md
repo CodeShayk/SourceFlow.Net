@@ -183,7 +183,7 @@ For a keyed command, the inbox consumer is the service name. The processor check
 
 Rejections and no-ops are recorded too, so a retried request that was rejected stays rejected without re-running `Decide`.
 
-Inbox rows are kept for `InboxRetention` (default 7 days) and then purged by the relay role. A redelivery older than that is not detected. See the [Message Idempotency Guide](../Message-Idempotency-Guide.md).
+Inbox rows are kept for `InboxRetention` (default 14 days, checked at startup against the broker's message retention) and then purged by the relay role. A redelivery older than that is not detected. See the [Message Idempotency Guide](../Message-Idempotency-Guide.md).
 
 ---
 

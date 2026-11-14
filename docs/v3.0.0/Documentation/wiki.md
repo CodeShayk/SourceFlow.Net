@@ -1399,7 +1399,7 @@ polling every `PollInterval`.
 | Data | Retention |
 |------|-----------|
 | Events | Kept forever (they are the system of record). Archived streams are left out of projections and SFQL unless asked for |
-| Processed inbox rows | `InboxRetention` (7 days); the deduplication window for redeliveries |
+| Processed inbox rows | `InboxRetention` (14 days); the deduplication window for redeliveries |
 | Replayed and discarded dead letters | `DeadLetterRetention` (30 days); parked ones are never purged automatically |
 | Retired read-model generations | `RetainPreviousFor` (7 days) |
 | Cleanup | The relay role deletes in batches of `RetentionBatchSize` every `RetentionInterval` |
@@ -3132,7 +3132,7 @@ list of problems instead of being ignored.
 | `AggregateCache` | `Off` | `Off`, `ReadTail` or `Optimistic` |
 | `AggregateCacheSize` | 10,000 | States the cache holds |
 | `SnapshotQueueCapacity` | 1024 | Pending background snapshot writes |
-| `InboxRetention` | 7 days | How long processed inbox rows are kept for deduplication |
+| `InboxRetention` | 14 days | How long processed inbox rows are kept for deduplication |
 | `DeadLetterRetention` | 30 days | How long replayed or discarded dead letters are kept |
 | `RetentionInterval` | 1 h | How often the relay role runs retention cleanup |
 | `RetentionBatchSize` | 5000 | Rows deleted per cleanup statement |
@@ -3483,7 +3483,7 @@ with `If-Match` / `ExpectedVersion`.
 
 **How do I make an HTTP POST safe to retry?**
 Send an `Idempotency-Key` header (or `SendOptions.IdempotencyKey`). A repeat returns the first result with status
-`Duplicate`, without a second write, for as long as the inbox keeps the row (`InboxRetention`, 7 days).
+`Duplicate`, without a second write, for as long as the inbox keeps the row (`InboxRetention`, 14 days).
 
 **Exactly once or at least once?**
 Delivery is at least once; effects in your database are effectively once (outbox, inbox and checkpoints commit with the

@@ -12,7 +12,7 @@ namespace SourceFlow.Hosting;
 /// The hosted lifecycle (doc 01 §9): provision → start receiver, relay and subscriptions → ready → drain on stop.
 /// Background loops wake on commit notifications and fall back to <see cref="SourceFlowOptions.PollInterval"/>.
 /// </summary>
-public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposable
+public sealed class SourceFlowHost : IHostedLifecycleService, IHealthCheck, IAsyncDisposable
 {
     private readonly SourceFlowRuntime _runtime;
     private readonly OutboxRelay _relay;
@@ -60,6 +60,7 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
     /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        CheckTransportLimits();
         await _runtime.Transport.ProvisionAsync(_runtime.Topology(), _settings.Provisioning, cancellationToken).ConfigureAwait(false);
 
         await RegisterSchemasAsync(cancellationToken).ConfigureAwait(false);
@@ -107,6 +108,43 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
     }
 
     /// <inheritdoc />
+    public Task StartingAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task StartedAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// The host is about to stop (doc 01 §9): stop receiving and start draining before any hosted service stops, so the
+    /// messages already queued here are released for another instance at once (RX-R6).
+    /// </summary>
+    public async Task StoppingAsync(CancellationToken cancellationToken)
+    {
+        _ready = false;
+        _receiver.BeginDrain();
+        if (_stopping is { } stopping)
+        {
+            await stopping.CancelAsync().ConfigureAwait(false);
+        }
+
+        _commits.Set();
+    }
+
+    /// <inheritdoc />
+    public Task StoppedAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Stops within one <see cref="SourceFlowOptions.ShutdownTimeout"/> in all (RX-R6): the loops end, leases are handed
+    /// back, the messages in progress finish (and are cancelled when the time is up), and pending snapshots are written.
+    /// </summary>
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _ready = false;
@@ -115,11 +153,19 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
             return;
         }
 
+        long started = TimeProvider.System.GetTimestamp();
+        TimeSpan Remaining()
+        {
+            TimeSpan left = _runtime.Options.ShutdownTimeout - TimeProvider.System.GetElapsedTime(started);
+            return left > TimeSpan.Zero ? left : TimeSpan.Zero;
+        }
+
+        _receiver.BeginDrain();
         await _stopping.CancelAsync().ConfigureAwait(false);
         _commits.Set();
         try
         {
-            await Task.WhenAll(_loops).WaitAsync(_runtime.Options.ShutdownTimeout, cancellationToken).ConfigureAwait(false);
+            await Task.WhenAll(_loops).WaitAsync(Remaining(), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is TimeoutException or OperationCanceledException)
         {
@@ -147,8 +193,8 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
             }
         }
 
-        await _receiver.DrainAsync(_runtime.Options.ShutdownTimeout).ConfigureAwait(false);
-        await _runtime.Snapshots.StopAsync(_runtime.Options.ShutdownTimeout).ConfigureAwait(false);
+        await _receiver.DrainAsync(Remaining()).ConfigureAwait(false);
+        await _runtime.Snapshots.StopAsync(Remaining()).ConfigureAwait(false);
         _notifications?.Dispose();
     }
 
@@ -172,6 +218,31 @@ public sealed class SourceFlowHost : IHostedService, IHealthCheck, IAsyncDisposa
         if (_ingestor is not null)
         {
             await _ingestor.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    // ADR-006, doc 04 §6: the inbox must remember a message at least as long as the broker can redeliver it, or a late
+    // redelivery is handled twice (CR-12): fatal in Validate mode, a warning otherwise. Delayed retries longer than the
+    // broker can wait go through the outbox, except on an ordered endpoint, where they are capped, and said so (CR-13).
+    private void CheckTransportLimits()
+    {
+        TransportCapabilities capabilities = _runtime.Transport.Capabilities;
+        if (_runtime.Options.InboxRetention < capabilities.MaxRetention)
+        {
+            string problem = $"SourceFlowOptions.InboxRetention ({_runtime.Options.InboxRetention}) is shorter than the transport's message retention ({capabilities.MaxRetention}): "
+                + "a message redelivered after its inbox entry expired would be handled twice (ADR-006). Set InboxRetention to at least the broker's retention.";
+            if (_settings.Provisioning == ProvisioningMode.Validate)
+            {
+                throw new InvalidOperationException(problem);
+            }
+
+            Log.InboxRetentionShort(_logger, problem);
+        }
+
+        TimeSpan[] capped = [.. _runtime.Options.DelayedRetries.Where(d => d > capabilities.MaxDelay)];
+        if (capped.Length > 0 && _runtime.Routing.OrderedEndpoint && _settings.Roles.HasFlag(SourceFlowRoles.Receiver))
+        {
+            Log.DelayedRetriesCapped(_logger, capabilities.MaxDelay, string.Join(", ", capped));
         }
     }
 

@@ -172,7 +172,7 @@ sequenceDiagram
     SH->>SH: start monitor; ready = true
 ```
 
-On stop, the host cancels its loops and waits up to `ShutdownTimeout`, releases its outbox partition leases and subscription leases (so another node takes over at once instead of after `LeaseTtl`), leaves the node registry, drains in-flight received messages and flushes pending snapshots. Unfinished work is never lost: outbox rows stay until they are published, and unsettled messages are redelivered by the broker.
+The host is an `IHostedLifecycleService`. In `StoppingAsync`, before any hosted service stops, it reports not ready, stops receiving and starts draining: queued received messages are released for another instance at once. `StopAsync` then works to one deadline, `ShutdownTimeout` in all: it cancels its loops, releases its outbox partition leases and subscription leases (so another node takes over at once instead of after `LeaseTtl`), leaves the node registry, lets in-flight received messages finish (cancelling them when the time is up) and flushes pending snapshots. Unfinished work is never lost: outbox rows stay until they are published, and unsettled messages are redelivered by the broker.
 
 The relay and subscription loops wake on the store's commit notification (for example PostgreSQL `LISTEN/NOTIFY`) and fall back to polling every `PollInterval`. The fallback uses the system clock, so a fake business clock in tests never stops them.
 

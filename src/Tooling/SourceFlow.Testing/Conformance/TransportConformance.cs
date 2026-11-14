@@ -301,6 +301,7 @@ public static class TransportConformance
             Actor = "user:7",
             TraceParent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
             TraceState = "v=1",
+            Attempts = 2,
             Headers = new Dictionary<string, string> { ["x-origin"] = "web", ["x-request"] = "r-1" },
         };
 

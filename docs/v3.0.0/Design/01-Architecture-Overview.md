@@ -240,6 +240,8 @@ Because B handles the command with its own command processor, **the owning servi
   2. **StartAsync**: provision or validate topology (according to mode). Start the outbox relay, scheduler, subscription engine and receivers.
   3. **StartedAsync**: report readiness (health check `sourceflow.ready`).
   4. **StoppingAsync**: stop receivers taking new messages. Drain in-flight work within `ShutdownTimeout` (default 25 s). Release leases. Messages not yet acknowledged return to the broker.
+> **As built (WP-C.6).** `SourceFlowHost` is an `IHostedLifecycleService`. `StoppingAsync` reports not ready, stops pulling and starts draining (queued messages are abandoned with no delay). `StopAsync` shares one deadline, `ShutdownTimeout` (default 30 s), across the loops, lease release, in-flight handlers (cancelled through their own token when the time is up) and snapshots. Before provisioning, `StartAsync` checks `InboxRetention` against the transport's `MaxRetention` (doc 04 §6).
+
 - Options are bound with the configuration binding source generator and validated with `[OptionsValidator]` source-generated validators plus `ValidateOnStart()`, so binding and validation are AOT-safe.
 - **Roles.** One process can run every role, or a deployment can split them, for example `sf.Roles = SourceFlowRoles.CommandApi | SourceFlowRoles.Workers`. A role that is off doesn't start its hosted services. This lets API pods and worker pods scale independently with the same code.
 

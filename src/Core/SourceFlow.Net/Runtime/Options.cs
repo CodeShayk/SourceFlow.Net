@@ -133,8 +133,11 @@ public sealed class SourceFlowOptions
     [Range(1, 1_000_000)]
     public int SnapshotQueueCapacity { get; set; } = 1024;
 
-    /// <summary>How long processed inbox rows are kept for deduplication (doc 05 §9); redeliveries older than this are not detected.</summary>
-    public TimeSpan InboxRetention { get; set; } = TimeSpan.FromDays(7);
+    /// <summary>
+    /// How long processed inbox rows are kept for deduplication (doc 05 §9); redeliveries older than this are not
+    /// detected. At least the transport's message retention, or startup fails (ADR-006, doc 04 §6). Default 14 days.
+    /// </summary>
+    public TimeSpan InboxRetention { get; set; } = TimeSpan.FromDays(14);
 
     /// <summary>How long replayed or discarded dead letters are kept for audit; parked ones are never purged.</summary>
     public TimeSpan DeadLetterRetention { get; set; } = TimeSpan.FromDays(30);

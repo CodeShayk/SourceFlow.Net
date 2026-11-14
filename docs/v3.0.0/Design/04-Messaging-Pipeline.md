@@ -25,6 +25,7 @@ public sealed class MessageEnvelope
     public string? TraceState { get; init; }
     public string ContentType { get; init; } = "application/json";
     public string? Protection { get; init; }                    // e.g. "kms:aws:arn:…:key/…" when encrypted
+    public int? Attempts { get; init; }                         // attempts so far, on a delayed-retry re-send (§9.2)
     public IReadOnlyDictionary<string, string> Headers { get; init; } = Empty;  // user extensions (bounded, §2.3)
     public ReadOnlyMemory<byte> Body { get; init; }             // serialized (and possibly encrypted) payload
 }
@@ -48,6 +49,7 @@ public sealed class MessageEnvelope
 | `TenantId` | `sftenant` | extension |
 | `Actor` | `sfactor` | extension (travels in `sf_ext` on SQS, where attributes are limited) |
 | `Protection` | `sfenc` | extension |
+| `Attempts` | `sfattempt` | extension; set only on a delayed-retry re-send (§9.2) |
 | `TraceParent` / `TraceState` | `traceparent` / `tracestate` | distributed-tracing extension |
 
 Transports use **binary mode**: attributes go in native headers (`ce_` prefix where required) and the body is the data. When a broker's header budget is too small, the transport switches to **structured mode** (a CloudEvents JSON document) and sets `content-type: application/cloudevents+json`. Both modes round-trip losslessly, which the conformance kit checks.
@@ -174,7 +176,7 @@ flowchart LR
 | RX-R3 | **Settle after commit.** The broker is acknowledged only after the handler transaction commits. A crash before the ack causes redelivery, which the inbox deduplicates. |
 | RX-R4 | **Lock renewal.** Transports with message locks or visibility timeouts extend them while a message is in flight (SQS `ChangeMessageVisibility`, ASB lock renewal, Pub/Sub ack-deadline extension). |
 | RX-R5 | **One input endpoint, one receiver.** Commands and events arriving on the same endpoint are told apart by envelope `type`, never by competing listeners. Fixes GAP-02. |
-| RX-R6 | **Graceful shutdown.** Stop pulling, finish in-flight messages within `ShutdownTimeout`, and abandon the rest so they are redelivered quickly. |
+| RX-R6 | **Graceful shutdown.** Stop pulling, finish in-flight messages within `ShutdownTimeout`, and abandon the rest so they are redelivered quickly. As built (WP-C.6): draining starts in `StoppingAsync`; queued messages are abandoned with no delay; handlers run under their own token, cancelled only when `ShutdownTimeout` is up. |
 
 ## 6. Inbox
 
@@ -182,6 +184,7 @@ flowchart LR
 - It is written in the **same transaction** as the effects. A duplicate shows up as a unique-key violation at insert, or as an early `Seen` check that avoids wasted work. Either way the transaction is rolled back and the message is acknowledged as `Duplicate`.
 - **Stored result**: for command consumers the inbox row keeps `(status, version, error_code)`, so a duplicate `SendAsync` with the same idempotency key returns the original `CommandResult`. This is the HTTP `Idempotency-Key` semantics.
 - **Retention**: `InboxRetention` (default 14 days) MUST be at least the longest broker redelivery or retention window. This is validated at startup against `TransportCapabilities.MaxRetention`. Cleanup is a batched background delete.
+  As built (WP-C.6): a shorter retention fails startup when provisioning is `Validate` and logs a warning (event 1405) otherwise, so local development with `CreateIfMissing` is not blocked.
 
 ## 7. Outbox
 
@@ -227,6 +230,12 @@ The exception→class mapping is configurable through `sf.Errors(e => e.Treat<My
 ### 9.2 Delayed retries
 
 The runtime prefers the broker's native delay: SQS `ChangeMessageVisibility` (up to 12 h), ASB scheduled re-send, Pub/Sub nack with the subscription's retry policy. When the transport lacks a capability, the fallback is an outbox row with `deliver_at` addressed to the same endpoint, carrying an incremented `sfattempt` header. The delay schedule is identical on every transport ([ADR-014](../ADRs/ADR-014-transport-spi-and-conformance-kit-parity-required.md)).
+
+> **As built (WP-C.6).**
+> - A delay up to the transport's `MaxDelay` uses the native delay (`AbandonAsync(delay)`).
+> - A longer delay uses the fallback above. The message is queued as received (still protected, same id) as an `OutboxKind.Scheduled` row for this endpoint, with `deliver_at = now + delay` and `sfattempt` set to the attempts so far. Then the original is completed. A crash between the two duplicates it, which the inbox absorbs. The receiver counts attempts as `sfattempt + DeliveryCount`, so the budget and the parked record's `Attempts` span the re-sends.
+> - On an ordered endpoint the fallback would let the key's next message overtake the head, so the delay is capped at `MaxDelay`. Startup logs the capped entries (event 1404).
+> - **Per-key order on retry.** On an ordered endpoint, when a key's head is abandoned for a delayed retry, the worker releases (abandons with no delay) the key's messages it had already received behind it, instead of handling them. The broker redelivers them after the head. Messages of other keys are unaffected.
 
 ### 9.3 Dead letters (parking)
 

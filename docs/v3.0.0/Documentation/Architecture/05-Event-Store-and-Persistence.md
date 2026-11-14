@@ -373,7 +373,7 @@ An upsert older than the stored version is ignored (an at-least-once guard). The
 | `IStoreRetention.PurgeInboxAsync` | Deletes inbox rows processed before a time, in bounded batches. |
 | `IStoreRetention.PurgeDeadLettersAsync` | Deletes replayed or discarded dead letters resolved before a time; parked ones are kept. |
 
-The host's `Relay` role runs retention every `RetentionInterval` (1 hour) with `InboxRetention` (7 days), `DeadLetterRetention` (30 days) and `RetentionBatchSize` (5,000). Outbox rows are deleted on delivery.
+The host's `Relay` role runs retention every `RetentionInterval` (1 hour) with `InboxRetention` (14 days), `DeadLetterRetention` (30 days) and `RetentionBatchSize` (5,000). Outbox rows are deleted on delivery.
 
 ## The in-memory store
 

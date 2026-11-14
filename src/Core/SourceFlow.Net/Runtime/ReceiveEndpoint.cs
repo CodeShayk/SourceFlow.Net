@@ -14,7 +14,9 @@ namespace SourceFlow.Runtime;
 /// The single receiver of the service endpoint (RX-R5). Messages are dispatched to workers by partition key
 /// (RX-R1, per-key order), through bounded channels (RX-R2), and settled only after the handler commits (RX-R3).
 /// Transient failures retry immediately, then with the delayed schedule (doc 04 §9.2); permanent failures and
-/// exhausted retries are parked (doc 04 §9.3).
+/// exhausted retries are parked (doc 04 §9.3). On an ordered endpoint a key's next message never overtakes its head:
+/// while the head waits for a delayed retry, the messages of its key already received are released, not handled
+/// (ADR-033 §7). On stop it stops receiving, finishes the messages in progress and releases the queued ones (RX-R6).
 /// </summary>
 public sealed class ReceiveEndpoint : IAsyncDisposable
 {
@@ -22,12 +24,16 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
     private readonly MessageDispatcher _dispatcher;
     private readonly IServiceScopeFactory _scopes;
     private readonly ILogger _logger;
-    private readonly Channel<ReceivedMessage>[] _channels;
+    private readonly Channel<Delivery>[] _channels;
     private readonly IMessageMiddleware[] _builtIns;
+    private readonly CancellationTokenSource _abort = new();
     private ITransportReceiver? _receiver;
     private Transport.CloudEventFilter[]? _clientFilters;
     private Task[] _workers = [];
     private int _inFlight;
+    private long _received;
+    private volatile bool _draining;
+    private int _disposed;
 
     /// <summary>Creates the endpoint.</summary>
     public ReceiveEndpoint(SourceFlowRuntime runtime, CommandProcessor commands, IServiceScopeFactory scopes)
@@ -37,7 +43,7 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
         _dispatcher = new MessageDispatcher(runtime, commands);
         _logger = runtime.Logger<ReceiveEndpoint>();
         _channels = [.. Enumerable.Range(0, runtime.Options.ReceiveConcurrency).Select(_ =>
-            Channel.CreateBounded<ReceivedMessage>(new BoundedChannelOptions(runtime.Options.PrefetchPerWorker) { SingleReader = true, SingleWriter = true }))];
+            Channel.CreateBounded<Delivery>(new BoundedChannelOptions(runtime.Options.PrefetchPerWorker) { SingleReader = true, SingleWriter = true }))];
         _builtIns =
         [
             new TelemetryMiddleware(runtime.Metrics, runtime.Routing.Endpoint, runtime.Options.Telemetry.ParentBasedOnMessage),
@@ -65,7 +71,9 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
             ? [.. subscriptions.Select(s => Transport.CloudEventFilter.Parse(s.Filter!))]
             : null;
         _receiver = await _runtime.Transport.CreateReceiverAsync(options, cancellationToken).ConfigureAwait(false);
-        _workers = [.. _channels.Select(channel => Task.Run(() => WorkAsync(channel.Reader, cancellationToken), CancellationToken.None))];
+
+        // Handlers run under their own token: stopping the receive loop doesn't cancel the messages in progress (RX-R6).
+        _workers = [.. _channels.Select(channel => Task.Run(() => WorkAsync(channel.Reader, _abort.Token), CancellationToken.None))];
     }
 
     /// <summary>Receives until cancelled (the hosted service's receive loop).</summary>
@@ -89,7 +97,7 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
 
                         Interlocked.Increment(ref _inFlight);
                         _runtime.Metrics.ConsumedMessages.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.ConsumerGroup, _runtime.Routing.Endpoint));
-                        await _channels[WorkerOf(message)].Writer.WriteAsync(message, cancellationToken).ConfigureAwait(false);
+                        await _channels[WorkerOf(message)].Writer.WriteAsync(new Delivery(message, Interlocked.Increment(ref _received)), cancellationToken).ConfigureAwait(false);
                     }
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -105,34 +113,57 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
         }
         finally
         {
-            foreach (Channel<ReceivedMessage> channel in _channels)
+            foreach (Channel<Delivery> channel in _channels)
             {
                 channel.Writer.TryComplete();
             }
         }
     }
 
-    /// <summary>Waits for the workers to finish in-flight messages (RX-R6).</summary>
+    /// <summary>
+    /// Starts draining (RX-R6): the messages in progress finish, and those still queued are released with no delay, so
+    /// the broker redelivers them at once (to another instance). Stop the receive loop as well.
+    /// </summary>
+    public void BeginDrain()
+    {
+        _draining = true;
+    }
+
+    /// <summary>
+    /// Waits up to <paramref name="timeout"/> for the workers to finish (RX-R6). After it, the handlers still running are
+    /// cancelled; their messages are redelivered after their lock, and the inbox absorbs any that had committed.
+    /// </summary>
     public async ValueTask DrainAsync(TimeSpan timeout)
     {
+        _draining = true;
         try
         {
             await Task.WhenAll(_workers).WaitAsync(timeout).ConfigureAwait(false);
         }
         catch (TimeoutException)
         {
-            // Unfinished messages are redelivered by the broker.
+            await _abort.CancelAsync().ConfigureAwait(false);
         }
     }
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;   // the host and the container both dispose the endpoint
+        }
+
+        await _abort.CancelAsync().ConfigureAwait(false);
+        _abort.Dispose();
         if (_receiver is not null)
         {
             await _receiver.DisposeAsync().ConfigureAwait(false);
         }
     }
+
+    // A received message and its receive sequence (per-key order on retries).
+    private readonly record struct Delivery(ReceivedMessage Message, long Sequence);
 
     // An event no subscription filter accepts (client-side filtering, for brokers without native filters).
     private bool FilteredOut(ReceivedMessage message)
@@ -153,13 +184,31 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
         return (int)(XxHash32.HashToUInt32(Encoding.UTF8.GetBytes(key)) % (uint)_channels.Length);
     }
 
-    private async Task WorkAsync(ChannelReader<ReceivedMessage> reader, CancellationToken cancellationToken)
+    private async Task WorkAsync(ChannelReader<Delivery> reader, CancellationToken cancellationToken)
     {
-        await foreach (ReceivedMessage message in reader.ReadAllAsync(CancellationToken.None).ConfigureAwait(false))
+        // Keys whose head waits for a delayed retry, with the receive sequence reached when it was released: the key's
+        // messages received up to then came after the head and must not overtake it (ADR-033 §7, CR-08).
+        var held = new Dictionary<string, long>(StringComparer.Ordinal);
+        await foreach ((ReceivedMessage message, long sequence) in reader.ReadAllAsync(CancellationToken.None).ConfigureAwait(false))
         {
             try
             {
-                await HandleAsync(message, cancellationToken).ConfigureAwait(false);
+                string? key = _runtime.Routing.OrderedEndpoint ? message.Envelope.EffectivePartitionKey : null;
+                if (_draining || (key is not null && held.TryGetValue(key, out long upTo) && sequence <= upTo))
+                {
+                    await ReleaseAsync(message).ConfigureAwait(false);
+                    continue;
+                }
+
+                if (key is not null)
+                {
+                    held.Remove(key);
+                }
+
+                if (await HandleAsync(message, cancellationToken).ConfigureAwait(false) && key is not null)
+                {
+                    held[key] = Interlocked.Read(ref _received);
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -178,14 +227,29 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
         }
     }
 
-    private async Task HandleAsync(ReceivedMessage message, CancellationToken cancellationToken)
+    // Releases a message unhandled, for immediate redelivery; a failure only leaves it to its lock.
+    private async ValueTask ReleaseAsync(ReceivedMessage message)
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await message.AbandonAsync(TimeSpan.Zero, timeout.Token).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            Log.ReceiveLoopFailed(_logger, exception, _runtime.Routing.Endpoint);
+        }
+    }
+
+    // True when the message was released for a delayed retry.
+    private async Task<bool> HandleAsync(ReceivedMessage message, CancellationToken cancellationToken)
     {
         // Keep the lock while the handler runs (visibility heartbeat, doc 07 §4).
         using var renewing = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task renewal = RenewAsync(message, renewing.Token);
         try
         {
-            await HandleLockedAsync(message, cancellationToken).ConfigureAwait(false);
+            return await HandleLockedAsync(message, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -215,33 +279,52 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
         }
     }
 
-    private async Task HandleLockedAsync(ReceivedMessage message, CancellationToken cancellationToken)
+    private async Task<bool> HandleLockedAsync(ReceivedMessage message, CancellationToken cancellationToken)
     {
         MessageContext context;
         int immediate = 0;
-        while (true)
-        {
-            await using AsyncServiceScope scope = _scopes.CreateAsyncScope();
-            context = new MessageContext(PipelineStage.Receive, message.Envelope, scope.ServiceProvider, cancellationToken);
-            await InvokeAsync(context).ConfigureAwait(false);
-            if (context.Outcome != HandlingOutcome.Transient || immediate >= _runtime.Options.ImmediateRetries || cancellationToken.IsCancellationRequested)
-            {
-                break;
-            }
-
-            immediate++;
-            _runtime.Metrics.RetryAttempts.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Stage, "receive"),
-                new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.RetryKind, "immediate"));
-        }
-
+        AsyncServiceScope? scope = null;
         try
         {
-            await SettleAsync(message, context, cancellationToken).ConfigureAwait(false);
+            while (true)
+            {
+                if (scope is { } previous)
+                {
+                    await previous.DisposeAsync().ConfigureAwait(false);   // the previous attempt's scope
+                }
+
+                AsyncServiceScope current = _scopes.CreateAsyncScope();
+                scope = current;
+                context = new MessageContext(PipelineStage.Receive, message.Envelope, current.ServiceProvider, cancellationToken);
+                await InvokeAsync(context).ConfigureAwait(false);
+                if (context.Outcome != HandlingOutcome.Transient || immediate >= _runtime.Options.ImmediateRetries || cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
+                immediate++;
+                _runtime.Metrics.RetryAttempts.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Stage, "receive"),
+                    new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.RetryKind, "immediate"));
+            }
+
+            // Settled inside the last attempt's scope: parking may resolve services from it (CR-10).
+            try
+            {
+                return await SettleAsync(message, context, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // Settling failed (for example the broker connection dropped): the message is redelivered and the inbox absorbs it.
+                Log.ReceiveLoopFailed(_logger, exception, _runtime.Routing.Endpoint);
+                return false;
+            }
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        finally
         {
-            // Settling failed (for example the broker connection dropped): the message is redelivered and the inbox absorbs it.
-            Log.ReceiveLoopFailed(_logger, exception, _runtime.Routing.Endpoint);
+            if (scope is { } last)
+            {
+                await last.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 
@@ -257,27 +340,62 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
         }
     }
 
-    private async ValueTask SettleAsync(ReceivedMessage message, MessageContext context, CancellationToken cancellationToken)
+    // True when the message was released for a delayed retry.
+    private async ValueTask<bool> SettleAsync(ReceivedMessage message, MessageContext context, CancellationToken cancellationToken)
     {
+        int attempt = AttemptOf(message);
         switch (context.Outcome)
         {
-            case HandlingOutcome.Transient when message.DeliveryCount <= _runtime.Options.DelayedRetries.Count:
-                TimeSpan delay = _runtime.Options.DelayedRetries[message.DeliveryCount - 1];
-                Log.ReceiveRetry(_logger, context.Exception!, message.Envelope.MessageId.ToString(), message.Envelope.Type, message.DeliveryCount, delay);
+            case HandlingOutcome.Transient when attempt <= _runtime.Options.DelayedRetries.Count:
+                TimeSpan delay = _runtime.Options.DelayedRetries[attempt - 1];
+                Log.ReceiveRetry(_logger, context.Exception!, message.Envelope.MessageId.ToString(), message.Envelope.Type, attempt, delay);
                 _runtime.Metrics.RetryAttempts.Add(1, new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.Stage, "receive"),
                     new KeyValuePair<string, object?>(SourceFlowTelemetry.Tags.RetryKind, "delayed"));
-                await message.AbandonAsync(delay, cancellationToken).ConfigureAwait(false);
-                return;
+                TimeSpan maxDelay = _runtime.Transport.Capabilities.MaxDelay;
+                if (delay <= maxDelay)
+                {
+                    await message.AbandonAsync(delay, cancellationToken).ConfigureAwait(false);
+                    return true;
+                }
+
+                if (_runtime.Routing.OrderedEndpoint)
+                {
+                    // Re-sending would let the key's next message overtake this one: wait as long as the broker can (CR-13).
+                    await message.AbandonAsync(maxDelay, cancellationToken).ConfigureAwait(false);
+                    return true;
+                }
+
+                await DeferAsync(message, attempt, delay, cancellationToken).ConfigureAwait(false);
+                await message.CompleteAsync(cancellationToken).ConfigureAwait(false);
+                return false;
             case HandlingOutcome.Transient:
             case HandlingOutcome.Permanent:
                 await ParkAsync(message, context, context.Outcome == HandlingOutcome.Transient ? "Exhausted" : ReasonOf(context.Exception), cancellationToken).ConfigureAwait(false);
                 await message.CompleteAsync(cancellationToken).ConfigureAwait(false);
-                return;
+                return false;
             default:
                 await _runtime.FaultAsync(FaultPoints.ReceiverBeforeComplete, cancellationToken).ConfigureAwait(false);
                 await message.CompleteAsync(cancellationToken).ConfigureAwait(false);
-                return;
+                return false;
         }
+    }
+
+    // Attempts made before a fallback re-send (sfattempt) plus the broker's count for this copy.
+    private static int AttemptOf(ReceivedMessage message)
+    {
+        return (message.Envelope.Attempts ?? 0) + message.DeliveryCount;
+    }
+
+    // The core fallback for a delay longer than the broker's maximum (doc 04 §7, CR-13): the message, as received, goes
+    // back to this endpoint through the outbox, due after the delay and carrying the attempts so far. The inbox absorbs
+    // a duplicate if completing the original fails after the commit.
+    private async ValueTask DeferAsync(ReceivedMessage message, int attempt, TimeSpan delay, CancellationToken cancellationToken)
+    {
+        Messaging.MessageEnvelope envelope = message.Envelope with { Attempts = attempt };
+        await using IStorageSession session = await _runtime.Storage.Sessions.BeginAsync(envelope.TenantId, cancellationToken).ConfigureAwait(false);
+        session.EnqueueOutbox(_runtime.ToOutbox(envelope, _runtime.Routing.Endpoint, OutboxKind.Scheduled, _runtime.Time.GetUtcNow() + delay));
+        await session.CommitAsync(cancellationToken).ConfigureAwait(false);
+        _runtime.Committed(session);
     }
 
     private async ValueTask ParkAsync(ReceivedMessage message, MessageContext context, string reason, CancellationToken cancellationToken)
@@ -299,7 +417,7 @@ public sealed class ReceiveEndpoint : IAsyncDisposable
             ErrorType = context.Exception?.GetType().FullName,
             ErrorMessage = context.Exception?.Message,
             ErrorDetail = context.Exception?.ToString(),
-            Attempts = message.DeliveryCount,
+            Attempts = AttemptOf(message),
             FirstFailedAt = now,
             ParkedAt = now,
         }, cancellationToken).ConfigureAwait(false);

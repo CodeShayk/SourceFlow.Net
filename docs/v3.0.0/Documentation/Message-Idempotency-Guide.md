@@ -128,7 +128,7 @@ switch (result.Status)
 
 - The key becomes the command's message id: UUIDv5 of the service name and the key. The same key in the same service always maps to the same id; the same key in another service does not collide.
 - The first send records the outcome (accepted, rejected or no-op) in the inbox. A repeat returns `CommandStatus.Duplicate` with that outcome; a rejection is reported with its original error code.
-- Keys are remembered for `InboxRetention` (7 days by default). A retry after that is processed as new.
+- Keys are remembered for `InboxRetention` (14 days by default). A retry after that is processed as new.
 
 Over HTTP, `MapCommand<TCommand>` in `SourceFlow.AspNetCore` reads the `Idempotency-Key` header into `SendOptions.IdempotencyKey`, and the [TravelBooking sample](../../../samples/TravelBooking)'s endpoints accept it. See [SourceFlow.AspNetCore](SourceFlow.AspNetCore-README.md).
 
@@ -209,7 +209,7 @@ For an outside system without idempotency keys, record the call yourself before 
 
 | Data | Default retention | Setting | Cleanup |
 |------|-------------------|---------|---------|
-| Processed inbox rows | 7 days | `SourceFlowOptions.InboxRetention` (1 minute to 3,650 days) | Deleted by the relay role every `RetentionInterval` (1 hour), in batches of `RetentionBatchSize` (5,000) rows per statement |
+| Processed inbox rows | 14 days | `SourceFlowOptions.InboxRetention` (1 minute to 3,650 days) | Deleted by the relay role every `RetentionInterval` (1 hour), in batches of `RetentionBatchSize` (5,000) rows per statement |
 | Outbox rows | until delivered | none | Deleted on delivery; parked after `OutboxMaxAttempts` |
 | Replayed or discarded dead letters | 30 days | `DeadLetterRetention` | Same retention loop |
 | Parked dead letters | forever | none | Only by an operator (`dlq replay`, `dlq discard`, then purge) |
@@ -223,12 +223,12 @@ Retention runs only on nodes with the `Relay` role and only when the adapter imp
 - how long HTTP clients may retry an idempotency key;
 - operator replays from SourceFlow dead letters (`dlq replay` keeps the id).
 
-[ADR-006](../ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md) notes that the inbox retention must exceed the broker redelivery window and mentions a 14-day default; the shipped default of `InboxRetention` is 7 days. Raise it when your windows are longer:
+[ADR-006](../ADRs/ADR-006-transactional-outbox-and-inbox-for-effectively-once.md) requires the inbox retention to exceed the broker's redelivery window. The default of `InboxRetention` is 14 days, and startup compares it with the transport's `MaxRetention`. A shorter retention fails startup when provisioning is `Validate` (the production default) and logs a warning (event 1405) otherwise. Raise it when your windows are longer:
 
 ```csharp
 sf.Configure(o =>
 {
-    o.InboxRetention = TimeSpan.FromDays(14);
+    o.InboxRetention = TimeSpan.FromDays(30);
     o.RetentionInterval = TimeSpan.FromHours(1);
     o.RetentionBatchSize = 5_000;
 });

@@ -75,9 +75,21 @@ public sealed class SourceFlowTestHost : IAsyncDisposable
 
         ServiceProvider provider = collection.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         var host = new SourceFlowTestHost(provider, store, broker, time);
-        foreach (IHostedService hosted in provider.GetServices<IHostedService>())
+        // The generic host's order (doc 01 §9): every StartingAsync, every StartAsync, then every StartedAsync.
+        IHostedService[] hostedServices = [.. provider.GetServices<IHostedService>()];
+        foreach (IHostedLifecycleService lifecycle in hostedServices.OfType<IHostedLifecycleService>())
+        {
+            await lifecycle.StartingAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        foreach (IHostedService hosted in hostedServices)
         {
             await hosted.StartAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        foreach (IHostedLifecycleService lifecycle in hostedServices.OfType<IHostedLifecycleService>())
+        {
+            await lifecycle.StartedAsync(cancellationToken).ConfigureAwait(false);
         }
 
         return host;
@@ -173,9 +185,21 @@ public sealed class SourceFlowTestHost : IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        foreach (IHostedService hosted in _provider.GetServices<IHostedService>().Reverse())
+        // The generic host's order, reversed: every StoppingAsync (draining starts at once), StopAsync, StoppedAsync.
+        IHostedService[] hostedServices = [.. _provider.GetServices<IHostedService>().Reverse()];
+        foreach (IHostedLifecycleService lifecycle in hostedServices.OfType<IHostedLifecycleService>())
+        {
+            await lifecycle.StoppingAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+
+        foreach (IHostedService hosted in hostedServices)
         {
             await hosted.StopAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+
+        foreach (IHostedLifecycleService lifecycle in hostedServices.OfType<IHostedLifecycleService>())
+        {
+            await lifecycle.StoppedAsync(CancellationToken.None).ConfigureAwait(false);
         }
 
         await _provider.DisposeAsync().ConfigureAwait(false);

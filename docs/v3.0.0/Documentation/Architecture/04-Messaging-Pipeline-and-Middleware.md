@@ -26,6 +26,7 @@ Design rationale: [Design 04 — Messaging Pipeline](../../Design/04-Messaging-P
 | `TenantId` | `sftenant` | `MessageEnvelope.DefaultTenant` (`"-"`) in single-tenant deployments |
 | `Actor` | `sfactor` | Who caused it (`IActorAccessor`), for audit |
 | `Protection` | `sfenc` | The protection scheme when the body is encrypted |
+| `Attempts` | `sfattempt` | Delivery attempts already made, on a message re-sent for a delayed retry longer than the broker can wait |
 | `TraceParent`, `TraceState` | `traceparent`, `tracestate` | W3C trace context |
 | `Headers` | `sfheaders` | User headers as one JSON object attribute |
 | `Body` | data | The serialized, possibly encrypted payload |
@@ -247,13 +248,13 @@ flowchart TD
 | Mechanism | Default | Notes |
 |-----------|---------|-------|
 | Immediate retries | `ImmediateRetries = 3` | In process, back to back, each with a fresh DI scope |
-| Delayed retries | `DelayedRetries = [10 s, 1 min, 10 min, 1 h]` | The message is abandoned with the delay; the broker redelivers it (native delay where the transport has it) |
+| Delayed retries | `DelayedRetries = [10 s, 1 min, 10 min, 1 h]` | The message is abandoned with the delay; the broker redelivers it (native delay where the transport has it). A delay longer than the transport's `MaxDelay` (Pub/Sub 10 min, Service Bus 1 h) goes through the outbox instead: the message, as received, is queued for the same endpoint with `deliver_at` and `sfattempt` set to the attempts so far, and the original is completed. On an ordered endpoint that would let the key's next message overtake it, so there the delay is capped at `MaxDelay` and startup logs it (event 1404). On an ordered endpoint, a key's messages already received behind a head that waits for its retry are released at once, unhandled, so the broker redelivers them after the head |
 | Parking | after the last delayed retry, or at once when permanent | The message is written to the dead-letter store, then completed at the broker |
 | Broker backstop | max deliveries = `1 + DelayedRetries.Count + 2` | The topology gives the endpoint's native dead-letter queue a delivery limit above the runtime's own budget; it only catches messages that crashed the process before they could be parked |
 | Dead-letter ingestion | `IngestBrokerDeadLetters = true`, every `DeadLetterIngestInterval` (30 s) | Moves native DLQ messages into the dead-letter store, so there is one place to look |
 | Lock renewal | every `ReceiveLockDuration / 2` | Keeps the message locked while its handler runs; a lost lock means a redelivery the inbox absorbs |
 
-The receive endpoint also guarantees **per-key order and backpressure**: messages are dispatched to `ReceiveConcurrency` workers by a hash of the partition key (or the message id when there is none), so one key is handled one message at a time in arrival order, and each worker has a bounded channel of `PrefetchPerWorker` messages. On shutdown it stops receiving and waits up to `ShutdownTimeout` for in-flight messages; anything unsettled is redelivered after its lock expires.
+The receive endpoint also guarantees **per-key order and backpressure**: messages are dispatched to `ReceiveConcurrency` workers by a hash of the partition key (or the message id when there is none), so one key is handled one message at a time in arrival order, and each worker has a bounded channel of `PrefetchPerWorker` messages. On shutdown (`StoppingAsync`, before any hosted service stops) it stops receiving and drains: the messages being handled finish, and those still queued in the channels are released at once (abandoned with no delay) so another instance gets them now. Handlers still running when `ShutdownTimeout` is up are cancelled; their messages are redelivered after the lock, and the inbox absorbs any that had committed.
 
 ### Park reasons
 

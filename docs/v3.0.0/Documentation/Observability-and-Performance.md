@@ -473,7 +473,7 @@ validated at startup: an invalid value fails startup instead of being ignored.
 | `SnapshotQueueCapacity` | 1024 | Background snapshot queue; when full, the oldest is dropped. |
 | `MonitorInterval` | 15 s | How often gauges and health checks sample the store. Each sample is a few aggregate queries. |
 | `DeadLetterIngestInterval` | 30 s | How often the broker's native dead-letter queue is checked when empty. Every check is a broker call. |
-| `InboxRetention`, `RetentionInterval`, `RetentionBatchSize` | 7 days, 1 h, 5000 | Inbox growth versus duplicate detection window. |
+| `InboxRetention`, `RetentionInterval`, `RetentionBatchSize` | 14 days, 1 h, 5000 | Inbox growth versus duplicate detection window. |
 | `SourceFlowBuilder.Roles` | `All` | Split API pods (`Api`) from worker pods (`Receiver`, `Relay`, `Subscriptions`) and scale them on different signals. |
 | `PostgreSqlStorageOptions.ListenConnectionString` | main connection | Point LISTEN at a direct connection when the main one goes through PgBouncer. |
 | `PostgreSqlStorageOptions.PartitionEvents` | off | Monthly events partitions (tier M and above). |

@@ -831,7 +831,7 @@ Register `IActorAccessor` (who is acting, for audit) and `ITenantResolver` (the 
 | `AggregateCache` | `Off` | — | `Off`, `ReadTail` or `Optimistic` in-process aggregate state cache |
 | `AggregateCacheSize` | `10000` | 1–10,000,000 | States the cache holds (LRU) |
 | `SnapshotQueueCapacity` | `1024` | 1–1,000,000 | Pending background snapshot writes (oldest dropped when full) |
-| `InboxRetention` | 7 days | 1 min–3650 days | How long processed inbox rows are kept for deduplication |
+| `InboxRetention` | 14 days | 1 min–3650 days | How long processed inbox rows are kept for deduplication |
 | `DeadLetterRetention` | 30 days | 1 min–3650 days | How long replayed or discarded dead letters are kept (parked ones are never purged) |
 | `RetentionInterval` | 1 h | 1 s–7 days | How often the relay role runs retention cleanup |
 | `RetentionBatchSize` | `5000` | 1–100,000 | Rows deleted per cleanup statement |

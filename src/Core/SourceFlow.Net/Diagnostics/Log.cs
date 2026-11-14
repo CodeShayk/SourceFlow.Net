@@ -74,6 +74,12 @@ internal static partial class Log
     [LoggerMessage(1401, LogLevel.Information, "SourceFlow service {Service} started: {Modules} module(s), {Aggregates} aggregate(s), {Subscriptions} subscription(s)")]
     public static partial void Started(ILogger logger, string service, int modules, int aggregates, int subscriptions);
 
+    [LoggerMessage(1404, LogLevel.Warning, "This endpoint is ordered, so delayed retries longer than the transport's maximum delay ({MaxDelay}) wait {MaxDelay} instead: {Delays}")]
+    public static partial void DelayedRetriesCapped(ILogger logger, TimeSpan maxDelay, string delays);
+
+    [LoggerMessage(1405, LogLevel.Warning, "{Problem}")]
+    public static partial void InboxRetentionShort(ILogger logger, string problem);
+
     [LoggerMessage(1403, LogLevel.Warning, "Outbox partition {Partition} lease was not released on stop; it expires after the lease TTL")]
     public static partial void OutboxLeaseNotReleased(ILogger logger, Exception exception, int partition);
 

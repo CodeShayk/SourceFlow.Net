@@ -201,6 +201,8 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
     - session locks are renewed only for slots that have live deliveries.
   - **Parking scope (CR-10):** `ReceiveEndpoint` takes `PayloadRedaction` in its constructor, and parking never resolves
     from a disposed scope.
+    *As built:* the last attempt's scope stays open until the message is settled, so parking resolves from a live scope
+    (and a user-registered `PayloadRedaction` still applies); the constructor is unchanged.
   - **Draining shutdown (CR-11):**
     - `SourceFlowHost` becomes an `IHostedLifecycleService`;
     - one token stops pulling and a separate drain token stops in-flight work after `ShutdownTimeout`;
@@ -211,6 +213,10 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
       in CreateIfMissing (CR-12). Doc 05 §9 and doc 04 §6 are aligned on one default.
     - `DelayedRetries` is validated against `MaxDelay`. A longer delay is re-abandoned for the remainder (the core
       fallback) rather than silently truncated (CR-13).
+      *As built:* doc 04 §9.2's fallback, not a re-abandon (each abandon would spend a broker delivery and reach the
+      native dead-letter limit): the message is re-sent through the outbox with `deliver_at` and `sfattempt`, and the
+      original completed. On an ordered endpoint a re-send would let the key's next message overtake the head, so there
+      the delay is capped at `MaxDelay` and startup logs it (event 1404).
   - **Mid-receive errors (CR-42):** in the AWS and GCP receivers, a failure partway through a receive releases the
     messages already taken (visibility or deadline 0) before rethrowing, and the stale `_unsettled` entry is removed.
   - **Relay lease (CR-43):** `OutboxRelay` renews its lease during long drains, and publishes each group with the

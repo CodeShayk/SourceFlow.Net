@@ -828,7 +828,7 @@ namespace SourceFlow.Hosting
         public const string Transport = "transport";
         public static System.Collections.Generic.IReadOnlyList<string> All { get; }
     }
-    public sealed class SourceFlowHost : Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck, Microsoft.Extensions.Hosting.IHostedService, System.IAsyncDisposable
+    public sealed class SourceFlowHost : Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck, Microsoft.Extensions.Hosting.IHostedLifecycleService, Microsoft.Extensions.Hosting.IHostedService, System.IAsyncDisposable
     {
         public bool IsReady { get; }
         public int ReceiveInFlight { get; }
@@ -837,7 +837,11 @@ namespace SourceFlow.Hosting
         public System.Threading.Tasks.ValueTask DisposeAsync() { }
         public void Pulse() { }
         public System.Threading.Tasks.Task StartAsync(System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task StartedAsync(System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task StartingAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.Task StopAsync(System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task StoppedAsync(System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.Task StoppingAsync(System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask<bool> SubscriptionsCaughtUpAsync(System.Threading.CancellationToken cancellationToken) { }
     }
     public static class SourceFlowManifestExporter
@@ -864,6 +868,7 @@ namespace SourceFlow.Messaging
     public static class CloudEvents
     {
         public const string Actor = "sfactor";
+        public const string Attempts = "sfattempt";
         public const string Causation = "sfcausationid";
         public const string Correlation = "sfcorrelationid";
         public const string DataContentType = "datacontenttype";
@@ -909,6 +914,7 @@ namespace SourceFlow.Messaging
         public const string JsonContentType = "application/json";
         public MessageEnvelope() { }
         public string? Actor { get; init; }
+        public int? Attempts { get; init; }
         public System.ReadOnlyMemory<byte> Body { get; init; }
         public SourceFlow.MessageId? CausationId { get; init; }
         public string CloudEventType { get; }
@@ -2171,6 +2177,7 @@ namespace SourceFlow.Runtime
     {
         public ReceiveEndpoint(SourceFlow.Runtime.SourceFlowRuntime runtime, SourceFlow.Runtime.CommandProcessor commands, Microsoft.Extensions.DependencyInjection.IServiceScopeFactory scopes) { }
         public int InFlight { get; }
+        public void BeginDrain() { }
         public System.Threading.Tasks.ValueTask DisposeAsync() { }
         public System.Threading.Tasks.ValueTask DrainAsync(System.TimeSpan timeout) { }
         public System.Threading.Tasks.Task RunAsync(System.Threading.CancellationToken cancellationToken) { }
