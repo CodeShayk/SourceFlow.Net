@@ -13,10 +13,14 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
   </PropertyGroup>
 
-  <!-- AOT-compatible runtime packages. EF Core, the CLI and the generator are excluded (plan 02 §6). -->
+  <!--
+    AOT-compatible runtime packages. EF Core, the CLI and the generator are excluded (plan 02 §6). So is the GCP adapter:
+    the Google Cloud SDK uses Newtonsoft.Json and reflection, so a trimmed publish warns inside it (plan 09 IR-08, WP-C.18).
+  -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' != 'SourceFlow.Generators'
                          AND '$(MSBuildProjectName)' != 'SourceFlow.Storage.EntityFrameworkCore'
-                         AND '$(MSBuildProjectName)' != 'SourceFlow.Tool'">
+                         AND '$(MSBuildProjectName)' != 'SourceFlow.Tool'
+                         AND '$(MSBuildProjectName)' != 'SourceFlow.Cloud.Gcp'">
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 

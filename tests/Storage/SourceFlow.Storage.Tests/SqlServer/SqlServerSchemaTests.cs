@@ -66,11 +66,15 @@ public sealed class SqlServerSchemaTests(SqlServerServer server) : SqlServerTest
     {
         string script = new SqlServerSchemaMigrator(Server.ConnectionString, "sales").Script();
 
-        script.ShouldStartWith("SET XACT_ABORT ON;\nBEGIN TRANSACTION;\nEXEC sp_getapplock");
+        script.ShouldStartWith(":on error exit\nSET XACT_ABORT ON;\nBEGIN TRANSACTION;\nEXEC sp_getapplock");
         script.ShouldContain("CREATE TABLE [sales].events");
         script.ShouldContain("CREATE UNIQUE INDEX ix_events_commit_order ON [sales].events (rv) INCLUDE (bucket);");
         script.ShouldContain("INSERT INTO [sales].schema_history (version, name, checksum) VALUES (1, N'initial', N'" + SqlServerSchemaMigrator.EmbeddedScripts[0].Checksum + "');");
-        script.ShouldEndWith("COMMIT TRANSACTION;\n");
+        script.ShouldEndWith("COMMIT TRANSACTION;\nGO\nSET NOEXEC OFF;\n");
+
+        // CR-60: after a failed batch (rolled back by XACT_ABORT), no later batch runs outside the transaction.
+        string[] batches = script.Split("\nGO\n");
+        batches.Skip(1).ShouldAllBe(b => b.StartsWith("IF @@TRANCOUNT = 0 SET NOEXEC ON;", StringComparison.Ordinal) || b.StartsWith("SET NOEXEC OFF;", StringComparison.Ordinal));
     }
 
     [Theory]

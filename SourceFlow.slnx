@@ -69,6 +69,9 @@
     <Project Path="tests/Fixtures/Bank/Bank.Notifications/Bank.Notifications.csproj" />
     <Project Path="tests/Fixtures/Bank/Bank.AotCheck/Bank.AotCheck.csproj" />
   </Folder>
+  <Folder Name="/tests/Fixtures/">
+    <Project Path="tests/Fixtures/Cloud.AotCheck/Cloud.AotCheck.csproj" />
+  </Folder>
   <Folder Name="/tests/Fixtures/OrderFulfilment/">
     <Project Path="tests/Fixtures/OrderFulfilment/Orders/Orders.csproj" />
     <Project Path="tests/Fixtures/OrderFulfilment/Inventory/Inventory.csproj" />

@@ -583,6 +583,26 @@ P4 packages (`WP-C.14` … `WP-C.18`) follow in either lane. Ordering rules:
   - **SQL Server `Script()`:** guarded batches (`:on error exit`, `IF @@TRANCOUNT = 0 SET NOEXEC ON`).
   - **`RequestAsync`:** compare-and-set (`WHERE target = @target`) in all three stores (ADR-032 §2).
   - **CloudEvents doc drift:** ADR-011 and doc 04 are aligned with the code (`type` carries the version; `sfext`).
+  *As built:*
+  - **AOT.** `tests/Fixtures/Cloud.AotCheck` publishes the AWS and Azure adapters with PublishAot in CI. A trimmed
+    publish found two problems in the AWS policy merge: a single-object `Statement` was re-parented into a `JsonArray`,
+    and a generic `JsonArray.Add<T>`. Both are fixed (UT-AWS-37).
+  - **GCP waiver.** The Google Cloud SDK warns inside itself when trimmed: Newtonsoft.Json in `Google.Apis` and `Gax`,
+    reflection in `Gax.Grpc`, and `System.Management` in `Google.Apis.Auth`. So `SourceFlow.Cloud.Gcp` is no longer
+    marked AOT-compatible (plan 09 IR-08).
+  - **ARCH-06.** It checks that every AOT-marked runtime package is published by an AotCheck fixture that CI runs.
+    SQL Server, Testing and Studio are marked but not yet checked; the test pins that list, so it can only shrink.
+  - **Runtime namespace.** CR-59 took the ADR-027 amendment: `SourceFlow.Runtime` is public SPI.
+  - **Test host.** `SourceFlowTestHost`'s in-memory store and broker are defaults: the service's own `Use…` call
+    replaces each once.
+  - **Unused key provider.** It is logged at start as a warning (5002), not refused.
+  - **Query tenant.** `AddSourceFlowQueryApi` registers `ClaimsTenantResolver` (the `sourceflow:tenant`, then the
+    `tenant` claim) unless the application has its own `ITenantResolver`. `SourceFlowQueryApiOptions.Tenant` defaults
+    to null, which means that resolver, so commands and queries agree.
+  - **Outbox partitions.** The service records its outbox partition count at start under `$outbox`, in the subscription partition table.
+    `--outbox-partitions` overrides it, and 16 is used only when nothing is recorded.
+  - **`RequestAsync`.** It returns false when the alias moved meanwhile; the CLI then stops with a message.
+- **Tests:** ARCH-06, UT-HOST-21..25, UT-OUT-21, UT-ASP-43..44, UT-CLI-37, UT-AWS-37; ARCH-01 and ARCH-03 as built.
 
 ## 5. Release gates
 

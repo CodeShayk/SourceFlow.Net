@@ -426,19 +426,29 @@ public sealed class InMemoryStore :
     }
 
     /// <inheritdoc />
-    public ValueTask RequestAsync(string alias, string currentTarget, string building, CancellationToken cancellationToken)
+    public ValueTask<bool> RequestAsync(string alias, string currentTarget, string building, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(alias);
         ArgumentException.ThrowIfNullOrEmpty(currentTarget);
         ArgumentException.ThrowIfNullOrEmpty(building);
         lock (_gate)
         {
-            _aliases[alias] = _aliases.TryGetValue(alias, out CollectionAlias? current)
-                ? current with { Building = building }
-                : new CollectionAlias(alias, currentTarget, null, building, _time.GetUtcNow());
+            if (_aliases.TryGetValue(alias, out CollectionAlias? current))
+            {
+                if (current.Target != currentTarget)
+                {
+                    return ValueTask.FromResult(false);
+                }
+
+                _aliases[alias] = current with { Building = building };
+            }
+            else
+            {
+                _aliases[alias] = new CollectionAlias(alias, currentTarget, null, building, _time.GetUtcNow());
+            }
         }
 
-        return ValueTask.CompletedTask;
+        return ValueTask.FromResult(true);
     }
 
     /// <inheritdoc />

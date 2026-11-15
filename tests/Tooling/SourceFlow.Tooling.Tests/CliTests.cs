@@ -146,6 +146,24 @@ public sealed class CliTests
     }
 
     [Fact]
+    [Trait("Id", "UT-CLI-37")]
+    [Trait("Covers", "doc 04 7")]
+    public async Task OutboxWrites_UseThePartitionCountTheServiceRecorded()
+    {
+        var store = new SourceFlow.Storage.InMemory.InMemoryStore();
+        await using SourceFlowTestHost host = await SourceFlowTestHost.StartAsync(sf =>
+        {
+            sf.ServiceName = "accounts";
+            sf.AddModule<AccountsModule>();
+            sf.Configure(o => o.OutboxPartitions = 5);
+        }, store: store, cancellationToken: Ct);
+        StoragePorts storage = host.Services.GetRequiredService<SourceFlowRuntime>().Storage;
+
+        (await Cli.OutboxPartitionsAsync(storage, null, Ct)).ShouldBe(5);   // CR-60: not the default 16
+        (await Cli.OutboxPartitionsAsync(storage, 7, Ct)).ShouldBe(7);       // --outbox-partitions still wins
+    }
+
+    [Fact]
     [Trait("Id", "UT-CLI-07")]
     [Trait("Id", "UT-CLI-08")]
     public async Task DlqDiscard_ThenPurge()

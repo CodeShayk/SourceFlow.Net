@@ -55,6 +55,15 @@ public static class ServiceCollectionExtensions
             }
         }
 
+        // CR-60: an inline projection runs in the command's transaction and fails it; a failure policy can't apply to it.
+        foreach (Type projection in builder.ProjectionPolicies.Keys)
+        {
+            if (builder.ProjectionModes.GetValueOrDefault(projection) == ProjectionMode.Inline)
+            {
+                throw new InvalidOperationException($"Projection {projection.Name} is Inline: OnFailure applies to async projections only (an inline failure fails the command).");
+            }
+        }
+
         builder.Model.RegisterServices(services);
         services.AddOptions<SourceFlowOptions>()
             .Configure(o =>
@@ -163,6 +172,7 @@ public static class ServiceCollectionExtensions
             runtime.ProjectionPolicies = builder.ProjectionPolicies.ToDictionary();
             runtime.ProjectionPartitions = builder.ProjectionPartitions.ToDictionary();
             runtime.ProcessManagerStarts = builder.ProcessManagerStarts.ToDictionary();
+            runtime.KeyProviderUnused = builder.SecuritySettings is { KeyProvider: not null, PersonalDataEncryption: false, Protection: null };
             runtime.ResilienceConfigurations = builder.ResilienceSettings.Configurations.ToDictionary(StringComparer.Ordinal);
             string[] missing = [.. model.Projections.Select(p => p.MissingDependency(sp)).OfType<string>()];
             if (missing.Length > 0)

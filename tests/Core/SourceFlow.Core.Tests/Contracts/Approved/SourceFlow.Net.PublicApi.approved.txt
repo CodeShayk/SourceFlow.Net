@@ -2721,7 +2721,7 @@ namespace SourceFlow.Storage
     {
         System.Threading.Tasks.ValueTask ClearPreviousAsync(string alias, string previous, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Storage.CollectionAlias>> ListAliasesAsync(System.Threading.CancellationToken cancellationToken);
-        System.Threading.Tasks.ValueTask RequestAsync(string alias, string currentTarget, string building, System.Threading.CancellationToken cancellationToken);
+        System.Threading.Tasks.ValueTask<bool> RequestAsync(string alias, string currentTarget, string building, System.Threading.CancellationToken cancellationToken);
         System.Threading.Tasks.ValueTask<bool> SwitchAsync(string alias, string? expectedTarget, string target, System.Threading.CancellationToken cancellationToken);
     }
     public interface IDeadLetterStore
@@ -3063,7 +3063,7 @@ namespace SourceFlow.Storage.InMemory
         public System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<SourceFlow.Catalog.SchemaConflict>> RegisterAsync(string service, System.Collections.Generic.IReadOnlyList<SourceFlow.Catalog.SchemaEntry> schemas, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask ReleaseAsync(SourceFlow.Storage.LeaseToken lease, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask ReplaceAsync(System.Collections.Generic.IReadOnlyList<SourceFlow.Catalog.SchemaEntry> schemas, System.Threading.CancellationToken cancellationToken) { }
-        public System.Threading.Tasks.ValueTask RequestAsync(string alias, string currentTarget, string building, System.Threading.CancellationToken cancellationToken) { }
+        public System.Threading.Tasks.ValueTask<bool> RequestAsync(string alias, string currentTarget, string building, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask RetryAsync(SourceFlow.Storage.LeaseToken lease, long sequence, System.DateTimeOffset deliverAt, string error, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask SaveAsync(string tenantId, SourceFlow.Storage.Snapshot snapshot, System.Threading.CancellationToken cancellationToken) { }
         public System.Threading.Tasks.ValueTask SetStatusAsync(System.Guid id, SourceFlow.Storage.DeadLetterStatus status, string? note, System.Threading.CancellationToken cancellationToken) { }

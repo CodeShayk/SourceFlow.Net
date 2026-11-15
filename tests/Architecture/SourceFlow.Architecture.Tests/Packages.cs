@@ -34,6 +34,33 @@ internal static class Packages
             .Where(n => n.StartsWith("SourceFlow", StringComparison.Ordinal));
     }
 
+    /// <summary>Every package in a project's restore graph (its <c>obj/project.assets.json</c>), by name.</summary>
+    public static IReadOnlyList<string> Graph(string project)
+    {
+        string root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "SourceFlow.slnx")))
+        {
+            root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("Repository root not found.");
+        }
+
+        string assets = Path.Combine(root, project, "obj", "project.assets.json");
+        using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(assets));
+        System.Text.Json.JsonElement targets = document.RootElement.GetProperty("targets");
+        var names = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (System.Text.Json.JsonProperty target in targets.EnumerateObject())
+        {
+            foreach (System.Text.Json.JsonProperty library in target.Value.EnumerateObject())
+            {
+                if (library.Value.TryGetProperty("type", out System.Text.Json.JsonElement type) && type.GetString() == "package")
+                {
+                    names.Add(library.Name[..library.Name.IndexOf('/', StringComparison.Ordinal)]);
+                }
+            }
+        }
+
+        return [.. names];
+    }
+
     public static TheoryData<string> AdapterData()
     {
         return new TheoryData<string>(Adapters);

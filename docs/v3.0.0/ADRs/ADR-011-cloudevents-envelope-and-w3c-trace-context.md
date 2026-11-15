@@ -12,8 +12,8 @@ v2 uses provider-specific attributes (`CommandType` as an AQN, `EventName`). For
 
 ## Decision
 
-- One `MessageEnvelope` model, mapped to CloudEvents 1.0 attributes: `id`, `source`, `type`, `specversion`, `subject`, `time`, `datacontenttype`, and the `dataschema` version.
-- SourceFlow extensions: `sfcorrelationid`, `sfcausationid`, `sfpartitionkey`, `sfstreamversion`, `sfenc`, `sftenant`.
+- One `MessageEnvelope` model, mapped to CloudEvents 1.0 attributes: `id`, `source`, `type`, `specversion`, `subject`, `time` and `datacontenttype`. *As built (CR-60):* the version travels in `type` (`{name}.v{version}`, for example `bank.account.deposited.v1`), not in `dataschema`.
+- SourceFlow extensions: `sfcorrelationid`, `sfcausationid`, `sfpartitionkey`, `sfstreamversion`, `sfenc`, `sftenant`. *As built:* also `sfactor` (who caused it), `sfattempt` (a delayed-retry re-send, doc 04 §9.2) and `sfheaders` (user headers, a JSON object). Extensions that don't fit a broker's attribute budget travel together in one `sfext` attribute (a JSON object); the required attributes never move there.
 - Trace context uses the CloudEvents distributed-tracing extension (`traceparent`, `tracestate`).
 - Transports use **binary content mode** (attributes in native headers, data in the body) where the broker supports enough headers, and structured mode otherwise.
 

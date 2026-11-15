@@ -47,10 +47,13 @@ public sealed class MessageEnvelope
 | `PartitionKey` | `sfpartitionkey` | extension |
 | `StreamVersion` | `sfstreamversion` | extension |
 | `TenantId` | `sftenant` | extension |
-| `Actor` | `sfactor` | extension (travels in `sf_ext` on SQS, where attributes are limited) |
+| `Actor` | `sfactor` | extension (travels in `sfext` on SQS, where attributes are limited) |
+| `Headers` | `sfheaders` | extension: the user headers, as a JSON object |
 | `Protection` | `sfenc` | extension |
 | `Attempts` | `sfattempt` | extension; set only on a delayed-retry re-send (§9.2) |
 | `TraceParent` / `TraceState` | `traceparent` / `tracestate` | distributed-tracing extension |
+
+Extensions that don't fit a broker's attribute budget go together in one `sfext` attribute (a JSON object); `id`, `source`, `specversion`, `type`, `time` and `datacontenttype` never do. The version is part of `type`; `dataschema` isn't used.
 
 Transports use **binary mode**: attributes go in native headers (`ce_` prefix where required) and the body is the data. When a broker's header budget is too small, the transport switches to **structured mode** (a CloudEvents JSON document) and sets `content-type: application/cloudevents+json`. Both modes round-trip losslessly, which the conformance kit checks.
 

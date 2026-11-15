@@ -4,6 +4,7 @@ ARCH-01,ADR-027,Core references only the BCL Microsoft.Extensions and Polly
 ARCH-02,ADR-027,Core never references an adapter
 ARCH-03,ADR-027,Adapters reference the core only
 ARCH-05,plan 06 9,No reflection activation in runtime packages
+ARCH-06,plan 09 IR-08,Every AOT-marked package is published with PublishAot by a CI AOT check
 ARCH-07,plan 06 9,Public adapter classes are sealed
 ARCH-08,plan 04 7,Traceability ids are covered
 ARCH-10,ADR-013,No hand-written backoff outside the resilience engine

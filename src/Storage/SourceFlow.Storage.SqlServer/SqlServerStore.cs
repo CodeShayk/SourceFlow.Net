@@ -407,12 +407,14 @@ public sealed partial class SqlServerStore :
     }
 
     /// <inheritdoc />
-    public ValueTask RequestAsync(string alias, string currentTarget, string building, CancellationToken cancellationToken)
+    public async ValueTask<bool> RequestAsync(string alias, string currentTarget, string building, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(alias);
         ArgumentException.ThrowIfNullOrEmpty(currentTarget);
         ArgumentException.ThrowIfNullOrEmpty(building);
-        return ExecuteAsync(Sql.RequestAlias, cancellationToken, Text("@alias", alias), Text("@target", currentTarget), Text("@building", building));
+        await using SqlConnection connection = await OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using SqlCommand command = Command(Sql.RequestAlias, connection, null, Text("@alias", alias), Text("@target", currentTarget), Text("@building", building));
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
     /// <inheritdoc />

@@ -217,8 +217,8 @@ internal sealed class SqlText
              WHERE alias = @alias AND target = @expected
             """);
         RequestAlias = R("""
-            INSERT INTO {s}.collection_aliases (alias, target, building) VALUES (@alias, @target, @building)
-            ON CONFLICT (alias) DO UPDATE SET building = excluded.building
+            INSERT INTO {s}.collection_aliases AS a (alias, target, building) VALUES (@alias, @target, @building)
+            ON CONFLICT (alias) DO UPDATE SET building = excluded.building WHERE a.target = excluded.target
             """);
         ClearPreviousAlias = R("UPDATE {s}.collection_aliases SET previous = NULL WHERE alias = @alias AND previous = @previous");
         NodeLeave = R("DELETE FROM {s}.nodes WHERE node_id = @node");

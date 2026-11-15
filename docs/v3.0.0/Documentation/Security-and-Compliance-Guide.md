@@ -644,8 +644,9 @@ inside them either. A named domain query can add its own authorization policy wi
 
 ### 11.4 Tenants
 
-The caller's tenant comes from `SourceFlowQueryApiOptions.Tenant`, which by default reads the `sourceflow:tenant` or
-`tenant` claim; null falls back to the ambient tenant (`ITenantResolver`). The binder adds the tenant predicate to every
+The caller's tenant comes from the service's `ITenantResolver`, the same as for commands. By default that is
+`ClaimsTenantResolver`, which reads the `sourceflow:tenant` or `tenant` claim. `SourceFlowQueryApiOptions.Tenant` can
+override it for queries. The binder adds the tenant predicate to every
 source. With PostgreSQL row-level security, the database enforces it again.
 
 ### 11.5 HTTP hardening

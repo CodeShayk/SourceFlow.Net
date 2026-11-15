@@ -519,6 +519,24 @@ public sealed class AwsTransportTests
     }
 
     [Fact]
+    [Trait("Id", "UT-AWS-37")]
+    [Trait("Covers", "doc 07 5;ARCH-06")]
+    public void MergePolicy_KeepsASingleStatementObject_AndReplacesOnlyTheSourceFlowStatement()
+    {
+        // IAM allows "Statement" to be one object instead of an array; found by the cloud AOT check (WP-C.18).
+        const string Partner = """{"Version":"2012-10-17","Statement":{"Sid":"partner","Effect":"Allow","Action":"sqs:SendMessage"}}""";
+        var statement = new System.Text.Json.Nodes.JsonObject { ["Sid"] = "sourceflow-sns-to-sqs", ["Effect"] = "Allow" };
+
+        string merged = AwsProvisioner.MergePolicy(Partner, statement);
+        string again = AwsProvisioner.MergePolicy(merged, new System.Text.Json.Nodes.JsonObject { ["Sid"] = "sourceflow-sns-to-sqs", ["Effect"] = "Deny" });
+
+        System.Text.Json.Nodes.JsonArray statements = System.Text.Json.Nodes.JsonNode.Parse(again)!["Statement"]!.AsArray();
+        statements.Select(n => (string?)n!["Sid"]).ShouldBe(["partner", "sourceflow-sns-to-sqs"]);
+        ((string?)statements[1]!["Effect"]).ShouldBe("Deny");
+        AwsProvisioner.MergePolicy(null, statement).ShouldContain("\"Version\":\"2012-10-17\"");
+    }
+
+    [Fact]
     [Trait("Id", "UT-AWS-30")]
     [Trait("Covers", "doc 07 6")]
     public void UseAwsTransport_RegistersTheTransport_AndTheHealthCheck()

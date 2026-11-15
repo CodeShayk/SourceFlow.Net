@@ -383,7 +383,8 @@ flowchart LR
 ```
 
 - The tenant of a query is `QueryOptions.Tenant`, or the ambient tenant. Over HTTP it comes from
-  `SourceFlowQueryApiOptions.Tenant` (default: the `sourceflow:tenant` or `tenant` claim).
+  `ITenantResolver`, as for commands: `ClaimsTenantResolver` (the `sourceflow:tenant` or `tenant` claim) unless the
+  application registers its own. `SourceFlowQueryApiOptions.Tenant` overrides it for queries.
 - The binder adds the tenant predicate to every source, and between every pair of joined sources.
 - `options (tenants = 'all')` needs `sourceflow.query.cross-tenant`. On PostgreSQL that query runs on the system data
   source; every other query runs in a read-only transaction on the runtime data source with the tenant set, so

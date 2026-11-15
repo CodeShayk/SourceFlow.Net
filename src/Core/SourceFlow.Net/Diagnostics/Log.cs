@@ -77,6 +77,9 @@ internal static partial class Log
     [LoggerMessage(4007, LogLevel.Information, "Subscription {Subscription} runs for the first time and starts at the head of the log ({Commit}, {Sequence}): it reacts to new events only (doc 15 §5.6)")]
     public static partial void SubscriptionStartsAtHead(ILogger logger, string subscription, ulong commit, ulong sequence);
 
+    [LoggerMessage(5002, LogLevel.Warning, "A key provider is configured, but nothing uses it: turn on EncryptPersonalData() or Protect(...) in sf.Security(...), or remove it (CR-60)")]
+    public static partial void KeyProviderUnused(ILogger logger);
+
     [LoggerMessage(1401, LogLevel.Information, "SourceFlow service {Service} started: {Modules} module(s), {Aggregates} aggregate(s), {Subscriptions} subscription(s)")]
     public static partial void Started(ILogger logger, string service, int modules, int aggregates, int subscriptions);
 

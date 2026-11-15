@@ -86,10 +86,10 @@ public sealed class PartitionCountScenarios(PostgreSqlServer postgreSql)
         return host;
     }
 
-    // Every stored subscription partition count in the schema (doc 06 §3, V009).
+    // Every stored subscription partition count in the schema (doc 06 §3, V009); the service's own outbox count is not one.
     private async Task<IReadOnlyList<int>> StoredCountsAsync(string schema)
     {
-        await using Npgsql.NpgsqlCommand command = postgreSql.DataSource.CreateCommand($"SELECT partitions FROM \"{schema}\".subscription_partitions");
+        await using Npgsql.NpgsqlCommand command = postgreSql.DataSource.CreateCommand($"SELECT partitions FROM \"{schema}\".subscription_partitions WHERE subscription <> '$outbox'");
         var counts = new List<int>();
         await using Npgsql.NpgsqlDataReader reader = await command.ExecuteReaderAsync(Ct);
         while (await reader.ReadAsync(Ct))

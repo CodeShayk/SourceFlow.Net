@@ -283,7 +283,7 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
         }));
 
         var note = new Option<string?>("--note") { Description = "An audit note." };
-        var outboxPartitions = new Option<int>("--outbox-partitions") { Description = "The service's OutboxPartitions (global tool only).", DefaultValueFactory = _ => 16 };
+        var outboxPartitions = new Option<int?>("--outbox-partitions") { Description = "The service's OutboxPartitions (global tool only). Default: the count the service records in the store, else 16." };
         var replay = Store(new Command("replay", "Re-send a parked message to its destination; its id is kept, so the inbox still protects."), note, outboxPartitions);
         replay.Arguments.Add(id);
         replay.SetAction((r, ct) => Guard(async () =>
@@ -295,7 +295,7 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
             else
             {
                 await using Ports ports = await PortsAsync(r, ct);
-                await ReplayThroughOutboxAsync(ports.Storage, r.GetValue(id), Audited(r.GetValue(note)), r.GetValue(outboxPartitions), ct);
+                await ReplayThroughOutboxAsync(ports.Storage, r.GetValue(id), Audited(r.GetValue(note)), await OutboxPartitionsAsync(ports.Storage, r.GetValue(outboxPartitions), ct), ct);
             }
 
             await Out.WriteLineAsync("Replayed " + r.GetValue(id));
@@ -343,6 +343,12 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
     }
 
     // Global tool: the outbox relay of the running service sends it (no transport in the CLI).
+    // CR-60: the count the service records at startup, unless the command line says otherwise; 16 (the default) without either.
+    internal static async Task<int> OutboxPartitionsAsync(StoragePorts storage, int? given, CancellationToken ct)
+    {
+        return given ?? await storage.Checkpoints.GetPartitionsAsync("$outbox", ct) ?? 16;   // recorded by the service at start
+    }
+
     private static async Task ReplayThroughOutboxAsync(StoragePorts storage, Guid id, string? note, int outboxPartitions, CancellationToken ct)
     {
         DeadLetter d = await storage.DeadLetters.GetAsync(id, ct) ?? throw new CliException("No such dead letter.");
@@ -572,7 +578,10 @@ internal sealed partial class Cli(IServiceProvider? services, TextWriter output,
         }
 
         ReadModelGeneration next = latest.Next();
-        await aliases.RequestAsync(serving.Name, serving.Collection, next.Collection, ct);
+        if (!await aliases.RequestAsync(serving.Name, serving.Collection, next.Collection, ct))
+        {
+            throw new CliException($"The read model {serving.Name} switched away from {serving.Collection} meanwhile (another rebuild finished); run the command again.");
+        }
         return (serving.Collection, next.Collection);
     }
 

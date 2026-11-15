@@ -414,8 +414,12 @@ By default `SourceFlowQueryApiOptions.Permissions` reads the caller's permission
 `sourceflow.query.` count. So a token with `scope: "sourceflow.query.adhoc sourceflow.query.readmodels"` may run ad-hoc
 read-model queries.
 
-The tenant comes from the `sourceflow:tenant` claim, then the `tenant` claim. When neither is present, the ambient
-tenant is used (`ITenantResolver`, or `SourceFlowOptions.DefaultTenant`).
+The tenant comes from the service's `ITenantResolver`, the same as for commands. Unless you register your own,
+`AddSourceFlowQueryApi` registers `ClaimsTenantResolver`, which reads the `sourceflow:tenant` claim, then the `tenant`
+claim. When neither is present, the default tenant is used (`SourceFlowOptions.DefaultTenant`). Setting `o.Tenant`
+overrides it for queries only.
+
+The options are validated when the API is registered: an out-of-range limit fails at startup.
 
 Replace either mapping when your identity provider uses other claims:
 
@@ -520,7 +524,7 @@ Set with `services.AddSourceFlowQueryApi(o => ...)`.
 | `ConcurrencyPerPrincipal` | `4` | Concurrent queries per principal. Over is `429` SFQ0503. |
 | `ConcurrencyPerService` | `32` | Concurrent queries for the whole service. Over is `503` SFQ0503. |
 | `Permissions` | `SourceFlowQueryApiOptions.DefaultPermissions` | `Func<ClaimsPrincipal, QueryPermissions>`: the caller's query permissions. |
-| `Tenant` | `sourceflow:tenant`, then `tenant` claim | `Func<HttpContext, string?>`: the caller's tenant; `null` uses the ambient tenant. |
+| `Tenant` | `_ => null` | `Func<HttpContext, string?>`: the caller's tenant for queries; `null` uses the service's `ITenantResolver` (by default `ClaimsTenantResolver`: the `sourceflow:tenant`, then the `tenant` claim). |
 
 Query engine limits (text length, tokens, joins, page size, `MaxRows` and so on) are `QueryLimits` inside
 `QueryPolicySettings`, which the core registers with `TryAddSingleton`. To change them, register your own instance

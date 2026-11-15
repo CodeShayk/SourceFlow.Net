@@ -263,6 +263,9 @@ public sealed class SourceFlowRuntime
     /// <summary>Where each process manager's new subscription starts (by process type); absent means the head (CR-34).</summary>
     internal IReadOnlyDictionary<Type, Hosting.SubscriptionStart> ProcessManagerStarts { get; set; } = new Dictionary<Type, Hosting.SubscriptionStart>();
 
+    /// <summary>True when a key provider is configured but neither personal-data encryption nor payload protection uses it (CR-60).</summary>
+    internal bool KeyProviderUnused { get; set; }
+
     /// <summary>The customisations of the resilience pipelines (<c>sf.Resilience(...)</c>).</summary>
     internal IReadOnlyDictionary<string, List<Action<Polly.ResiliencePipelineBuilder>>> ResilienceConfigurations { get; set; } = new Dictionary<string, List<Action<Polly.ResiliencePipelineBuilder>>>();
 

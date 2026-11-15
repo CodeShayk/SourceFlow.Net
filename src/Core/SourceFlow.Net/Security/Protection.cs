@@ -67,9 +67,16 @@ public sealed class SecurityBuilder
     }
 
     /// <summary>Uses a key provider (the cloud packages add <c>UseAwsKms</c>, <c>UseAzureKeyVault</c> and <c>UseGoogleKms</c>).</summary>
+    /// <remarks>A service has one key provider: a second call is a configuration error (CR-60).</remarks>
     public SecurityBuilder UseKeyProvider(Func<IServiceProvider, IKeyProvider> factory)
     {
-        KeyProvider = factory ?? throw new ArgumentNullException(nameof(factory));
+        ArgumentNullException.ThrowIfNull(factory);
+        if (KeyProvider is not null)
+        {
+            throw new InvalidOperationException("A key provider is configured twice: a service has one. Remove the second Use…Kms/UseKeyProvider call.");
+        }
+
+        KeyProvider = factory;
         return this;
     }
 

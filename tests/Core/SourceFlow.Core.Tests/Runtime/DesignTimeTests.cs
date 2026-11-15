@@ -59,8 +59,8 @@ public sealed class DesignTimeTests
         builder.Services.AddSourceFlow(
             sf =>
             {
-                Configure(sf, reverse: false);
-                // Fault-injecting adapters: any use is a design-time I/O leak.
+                Configure(sf, reverse: false, inMemory: false);
+                // Fault-injecting adapters (the only slots: a second Use… call is refused, CR-60): any use is a design-time I/O leak.
                 sf.UseStorage(_ =>
                 {
                     faults.Add("storage");
@@ -153,7 +153,7 @@ public sealed class DesignTimeTests
         return services;
     }
 
-    private static void Configure(SourceFlowBuilder sf, bool reverse)
+    private static void Configure(SourceFlowBuilder sf, bool reverse, bool inMemory = true)
     {
         sf.ServiceName = "transfers";
         if (reverse)
@@ -169,7 +169,11 @@ public sealed class DesignTimeTests
             sf.AddModule<RemoteAccountCommands>();
         }
 
-        sf.UseInMemoryStorage();
+        if (inMemory)
+        {
+            sf.UseInMemoryStorage();
+        }
+
         sf.Routing(r =>
         {
 #pragma warning disable SF0014 // the Accounts service owns these commands

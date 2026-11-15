@@ -78,7 +78,7 @@ internal sealed partial class Cli
 
         var note = new Option<string?>("--note") { Description = "An audit note." };
         var step = new Option<string?>("--step") { Description = "Resume at this step instead of the current one." };
-        var outboxPartitions = new Option<int>("--outbox-partitions") { Description = "The service's OutboxPartitions (global tool only).", DefaultValueFactory = _ => 16 };
+        var outboxPartitions = new Option<int?>("--outbox-partitions") { Description = "The service's OutboxPartitions (global tool only). Default: the count the service records in the store, else 16." };
         var resume = Store(new Command("resume", "Resume an instance in manual intervention: the compensation continues, or the step (or --step) runs again."), _tenant, _endpoint, outboxPartitions, step, note);
         resume.Arguments.Add(workflowArgument);
         resume.Arguments.Add(instanceArgument);
@@ -105,7 +105,7 @@ internal sealed partial class Cli
         return command;
     }
 
-    private async Task<int> ControlAsync(ParseResult r, Argument<string> workflowArgument, Argument<string> instanceArgument, Option<int> outboxPartitions,
+    private async Task<int> ControlAsync(ParseResult r, Argument<string> workflowArgument, Argument<string> instanceArgument, Option<int?> outboxPartitions,
         string action, string? step, string? note, bool compensate, CancellationToken ct)
     {
         string tenant = r.GetValue(_tenant)!;
@@ -142,8 +142,9 @@ internal sealed partial class Cli
                 Actor = Environment.UserName + "@" + Environment.MachineName,
                 Body = WorkflowRuntime.SerializeControl(control),
             };
+            int partitions = await OutboxPartitionsAsync(ports.Storage, r.GetValue(outboxPartitions), ct);
             await using IStorageSession session = await ports.Storage.Sessions.BeginAsync(tenant, ct);
-            session.EnqueueOutbox(new OutboxMessage(envelope, endpoint, OutboxKind.Scheduled, now, OutboxPartitioning.PartitionOf(envelope.EffectivePartitionKey, r.GetValue(outboxPartitions))));
+            session.EnqueueOutbox(new OutboxMessage(envelope, endpoint, OutboxKind.Scheduled, now, OutboxPartitioning.PartitionOf(envelope.EffectivePartitionKey, partitions)));
             await session.CommitAsync(ct);
         }
 

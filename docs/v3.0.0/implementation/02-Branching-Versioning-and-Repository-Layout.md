@@ -147,7 +147,7 @@ All packages are versioned together by GitVersion. `SourceFlow.Generators` is pa
 | `TargetFramework` | `net10.0` only. Single exception: `SourceFlow.Generators` targets `netstandard2.0` because Roslyn requires it for compiler plugins (RS1041); it never runs in the application | ADR-001, ADR-027 |
 | `LangVersion` / `Nullable` | `latest` / `enable` | |
 | `TreatWarningsAsErrors` | `true` for `src/`, `false` for tests (analyzers still on) | Fail fast |
-| `IsAotCompatible` / `IsTrimmable` | `true` for every runtime package except `SourceFlow.Storage.EntityFrameworkCore` and `SourceFlow.Tool` | Doc 01 portability goal |
+| `IsAotCompatible` / `IsTrimmable` | `true` for every runtime package except `SourceFlow.Storage.EntityFrameworkCore`, `SourceFlow.Tool` and (WP-C.18, plan 09 IR-08) `SourceFlow.Cloud.Gcp` | Doc 01 portability goal |
 | `GenerateDocumentationFile` | `true`. Public API without XML docs is an error | API quality |
 | `ManagePackageVersionsCentrally` | `true` | One place for versions |
 | `ContinuousIntegrationBuild`, `EmbedUntrackedSources`, SourceLink | on in CI | Reproducible, debuggable packages |

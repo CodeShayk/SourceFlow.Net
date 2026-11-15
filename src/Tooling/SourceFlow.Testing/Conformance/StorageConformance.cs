@@ -1001,8 +1001,10 @@ public static class StorageConformance
         Check.Equal(name + "@1", requested.Target, "request creates the row at the current target");
         Check.Equal(name + "@1.2", requested.Building, "building");
 
-        await aliases.RequestAsync(name, name + "@1", name + "@1.3", ct).ConfigureAwait(false);
+        Check.True(await aliases.RequestAsync(name, name + "@1", name + "@1.3", ct).ConfigureAwait(false), "a request at the serving target is recorded");
         Check.Equal(name + "@1.3", (await AliasAsync(aliases, name, ct).ConfigureAwait(false)).Building, "a later request replaces the building generation");
+        Check.True(!await aliases.RequestAsync(name, name + "@0", name + "@0.9", ct).ConfigureAwait(false), "a request from a stale target is refused (CR-60)");
+        Check.Equal(name + "@1.3", (await AliasAsync(aliases, name, ct).ConfigureAwait(false)).Building, "and changes nothing");
         Check.True(await aliases.SwitchAsync(name, name + "@1", name + "@1.3", ct).ConfigureAwait(false), "switch to the requested generation");
         CollectionAlias switched = await AliasAsync(aliases, name, ct).ConfigureAwait(false);
         Check.Null(switched.Building, "building cleared by its switch");

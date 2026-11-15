@@ -240,7 +240,7 @@ internal sealed class SqlText
         RequestAlias = R("""
             MERGE {s}.collection_aliases WITH (HOLDLOCK) AS a
             USING (SELECT @alias AS alias) AS i ON a.alias = i.alias
-             WHEN MATCHED THEN UPDATE SET building = @building
+             WHEN MATCHED AND a.target = @target THEN UPDATE SET building = @building
              WHEN NOT MATCHED THEN INSERT (alias, target, building) VALUES (@alias, @target, @building);
             """);
         ClearPreviousAlias = R("UPDATE {s}.collection_aliases SET previous = NULL WHERE alias = @alias AND previous = @previous");

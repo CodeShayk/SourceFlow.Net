@@ -162,13 +162,19 @@ public sealed partial class SqlServerSchemaMigrator
     /// The T-SQL that brings a schema at <paramref name="fromVersion"/> to the latest version, for DBAs: one transaction
     /// with the same application lock and history rows as <see cref="MigrateAsync"/>, batches separated by <c>GO</c>.
     /// </summary>
+    /// <remarks>
+    /// Guarded (CR-60): <c>:on error exit</c> stops sqlcmd at the first error, and every batch after the first starts with
+    /// <c>IF @@TRANCOUNT = 0 SET NOEXEC ON</c>. An error rolls the transaction back (<c>XACT_ABORT</c>), so in a tool that
+    /// carries on past it, the remaining batches compile but don't run outside the transaction.
+    /// </remarks>
     public string Script(int fromVersion = 0)
     {
+        const string Guard = "IF @@TRANCOUNT = 0 SET NOEXEC ON;\n";
         var sql = new StringBuilder();
-        sql.Append("SET XACT_ABORT ON;\nBEGIN TRANSACTION;\n").Append(LockSql()).Append(";\n");
+        sql.Append(":on error exit\nSET XACT_ABORT ON;\nBEGIN TRANSACTION;\n").Append(LockSql()).Append(";\n");
         foreach (string batch in BootstrapBatches())
         {
-            sql.Append(batch).Append("\nGO\n");
+            sql.Append(batch).Append("\nGO\n").Append(Guard);
         }
 
         foreach (SqlServerMigrationScript script in Scripts.Where(s => s.Version > fromVersion))
@@ -176,13 +182,13 @@ public sealed partial class SqlServerSchemaMigrator
             sql.Append(CultureInfo.InvariantCulture, $"\n-- V{script.Version:D3}__{script.Name}\n");
             foreach (string batch in Batches(Render(script.Sql)))
             {
-                sql.Append(batch.TrimEnd()).Append("\nGO\n");
+                sql.Append(batch.TrimEnd()).Append("\nGO\n").Append(Guard);
             }
 
-            sql.Append(CultureInfo.InvariantCulture, $"INSERT INTO {Quoted}.schema_history (version, name, checksum) VALUES ({script.Version}, N'{script.Name}', N'{script.Checksum}');\nGO\n");
+            sql.Append(CultureInfo.InvariantCulture, $"INSERT INTO {Quoted}.schema_history (version, name, checksum) VALUES ({script.Version}, N'{script.Name}', N'{script.Checksum}');\nGO\n").Append(Guard);
         }
 
-        return sql.Append("COMMIT TRANSACTION;\n").ToString();
+        return sql.Append("COMMIT TRANSACTION;\nGO\nSET NOEXEC OFF;\n").ToString();
     }
 
     private static IReadOnlyList<SqlServerMigrationScript> LoadEmbedded()

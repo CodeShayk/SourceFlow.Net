@@ -2123,7 +2123,7 @@ RFC 9457 problem details with diagnostic codes and positions; they never echo th
 **Permissions** come from the claims `permission`, `permissions`, `scope` and `scp` (values starting with
 `sourceflow.query.`), or from your own `o.Permissions` function. The full list is on `QueryPermission`: `Adhoc`,
 `Events`, `ReadModels`, `Aggregates`, `Schema`, `Validate`, `Explain`, `PersonalData` (`sourceflow.query.pii`), `Scan`
-(allows `allow_scan`) and `CrossTenant`. The tenant comes from the `sourceflow:tenant` or `tenant` claim, or `o.Tenant`.
+(allows `allow_scan`) and `CrossTenant`. The tenant comes from `ITenantResolver`, as for commands (by default the `sourceflow:tenant` or `tenant` claim), or `o.Tenant`.
 Personal data is redacted for callers without `sourceflow.query.pii`, and cannot be used as a join or grouping key.
 
 `SourceFlowQueryApiOptions` defaults: `MaxBodyBytes` 64 KB, `MaxJsonDepth` 16, `RequestsPerMinute` 60,

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using SourceFlow.Query;
 using SourceFlow.Runtime;
 
@@ -38,9 +39,47 @@ public sealed class SourceFlowQueryApiOptions
     /// </summary>
     public Func<ClaimsPrincipal, QueryPermissions> Permissions { get; set; } = DefaultPermissions;
 
-    /// <summary>The caller's tenant. The default reads the <c>sourceflow:tenant</c> or <c>tenant</c> claim; null uses the ambient tenant.</summary>
-    public Func<HttpContext, string?> Tenant { get; set; } = context =>
-        context.User.FindFirst("sourceflow:tenant")?.Value ?? context.User.FindFirst("tenant")?.Value;
+    /// <summary>
+    /// The caller's tenant, or null to use the service's <see cref="SourceFlow.Runtime.ITenantResolver"/>, as commands do
+    /// (the default, ADR-022, CR-60): register one resolver that reads the claim, and both sides agree.
+    /// </summary>
+    public Func<HttpContext, string?> Tenant { get; set; } = _ => null;
+
+    /// <summary>Checks every limit, so a misconfigured API fails at startup, not on the first request (CR-60).</summary>
+    /// <exception cref="InvalidOperationException">A limit is out of range or a delegate is missing.</exception>
+    public void Validate()
+    {
+        var failures = new List<string>();
+        if (MaxBodyBytes is < 1 or > 1024 * 1024)
+        {
+            failures.Add($"MaxBodyBytes must be between 1 and 1 MiB (was {MaxBodyBytes}).");
+        }
+
+        if (MaxJsonDepth is < 1 or > 64)
+        {
+            failures.Add($"MaxJsonDepth must be between 1 and 64 (was {MaxJsonDepth}).");
+        }
+
+        if (RequestsPerMinute < 1)
+        {
+            failures.Add($"RequestsPerMinute must be at least 1 (was {RequestsPerMinute}).");
+        }
+
+        if (ConcurrencyPerPrincipal < 1 || ConcurrencyPerService < 1 || ConcurrencyPerPrincipal > ConcurrencyPerService)
+        {
+            failures.Add($"ConcurrencyPerPrincipal ({ConcurrencyPerPrincipal}) and ConcurrencyPerService ({ConcurrencyPerService}) must be at least 1, with the first at most the second.");
+        }
+
+        if (Permissions is null || Tenant is null)
+        {
+            failures.Add("Permissions and Tenant must be set.");
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new InvalidOperationException("The SourceFlow query API options are invalid: " + string.Join(" ", failures));
+        }
+    }
 
     /// <summary>The default permission mapping (see <see cref="Permissions"/>).</summary>
     public static QueryPermissions DefaultPermissions(ClaimsPrincipal principal)
@@ -56,6 +95,19 @@ public sealed class SourceFlowQueryApiOptions
         ];
         return QueryPermissions.Of(granted);
     }
+}
+
+/// <summary>
+/// The tenant of the current HTTP request: the <c>sourceflow:tenant</c> claim, then the <c>tenant</c> claim (ADR-022). Outside a
+/// request, or without either claim, there is none and the default tenant applies. <c>AddSourceFlowQueryApi</c> registers it
+/// unless the application has its own <see cref="SourceFlow.Runtime.ITenantResolver"/>.
+/// </summary>
+public sealed class ClaimsTenantResolver(IHttpContextAccessor http) : SourceFlow.Runtime.ITenantResolver
+{
+    /// <inheritdoc />
+    public string? TenantId => http.HttpContext?.User is { } user
+        ? user.FindFirst("sourceflow:tenant")?.Value ?? user.FindFirst("tenant")?.Value
+        : null;
 }
 
 /// <summary>Marks endpoints of the query API, so startup can check they carry an authorization decision (SFQ0504).</summary>
@@ -74,7 +126,18 @@ public static class QueryApiEndpointRouteBuilderExtensions
         ArgumentNullException.ThrowIfNull(services);
         var options = new SourceFlowQueryApiOptions();
         configure?.Invoke(options);
+        options.Validate();
         services.AddSingleton(options);
+
+        // One tenant rule for commands and queries (ADR-022, CR-60): unless the application registered its own resolver,
+        // the tenant is the caller's claim.
+        services.AddHttpContextAccessor();
+        ServiceDescriptor? resolver = services.LastOrDefault(d => d.ServiceType == typeof(SourceFlow.Runtime.ITenantResolver));
+        if (resolver is null || resolver.ImplementationType?.Name == "NullTenantResolver")
+        {
+            services.RemoveAll<SourceFlow.Runtime.ITenantResolver>();
+            services.AddSingleton<SourceFlow.Runtime.ITenantResolver, ClaimsTenantResolver>();
+        }
         services.AddSingleton(new QueryApiLimiter(options));
         services.AddTransient<Microsoft.AspNetCore.Hosting.IStartupFilter, QueryApiAuthorizationCheck>();
         return services;

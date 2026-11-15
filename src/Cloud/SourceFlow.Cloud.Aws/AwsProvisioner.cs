@@ -186,11 +186,13 @@ internal sealed class AwsProvisioner : TopologyProvisioner
         JsonObject policy = current is { Length: > 0 } && JsonNode.Parse(current) is JsonObject existing
             ? existing
             : new JsonObject { ["Version"] = "2012-10-17" };
-        var statements = new JsonArray();
+        // Collected as nodes and passed to the JsonArray(params JsonNode?[]) constructor: the generic JsonArray.Add<T>
+        // requires unreferenced code (IL2026), which the cloud AOT check (ARCH-06) reports.
+        var statements = new List<JsonNode?>();
         IEnumerable<JsonNode?> present = policy["Statement"] switch
         {
             JsonArray array => array,
-            JsonObject single => [single],
+            JsonObject single => new JsonNode?[] { single },   // not [single]: that would build a JsonArray, re-parenting the node
             _ => [],
         };
         foreach (JsonNode? existingStatement in present)
@@ -201,8 +203,8 @@ internal sealed class AwsProvisioner : TopologyProvisioner
             }
         }
 
-        statements.Add((JsonNode)statement);
-        policy["Statement"] = statements;
+        statements.Add(statement.DeepClone());   // the caller's node stays unparented
+        policy["Statement"] = new JsonArray([.. statements]);
         policy["Version"] ??= "2012-10-17";
         return policy.ToJsonString();
     }

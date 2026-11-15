@@ -441,15 +441,17 @@ public sealed partial class PostgreSqlStore :
     }
 
     /// <inheritdoc />
-    public ValueTask RequestAsync(string alias, string currentTarget, string building, CancellationToken cancellationToken)
+    public async ValueTask<bool> RequestAsync(string alias, string currentTarget, string building, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(alias);
         ArgumentException.ThrowIfNullOrEmpty(currentTarget);
         ArgumentException.ThrowIfNullOrEmpty(building);
-        return ExecuteAsync(Sql.RequestAlias, cancellationToken,
-            new NpgsqlParameter<string>("alias", alias),
-            new NpgsqlParameter<string>("target", currentTarget),
-            new NpgsqlParameter<string>("building", building));
+        await using NpgsqlConnection connection = await DataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new NpgsqlCommand(Sql.RequestAlias, connection);
+        command.Parameters.Add(new NpgsqlParameter<string>("alias", alias));
+        command.Parameters.Add(new NpgsqlParameter<string>("target", currentTarget));
+        command.Parameters.Add(new NpgsqlParameter<string>("building", building));
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
     /// <inheritdoc />

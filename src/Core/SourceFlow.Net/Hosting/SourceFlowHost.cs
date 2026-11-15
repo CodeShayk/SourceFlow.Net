@@ -61,12 +61,18 @@ public sealed class SourceFlowHost : IHostedLifecycleService, IHealthCheck, IAsy
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         CheckTransportLimits();
+        if (_runtime.KeyProviderUnused)
+        {
+            Log.KeyProviderUnused(_logger);
+        }
+
         await _runtime.Transport.ProvisionAsync(_runtime.Topology(), _settings.Provisioning, cancellationToken).ConfigureAwait(false);
 
         await RegisterSchemasAsync(cancellationToken).ConfigureAwait(false);
         CheckDomainQueries();
         await CheckWorkflowVersionsAsync(cancellationToken).ConfigureAwait(false);
         await _subscriptions.InitializeStartsAsync(cancellationToken).ConfigureAwait(false);   // new process managers start at the head (CR-34)
+        await RecordOutboxPartitionsAsync(cancellationToken).ConfigureAwait(false);
         _stopping = new CancellationTokenSource();
         CancellationToken stopping = _stopping.Token;
         _runtime.Snapshots.Start();
@@ -106,6 +112,25 @@ public sealed class SourceFlowHost : IHostedLifecycleService, IHealthCheck, IAsy
         _loops.Add(Task.Run(() => _monitor.RunAsync(stopping), CancellationToken.None));
         _ready = true;
         Log.Started(_logger, _runtime.ServiceName, _runtime.Model.Modules.Count, _runtime.Model.Aggregates.Count, _subscriptions.Definitions.Count);
+    }
+
+    /// <summary>
+    /// The name under which the service records its outbox partition count, for tools that write to the outbox (CR-60). It
+    /// shares the subscription partition counts' table; the <c>$</c> keeps it apart from any subscription name.
+    /// </summary>
+    internal const string OutboxPartitionsName = "$outbox";
+
+    // The CLI writes to the outbox from outside the service (a dead-letter replay, a workflow control): it reads this count, so
+    // its rows land in partitions the relay drains.
+    private async Task RecordOutboxPartitionsAsync(CancellationToken cancellationToken)
+    {
+        int configured = _runtime.Options.OutboxPartitions;
+        if (await _runtime.Storage.Checkpoints.ClaimPartitionsAsync(OutboxPartitionsName, configured, cancellationToken).ConfigureAwait(false) != configured)
+        {
+            await using IStorageSession session = await _runtime.Storage.Sessions.BeginAsync(Messaging.MessageEnvelope.DefaultTenant, cancellationToken).ConfigureAwait(false);
+            session.SetPartitions(OutboxPartitionsName, configured);
+            await session.CommitAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <inheritdoc />

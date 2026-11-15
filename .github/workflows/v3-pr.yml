@@ -52,7 +52,9 @@ jobs:
       - name: AOT publish check (ARCH-06)
         if: matrix.os == 'ubuntu-latest'
         # PublishAot is set inside the project: as a global property it would reach the netstandard2.0 generator (NETSDK1207).
-        run: dotnet publish tests/Fixtures/Bank/Bank.AotCheck/Bank.AotCheck.csproj -c Release -p:SourceFlowAotCheck=true -warnaserror
+        run: |
+          dotnet publish tests/Fixtures/Bank/Bank.AotCheck/Bank.AotCheck.csproj -c Release -p:SourceFlowAotCheck=true -warnaserror
+          dotnet publish tests/Fixtures/Cloud.AotCheck/Cloud.AotCheck.csproj -c Release -p:SourceFlowAotCheck=true -warnaserror
 
   unit:
     needs: build

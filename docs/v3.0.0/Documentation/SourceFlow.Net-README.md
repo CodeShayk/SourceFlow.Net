@@ -788,9 +788,9 @@ builder.Services.AddSourceFlow(sf => sf
 | `Projections(p => ...)` | `Add<T>().Inline()` / `.Async()` / `.OnFailure(policy)`, `Remove<T>()` |
 | `UseMiddleware(factory, stages, filter)` | Adds middleware |
 | `Errors(e => ...)` | Exception classification rules |
-| `UseStorage(factory)`, `UseInMemoryStorage(store)` | The persistence slot. Storage packages add `UsePostgreSql`, `UseSqlServer`; EF Core read models add `UseEntityFrameworkProjections<TDbContext>` |
-| `UseTransport(factory)`, `UseInMemoryTransport(broker)` | The broker slot (default: a private in-memory broker). Cloud packages add `UseAwsTransport`, `UseAzureTransport`, `UseGcpTransport` |
-| `Security(s => ...)` | Key provider (`UseAwsKms`, `UseAzureKeyVault`, `UseGoogleKms`, `UseKeyProvider`), payload protection (`Protect`) and personal-data encryption (`EncryptPersonalData`) |
+| `UseStorage(factory)`, `UseInMemoryStorage(store)` | The persistence slot: one per service, and a second call throws. Storage packages add `UsePostgreSql`, `UseSqlServer`; EF Core read models add `UseEntityFrameworkProjections<TDbContext>` |
+| `UseTransport(factory)`, `UseInMemoryTransport(broker)` | The broker slot, one per service (default: a private in-memory broker). Cloud packages add `UseAwsTransport`, `UseAzureTransport`, `UseGcpTransport` |
+| `Security(s => ...)` | Key provider, one per service (`UseAwsKms`, `UseAzureKeyVault`, `UseGoogleKms`, `UseKeyProvider`), payload protection (`Protect`) and personal-data encryption (`EncryptPersonalData`) |
 | `UseRedaction(r => ...)` | Redactors for the SourceFlow taxonomy (default: erase personal data and secrets) |
 | `MigrateFromV2(v2 => ...)` | Registers the v2 data migration |
 | `Services` | The underlying `IServiceCollection` |

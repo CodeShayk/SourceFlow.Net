@@ -454,7 +454,18 @@ These items from [STATUS.md](../../../implementation/STATUS.md) and the
   required attributes, span names cost nothing without a listener, and log event ids are renumbered by area: see the
   Observability guide's table), WP-C.17 (stricter purity and determinism analyzers with SF0023–SF0025,
   `ctx.NewId<TId>(purpose)` for deterministic ids, `AddMessage` checks `[MessageType]`, and generated ids implement
-  `IUtf8SpanFormattable`).
+  `IUtf8SpanFormattable`), WP-C.18 (a second storage, transport or key provider is a startup error, as is `OnFailure`
+  on an Inline projection; the query API validates its options and takes the tenant from `ITenantResolver`, by default
+  the caller's claim, as commands do; the CLI writes outbox rows into the partitions the service recorded;
+  `SourceFlow.Cloud.Gcp` is no longer marked AOT-compatible).
+
+### Breaking changes in WP-C.18
+
+- `UseStorage`, `UseTransport` and `UseKeyProvider` throw when called a second time.
+- `SourceFlowQueryApiOptions.Tenant` defaults to `null`, which uses the service's `ITenantResolver`.
+  `AddSourceFlowQueryApi` registers `ClaimsTenantResolver` when the application has none, so the claims read are
+  unchanged.
+- `ICollectionAliases.RequestAsync` returns `ValueTask<bool>`: false when the alias moved since the caller read it.
 
 ### Other notes
 

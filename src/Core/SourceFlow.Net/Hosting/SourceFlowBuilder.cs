@@ -256,33 +256,72 @@ public sealed class SourceFlowBuilder
     }
 
     /// <summary>The persistence slot: registers the storage ports of an adapter.</summary>
+    /// <remarks>A service has one store: a second call is a configuration error (doc 01 §3, GAP-03, CR-60).</remarks>
     public SourceFlowBuilder UseStorage(Func<IServiceProvider, StoragePorts> factory)
     {
-        StorageFactory = factory ?? throw new ArgumentNullException(nameof(factory));
+        ArgumentNullException.ThrowIfNull(factory);
+        if (StorageFactory is not null && !_storageIsDefault)
+        {
+            throw new InvalidOperationException("Storage is configured twice: a service has one store. Remove the second Use…Storage call (doc 01 §3).");
+        }
+
+        StorageFactory = factory;
+        _storageIsDefault = false;
         return this;
     }
 
     /// <summary>The cloud/broker slot: registers a transport.</summary>
+    /// <remarks>A service has one transport: a second call is a configuration error (doc 01 §3, GAP-03, CR-60).</remarks>
     public SourceFlowBuilder UseTransport(Func<IServiceProvider, ITransport> factory)
     {
-        TransportFactory = factory ?? throw new ArgumentNullException(nameof(factory));
+        ArgumentNullException.ThrowIfNull(factory);
+        if (TransportFactory is not null && !_transportIsDefault)
+        {
+            throw new InvalidOperationException("The transport is configured twice: a service has one transport. Remove the second Use…Transport call (doc 01 §3).");
+        }
+
+        TransportFactory = factory;
+        _transportIsDefault = false;
         return this;
     }
+
+    private bool _storageIsDefault;
+    private bool _transportIsDefault;
+
+    // A host's default (the test host's in-memory store and broker): the service's own Use… call replaces it once.
+    internal SourceFlowBuilder DefaultStorage(Func<IServiceProvider, StoragePorts> factory)
+    {
+        UseStorage(factory);
+        _storageIsDefault = true;
+        return this;
+    }
+
+    internal SourceFlowBuilder DefaultTransport(Func<IServiceProvider, ITransport> factory)
+    {
+        UseTransport(factory);
+        _transportIsDefault = true;
+        return this;
+    }
+
+    internal static Func<IServiceProvider, StoragePorts> InMemoryStorage(InMemoryStore? store) => sp =>
+    {
+        InMemoryStore s = store ?? new InMemoryStore(sp.GetService<TimeProvider>());
+        return new StoragePorts(s, s, s, s, s, s, s, s, s, s) { Retention = s, Nodes = s, Schemas = s, DocumentAdmin = s, Aliases = s, Monitor = s, PersonalData = s };
+    };
+
+    internal static Func<IServiceProvider, ITransport> InMemoryTransport(InMemoryBroker? broker) =>
+        sp => (broker ?? new InMemoryBroker(sp.GetService<TimeProvider>())).CreateTransport();
 
     /// <summary>Uses the in-memory store (development and tests). Pass a store to share it.</summary>
     public SourceFlowBuilder UseInMemoryStorage(InMemoryStore? store = null)
     {
-        return UseStorage(sp =>
-        {
-            InMemoryStore s = store ?? new InMemoryStore(sp.GetService<TimeProvider>());
-            return new StoragePorts(s, s, s, s, s, s, s, s, s, s) { Retention = s, Nodes = s, Schemas = s, DocumentAdmin = s, Aliases = s, Monitor = s, PersonalData = s };
-        });
+        return UseStorage(InMemoryStorage(store));
     }
 
     /// <summary>Uses the in-memory broker. Pass a broker to connect several services in one process.</summary>
     public SourceFlowBuilder UseInMemoryTransport(InMemoryBroker? broker = null)
     {
-        return UseTransport(sp => (broker ?? new InMemoryBroker(sp.GetService<TimeProvider>())).CreateTransport());
+        return UseTransport(InMemoryTransport(broker));
     }
 }
 

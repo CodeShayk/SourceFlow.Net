@@ -67,8 +67,8 @@ public sealed class SourceFlowTestHost : IAsyncDisposable
         services?.Invoke(collection);
         collection.AddSourceFlow(sf =>
         {
-            sf.UseInMemoryStorage(store);
-            sf.UseInMemoryTransport(broker);
+            sf.DefaultStorage(SourceFlowBuilder.InMemoryStorage(store));       // the test may replace them once
+            sf.DefaultTransport(SourceFlowBuilder.InMemoryTransport(broker));
             sf.Configure(o => o.PollInterval = TimeSpan.FromMilliseconds(50));
             configure(sf);
         });

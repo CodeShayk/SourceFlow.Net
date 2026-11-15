@@ -107,10 +107,12 @@ public interface ICollectionAliases
     ValueTask<bool> SwitchAsync(string alias, string? expectedTarget, string target, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Requests a new generation (<paramref name="building"/>) of <paramref name="alias"/>; creates the row pointing at
-    /// <paramref name="currentTarget"/> when it does not exist.
+    /// Requests a new generation (<paramref name="building"/>) of <paramref name="alias"/> as a compare-and-set (ADR-032 §2,
+    /// CR-60): it is recorded only while the alias still serves <paramref name="currentTarget"/>, and the row is created at
+    /// that target when it does not exist.
     /// </summary>
-    ValueTask RequestAsync(string alias, string currentTarget, string building, CancellationToken cancellationToken);
+    /// <returns>False when another node switched the alias since the caller read it; nothing changed.</returns>
+    ValueTask<bool> RequestAsync(string alias, string currentTarget, string building, CancellationToken cancellationToken);
 
     /// <summary>Clears <see cref="CollectionAlias.Previous"/> once that generation's data is dropped (when it still matches).</summary>
     ValueTask ClearPreviousAsync(string alias, string previous, CancellationToken cancellationToken);

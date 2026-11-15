@@ -297,6 +297,54 @@ public sealed class QueryApiTests : IAsyncLifetime
     }
 
     [Fact]
+    [Trait("Id", "UT-ASP-43")]
+    [Trait("Covers", "doc 14 9")]
+    public void Options_AreValidatedWhenTheApiIsRegistered()
+    {
+        Should.Throw<InvalidOperationException>(() => new ServiceCollection().AddSourceFlowQueryApi(o => o.MaxBodyBytes = 0)).Message.ShouldContain("MaxBodyBytes");
+        Should.Throw<InvalidOperationException>(() => new ServiceCollection().AddSourceFlowQueryApi(o => (o.ConcurrencyPerPrincipal, o.ConcurrencyPerService) = (8, 4))).Message.ShouldContain("ConcurrencyPerPrincipal");
+        Should.Throw<InvalidOperationException>(() => new ServiceCollection().AddSourceFlowQueryApi(o => o.Permissions = null!)).Message.ShouldContain("Permissions and Tenant");
+        Should.NotThrow(() => new SourceFlowQueryApiOptions().Validate());
+    }
+
+    [Fact]
+    [Trait("Id", "UT-ASP-44")]
+    [Trait("Covers", "ADR-022")]
+    public void TheTenantResolver_ReadsTheCallersClaim_UnlessTheApplicationHasItsOwn()
+    {
+        static ServiceProvider Services(Action<IServiceCollection>? before = null)
+        {
+            var services = new ServiceCollection();
+            before?.Invoke(services);
+            services.AddSourceFlow(sf =>
+            {
+                sf.ServiceName = "accounts";
+                sf.AddModule<AccountsModule>();
+                sf.UseInMemoryStorage();
+            });
+            services.AddSourceFlowQueryApi();
+            return services.BuildServiceProvider();
+        }
+
+        using ServiceProvider claims = Services();
+        var accessor = claims.GetRequiredService<IHttpContextAccessor>();
+        var resolver = claims.GetRequiredService<SourceFlow.Runtime.ITenantResolver>().ShouldBeOfType<ClaimsTenantResolver>();
+        resolver.TenantId.ShouldBeNull();   // outside a request: the default tenant
+        accessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("tenant", "t-2"), new Claim("sourceflow:tenant", "t-1")], "test")) };
+        resolver.TenantId.ShouldBe("t-1");
+        accessor.HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("tenant", "t-2")], "test")) };
+        resolver.TenantId.ShouldBe("t-2");
+
+        using ServiceProvider own = Services(s => s.AddSingleton<SourceFlow.Runtime.ITenantResolver, FixedTenant>());
+        own.GetRequiredService<SourceFlow.Runtime.ITenantResolver>().ShouldBeOfType<FixedTenant>();
+    }
+
+    private sealed class FixedTenant : SourceFlow.Runtime.ITenantResolver
+    {
+        public string? TenantId => "fixed";
+    }
+
+    [Fact]
     [Trait("Id", "UT-ASP-41")]
     [Trait("Covers", "Q-B4;doc 14 9.1")]
     public async Task DomainQueries_WithTheirOwnPolicy_AreHiddenAndRefusedToCallersWithoutIt()

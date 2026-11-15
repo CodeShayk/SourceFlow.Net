@@ -34,6 +34,51 @@ public sealed class DependencyRuleTests
     }
 
     [Fact]
+    [Trait("Id", "ARCH-01")]
+    [Trait("Covers", "ARCH-01;ADR-027")]
+    public void Core_package_graph_is_exactly_the_allowed_packages()
+    {
+        // CR-58: the whole package graph (project.assets.json), not just the direct assembly references, so a transitive
+        // dependency can't slip in. A new package is a deliberate change to this list.
+        string[] allowed =
+        [
+            "Microsoft.Extensions.Caching.Abstractions", "Microsoft.Extensions.Caching.Memory",
+            "Microsoft.Extensions.Compliance.Abstractions", "Microsoft.Extensions.Compliance.Redaction",
+            "Microsoft.Extensions.Configuration", "Microsoft.Extensions.Configuration.Abstractions", "Microsoft.Extensions.Configuration.Binder",
+            "Microsoft.Extensions.DependencyInjection.Abstractions", "Microsoft.Extensions.Diagnostics.Abstractions",
+            "Microsoft.Extensions.Diagnostics.HealthChecks", "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions",
+            "Microsoft.Extensions.FileProviders.Abstractions", "Microsoft.Extensions.Hosting.Abstractions",
+            "Microsoft.Extensions.Logging.Abstractions", "Microsoft.Extensions.ObjectPool", "Microsoft.Extensions.Options",
+            "Microsoft.Extensions.Options.ConfigurationExtensions", "Microsoft.Extensions.Primitives",
+            "Polly.Core", "System.IO.Hashing",
+            "Microsoft.CodeAnalysis.BannedApiAnalyzers", "Microsoft.NET.ILLink.Tasks",   // build only (PrivateAssets)
+        ];
+
+        string[] extra = [.. Packages.Graph("src/Core/SourceFlow.Net").Where(p => !allowed.Contains(p, StringComparer.Ordinal))];
+
+        extra.ShouldBeEmpty($"{Packages.Core} may depend only on the listed packages (ARCH-01); add a new one here deliberately.");
+    }
+
+    [Theory]
+    [Trait("Id", "ARCH-03")]
+    [Trait("Covers", "ARCH-03;ADR-027")]
+    [InlineData("src/Storage/SourceFlow.Storage.PostgreSQL", "Npgsql")]
+    [InlineData("src/Storage/SourceFlow.Storage.SqlServer", "Microsoft.Data.SqlClient", "Microsoft.SqlServer.Server", "Microsoft.Identity", "Microsoft.Bcl.Cryptography", "System.")]
+    [InlineData("src/Storage/SourceFlow.Storage.EntityFrameworkCore", "Microsoft.EntityFrameworkCore", "Microsoft.Extensions.")]
+    [InlineData("src/Cloud/SourceFlow.Cloud.Aws", "AWSSDK.")]
+    [InlineData("src/Cloud/SourceFlow.Cloud.Azure", "Azure.", "Microsoft.Azure.Amqp", "Microsoft.Identity", "Microsoft.Bcl.AsyncInterfaces", "System.")]
+    [InlineData("src/Cloud/SourceFlow.Cloud.Gcp", "Google.", "Grpc.", "Newtonsoft.Json", "Microsoft.Bcl.AsyncInterfaces", "System.")]
+    [InlineData("src/Hosting/SourceFlow.AspNetCore")]
+    public void Adapters_depend_on_the_core_and_their_own_SDK_only(string project, params string[] sdk)
+    {
+        // CR-58: what an adapter adds to the core's package graph comes from its own SDK.
+        HashSet<string> core = [.. Packages.Graph("src/Core/SourceFlow.Net")];
+        string[] foreign = [.. Packages.Graph(project).Where(p => !core.Contains(p) && !sdk.Any(prefix => p == prefix || p.StartsWith(prefix, StringComparison.Ordinal)))];
+
+        foreign.ShouldBeEmpty($"{project} must depend on {Packages.Core} and its own SDK only (ARCH-03).");
+    }
+
+    [Fact]
     [Trait("Id", "ARCH-02")]
     [Trait("Covers", "ARCH-02;ADR-027")]
     public void Core_never_references_an_adapter_or_other_SourceFlow_package()

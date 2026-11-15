@@ -40,6 +40,11 @@ The split mainly existed so that domain assemblies would not reference the runti
 | `SourceFlow.Hosting` | `SourceFlowBuilder` with `Use*` slots for each SPI, plus options validation | Adapter `Use*` extensions |
 | `SourceFlow.Runtime` | The engine (internal) | — |
 
+**Amendment (WP-C.18, CR-59).** `SourceFlow.Runtime` is a public SPI namespace too, not only the internal engine.
+- **The adapters' SPI lives here.** `StoragePorts`, `ITenantResolver`, `IActorAccessor`, `RoutingTable` and the routing builders are the contracts adapters and hosts use.
+- **Some engine types are public.** `SourceFlowRuntime`, `CommandProcessor`, `OutboxRelay` and `SourceFlowOptions` are public so the testing library, the CLI and the adapters can reach them. Their surface is pinned by the public API approvals.
+- **Why not split the namespace.** It would break every adapter for no behaviour change, so the namespace stays as built.
+
 ### 2. The generator stays a separate build project, inside the core package
 
 `src/Core/SourceFlow.Generators` is a Roslyn component, so it must target `netstandard2.0` (RS1041). It loads into the compiler and the IDE, and it must not carry `Microsoft.CodeAnalysis` into applications.
