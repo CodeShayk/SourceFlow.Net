@@ -297,7 +297,8 @@ See the [SourceFlow.Testing README](../../SourceFlow.Testing-README.md).
   action. Studio is on its own release train (Studio 1.0).
 
 See the [Studio README](../../SourceFlow.Studio-README.md), [Process managers and workflows](../../Architecture/09-Process-Managers-and-Workflows.md)
-and the [workflows guide](../../guides/workflows.md).
+the [workflows guide](../../guides/workflows.md), and [Using SourceFlow Studio](../../guides/using-studio.md), a tour of
+Studio on the samples.
 
 ### Samples
 

@@ -2,7 +2,7 @@
 
 SourceFlow Studio is the workflow track of SourceFlow.Net v3. You describe a long-running, cross-service process (an orchestrated saga) in a small YAML file (`*.sfflow.yaml`). The build compiles it into an ordinary process manager in the service that owns it. Studio checks it against what every service of the business domain really owns and publishes, simulates it, enumerates every path it can take, generates tests for those paths, and draws it as a statechart, a swimlane sequence, Mermaid or BPMN. It is not a workflow engine: at run time a workflow is a generated process manager with the same storage, outbox, inbox, timers and telemetry as a hand-written one ([ADR-020](../engineering/ADRs/ADR-020-process-managers-with-durable-state-and-timers.md), [ADR-024](../engineering/ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md)). Services that don't use workflows take no dependency on any of it.
 
-This document covers the tooling. The [workflows guide](guides/workflows.md) is the tutorial, the [DSL reference](guides/workflow-dsl-reference.md) lists every key of the file format, and [Architecture/09 Process managers and workflows](Architecture/09-Process-Managers-and-Workflows.md) explains how workflows run.
+This document covers the tooling. The [workflows guide](guides/workflows.md) is the tutorial, [Using SourceFlow Studio](guides/using-studio.md) tours the app on the samples, the [DSL reference](guides/workflow-dsl-reference.md) lists every key of the file format, and [Architecture/09 Process managers and workflows](Architecture/09-Process-Managers-and-Workflows.md) explains how workflows run.
 
 ## Contents
 
@@ -31,7 +31,7 @@ This document covers the tooling. The [workflows guide](guides/workflows.md) is 
 | Domain workspace `sourceflow.domain.yaml` | Your repository | The services of one business domain and their manifests |
 | Workflow compiler | `SourceFlow.Generators`, packed inside `SourceFlow.Net` | Validates `*.sfflow.yaml` at build time (SF0020, SF0021) and generates the process manager |
 | Runtime types | `SourceFlow.Net`, namespace `SourceFlow.Workflows` | `WorkflowStatus`, `WorkflowInstanceId`, `WorkflowTimer`, `WorkflowControl`, the `workflow-instances` read model |
-| `SourceFlow.Studio` | [`src/Workflows/SourceFlow.Studio`](../../../src/Workflows/SourceFlow.Studio) | The .NET library: workspace loader, reader, validator (WF-S01..S06, WF-V01..V16), simulator, path enumerator, spec generator, Mermaid/BPMN exporters, statechart and swimlane models |
+| `SourceFlow.Studio` | [`src/Workflows/SourceFlow.Studio`](../../../src/Workflows/SourceFlow.Studio) | The .NET library: workspace loader, reader, validator (WF-S01..S06, WF-V01..V17), simulator, path enumerator, spec generator, Mermaid/BPMN exporters, statechart and swimlane models |
 | `SourceFlow.Studio.Wasm` | [`src/Workflows/SourceFlow.Studio.Wasm`](../../../src/Workflows/SourceFlow.Studio.Wasm) | The same DSL sources compiled to `browser-wasm` behind a JSON API (`[JSExport]`) |
 | `@sourceflow/core-client` | [`web/core-client`](../../../web/core-client) | Typed TypeScript client for the WebAssembly core (Web Worker in the browser, in-process in Node) |
 | `@sourceflow/studio` | [`web/app`](../../../web/app) | The React designer and the `sourceflow-studio build` static-site command |
@@ -57,7 +57,7 @@ Inside this repository, run the tool from source: `dotnet run --project src/Tool
 **The designer front end.** The tool embeds the built Studio app and WebAssembly core when they were built before it. To build them (Node 22.18 or later and the .NET 10 SDK; no `wasm-tools` workload is needed):
 
 ```bash
-cd studio
+cd web
 npm ci
 npm run build:wasm     # publishes SourceFlow.Studio.Wasm to artifacts/studio-wasm
 npm run build          # builds web/app/dist
@@ -444,6 +444,7 @@ Every diagnostic has a stable id, a severity, a message and a 1-based line and c
 | WF-V14 | A `[PersonalData]` field copied into data without `personal: true` |
 | WF-V15 | Duplicate `name@version` for the owner, or a published version changed structurally without a new `version` |
 | WF-V16 | A compensation that is itself compensated, pivots, has `next` or branches on failures |
+| WF-V17 | A `next` or `goto` from a step at or after the pivot to a step before it (forward recovery only) |
 
 Design doc 15 [§5.4](../engineering/Design/15-Workflow-DSL-and-Studio.md#54-validation-rules-wfd-28) has the full rule text; [`tests/Golden/cases`](../../../tests/Golden/cases) has a failing case for every rule, with its `expected.diagnostics.json`.
 
@@ -789,7 +790,7 @@ jobs:
         with:
           node-version: "22.18"
       - name: Build the action and its WebAssembly core
-        working-directory: studio
+        working-directory: web
         run: |
           npm ci
           npm run build:wasm
@@ -843,7 +844,7 @@ Once published as `sourceflow/workflow-diff`, the build step is replaced by `use
 
 ## Links
 
-- [Workflows and SourceFlow Studio guide](guides/workflows.md) and [Workflow DSL reference](guides/workflow-dsl-reference.md)
+- [Workflows and SourceFlow Studio guide](guides/workflows.md), [Using SourceFlow Studio](guides/using-studio.md) and [Workflow DSL reference](guides/workflow-dsl-reference.md)
 - [Architecture/09 Process managers and workflows](Architecture/09-Process-Managers-and-Workflows.md)
 - [Design doc 15: Workflow DSL and SourceFlow Studio](../engineering/Design/15-Workflow-DSL-and-Studio.md)
 - [ADR-020 Process managers](../engineering/ADRs/ADR-020-process-managers-with-durable-state-and-timers.md), [ADR-024 Workflow DSL](../engineering/ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md), [ADR-025 Studio](../engineering/ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md), [ADR-027 §6](../engineering/ADRs/ADR-027-single-core-package-with-extensibility-spis-and-categorised-adapters.md)

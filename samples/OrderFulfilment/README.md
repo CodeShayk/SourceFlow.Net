@@ -88,6 +88,7 @@ The ports differ from the [TravelBooking demo](../TravelBooking/README.md)'s, so
 Open Studio first: the **domain map** shows the four services and how they are wired, the **order-fulfilment**
 statechart shows every step, outcome, retry and compensation, **Simulate** steps an instance through outcomes and timers,
 and **Paths** lists all 437 paths and the minimal cover of 6 that the specs in [Orders.Tests](Orders.Tests) test.
+[Using SourceFlow Studio](../../docs/v3.0.0/reference/guides/using-studio.md) is a guided tour of all of it on this sample.
 
 ### An order delivered
 

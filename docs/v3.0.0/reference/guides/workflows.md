@@ -139,7 +139,7 @@ What each part does:
 
 Studio and the build check the workflow against the workspace's manifests: types exist, each command has one owner,
 awaited events come from the command and reach the owner, rejections are declared and replied to, every state is
-reachable and one path completes, retries are bounded, maps fit the commands' fields, and more (WF-V01 to WF-V16, doc 15
+reachable and one path completes, retries are bounded, maps fit the commands' fields, and more (WF-V01 to WF-V17, doc 15
 §5.4). In the build, each problem is SF0020 at the line and column in the YAML file.
 
 ## 3. Wiring the services
@@ -260,6 +260,8 @@ different modules or assemblies. A service refuses to start without a version th
 (`WorkflowVersionRemovedException`); `sourceflow workflow list --name trip-booking --version 1` says when it can go.
 
 ## 6. SourceFlow Studio
+
+[Using SourceFlow Studio](using-studio.md) walks through every view below on the samples, with exercises.
 
 ```bash
 dotnet sourceflow studio --workspace samples/TravelBooking       # http://127.0.0.1:5180 (loopback only)

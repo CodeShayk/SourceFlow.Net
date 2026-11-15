@@ -56,6 +56,7 @@ How the framework works inside: [Architecture](Architecture/README.md).
 | [Observability and performance](Observability-and-Performance.md) | Traces, metrics, health checks, dashboards, benchmarks and tuning |
 | [GitHub Actions setup](GitHub-Actions-Setup.md) | The CI workflows, quality gates, secrets and versioning |
 | [Workflows and SourceFlow Studio](guides/workflows.md) | Writing, wiring, testing and operating a workflow |
+| [Using SourceFlow Studio](guides/using-studio.md) | A hands-on tour of Studio on the samples: domain map, statechart, swimlane, simulation, paths, specs, editing and exports |
 | [Workflow DSL reference](guides/workflow-dsl-reference.md) | Every key of `*.sfflow.yaml` |
 | [OpenTelemetry](guides/opentelemetry.md) | Subscribing to SourceFlow's traces and metrics |
 | [Reading generated code](guides/reading-generated-code.md) | What the source generator writes and how to review it |

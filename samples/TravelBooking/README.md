@@ -74,6 +74,8 @@ docker compose up -d --build
 Open Studio first: the **domain map** shows the two services and how they are wired, the **trip-booking** statechart
 shows every step, outcome, retry and compensation, **Simulate** steps an instance through outcomes and timers, and
 **Paths** lists all 27 paths and the minimal cover of 6 that the specs in [TravelBooking.Tests](TravelBooking.Tests) test.
+[Using SourceFlow Studio](../../docs/v3.0.0/reference/guides/using-studio.md) tours every view on the OrderFulfilment
+sample; the same exercises work on this one.
 
 ### A booking confirmed
 

@@ -382,7 +382,7 @@ the pinned images themselves through Testcontainers.
 Studio:
 
 ```bash
-cd studio
+cd web
 npm ci
 npm run typecheck && npm run build:wasm && npm test && npm run build:action && npm run build
 npx playwright install --with-deps chromium && npm run e2e
