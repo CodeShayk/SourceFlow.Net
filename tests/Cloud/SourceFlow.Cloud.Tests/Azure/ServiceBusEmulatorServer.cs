@@ -17,7 +17,7 @@ namespace SourceFlow.Cloud.Tests.Azure;
 /// </summary>
 public sealed class ServiceBusEmulatorServer : IAsyncLifetime
 {
-    /// <summary>The pinned emulator image (.github/emulators/servicebus).</summary>
+    /// <summary>The pinned emulator image (eng/emulators/servicebus).</summary>
     public const string Image = "mcr.microsoft.com/azure-messaging/servicebus-emulator:2.0.1";
 
     /// <summary>The pinned SQL Edge image the emulator stores its state in.</summary>

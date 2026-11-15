@@ -112,7 +112,7 @@ internal sealed class BrokerConnection : IAsyncDisposable
                     ConnectionString = ServiceBusEmulatorServer.ConnectionString(_servers.ServiceBus.Host, _servers.ServiceBus.AmqpPort),
                     AdministrationConnectionString = _servers.ServiceBus.AdministrationConnectionString,
                     NamePrefix = _prefix,
-                    MessageTimeToLive = TimeSpan.FromHours(1),   // the emulator's maximum (.github/emulators/README.md)
+                    MessageTimeToLive = TimeSpan.FromHours(1),   // the emulator's maximum (eng/emulators/README.md)
                 });
             default:
                 throw new ArgumentOutOfRangeException(nameof(_broker), _broker, null);

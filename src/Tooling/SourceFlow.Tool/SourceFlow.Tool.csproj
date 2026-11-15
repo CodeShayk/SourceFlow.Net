@@ -4,14 +4,14 @@
     that need the service's model run inside the service (dotnet run, then: sourceflow ...) through SourceFlowCli.RunAsync.
     migrate v2 (WP-5.4) reads the v2 database on PostgreSQL or SQL Server. Track S adds manifest export (WP-S.2), the
     workflow commands (WP-S.6) and the Studio local host (WP-S.8), which serves the SPA and the WebAssembly core embedded
-    below when they were built first (npm run build in studio/; npm run build:wasm).
+    below when they were built first (npm run build in web/; npm run build:wasm).
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>sourceflow</ToolCommandName>
     <Description>SourceFlow.Net v3: the sourceflow command-line tool (schema, projections, dead letters, manifests, workflows, SFQL queries, v2 migration and the SourceFlow Studio local host).</Description>
-    <StudioAppDist>$(MSBuildThisFileDirectory)..\..\..\studio\app\dist\</StudioAppDist>
+    <StudioAppDist>$(MSBuildThisFileDirectory)..\..\..\web\app\dist\</StudioAppDist>
     <StudioFramework>$(MSBuildThisFileDirectory)..\..\..\artifacts\studio-wasm\wwwroot\_framework\</StudioFramework>
   </PropertyGroup>
   <ItemGroup>

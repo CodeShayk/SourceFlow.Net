@@ -1,0 +1,25 @@
+{
+  "name": "sourceflow-studio",
+  "private": true,
+  "description": "SourceFlow Studio (doc 15 §6, ADR-025): the workflow designer and its packages.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "core-client",
+    "app",
+    "actions/workflow-diff"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build:wasm": "npm run build:wasm --workspace @sourceflow/core-client",
+    "build": "npm run build --workspace @sourceflow/studio",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces",
+    "e2e": "npm run e2e --workspace @sourceflow/studio",
+    "build:action": "npm run build --workspace @sourceflow/workflow-diff",
+    "site": "npm exec --workspace @sourceflow/studio -- sourceflow-studio build",
+    "docs:dsl": "node scripts/dsl-reference.mjs"
+  }
+}

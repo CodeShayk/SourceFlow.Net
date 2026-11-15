@@ -1,6 +1,6 @@
 # Workflow diff (doc 15 §6.3, WFD-36; WP-S.12): on a pull request that changes *.sfflow.yaml, the before and after
 # statecharts as SVGs (the run's workflow-diff artifact) and a comment with the changes and Mermaid diagrams. It runs
-# the action from this repository (studio/action), built with the WebAssembly core of the same commit.
+# the action from this repository (web/actions/workflow-diff), built with the WebAssembly core of the same commit.
 name: workflow-diff
 
 on:
@@ -34,15 +34,15 @@ jobs:
         with:
           node-version: "22.18"
           cache: npm
-          cache-dependency-path: studio/package-lock.json
+          cache-dependency-path: web/package-lock.json
       - name: Build the action and its WebAssembly core
-        working-directory: studio
+        working-directory: web
         run: |
           npm ci
           npm run build:wasm
           npm run build:action
       - name: Diff the workflows
-        uses: ./studio/action
+        uses: ./web/actions/workflow-diff
         with:
           out: workflow-diff
           # A pull request from a fork gets a read-only token: the SVGs are still uploaded.

@@ -55,7 +55,7 @@ jobs:
       - name: Publish and instrument the harness
         run: |
           dotnet tool install --global SharpFuzz.CommandLine --version "$SHARPFUZZ_VERSION"
-          dotnet publish fuzz/SourceFlow.Fuzz -c Release -o fuzz-bin
+          dotnet publish quality/fuzz/SourceFlow.Fuzz -c Release -o fuzz-bin
           # Instrument SourceFlow and the sample domain only: the harness and SDK assemblies don't need coverage.
           for dll in fuzz-bin/SourceFlow.*.dll fuzz-bin/Bank.*.dll; do
             case "$dll" in *SourceFlow.Fuzz.dll|*SourceFlow.Generators.dll) continue ;; esac

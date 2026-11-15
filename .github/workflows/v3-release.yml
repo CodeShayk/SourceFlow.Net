@@ -56,9 +56,9 @@ jobs:
         with:
           node-version: "22.18"
           cache: npm
-          cache-dependency-path: studio/package-lock.json
+          cache-dependency-path: web/package-lock.json
       - name: Build SourceFlow Studio (embedded in the tool)
-        working-directory: studio
+        working-directory: web
         run: |
           npm ci
           npm run build:wasm

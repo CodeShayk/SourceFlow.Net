@@ -4,13 +4,13 @@
 |---|---|
 | **Origin** | Product request, 2026-11-10. This is a **new** requirement, not reverse-engineered from v2 code. |
 | **Status of every requirement below** | **Planned** |
-| **Design** | [v3 design doc 15](../v3.0.0/Design/15-Workflow-DSL-and-Studio.md), [ADR-024](../v3.0.0/ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md), [ADR-025](../v3.0.0/ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md) |
+| **Design** | [v3 design doc 15](../v3.0.0/engineering/Design/15-Workflow-DSL-and-Studio.md), [ADR-024](../v3.0.0/engineering/ADRs/ADR-024-workflow-dsl-compiled-to-process-managers.md), [ADR-025](../v3.0.0/engineering/ADRs/ADR-025-studio-react-spa-with-shared-wasm-core.md) |
 
 ## 1. Problem
 
 A business process usually spans several services. Order fulfilment, for example, touches Orders, Payments, Inventory and Shipping, each owning its own aggregates.
 
-In v2 the "saga" was only a command handler (product doc 02, DOM-05). In v3 a process manager is plain C# ([ADR-020](../v3.0.0/ADRs/ADR-020-process-managers-with-durable-state-and-timers.md)). Either way, nobody can **see** the end-to-end workflow:
+In v2 the "saga" was only a command handler (product doc 02, DOM-05). In v3 a process manager is plain C# ([ADR-020](../v3.0.0/engineering/ADRs/ADR-020-process-managers-with-durable-state-and-timers.md)). Either way, nobody can **see** the end-to-end workflow:
 
 - which events move it forward;
 - what happens when a step is rejected or times out;

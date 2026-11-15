@@ -21,7 +21,7 @@ namespace SourceFlow.Tool.Studio;
 /// <param name="Workspace">The workspace file, or the folder that holds <c>sourceflow.domain.yaml</c>.</param>
 /// <param name="Port">The loopback port; 0 picks a free one.</param>
 /// <param name="ReadOnly">Refuse every write (files and manifest exports).</param>
-/// <param name="AssetsDirectory">The built SPA (<c>studio/app/dist</c>); null serves the copy embedded in the tool.</param>
+/// <param name="AssetsDirectory">The built SPA (<c>web/app/dist</c>); null serves the copy embedded in the tool.</param>
 /// <param name="FrameworkDirectory">The WebAssembly core's <c>_framework</c> folder; null serves the embedded copy.</param>
 /// <param name="ExportManifest">Runs a service's design-time manifest export (the project file → the manifest JSON).</param>
 internal sealed record StudioHostOptions(
@@ -455,7 +455,7 @@ internal sealed class StudioHost : IAsyncDisposable
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             if (relative == "index.html")
             {
-                await context.Response.WriteAsync("The Studio app isn't in this build: run 'npm run build' in studio/ and pass --assets studio/app/dist.", context.RequestAborted);
+                await context.Response.WriteAsync("The Studio app isn't in this build: run 'npm run build' in web/ and pass --assets web/app/dist.", context.RequestAborted);
             }
         }
 

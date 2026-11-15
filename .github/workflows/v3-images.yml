@@ -9,7 +9,7 @@ on:
     paths:
       - "src/**"
       - "samples/**"
-      - "studio/**"
+      - "web/**"
       - "schemas/**"
       - "Directory.Build.props"
       - "Directory.Build.targets"

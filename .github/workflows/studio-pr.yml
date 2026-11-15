@@ -6,10 +6,10 @@ name: studio-pr
 on:
   pull_request:
     branches: [ "v3.0.0" ]
-    paths: [ "studio/**", "src/Workflows/**", "src/Tooling/SourceFlow.Tool/**", "schemas/**", "tests/workflow-golden/**", "tests/Fixtures/OrderFulfilment/**", "samples/TravelBooking/**", "docs/v3.0.0/guides/workflow-dsl-reference.md", ".github/workflows/studio-pr.yml", ".github/workflows/workflow-diff.yml" ]
+    paths: [ "web/**", "src/Workflows/**", "src/Tooling/SourceFlow.Tool/**", "schemas/**", "tests/Golden/**", "tests/Fixtures/OrderFulfilment/**", "samples/TravelBooking/**", "docs/v3.0.0/reference/guides/workflow-dsl-reference.md", ".github/workflows/studio-pr.yml", ".github/workflows/workflow-diff.yml" ]
   push:
     branches: [ "v3.0.0" ]
-    paths: [ "studio/**", "src/Workflows/**", "src/Tooling/SourceFlow.Tool/**", "schemas/**", "tests/workflow-golden/**", "tests/Fixtures/OrderFulfilment/**", "samples/TravelBooking/**", "docs/v3.0.0/guides/workflow-dsl-reference.md", ".github/workflows/studio-pr.yml", ".github/workflows/workflow-diff.yml" ]
+    paths: [ "web/**", "src/Workflows/**", "src/Tooling/SourceFlow.Tool/**", "schemas/**", "tests/Golden/**", "tests/Fixtures/OrderFulfilment/**", "samples/TravelBooking/**", "docs/v3.0.0/reference/guides/workflow-dsl-reference.md", ".github/workflows/studio-pr.yml", ".github/workflows/workflow-diff.yml" ]
 
 permissions:
   contents: read
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: studio
+        working-directory: web
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -37,7 +37,7 @@ jobs:
         with:
           node-version: "22.18"
           cache: npm
-          cache-dependency-path: studio/package-lock.json
+          cache-dependency-path: web/package-lock.json
       - run: npm ci
       - name: Type check
         run: npm run typecheck
@@ -61,4 +61,4 @@ jobs:
         if: failure()
         with:
           name: playwright-traces
-          path: studio/app/test-results
+          path: web/app/test-results

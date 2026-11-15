@@ -17,14 +17,14 @@ namespace SourceFlow.Studio.Tests;
 
 /// <summary>
 /// The Studio core's JSON API (WP-S.7, ADR-025): what SourceFlow.Studio.Wasm exports. These run it in .NET; the Vitest
-/// suite (studio/core-client, WASM-01..08) runs the same API compiled to WebAssembly against the same golden files.
+/// suite (web/core-client, WASM-01..08) runs the same API compiled to WebAssembly against the same golden files.
 /// </summary>
 [Trait("Category", "Unit")]
 public sealed class StudioApiTests
 {
     private static readonly string Repository = Path.GetFullPath(Path.Combine(Golden.Root, "..", ".."));
     private static readonly string ExportsSource = Path.Combine(Repository, "src", "Workflows", "SourceFlow.Studio.Wasm", "Exports.cs");
-    private static readonly string Declaration = Path.Combine(Repository, "studio", "core-client", "src", "generated", "exports.d.ts");
+    private static readonly string Declaration = Path.Combine(Repository, "web", "core-client", "src", "generated", "exports.d.ts");
 
     [Fact]
     [Trait("Id", "UT-WASM-01")]
@@ -50,7 +50,7 @@ public sealed class StudioApiTests
             return;
         }
 
-        committed.ShouldBe(generated, $"studio/core-client/src/generated/exports.d.ts is out of date: run the tests with {Golden.ApproveVariable}=1.");
+        committed.ShouldBe(generated, $"web/core-client/src/generated/exports.d.ts is out of date: run the tests with {Golden.ApproveVariable}=1.");
     }
 
     [Theory]

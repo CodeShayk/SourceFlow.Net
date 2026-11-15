@@ -15,17 +15,17 @@ RUN --mount=type=cache,id=nuget,target=/root/.nuget/packages,sharing=locked \
 # 2. The Studio app, and the static site of the workspace (npx @sourceflow/studio build).
 FROM --platform=$BUILDPLATFORM node:22.18-alpine AS site
 WORKDIR /repo
-COPY studio/package.json studio/package-lock.json studio/
-COPY studio/core-client/package.json studio/core-client/
-COPY studio/app/package.json studio/app/
-COPY studio/action/package.json studio/action/
-RUN --mount=type=cache,target=/root/.npm,sharing=locked cd studio && npm ci --no-audit --no-fund
-COPY studio/ studio/
+COPY web/package.json web/package-lock.json web/
+COPY web/core-client/package.json web/core-client/
+COPY web/app/package.json web/app/
+COPY web/actions/workflow-diff/package.json web/actions/workflow-diff/
+RUN --mount=type=cache,target=/root/.npm,sharing=locked cd web && npm ci --no-audit --no-fund
+COPY web/ web/
 COPY schemas/ schemas/
 COPY --from=wasm /repo/artifacts/studio-wasm artifacts/studio-wasm
-RUN cd studio && npm run build
+RUN cd web && npm run build
 COPY samples/TravelBooking/ samples/TravelBooking/
-RUN node studio/app/bin/studio.mjs build --workspace samples/TravelBooking --out /site
+RUN node web/app/bin/studio.mjs build --workspace samples/TravelBooking --out /site
 
 # 3. Served as static files.
 FROM nginx:1.27-alpine

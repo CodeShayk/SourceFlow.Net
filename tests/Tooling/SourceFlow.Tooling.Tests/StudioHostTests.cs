@@ -21,7 +21,7 @@ public sealed class StudioHostTests : IAsyncLifetime
 
     public ValueTask InitializeAsync()
     {
-        string golden = Path.Combine(Repository(), "tests", "workflow-golden");
+        string golden = Path.Combine(Repository(), "tests", "Golden");
         Directory.CreateDirectory(Path.Combine(_root, "manifests"));
         foreach (string manifest in Directory.GetFiles(Path.Combine(golden, "domain"), "*.json"))
         {
@@ -363,7 +363,7 @@ public sealed class StudioHostTests : IAsyncLifetime
         await using StudioHost readOnly = await Start(readOnly: true);
         using HttpClient reader = Client(readOnly);
         (await reader.PostAsJsonAsync("api/services/orders/specs", new { workflow = Workflow }, Ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        File.WriteAllText(Path.Combine(_root, "orders", "workflows", "order-fulfilment.sfflow.yaml"), File.ReadAllText(Path.Combine(Repository(), "tests", "workflow-golden", "cases", "01-order-fulfilment", "workflow.sfflow.yaml")));
+        File.WriteAllText(Path.Combine(_root, "orders", "workflows", "order-fulfilment.sfflow.yaml"), File.ReadAllText(Path.Combine(Repository(), "tests", "Golden", "cases", "01-order-fulfilment", "workflow.sfflow.yaml")));
         (await reader.PostAsJsonAsync("api/services/orders/specs", new { workflow = Workflow, dryRun = true }, Ct)).StatusCode.ShouldBe(HttpStatusCode.OK, "a preview writes nothing");
         File.Exists(hand).ShouldBeFalse();
     }

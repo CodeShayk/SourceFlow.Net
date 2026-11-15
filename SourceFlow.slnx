@@ -88,12 +88,12 @@
     <Project Path="samples/TravelBooking/TravelBooking.Tests/TravelBooking.Tests.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
-    <Project Path="benchmarks/SourceFlow.Benchmarks/SourceFlow.Benchmarks.csproj" />
+    <Project Path="quality/benchmarks/SourceFlow.Benchmarks/SourceFlow.Benchmarks.csproj" />
   </Folder>
   <Folder Name="/fuzz/">
-    <Project Path="fuzz/SourceFlow.Fuzz/SourceFlow.Fuzz.csproj" />
+    <Project Path="quality/fuzz/SourceFlow.Fuzz/SourceFlow.Fuzz.csproj" />
   </Folder>
   <Folder Name="/tools/">
-    <Project Path="tools/CoverageGate/CoverageGate.csproj" />
+    <Project Path="eng/CoverageGate/CoverageGate.csproj" />
   </Folder>
 </Solution>

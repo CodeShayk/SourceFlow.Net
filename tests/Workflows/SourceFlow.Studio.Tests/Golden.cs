@@ -9,14 +9,14 @@ using SourceFlow.Studio.Workspace;
 namespace SourceFlow.Studio.Tests;
 
 /// <summary>
-/// The WF-GOLD fixtures in <c>tests/workflow-golden</c>: a commerce domain's manifests and one folder per case with
+/// The WF-GOLD fixtures in <c>tests/Golden</c>: a commerce domain's manifests and one folder per case with
 /// <c>workflow.sfflow.yaml</c> and the expected outputs. The .NET and WASM runs read the same files (plan 10 §3).
 /// </summary>
 internal static class Golden
 {
     public const string ApproveVariable = "SOURCEFLOW_APPROVE";
 
-    public static readonly string Root = Path.Combine(RepositoryRoot(), "tests", "workflow-golden");
+    public static readonly string Root = Path.Combine(RepositoryRoot(), "tests", "Golden");
 
     private static readonly Lazy<DomainWorkspace> Domain = new(() =>
         DomainWorkspace.LoadAsync(Path.Combine(Root, "domain")).GetAwaiter().GetResult());

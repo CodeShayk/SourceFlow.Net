@@ -12,7 +12,7 @@ namespace SourceFlow.Cloud.Tests.Gcp;
 /// </summary>
 public sealed class PubSubEmulatorServer : IAsyncLifetime
 {
-    /// <summary>The pinned image (.github/emulators/pubsub).</summary>
+    /// <summary>The pinned image (eng/emulators/pubsub).</summary>
     public const string Image = "gcr.io/google.com/cloudsdktool/google-cloud-cli:590.0.1-emulators";
 
     /// <summary>The project the tests use (the emulator accepts any).</summary>

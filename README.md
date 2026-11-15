@@ -18,8 +18,8 @@ between services over the cloud broker of your choice, and runs long-lived workf
 effectively once, everything is traced and measured with OpenTelemetry, and a source generator replaces reflection, so
 services start fast and work with Native AOT and trimming.
 
-v3.0.0 is a redesign of v2 for .NET 10. If you are upgrading, read [what changed](docs/v3.0.0/Documentation/Versions/v3.0.0/CHANGELOG.md)
-and the [migration guide](docs/v3.0.0/guides/migrating-from-v2.md); v2 is documented in [docs/legacy-version](docs/legacy-version).
+v3.0.0 is a redesign of v2 for .NET 10. If you are upgrading, read [what changed](docs/v3.0.0/reference/Versions/v3.0.0/CHANGELOG.md)
+and the [migration guide](docs/v3.0.0/reference/guides/migrating-from-v2.md); v2 is documented in [docs/legacy-version](docs/legacy-version).
 
 ### Key features
 
@@ -125,7 +125,7 @@ flowchart LR
 ```
 
 One core package holds the programming model, the runtime and the extensibility interfaces (SPIs); adapters implement them
-for each database and cloud. See the [architecture documentation](docs/v3.0.0/Documentation/Architecture/README.md).
+for each database and cloud. See the [architecture documentation](docs/v3.0.0/reference/Architecture/README.md).
 
 ## Packages
 
@@ -133,23 +133,23 @@ Every package targets **.NET 10** (`net10.0`).
 
 | Package | What it does | Docs |
 |---------|--------------|------|
-| `SourceFlow.Net` | Core: programming model, runtime, outbox/inbox, subscriptions, middleware, telemetry, in-memory adapters, SPIs. Includes the source generator and analyzers. | [README](docs/v3.0.0/Documentation/SourceFlow.Net-README.md) |
-| `SourceFlow.Storage.PostgreSQL` | Event store, outbox, inbox, checkpoints, leases and documents on PostgreSQL; SFQL compiler. | [README](docs/v3.0.0/Documentation/SourceFlow.Storage.PostgreSQL-README.md) |
-| `SourceFlow.Storage.SqlServer` | The same on SQL Server. | [README](docs/v3.0.0/Documentation/SourceFlow.Storage.SqlServer-README.md) |
-| `SourceFlow.Storage.EntityFrameworkCore` | EF Core read-model projections in the SourceFlow transaction. | [README](docs/v3.0.0/Documentation/SourceFlow.Storage.EntityFrameworkCore-README.md) |
-| `SourceFlow.Cloud.Aws` | SNS/SQS transport, provisioner, AWS KMS keys. | [README](docs/v3.0.0/Documentation/SourceFlow.Cloud.Aws-README.md) |
-| `SourceFlow.Cloud.Azure` | Service Bus transport, provisioner, Azure Key Vault keys. | [README](docs/v3.0.0/Documentation/SourceFlow.Cloud.Azure-README.md) |
-| `SourceFlow.Cloud.Gcp` | Pub/Sub transport, provisioner, Google Cloud KMS keys. | [README](docs/v3.0.0/Documentation/SourceFlow.Cloud.Gcp-README.md) |
-| `SourceFlow.AspNetCore` | Command endpoints, domain query endpoints, the query API, health checks. | [README](docs/v3.0.0/Documentation/SourceFlow.AspNetCore-README.md) |
-| `SourceFlow.Testing` | Given/When/Then specs, workflow specs, in-memory test host, storage and transport conformance kits. | [README](docs/v3.0.0/Documentation/SourceFlow.Testing-README.md) |
-| `SourceFlow.Tool` | The `sourceflow` command-line .NET tool (`dotnet sourceflow`), which also runs inside a service; it embeds SourceFlow Studio. | [README](docs/v3.0.0/Documentation/SourceFlow.Tool-README.md) |
-| `SourceFlow.Studio` | Service manifests, domain workspace, workflow DSL, validator, simulator, exporters; the Studio web app (`studio/app`) and the `workflow-diff` GitHub Action (`studio/action`), which are to be published as `@sourceflow/studio` and `sourceflow/workflow-diff`. | [README](docs/v3.0.0/Documentation/SourceFlow.Studio-README.md) |
+| `SourceFlow.Net` | Core: programming model, runtime, outbox/inbox, subscriptions, middleware, telemetry, in-memory adapters, SPIs. Includes the source generator and analyzers. | [README](docs/v3.0.0/reference/SourceFlow.Net-README.md) |
+| `SourceFlow.Storage.PostgreSQL` | Event store, outbox, inbox, checkpoints, leases and documents on PostgreSQL; SFQL compiler. | [README](docs/v3.0.0/reference/SourceFlow.Storage.PostgreSQL-README.md) |
+| `SourceFlow.Storage.SqlServer` | The same on SQL Server. | [README](docs/v3.0.0/reference/SourceFlow.Storage.SqlServer-README.md) |
+| `SourceFlow.Storage.EntityFrameworkCore` | EF Core read-model projections in the SourceFlow transaction. | [README](docs/v3.0.0/reference/SourceFlow.Storage.EntityFrameworkCore-README.md) |
+| `SourceFlow.Cloud.Aws` | SNS/SQS transport, provisioner, AWS KMS keys. | [README](docs/v3.0.0/reference/SourceFlow.Cloud.Aws-README.md) |
+| `SourceFlow.Cloud.Azure` | Service Bus transport, provisioner, Azure Key Vault keys. | [README](docs/v3.0.0/reference/SourceFlow.Cloud.Azure-README.md) |
+| `SourceFlow.Cloud.Gcp` | Pub/Sub transport, provisioner, Google Cloud KMS keys. | [README](docs/v3.0.0/reference/SourceFlow.Cloud.Gcp-README.md) |
+| `SourceFlow.AspNetCore` | Command endpoints, domain query endpoints, the query API, health checks. | [README](docs/v3.0.0/reference/SourceFlow.AspNetCore-README.md) |
+| `SourceFlow.Testing` | Given/When/Then specs, workflow specs, in-memory test host, storage and transport conformance kits. | [README](docs/v3.0.0/reference/SourceFlow.Testing-README.md) |
+| `SourceFlow.Tool` | The `sourceflow` command-line .NET tool (`dotnet sourceflow`), which also runs inside a service; it embeds SourceFlow Studio. | [README](docs/v3.0.0/reference/SourceFlow.Tool-README.md) |
+| `SourceFlow.Studio` | Service manifests, domain workspace, workflow DSL, validator, simulator, exporters; the Studio web app (`web/app`) and the `workflow-diff` GitHub Action (`web/actions/workflow-diff`), which are to be published as `@sourceflow/studio` and `sourceflow/workflow-diff`. | [README](docs/v3.0.0/reference/SourceFlow.Studio-README.md) |
 
 ### Roadmap
 
 | Package | Version | Release date | Details | .NET |
 |---------|---------|--------------|---------|------|
-| SourceFlow.Net and the packages above | v3.0.0 | Unreleased | Redesign: event sourcing with pure deciders, source generation, outbox/inbox, PostgreSQL and SQL Server stores, AWS/Azure/GCP transports with parity, SFQL query side, workflows and Studio. See the [changelog](docs/v3.0.0/Documentation/Versions/v3.0.0/CHANGELOG.md). | [![.Net 10](https://img.shields.io/badge/.Net-10-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) |
+| SourceFlow.Net and the packages above | v3.0.0 | Unreleased | Redesign: event sourcing with pure deciders, source generation, outbox/inbox, PostgreSQL and SQL Server stores, AWS/Azure/GCP transports with parity, SFQL query side, workflows and Studio. See the [changelog](docs/v3.0.0/reference/Versions/v3.0.0/CHANGELOG.md). | [![.Net 10](https://img.shields.io/badge/.Net-10-blue)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) |
 | SourceFlow | v2.0.0 [![NuGet version](https://badge.fury.io/nu/SourceFlow.Net.svg)](https://badge.fury.io/nu/SourceFlow.Net) | 15th Mar 2026 | Core functionality with integrated cloud abstractions ([docs](docs/legacy-version/SourceFlow.Net-README.md)). | .NET 10, 9, Standard 2.1, 2.0 |
 | SourceFlow | v1.0.0 | 29th Nov 2025 | Initial stable release with event sourcing and CQRS. | .NET 10, 9, Standard 2.1, 2.0, Framework 4.6.2 |
 
@@ -165,7 +165,7 @@ dotnet add package SourceFlow.Cloud.Aws              # or .Azure / .Gcp, when se
 The `sourceflow` CLI is a .NET tool (`dotnet tool install --global SourceFlow.Tool`, once 3.0 packages are published),
 runs inside your service (`dotnet run -- sourceflow …`, after `SourceFlowCli.TryRunAsync` in `Program.cs`), or from
 this repository (`dotnet run --project src/Tooling/SourceFlow.Tool -- …`); see the
-[CLI README](docs/v3.0.0/Documentation/SourceFlow.Tool-README.md).
+[CLI README](docs/v3.0.0/reference/SourceFlow.Tool-README.md).
 
 Start the demo, the [TravelBooking sample](samples/TravelBooking): the Bookings service on http://localhost:8080, the
 Hotels service on http://localhost:8081, SourceFlow Studio (read-only) on http://localhost:5080 and the Aspire dashboard on
@@ -190,12 +190,12 @@ dotnet run --project src/Tooling/SourceFlow.Tool -- studio --workspace samples/T
 
 ## Documentation
 
-- **[Documentation index](docs/v3.0.0/Documentation/README.md)**: package READMEs, architecture, guides.
-- **[Wiki: the complete guide](docs/v3.0.0/Documentation/wiki.md)**: concepts, getting started, every feature, best practices, FAQ.
-- **Guides**: [workflows](docs/v3.0.0/guides/workflows.md), [workflow DSL reference](docs/v3.0.0/guides/workflow-dsl-reference.md),
-  [OpenTelemetry](docs/v3.0.0/guides/opentelemetry.md), [reading generated code](docs/v3.0.0/guides/reading-generated-code.md),
-  [migrating from v2](docs/v3.0.0/guides/migrating-from-v2.md).
-- **Design**: the [design documents](docs/v3.0.0/Design/README.md) and [architecture decision records](docs/v3.0.0/ADRs/README.md).
+- **[Documentation index](docs/v3.0.0/reference/README.md)**: package READMEs, architecture, guides.
+- **[Wiki: the complete guide](docs/v3.0.0/reference/wiki.md)**: concepts, getting started, every feature, best practices, FAQ.
+- **Guides**: [workflows](docs/v3.0.0/reference/guides/workflows.md), [workflow DSL reference](docs/v3.0.0/reference/guides/workflow-dsl-reference.md),
+  [OpenTelemetry](docs/v3.0.0/reference/guides/opentelemetry.md), [reading generated code](docs/v3.0.0/reference/guides/reading-generated-code.md),
+  [migrating from v2](docs/v3.0.0/reference/guides/migrating-from-v2.md).
+- **Design**: the [design documents](docs/v3.0.0/engineering/Design/README.md) and [architecture decision records](docs/v3.0.0/engineering/ADRs/README.md).
 
 ## Companion Book
 
@@ -221,7 +221,7 @@ This project is licensed with the [MIT license](LICENSE).
 We welcome contributions! Please see the [contributing guide](CONTRIBUTING.md) for details.
 - Bug reports: create an [issue](https://github.com/CodeShayk/sourceflow.net/issues/new/choose)
 - Feature requests: start a [discussion](https://github.com/CodeShayk/SourceFlow.Net/discussions)
-- Documentation: help improve the [docs](docs/v3.0.0/Documentation/README.md)
+- Documentation: help improve the [docs](docs/v3.0.0/reference/README.md)
 - Code: submit [pull requests](https://github.com/CodeShayk/SourceFlow.Net/pulls)
 
 ## Credits

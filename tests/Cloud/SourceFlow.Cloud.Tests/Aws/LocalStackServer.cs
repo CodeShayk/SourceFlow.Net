@@ -12,7 +12,7 @@ namespace SourceFlow.Cloud.Tests.Aws;
 /// </summary>
 public sealed class LocalStackServer : IAsyncLifetime
 {
-    /// <summary>The pinned image (.github/emulators/localstack).</summary>
+    /// <summary>The pinned image (eng/emulators/localstack).</summary>
     public const string Image = "localstack/localstack:3.8";
 
     /// <summary>The region the tests use.</summary>

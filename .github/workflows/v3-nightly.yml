@@ -44,7 +44,7 @@ jobs:
 
   benchmarks:
     # WP-2.10: component benchmarks and measurements (PERF-01..06, 08, 10). Results are uploaded for the trend store;
-    # the regression gate against benchmarks/baselines (plan 08 §4) is a follow-up.
+    # the regression gate against quality/benchmarks/baselines (plan 08 §4) is a follow-up.
     name: component benchmarks
     runs-on: ubuntu-latest
     steps:
@@ -54,13 +54,13 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - run: dotnet run -c Release --project benchmarks/SourceFlow.Benchmarks -- baseline
+      - run: dotnet run -c Release --project quality/benchmarks/SourceFlow.Benchmarks -- baseline
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: benchmarks
           path: |
-            benchmarks/baselines/*.json
+            quality/benchmarks/baselines/*.json
             BenchmarkDotNet.Artifacts/results/**
 
   real-cloud:
@@ -126,7 +126,7 @@ jobs:
   load-tier-m:
     # WP-4.7: the tier-M load test (doc 09 §5, PERF-09) against the TravelBooking services built from this checkout (the
     # Bookings service, its workflow to Hotels over LocalStack), with k6 on the same Docker network. The hosted runner shares 4 vCPUs between the service, PostgreSQL and k6, so it reports rather
-    # than gates; the milestone acceptance run is on a dedicated 4-vCPU service instance (loadtest/README.md).
+    # than gates; the milestone acceptance run is on a dedicated 4-vCPU service instance (quality/loadtest/README.md).
     name: load test (tier M)
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -139,7 +139,7 @@ jobs:
         run: >-
           docker run --rm -i --network sourceflow-demo_default
           -e BOOKINGS_URL=http://bookings:8080 -e HOTELS_URL=http://hotels:8080 -e RATE=1000 -e DURATION=5m
-          grafana/k6:2.3.0 run - < loadtest/k6/travel-tier-m.js | tee loadtest-summary.txt
+          grafana/k6:2.3.0 run - < quality/loadtest/k6/travel-tier-m.js | tee loadtest-summary.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -167,9 +167,9 @@ jobs:
         with:
           global-json-file: global.json
       - run: |
-          docker compose -f .github/emulators/localstack/docker-compose.yml up -d
-          docker compose -f .github/emulators/pubsub/docker-compose.yml up -d
-          docker compose -f .github/emulators/servicebus/docker-compose.yml up -d
+          docker compose -f eng/emulators/localstack/docker-compose.yml up -d
+          docker compose -f eng/emulators/pubsub/docker-compose.yml up -d
+          docker compose -f eng/emulators/servicebus/docker-compose.yml up -d
           for i in $(seq 1 90); do
             curl -sf http://localhost:5300/health >/dev/null && exit 0
             sleep 2

@@ -106,13 +106,13 @@ jobs:
         include:
           - cloud: aws
             trait: Aws
-            compose: .github/emulators/localstack/docker-compose.yml
+            compose: eng/emulators/localstack/docker-compose.yml
           - cloud: gcp
             trait: Gcp
-            compose: .github/emulators/pubsub/docker-compose.yml
+            compose: eng/emulators/pubsub/docker-compose.yml
           - cloud: azure
             trait: Azure
-            compose: .github/emulators/servicebus/docker-compose.yml
+            compose: eng/emulators/servicebus/docker-compose.yml
     runs-on: ubuntu-latest
     env:
       MSSQL_SA_PASSWORD: ${{ secrets.EMULATOR_SA_PASSWORD || 'SourceFlow_Emulator_1' }}
@@ -184,8 +184,8 @@ jobs:
       - name: Start emulators
         run: |
           mkdir -p .terraform-plugins
-          docker compose -f .github/emulators/localstack/docker-compose.yml up -d
-          docker compose -f .github/emulators/pubsub/docker-compose.yml up -d
+          docker compose -f eng/emulators/localstack/docker-compose.yml up -d
+          docker compose -f eng/emulators/pubsub/docker-compose.yml up -d
           for i in $(seq 1 90); do
             curl -sf http://localhost:4566/_localstack/health | grep -q '"sqs": "available"' && curl -sf -X PUT http://localhost:8085/v1/projects/sourceflow-emulator/topics/health >/dev/null && exit 0
             sleep 2
@@ -224,9 +224,9 @@ jobs:
         with:
           global-json-file: global.json
       - run: |
-          docker compose -f .github/emulators/localstack/docker-compose.yml up -d
-          docker compose -f .github/emulators/pubsub/docker-compose.yml up -d
-          docker compose -f .github/emulators/servicebus/docker-compose.yml up -d
+          docker compose -f eng/emulators/localstack/docker-compose.yml up -d
+          docker compose -f eng/emulators/pubsub/docker-compose.yml up -d
+          docker compose -f eng/emulators/servicebus/docker-compose.yml up -d
           for i in $(seq 1 90); do
             curl -sf http://localhost:5300/health >/dev/null && exit 0
             sleep 2
@@ -258,7 +258,7 @@ jobs:
       - name: Merge coverage
         run: reportgenerator -reports:"results/**/*.cobertura.xml" -targetdir:coverage -reporttypes:"Cobertura;MarkdownSummaryGithub"
       - name: Coverage gate (plan 04 §5)
-        run: dotnet run --project tools/CoverageGate/CoverageGate.csproj -c Release -- coverage/Cobertura.xml tools/CoverageGate/thresholds.json
+        run: dotnet run --project eng/CoverageGate/CoverageGate.csproj -c Release -- coverage/Cobertura.xml eng/CoverageGate/thresholds.json
       - run: cat coverage/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
   api-traceability:

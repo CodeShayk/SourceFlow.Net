@@ -13,7 +13,7 @@ internal sealed partial class Cli
         var workspace = new Option<string>("--workspace") { Description = "The workspace: a sourceflow.domain.yaml, or the folder that holds one.", DefaultValueFactory = _ => DomainWorkspace.FileName };
         var port = new Option<int>("--port") { Description = "The loopback port (0 picks a free one).", DefaultValueFactory = _ => StudioHost.DefaultPort };
         var readOnly = new Option<bool>("--read-only") { Description = "Refuse every write: workflow and layout files, and manifest exports." };
-        var assets = new Option<string?>("--assets") { Description = "Serve the Studio app from this folder (studio/app/dist) instead of the copy in the tool." };
+        var assets = new Option<string?>("--assets") { Description = "Serve the Studio app from this folder (web/app/dist) instead of the copy in the tool." };
         var framework = new Option<string?>("--framework") { Description = "Serve the WebAssembly core from this _framework folder instead of the copy in the tool." };
         var open = new Option<bool>("--open") { Description = "Open the Studio in the default browser." };
 

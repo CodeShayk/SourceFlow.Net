@@ -35,5 +35,5 @@ Please keep the report confidential until the advisory is published.
   CycloneDX SBOM per package and a build provenance attestation.
 - Pull requests run CodeQL, dependency review and the full test gate; dependencies are kept current by Renovate.
 
-See the [security and compliance guide](docs/v3.0.0/Documentation/Security-and-Compliance-Guide.md) for how to run
+See the [security and compliance guide](docs/v3.0.0/reference/Security-and-Compliance-Guide.md) for how to run
 SourceFlow.Net securely.

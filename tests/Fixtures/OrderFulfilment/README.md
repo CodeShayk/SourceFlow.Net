@@ -2,10 +2,10 @@
 
 Four services of a commerce domain (orders, inventory, payments, shipping) and the order-fulfilment workflow between
 them: the example of
-[design doc 15 §5.1](../../../docs/v3.0.0/Design/15-Workflow-DSL-and-Studio.md#51-example-order-fulfilment-with-success-failures-retries-and-rollback).
+[design doc 15 §5.1](../../../docs/v3.0.0/engineering/Design/15-Workflow-DSL-and-Studio.md#51-example-order-fulfilment-with-success-failures-retries-and-rollback).
 It is test data, not an example to follow. The user-facing example is the
 [TravelBooking sample](../../../samples/TravelBooking/README.md), which the
-[workflows guide](../../../docs/v3.0.0/guides/workflows.md) walks through.
+[workflows guide](../../../docs/v3.0.0/reference/guides/workflows.md) walks through.
 
 | Project | What it is |
 |---------|------------|
@@ -21,7 +21,7 @@ It is test data, not an example to follow. The user-facing example is the
   ([`OrderFulfilmentScenarios.cs`](../../EndToEnd/SourceFlow.EndToEnd.Tests/OrderFulfilmentScenarios.cs)).
 - The Studio tests UT-MAN-16 and UT-WF-71..73
   ([`OrderFulfilmentSampleTests.cs`](../../Workflows/SourceFlow.Studio.Tests/OrderFulfilmentSampleTests.cs)).
-- The Playwright tests STU-E2E-01 and STU-A11Y-04 (`studio/app/e2e`), which open this workspace read-only.
+- The Playwright tests STU-E2E-01 and STU-A11Y-04 (`web/app/e2e`), which open this workspace read-only.
 - The manifest drift check in `v3-pr.yml`, which exports each service's manifest with `--check`.
 
 ## Open it in Studio
