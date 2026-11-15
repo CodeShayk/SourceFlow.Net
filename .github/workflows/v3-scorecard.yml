@@ -1,17 +1,27 @@
 # OpenSSF Scorecard (doc 10 §7: target score ≥ 7). Results go to code scanning.
+#
+# scorecard-action accepts only pull requests and the default branch: any other push fails its option
+# validation whatever publish_results says. So it scores pull requests into master (v3.0.0 among them)
+# and master itself, and publishes only from master.
 name: v3-scorecard
 
 on:
   schedule:
     - cron: "30 4 * * 1"
   push:
-    branches: [ "v3.0.0" ]
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
   workflow_dispatch:
 
 permissions: read-all
 
 jobs:
   analysis:
+    # A manual run from another branch would be refused by the action; skip it instead.
+    if: >-
+      github.event_name == 'schedule' || github.event_name == 'pull_request' ||
+      github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     permissions:
       security-events: write   # upload the SARIF
@@ -25,7 +35,7 @@ jobs:
         with:
           results_file: scorecard.sarif
           results_format: sarif
-          publish_results: true
+          publish_results: ${{ github.event_name != 'pull_request' }}
       - uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: scorecard.sarif

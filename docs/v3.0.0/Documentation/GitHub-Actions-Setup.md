@@ -153,8 +153,10 @@ only the artifact is uploaded. See the [Studio README](SourceFlow.Studio-README.
 
 - **`v3-codeql.yml`** builds `SourceFlow.slnx` and analyses C# with the `security-extended` query suite. Results go to
   the repository's code scanning alerts (`security-events: write`).
-- **`v3-scorecard.yml`** runs `ossf/scorecard-action`, publishes the results and uploads SARIF to code scanning. The target
-  score is 7 or more.
+- **`v3-scorecard.yml`** runs `ossf/scorecard-action` and uploads SARIF to code scanning. The target score is 7 or more.
+  The action accepts only pull requests and the default branch, so it runs on pull requests into `master` (including
+  `v3.0.0`), on pushes to `master` and weekly; results are published from `master` only. A push to `v3.0.0` alone does
+  not run it.
 
 The CodeQL workflows use the advanced setup. If the repository's **default** CodeQL setup is enabled, GitHub rejects the
 advanced workflow's upload: disable the default setup under Settings, Code security, Code scanning.
