@@ -1,7 +1,8 @@
 # The OrderFulfilment domain workspace (doc 15 §4): four services, each with the manifest its build exports
 # (dotnet sourceflow manifest export, checked by CI for drift). Orders owns the order-fulfilment workflow.
-# A test fixture (the user-facing example is samples/TravelBooking). Open it in SourceFlow Studio:
-#   dotnet sourceflow studio --workspace tests/Fixtures/OrderFulfilment
+# Open it in SourceFlow Studio: docker compose -f samples/OrderFulfilment/docker-compose.yml up (read-only site on
+# http://localhost:5090), or edit it locally with
+#   dotnet sourceflow studio --workspace samples/OrderFulfilment
 domain: commerce
 description: Order to delivery
 services:

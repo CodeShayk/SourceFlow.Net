@@ -161,7 +161,7 @@ Make the outside call idempotent with a key that is stable across those repeats:
 | Command handler | `DecisionContext.CommandId`: the command's message id, the same on every re-decide and every redelivery |
 | Event handler | `EventContext.EventId`: the event's id, the same on every delivery |
 
-The Payments service of the OrderFulfilment domain the tests use ([`tests/Fixtures/OrderFulfilment/Payments/Payments.cs`](../../../tests/Fixtures/OrderFulfilment/Payments/Payments.cs)) does exactly this. Every gateway call carries the command id as the gateway's idempotency key:
+The Payments service of the OrderFulfilment sample ([`samples/OrderFulfilment/Payments/Payments.cs`](../../../samples/OrderFulfilment/Payments/Payments.cs)) does exactly this. Every gateway call carries the command id as the gateway's idempotency key:
 
 ```csharp
 /// <summary>A payment service provider. Every call carries an idempotency key, so a repeated call has no second effect.</summary>

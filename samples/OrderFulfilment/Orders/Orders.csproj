@@ -8,7 +8,7 @@
     <SourceFlowServiceName>orders</SourceFlowServiceName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <ProjectReference Include="..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
     <ProjectReference Include="..\Inventory\Inventory.csproj" />
     <ProjectReference Include="..\Payments\Payments.csproj" />
     <ProjectReference Include="..\Shipping\Shipping.csproj" />

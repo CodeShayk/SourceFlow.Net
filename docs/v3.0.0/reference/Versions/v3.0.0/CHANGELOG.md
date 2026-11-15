@@ -307,9 +307,15 @@ and the [workflows guide](../../guides/workflows.md).
   checks, OTLP export and the in-service CLI; its Studio workspace and the specs Studio generated (27 paths, a minimal
   cover of 6). `docker compose up -d --build` at the repository root starts it with SourceFlow Studio (read-only) and the
   Aspire dashboard; images `ghcr.io/codeshayk/sourceflow-travel-bookings`, `-travel-hotels` and `-travel-studio`.
-- The Bank domain (accounts, transfers and notifications; the v2 end-to-end domain ported) and the OrderFulfilment
-  services (Orders, Inventory, Payments, Shipping, with the order-fulfilment workflow) are test fixtures in
-  [`tests/Fixtures`](../../../../../tests/Fixtures), not samples.
+- **[OrderFulfilment](../../../../../samples/OrderFulfilment/README.md)**: four services, Orders, Inventory, Payments
+  and Shipping, from one host on PostgreSQL with Amazon SNS/SQS between them, and the order-fulfilment workflow of
+  design doc 15 §5.1: business rejections and retries, compensation in reverse order, a guarded review step, and a
+  point of no return with forward recovery. Its Studio workspace and the specs Studio generated (437 paths, a minimal
+  cover of 6). `docker compose -f samples/OrderFulfilment/docker-compose.yml up -d --build` starts it with SourceFlow
+  Studio and the Aspire dashboard, on ports apart from TravelBooking's; images
+  `ghcr.io/codeshayk/sourceflow-order-fulfilment` (one for the four services) and `-order-studio`.
+- The Bank domain (accounts, transfers and notifications; the v2 end-to-end domain ported) is a test fixture in
+  [`tests/Fixtures`](../../../../../tests/Fixtures), not a sample.
 
 ### Migration from v2
 

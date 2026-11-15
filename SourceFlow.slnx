@@ -72,14 +72,6 @@
   <Folder Name="/tests/Fixtures/">
     <Project Path="tests/Fixtures/Cloud.AotCheck/Cloud.AotCheck.csproj" />
   </Folder>
-  <Folder Name="/tests/Fixtures/OrderFulfilment/">
-    <Project Path="tests/Fixtures/OrderFulfilment/Orders/Orders.csproj" />
-    <Project Path="tests/Fixtures/OrderFulfilment/Inventory/Inventory.csproj" />
-    <Project Path="tests/Fixtures/OrderFulfilment/Payments/Payments.csproj" />
-    <Project Path="tests/Fixtures/OrderFulfilment/Shipping/Shipping.csproj" />
-    <Project Path="tests/Fixtures/OrderFulfilment/OrderFulfilment.Host/OrderFulfilment.Host.csproj" />
-    <Project Path="tests/Fixtures/OrderFulfilment/Orders.Tests/Orders.Tests.csproj" />
-  </Folder>
   <Folder Name="/samples/TravelBooking/">
     <Project Path="samples/TravelBooking/Bookings/Bookings.csproj" />
     <Project Path="samples/TravelBooking/Hotels/Hotels.csproj" />
@@ -87,13 +79,21 @@
     <Project Path="samples/TravelBooking/Hotels.Api/Hotels.Api.csproj" />
     <Project Path="samples/TravelBooking/TravelBooking.Tests/TravelBooking.Tests.csproj" />
   </Folder>
-  <Folder Name="/benchmarks/">
+  <Folder Name="/samples/OrderFulfilment/">
+    <Project Path="samples/OrderFulfilment/Orders/Orders.csproj" />
+    <Project Path="samples/OrderFulfilment/Inventory/Inventory.csproj" />
+    <Project Path="samples/OrderFulfilment/Payments/Payments.csproj" />
+    <Project Path="samples/OrderFulfilment/Shipping/Shipping.csproj" />
+    <Project Path="samples/OrderFulfilment/OrderFulfilment.Host/OrderFulfilment.Host.csproj" />
+    <Project Path="samples/OrderFulfilment/Orders.Tests/Orders.Tests.csproj" />
+  </Folder>
+  <Folder Name="/quality/benchmarks/">
     <Project Path="quality/benchmarks/SourceFlow.Benchmarks/SourceFlow.Benchmarks.csproj" />
   </Folder>
-  <Folder Name="/fuzz/">
+  <Folder Name="/quality/fuzz/">
     <Project Path="quality/fuzz/SourceFlow.Fuzz/SourceFlow.Fuzz.csproj" />
   </Folder>
-  <Folder Name="/tools/">
+  <Folder Name="/eng/">
     <Project Path="eng/CoverageGate/CoverageGate.csproj" />
   </Folder>
 </Solution>

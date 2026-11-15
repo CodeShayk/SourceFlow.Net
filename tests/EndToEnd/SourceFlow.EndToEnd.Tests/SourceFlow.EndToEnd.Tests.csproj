@@ -32,10 +32,10 @@
     <ProjectReference Include="..\..\..\tests\Fixtures\Bank\Bank.Transfers\Bank.Transfers.csproj" />
     <ProjectReference Include="..\..\..\tests\Fixtures\Bank\Bank.Notifications\Bank.Notifications.csproj" />
     <!-- The OrderFulfilment sample's services, and the orders service's next release (WF-E2E-01..12). -->
-    <ProjectReference Include="..\..\..\tests\Fixtures\OrderFulfilment\Orders\Orders.csproj" />
-    <ProjectReference Include="..\..\..\tests\Fixtures\OrderFulfilment\Inventory\Inventory.csproj" />
-    <ProjectReference Include="..\..\..\tests\Fixtures\OrderFulfilment\Payments\Payments.csproj" />
-    <ProjectReference Include="..\..\..\tests\Fixtures\OrderFulfilment\Shipping\Shipping.csproj" />
+    <ProjectReference Include="..\..\..\samples\OrderFulfilment\Orders\Orders.csproj" />
+    <ProjectReference Include="..\..\..\samples\OrderFulfilment\Inventory\Inventory.csproj" />
+    <ProjectReference Include="..\..\..\samples\OrderFulfilment\Payments\Payments.csproj" />
+    <ProjectReference Include="..\..\..\samples\OrderFulfilment\Shipping\Shipping.csproj" />
     <ProjectReference Include="..\OrderFulfilment.NextRelease\OrderFulfilment.NextRelease.csproj" />
     <ProjectReference Include="..\..\..\samples\TravelBooking\Bookings\Bookings.csproj" />
     <ProjectReference Include="..\..\..\samples\TravelBooking\Hotels\Hotels.csproj" />

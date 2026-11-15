@@ -7,6 +7,6 @@
     <SourceFlowServiceName>inventory</SourceFlowServiceName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <ProjectReference Include="..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
   </ItemGroup>
 </Project>

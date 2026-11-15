@@ -239,7 +239,7 @@ Requirements: the application must build a generic host (`Host.CreateApplication
 
 ### Drift check in CI
 
-Manifests are build artifacts that you commit, so Studio and other services can read them. Regenerate them in CI with `--check`. This repository's `v3-pr.yml` does it for both TravelBooking services (and for the services of the OrderFulfilment test fixture):
+Manifests are build artifacts that you commit, so Studio and other services can read them. Regenerate them in CI with `--check`. This repository's `v3-pr.yml` does it for both TravelBooking services and the four services of the OrderFulfilment sample:
 
 ```yaml
 - name: TravelBooking manifest drift check

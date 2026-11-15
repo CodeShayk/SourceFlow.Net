@@ -6,10 +6,10 @@ name: studio-pr
 on:
   pull_request:
     branches: [ "v3.0.0" ]
-    paths: [ "web/**", "src/Workflows/**", "src/Tooling/SourceFlow.Tool/**", "schemas/**", "tests/Golden/**", "tests/Fixtures/OrderFulfilment/**", "samples/TravelBooking/**", "docs/v3.0.0/reference/guides/workflow-dsl-reference.md", ".github/workflows/studio-pr.yml", ".github/workflows/workflow-diff.yml" ]
+    paths: [ "web/**", "src/Workflows/**", "src/Tooling/SourceFlow.Tool/**", "schemas/**", "tests/Golden/**", "samples/OrderFulfilment/**", "samples/TravelBooking/**", "docs/v3.0.0/reference/guides/workflow-dsl-reference.md", ".github/workflows/studio-pr.yml", ".github/workflows/workflow-diff.yml" ]
   push:
     branches: [ "v3.0.0" ]
-    paths: [ "web/**", "src/Workflows/**", "src/Tooling/SourceFlow.Tool/**", "schemas/**", "tests/Golden/**", "tests/Fixtures/OrderFulfilment/**", "samples/TravelBooking/**", "docs/v3.0.0/reference/guides/workflow-dsl-reference.md", ".github/workflows/studio-pr.yml", ".github/workflows/workflow-diff.yml" ]
+    paths: [ "web/**", "src/Workflows/**", "src/Tooling/SourceFlow.Tool/**", "schemas/**", "tests/Golden/**", "samples/OrderFulfilment/**", "samples/TravelBooking/**", "docs/v3.0.0/reference/guides/workflow-dsl-reference.md", ".github/workflows/studio-pr.yml", ".github/workflows/workflow-diff.yml" ]
 
 permissions:
   contents: read

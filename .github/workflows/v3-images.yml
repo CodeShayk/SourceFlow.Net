@@ -1,5 +1,5 @@
-# Demo images of the TravelBooking sample (the Bookings and Hotels services, and SourceFlow Studio for its workspace) on
-# GitHub Container Registry.
+# Demo images of the samples on GitHub Container Registry: TravelBooking (the Bookings and Hotels services) and
+# OrderFulfilment (one image for its four services), each with SourceFlow Studio for its workspace.
 # Tags: the branch name, the short commit SHA and v3-latest (the tag docker-compose.yml pulls by default).
 name: v3-images
 
@@ -43,6 +43,12 @@ jobs:
             service: Hotels
           - image: sourceflow-travel-studio
             dockerfile: samples/TravelBooking/Studio.Dockerfile
+            service: ""
+          - image: sourceflow-order-fulfilment
+            dockerfile: samples/OrderFulfilment/Dockerfile
+            service: ""
+          - image: sourceflow-order-studio
+            dockerfile: samples/OrderFulfilment/Studio.Dockerfile
             service: ""
     steps:
       - uses: actions/checkout@v4

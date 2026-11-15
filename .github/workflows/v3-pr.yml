@@ -285,15 +285,15 @@ jobs:
               --output "samples/TravelBooking/$service/sourceflow.manifest.json" \
               -- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
           done
-      - name: OrderFulfilment fixture manifest drift check (WP-S.13)
-        # The fixture's host runs one service per Service setting; each service's manifest is exported and compared.
+      - name: OrderFulfilment sample manifest drift check (WP-S.13)
+        # The sample's host runs one service per Service setting; each service's manifest is exported and compared.
         shell: bash
         run: |
           set -e
           for service in orders inventory payments shipping; do
             dotnet src/Tooling/SourceFlow.Tool/bin/Release/net10.0/SourceFlow.Tool.dll manifest export \
-              --project tests/Fixtures/OrderFulfilment/OrderFulfilment.Host -c Release --no-build --check \
-              --output "tests/Fixtures/OrderFulfilment/${service^}/sourceflow.manifest.json" \
+              --project samples/OrderFulfilment/OrderFulfilment.Host -c Release --no-build --check \
+              --output "samples/OrderFulfilment/${service^}/sourceflow.manifest.json" \
               -- "--Service=$service" "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
           done
 

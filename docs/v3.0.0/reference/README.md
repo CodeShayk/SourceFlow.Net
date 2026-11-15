@@ -65,9 +65,10 @@ How the framework works inside: [Architecture](Architecture/README.md).
 | Sample | Shows |
 |--------|-------|
 | [TravelBooking](../../../samples/TravelBooking/README.md) | Two services, Bookings and Hotels, on PostgreSQL with Amazon SNS/SQS (LocalStack) between them, and the trip-booking workflow: retries, timeouts, compensation, a point of no return and manual intervention. Aggregates, projections, a domain query, HTTP endpoints, the query API, health checks, OpenTelemetry, the in-service CLI, the Studio workspace and generated specs. `docker compose up -d --build` from the repository root starts it with SourceFlow Studio (read-only) and the Aspire dashboard. |
+| [OrderFulfilment](../../../samples/OrderFulfilment/README.md) | Four services, Orders, Inventory, Payments and Shipping, from one host on PostgreSQL with Amazon SNS/SQS (LocalStack) between them, and the order-fulfilment workflow of design doc 15 §5.1: business rejections and retries, compensation in reverse order, a guarded review step, a point of no return with forward recovery, ports for a warehouse and a payment gateway, the Studio site and the Aspire dashboard. `docker compose -f samples/OrderFulfilment/docker-compose.yml up -d --build`. |
 
-The test suites also run against two fixture domains in [`tests/Fixtures`](../../../tests/Fixtures): a Bank domain and the
-OrderFulfilment services. They are test data, not examples.
+The test suites also run against a fixture domain in [`tests/Fixtures`](../../../tests/Fixtures), a Bank domain. It is
+test data, not an example.
 
 ## Design and decisions
 

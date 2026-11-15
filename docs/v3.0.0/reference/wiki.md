@@ -112,8 +112,8 @@ is no separate abstractions package; the namespace rule and the architecture tes
 
 ### 1.5 Conventions used in this guide
 
-- Code samples come from the repository's sample (`samples/TravelBooking`), the domains its tests run against
-  (`tests/Fixtures/Bank`, `tests/Fixtures/OrderFulfilment`) and the tests themselves (`tests/`), trimmed for length.
+- Code samples come from the repository's samples (`samples/TravelBooking`, `samples/OrderFulfilment`), the Bank domain
+  its tests run against (`tests/Fixtures/Bank`) and the tests themselves (`tests/`), trimmed for length.
   `using` directives are shown when they matter.
 - `sourceflow <command>` means the SourceFlow command line: the `SourceFlow.Tool` .NET tool (`dotnet sourceflow`), the
   repository build (`dotnet run --project src/Tooling/SourceFlow.Tool -- <command>`), or your service
@@ -820,7 +820,7 @@ public sealed record RequestTransfer(TransferId TransferId, AccountId From, Acco
 ### 5.4 Command handlers: when a decision needs I/O
 
 When a decision needs I/O (a payment gateway, a rate lookup), implement `ICommandHandler<TCommand, TAggregate>` instead of
-a `Decide` method. From the OrderFulfilment services the tests use ([Payments.cs](../../../tests/Fixtures/OrderFulfilment/Payments/Payments.cs)):
+a `Decide` method. From the OrderFulfilment sample ([Payments.cs](../../../samples/OrderFulfilment/Payments/Payments.cs)):
 
 ```csharp
 public sealed class ChargeHandler(IPaymentGateway gateway) : ICommandHandler<Charge, Payment>
@@ -3583,7 +3583,7 @@ Not in 3.0. `[Tag]` exists for forward compatibility; DCB is planned for 3.1 ([A
 | Architecture | [Index](Architecture/README.md): [01 Overview](Architecture/01-Architecture-Overview.md), [02 Command Flow](Architecture/02-Command-Flow.md), [03 Event Flow](Architecture/03-Event-Flow.md), [04 Messaging Pipeline](Architecture/04-Messaging-Pipeline-and-Middleware.md), [05 Event Store](Architecture/05-Event-Store-and-Persistence.md), [06 Projections](Architecture/06-Projections-and-Read-Models.md), [07 Cloud Transports](Architecture/07-Cloud-Transports.md), [08 Query Side](Architecture/08-Query-Side-and-SFQL.md), [09 Process Managers and Workflows](Architecture/09-Process-Managers-and-Workflows.md), [10 Security and Multi-Tenancy](Architecture/10-Security-and-Multi-Tenancy.md) |
 | Guides | [Message idempotency](Message-Idempotency-Guide.md), [Security and compliance](Security-and-Compliance-Guide.md), [Observability and performance](Observability-and-Performance.md), [Cloud integration testing](Cloud-Integration-Testing.md), [GitHub Actions setup](GitHub-Actions-Setup.md), [Workflows](guides/workflows.md), [Workflow DSL reference](guides/workflow-dsl-reference.md), [OpenTelemetry](guides/opentelemetry.md), [Reading generated code](guides/reading-generated-code.md), [Migrating from v2](guides/migrating-from-v2.md) |
 | Design and decisions | [Design documents](../engineering/Design/README.md) (01 to 15), [architecture decision records](../engineering/ADRs/README.md), [implementation status](../engineering/implementation/STATUS.md) |
-| Samples | [TravelBooking](../../../samples/TravelBooking/README.md), [samples README](../../../samples/README.md); the test fixtures [Bank](../../../tests/Fixtures/Bank) and [OrderFulfilment](../../../tests/Fixtures/OrderFulfilment) |
+| Samples | [TravelBooking](../../../samples/TravelBooking/README.md), [OrderFulfilment](../../../samples/OrderFulfilment/README.md), [samples README](../../../samples/README.md); the test fixture [Bank](../../../tests/Fixtures/Bank) |
 | Infrastructure | [Topology IaC modules](../../../deploy/topology/README.md), [dashboards and alerts](../../../deploy/observability/README.md) |
 
 ### 25.2 Community and support

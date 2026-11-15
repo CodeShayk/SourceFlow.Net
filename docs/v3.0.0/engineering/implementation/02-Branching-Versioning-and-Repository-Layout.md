@@ -103,7 +103,7 @@ The resulting versions are `3.0.0-alpha.N` on the branch, `3.0.0-wp-1-6-command-
 ├─ tests/                               # layout and naming in plan 04 §3
 │  ├─ Core/ Storage/ Cloud/ Hosting/ Tooling/ Workflows/   # mirror src/
 │  ├─ EndToEnd/ Architecture/ Fuzz/ Shared/
-│  ├─ Fixtures/                         # Bank (WP-1.14), OrderFulfilment (WP-S.13), the AotCheck apps
+│  ├─ Fixtures/                         # Bank (WP-1.14) and the AotCheck apps
 │  └─ Golden/                           # WF-GOLD fixtures shared by the .NET and WASM test runs
 ├─ quality/                             # verification beyond the unit suites
 │  ├─ benchmarks/                       # SourceFlow.Benchmarks + baselines (WP-0.4, 2.10, 6.2)
@@ -116,7 +116,9 @@ The resulting versions are `3.0.0-alpha.N` on the branch, `3.0.0-wp-1-6-command-
 │  ├─ observability/                    # WP-4.3 generated Grafana dashboards + Prometheus rules
 │  ├─ topology/                         # WP-3.5 Terraform/Bicep modules consuming topology JSON
 │  └─ dast/
-├─ samples/TravelBooking/               # the demo system
+├─ samples/
+│  ├─ TravelBooking/                    # the demo: Bookings and Hotels, the trip-booking workflow
+│  └─ OrderFulfilment/                  # WP-S.13: orders, inventory, payments, shipping + sourceflow.domain.yaml
 └─ docs/
    ├─ product/                          # product requirements
    ├─ v3.0.0/reference/                 # user-facing: package READMEs, architecture, guides/, wiki, CHANGELOG

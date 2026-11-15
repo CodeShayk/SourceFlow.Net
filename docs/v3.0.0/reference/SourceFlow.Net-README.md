@@ -409,7 +409,7 @@ On positional records, target the property: `[property: PersonalData] string Hol
 
 ## Command handlers
 
-When a decision needs I/O (a rate lookup, a payment gateway), implement `ICommandHandler<TCommand, TAggregate>` instead of a `Decide` method. From the OrderFulfilment services the tests use ([Payments.cs](../../../tests/Fixtures/OrderFulfilment/Payments/Payments.cs)):
+When a decision needs I/O (a rate lookup, a payment gateway), implement `ICommandHandler<TCommand, TAggregate>` instead of a `Decide` method. From the OrderFulfilment services the tests use ([Payments.cs](../../../samples/OrderFulfilment/Payments/Payments.cs)):
 
 ```csharp
 public sealed class ChargeHandler(IPaymentGateway gateway) : ICommandHandler<Charge, Payment>
@@ -968,4 +968,4 @@ See the [SourceFlow.Testing README](SourceFlow.Testing-README.md).
 - Packages: [PostgreSQL](SourceFlow.Storage.PostgreSQL-README.md), [SQL Server](SourceFlow.Storage.SqlServer-README.md), [EF Core](SourceFlow.Storage.EntityFrameworkCore-README.md), [AWS](SourceFlow.Cloud.Aws-README.md), [Azure](SourceFlow.Cloud.Azure-README.md), [Google Cloud](SourceFlow.Cloud.Gcp-README.md), [ASP.NET Core](SourceFlow.AspNetCore-README.md), [Testing](SourceFlow.Testing-README.md), [CLI](SourceFlow.Tool-README.md), [Studio](SourceFlow.Studio-README.md)
 - Guides: [Message idempotency](Message-Idempotency-Guide.md), [Security and compliance](Security-and-Compliance-Guide.md), [Reading generated code](guides/reading-generated-code.md), [Migrating from v2](guides/migrating-from-v2.md), [Workflows](guides/workflows.md)
 - Design: [01 Architecture Overview](../engineering/Design/01-Architecture-Overview.md), [03 Domain Programming Model](../engineering/Design/03-Domain-Programming-Model.md), [04 Messaging Pipeline](../engineering/Design/04-Messaging-Pipeline.md)
-- Sample: [TravelBooking](../../../samples/TravelBooking/README.md). Test fixtures: [Bank](../../../tests/Fixtures/Bank), [OrderFulfilment](../../../tests/Fixtures/OrderFulfilment)
+- Samples: [TravelBooking](../../../samples/TravelBooking/README.md), [OrderFulfilment](../../../samples/OrderFulfilment/README.md). Test fixture: [Bank](../../../tests/Fixtures/Bank)

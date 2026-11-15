@@ -89,9 +89,9 @@ flowchart LR
 | `storage` | ubuntu | `tests/Storage/SourceFlow.Storage.Tests` with Testcontainers (PostgreSQL, PostgreSQL with row-level security, SQL Server), excluding `Category=Chaos`. |
 | `transports (aws\|gcp\|azure)` | ubuntu | Starts the emulator from `eng/emulators/<name>` and waits for its health gate, then runs `tests/Cloud/SourceFlow.Cloud.Tests` filtered by `Cloud=Aws\|Gcp\|Azure`, excluding `RealCloud` and `Terraform`. |
 | `iac` | ubuntu | `terraform fmt -check` over `deploy/topology/terraform`; `promtool check rules` over `deploy/observability/sourceflow-alerts.yaml`; the `Requires=Terraform` tests, which apply the Terraform modules to LocalStack and the Pub/Sub emulator, run every module's `terraform test`, and build the Bicep module. |
-| `e2e` | ubuntu | Starts all three emulators, then runs `tests/EndToEnd/SourceFlow.EndToEnd.Tests` excluding `Chaos`, `Performance` and `RealCloud`: the TravelBooking scenarios (TB-E2E-01..06, TB-E2E-01 on PostgreSQL over every transport), the Bank cross-service scenarios on PostgreSQL over every transport, the OrderFulfilment fixture's workflow scenarios, and the v2 bridge. |
+| `e2e` | ubuntu | Starts all three emulators, then runs `tests/EndToEnd/SourceFlow.EndToEnd.Tests` excluding `Chaos`, `Performance` and `RealCloud`: the TravelBooking scenarios (TB-E2E-01..06, TB-E2E-01 on PostgreSQL over every transport), the Bank cross-service scenarios on PostgreSQL over every transport, the OrderFulfilment sample's workflow scenarios (WF-E2E-01..12), and the v2 bridge. |
 | `coverage` | ubuntu | Downloads every job's Cobertura files, merges them with ReportGenerator, runs `eng/CoverageGate` against `eng/CoverageGate/thresholds.json`, and writes a summary to the job page. |
-| `api-traceability` | ubuntu | Runs `Category=PublicApi` and `Category=Architecture` (public API approval files and ARCH-08 traceability), then `dotnet sourceflow manifest export --check` for the two TravelBooking services (Bookings, Hotels) and the four services of the OrderFulfilment fixture (manifest drift). |
+| `api-traceability` | ubuntu | Runs `Category=PublicApi` and `Category=Architecture` (public API approval files and ARCH-08 traceability), then `dotnet sourceflow manifest export --check` for the two TravelBooking services (Bookings, Hotels) and the four services of the OrderFulfilment sample (manifest drift). |
 | `pack` | ubuntu | `dotnet pack SourceFlow.slnx -o artifacts`, then checks that `SourceFlow.Net` contains `analyzers/dotnet/cs/SourceFlow.Generators.dll` and that no package has a `lib/` folder other than `lib/net10.0/`. Uploads the packages as the `packages` artifact (nothing is published). |
 
 Test runs share these arguments: `-c Release --no-build --ignore-exit-code 8 --coverage --coverage-output-format cobertura
@@ -125,7 +125,7 @@ See [Cloud integration testing](Cloud-Integration-Testing.md) for the tests them
 ### `studio-pr.yml`
 
 Triggered by pull requests into and pushes to `v3.0.0` that touch `web/**`, `src/Workflows/**`,
-`src/Tooling/SourceFlow.Tool/**`, `schemas/**`, `tests/Golden/**`, `tests/Fixtures/OrderFulfilment/**`,
+`src/Tooling/SourceFlow.Tool/**`, `schemas/**`, `tests/Golden/**`, `samples/OrderFulfilment/**`,
 `samples/TravelBooking/**`, the DSL reference or either Studio workflow. One job, `core-client`, in `web/` with Node 22.18 and npm:
 
 | Step | Command |
