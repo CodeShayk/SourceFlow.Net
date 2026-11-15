@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Code coverage settings for the CI test jobs (dotnet test ... coverage-settings tests/CodeCoverage.settings.xml).
+  - Modules loaded from samples/ are left out. A test that runs a sample host as a child process (the design-time
+    manifest export) would otherwise report that process's copy of SourceFlow.Tool, and on Linux the child's report
+    replaced the test process's own hits for the module instead of adding to them.
+  - Generated sources under obj/ (System.Text.Json and regex source generators) are left out: coverage measures the code
+    that is written by hand.
+-->
+<Configuration>
+  <CodeCoverage>
+    <ModulePaths>
+      <Exclude>
+        <ModulePath>.*[\\/]samples[\\/].*</ModulePath>
+      </Exclude>
+    </ModulePaths>
+    <Sources>
+      <Exclude>
+        <Source>.*[\\/]obj[\\/].*</Source>
+      </Exclude>
+    </Sources>
+  </CodeCoverage>
+</Configuration>

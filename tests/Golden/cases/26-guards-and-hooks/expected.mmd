@@ -1,0 +1,57 @@
+---
+title: order-fulfilment@1 (orders)
+---
+stateDiagram-v2
+    state "Compensating" as Compensating
+    state "Manual intervention" as ManualIntervention
+    state "reserve-stock" as reserve_stock
+    reserve_stock : send inventory.reserve-stock.v1
+    reserve_stock : await inventory.stock-reserved.v1
+    state "charge-payment" as charge_payment
+    charge_payment : send payments.charge.v1
+    charge_payment : await payments.payment-captured.v1
+    state "review-large-order" as review_large_order
+    review_large_order : await orders.order-approved.v1
+    state "create-shipment" as create_shipment
+    create_shipment : ◆ pivot
+    create_shipment : send shipping.create-shipment.v1
+    create_shipment : await shipping.shipment-created.v1
+    state "await-address-fix" as await_address_fix
+    await_address_fix : await orders.address-corrected.v1
+    [*] --> reserve_stock : orders.order-placed.v1
+    reserve_stock --> charge_payment : ✓ inventory.stock-reserved.v1
+    reserve_stock --> Compensating : ✕ inventory.out_of_stock
+    reserve_stock --> reserve_stock : ↻ 2× on timeout
+    reserve_stock --> Compensating : ⏱ PT5M
+    charge_payment --> review_large_order : ✓ payments.payment-captured.v1
+    charge_payment --> charge_payment : ↻ 3× every PT10M on payments.declined
+    charge_payment --> Compensating : ✕ payments.declined
+    charge_payment --> Compensating : ✕ payments.fraud_suspected
+    charge_payment --> charge_payment : ↻ 2× on timeout
+    charge_payment --> Compensating : ⏱ PT2M
+    review_large_order --> create_shipment : ✓ orders.order-approved.v1
+    review_large_order --> create_shipment : skip unless ($data.amount > 5000 OR $data.priority) AND NOT EXISTS $data.reviewer
+    review_large_order --> Compensating : ✕ orders.order-rejected-by-review.v1
+    review_large_order --> ManualIntervention : ⏱ P1D
+    create_shipment --> Completed : ✓ shipping.shipment-created.v1
+    create_shipment --> await_address_fix : ✕ shipping.address_invalid
+    create_shipment --> create_shipment : ↻ 3× exponential from PT5M on timeout
+    create_shipment --> ManualIntervention : ⏱ PT1H
+    await_address_fix --> create_shipment : ✓ orders.address-corrected.v1
+    await_address_fix --> ManualIntervention : ⏱ P2D
+    state Compensating {
+        state "⟲ 1 charge-payment" as undo_charge_payment
+        undo_charge_payment : send payments.refund.v1
+        undo_charge_payment --> undo_charge_payment : ↻ 5× exponential from PT1M
+        state "⟲ 2 reserve-stock" as undo_reserve_stock
+        undo_reserve_stock : send inventory.release-stock.v1
+        undo_reserve_stock --> undo_reserve_stock : ↻ 5× exponential from PT30S
+        [*] --> undo_charge_payment : most recent first
+        undo_charge_payment --> undo_reserve_stock : ✓ payments.refunded.v1
+        undo_reserve_stock --> [*] : ✓ inventory.stock-released.v1
+    }
+    Compensating --> Compensated : ⟲ all undone
+    Compensating --> ManualIntervention : ✋ a compensation failed
+    Completed --> [*]
+    Compensated --> [*]
+    ManualIntervention --> [*] : ✋ operator resumes or aborts

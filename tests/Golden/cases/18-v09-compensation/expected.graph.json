@@ -1,0 +1,256 @@
+{
+  "nodes": [
+    {
+      "id": "start",
+      "kind": "start",
+      "label": "orders.order-placed.v1",
+      "compensable": false
+    },
+    {
+      "id": "reserve-stock",
+      "kind": "step",
+      "label": "reserve-stock",
+      "sends": "inventory.reserve-stock.v1",
+      "awaits": "inventory.stock-reserved.v1",
+      "timeout": "PT5M",
+      "compensable": false
+    },
+    {
+      "id": "charge-payment",
+      "kind": "step",
+      "label": "charge-payment",
+      "sends": "payments.charge.v1",
+      "awaits": "payments.payment-captured.v1",
+      "timeout": "PT2M",
+      "compensable": false
+    },
+    {
+      "id": "review-large-order",
+      "kind": "step",
+      "label": "review-large-order",
+      "awaits": "orders.order-approved.v1",
+      "when": "$data.amount > 5000",
+      "timeout": "P1D",
+      "compensable": false
+    },
+    {
+      "id": "create-shipment",
+      "kind": "pivot",
+      "label": "create-shipment",
+      "sends": "shipping.create-shipment.v1",
+      "awaits": "shipping.shipment-created.v1",
+      "timeout": "PT1H",
+      "compensable": false
+    },
+    {
+      "id": "await-address-fix",
+      "kind": "step",
+      "label": "await-address-fix",
+      "awaits": "orders.address-corrected.v1",
+      "timeout": "P2D",
+      "compensable": false
+    },
+    {
+      "id": "Completed",
+      "kind": "terminal",
+      "label": "Completed",
+      "compensable": false
+    },
+    {
+      "id": "Compensating",
+      "kind": "compensating",
+      "label": "Compensating",
+      "compensable": false
+    },
+    {
+      "id": "Compensated",
+      "kind": "terminal",
+      "label": "Compensated",
+      "compensable": false
+    },
+    {
+      "id": "ManualIntervention",
+      "kind": "manual",
+      "label": "✋ Manual intervention",
+      "compensable": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "start->reserve-stock:start:0",
+      "source": "start",
+      "target": "reserve-stock",
+      "kind": "start",
+      "label": "▶ orders.order-placed.v1",
+      "description": "orders.order-placed.v1 starts the workflow at reserve-stock"
+    },
+    {
+      "id": "reserve-stock->charge-payment:success:0",
+      "source": "reserve-stock",
+      "target": "charge-payment",
+      "kind": "success",
+      "label": "✓ inventory.stock-reserved.v1",
+      "description": "Success: inventory.stock-reserved.v1 moves from reserve-stock to charge-payment"
+    },
+    {
+      "id": "reserve-stock->Compensating:failure:0",
+      "source": "reserve-stock",
+      "target": "Compensating",
+      "kind": "failure",
+      "label": "✕ inventory.out_of_stock",
+      "description": "Failure: inventory.out_of_stock at reserve-stock leads to Compensating"
+    },
+    {
+      "id": "reserve-stock->reserve-stock:retry:0",
+      "source": "reserve-stock",
+      "target": "reserve-stock",
+      "kind": "retry",
+      "label": "↻ 2× on timeout",
+      "description": "Retry: reserve-stock is retried 2× when it times out"
+    },
+    {
+      "id": "reserve-stock->Compensating:timeout:0",
+      "source": "reserve-stock",
+      "target": "Compensating",
+      "kind": "timeout",
+      "label": "⏱ PT5M",
+      "description": "Timeout: after PT5M reserve-stock leads to Compensating"
+    },
+    {
+      "id": "charge-payment->review-large-order:success:0",
+      "source": "charge-payment",
+      "target": "review-large-order",
+      "kind": "success",
+      "label": "✓ payments.payment-captured.v1",
+      "description": "Success: payments.payment-captured.v1 moves from charge-payment to review-large-order"
+    },
+    {
+      "id": "charge-payment->charge-payment:retry:0",
+      "source": "charge-payment",
+      "target": "charge-payment",
+      "kind": "retry",
+      "label": "↻ 3× every PT10M on payments.declined",
+      "description": "Retry: charge-payment is retried 3× every PT10M on payments.declined"
+    },
+    {
+      "id": "charge-payment->Compensating:failure:0",
+      "source": "charge-payment",
+      "target": "Compensating",
+      "kind": "failure",
+      "label": "✕ payments.declined",
+      "description": "Failure: payments.declined at charge-payment leads to Compensating"
+    },
+    {
+      "id": "charge-payment->Compensating:failure:1",
+      "source": "charge-payment",
+      "target": "Compensating",
+      "kind": "failure",
+      "label": "✕ payments.fraud_suspected",
+      "description": "Failure: payments.fraud_suspected at charge-payment leads to Compensating"
+    },
+    {
+      "id": "charge-payment->charge-payment:retry:1",
+      "source": "charge-payment",
+      "target": "charge-payment",
+      "kind": "retry",
+      "label": "↻ 2× on timeout",
+      "description": "Retry: charge-payment is retried 2× when it times out"
+    },
+    {
+      "id": "charge-payment->Compensating:timeout:0",
+      "source": "charge-payment",
+      "target": "Compensating",
+      "kind": "timeout",
+      "label": "⏱ PT2M",
+      "description": "Timeout: after PT2M charge-payment leads to Compensating"
+    },
+    {
+      "id": "review-large-order->create-shipment:success:0",
+      "source": "review-large-order",
+      "target": "create-shipment",
+      "kind": "success",
+      "label": "✓ orders.order-approved.v1",
+      "description": "Success: orders.order-approved.v1 moves from review-large-order to create-shipment"
+    },
+    {
+      "id": "review-large-order->create-shipment:skip:0",
+      "source": "review-large-order",
+      "target": "create-shipment",
+      "kind": "skip",
+      "label": "⤼ unless $data.amount > 5000",
+      "description": "review-large-order is skipped to create-shipment unless $data.amount > 5000"
+    },
+    {
+      "id": "review-large-order->Compensating:failure:0",
+      "source": "review-large-order",
+      "target": "Compensating",
+      "kind": "failure",
+      "label": "✕ orders.order-rejected-by-review.v1",
+      "description": "Failure: orders.order-rejected-by-review.v1 at review-large-order leads to Compensating"
+    },
+    {
+      "id": "review-large-order->ManualIntervention:timeout:0",
+      "source": "review-large-order",
+      "target": "ManualIntervention",
+      "kind": "timeout",
+      "label": "⏱ P1D",
+      "description": "Timeout: after P1D review-large-order leads to ManualIntervention"
+    },
+    {
+      "id": "create-shipment->Completed:success:0",
+      "source": "create-shipment",
+      "target": "Completed",
+      "kind": "success",
+      "label": "✓ shipping.shipment-created.v1",
+      "description": "Success: shipping.shipment-created.v1 moves from create-shipment to Completed"
+    },
+    {
+      "id": "create-shipment->await-address-fix:failure:0",
+      "source": "create-shipment",
+      "target": "await-address-fix",
+      "kind": "failure",
+      "label": "✕ shipping.address_invalid",
+      "description": "Failure: shipping.address_invalid at create-shipment leads to await-address-fix"
+    },
+    {
+      "id": "create-shipment->create-shipment:retry:0",
+      "source": "create-shipment",
+      "target": "create-shipment",
+      "kind": "retry",
+      "label": "↻ 3× exponential from PT5M on timeout",
+      "description": "Retry: create-shipment is retried 3× exponential from PT5M when it times out"
+    },
+    {
+      "id": "create-shipment->ManualIntervention:timeout:0",
+      "source": "create-shipment",
+      "target": "ManualIntervention",
+      "kind": "timeout",
+      "label": "⏱ PT1H",
+      "description": "Timeout: after PT1H create-shipment leads to ManualIntervention"
+    },
+    {
+      "id": "await-address-fix->create-shipment:success:0",
+      "source": "await-address-fix",
+      "target": "create-shipment",
+      "kind": "success",
+      "label": "✓ orders.address-corrected.v1",
+      "description": "Success: orders.address-corrected.v1 moves from await-address-fix to create-shipment"
+    },
+    {
+      "id": "await-address-fix->ManualIntervention:timeout:0",
+      "source": "await-address-fix",
+      "target": "ManualIntervention",
+      "kind": "timeout",
+      "label": "⏱ P2D",
+      "description": "Timeout: after P2D await-address-fix leads to ManualIntervention"
+    },
+    {
+      "id": "Compensating->Compensated:compensation:0",
+      "source": "Compensating",
+      "target": "Compensated",
+      "kind": "compensation",
+      "label": "⟲ nothing to undo",
+      "description": "Compensation: nothing to undo, the workflow is compensated"
+    }
+  ]
+}

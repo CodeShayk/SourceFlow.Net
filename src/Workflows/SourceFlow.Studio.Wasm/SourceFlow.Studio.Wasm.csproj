@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+  <!--
+    The Studio core in the browser (ADR-025, plan 10 WP-S.7): the portable DSL sources of SourceFlow.Studio (Dsl/**,
+    with StudioApi) compiled for browser-wasm, exporting StudioApi to JavaScript ([JSExport]). It links the sources
+    instead of referencing SourceFlow.Studio, so the bundle carries neither the core package nor the workspace loader.
+    A build output for @sourceflow/studio and the tool, never a NuGet package (ADR-027).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RuntimeIdentifier>browser-wasm</RuntimeIdentifier>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsAotCompatible>false</IsAotCompatible>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <WasmEnableWebcil>true</WasmEnableWebcil>
+    <CompressionEnabled>true</CompressionEnabled>
+    <RootNamespace>SourceFlow.Studio.Wasm</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\SourceFlow.Studio\Dsl\**\*.cs" Link="Dsl\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
+</Project>

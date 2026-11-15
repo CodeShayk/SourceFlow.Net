@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- WP-3.2 (transport); WP-5.1 adds the AWS KMS key provider. -->
+  <PropertyGroup>
+    <Description>SourceFlow.Net v3: AWS: SNS/SQS implementation of the transport SPI, provisioner, and the AWS KMS implementation of the security SPI.</Description>
+    <PackageTags>sourceflow;event-sourcing;cqrs;aws;sqs;sns;cloudevents</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <PackageReference Include="AWSSDK.SQS" />
+    <PackageReference Include="AWSSDK.SimpleNotificationService" />
+    <PackageReference Include="AWSSDK.KeyManagementService" />
+    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" />
+  </ItemGroup>
+</Project>

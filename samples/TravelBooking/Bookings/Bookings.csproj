@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    TravelBooking sample, Bookings service: takes bookings and owns the trip-booking workflow
+    (Workflows/trip-booking.sfflow.yaml), which the generator compiles into a process manager here. The Hotels assembly is
+    referenced for its contract (commands and events) only; its module is not registered.
+  -->
+  <PropertyGroup>
+    <SourceFlowServiceName>bookings</SourceFlowServiceName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <ProjectReference Include="..\Hotels\Hotels.csproj" />
+  </ItemGroup>
+</Project>

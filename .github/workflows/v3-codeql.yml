@@ -1,0 +1,32 @@
+# CodeQL for v3 (implementation plan 08 §1).
+name: v3-codeql
+
+on:
+  push:
+    branches: [ "v3.0.0" ]
+  pull_request:
+    branches: [ "v3.0.0" ]
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  codeql:
+    name: codeql
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: csharp
+          queries: security-extended
+          build-mode: manual
+      - run: dotnet build SourceFlow.slnx -c Release
+      - uses: github/codeql-action/analyze@v3

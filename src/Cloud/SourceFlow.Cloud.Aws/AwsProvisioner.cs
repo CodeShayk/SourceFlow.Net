@@ -1,0 +1,414 @@
+using System.Globalization;
+using System.Text.Json.Nodes;
+using Amazon.SimpleNotificationService.Model;
+using Amazon.SQS.Model;
+using SourceFlow.Transport;
+
+namespace SourceFlow.Cloud.Aws;
+
+/// <summary>
+/// Creates and validates the SQS/SNS resources of a topology (ADR-017, doc 07 §5). Create makes what is missing: the
+/// endpoint queue with a redrive policy to its dead-letter queue (FIFO when ordered), published topics, subscribed topics
+/// that do not exist yet, raw-delivery subscriptions with the filter policy, and the queue policy that lets the topics
+/// send. Existing resources are never changed; Validate then reports every difference at once.
+/// </summary>
+internal sealed class AwsProvisioner : TopologyProvisioner
+{
+    private const string RawDelivery = "RawMessageDelivery";
+    private const string FilterPolicy = "FilterPolicy";
+    private const string FilterPolicyScope = "FilterPolicyScope";
+    private const string PolicySid = "sourceflow-sns-to-sqs";
+
+    private readonly AwsTransport _transport;
+
+    public AwsProvisioner(AwsTransport transport)
+    {
+        _transport = transport;
+    }
+
+    private AwsResources Resources => _transport.Resources;
+
+    private string Prefix => Resources.Prefix;
+
+    // ================================================================ create
+
+    protected override async ValueTask CreateAsync(TransportTopology topology, CancellationToken ct)
+    {
+        QueueRef? queue = await Resources.FindQueueAsync(topology.Endpoint, ct, fresh: true).ConfigureAwait(false)
+            ?? await CreateEndpointAsync(topology, ct).ConfigureAwait(false);
+
+        foreach (string topic in topology.PublishedTopics.Distinct(StringComparer.Ordinal))
+        {
+            await EnsureTopicAsync(topic, topology.OrderedTopics.Contains(topic, StringComparer.Ordinal), ct).ConfigureAwait(false);
+        }
+
+        if (topology.SubscribedTopics.Count == 0)
+        {
+            return;
+        }
+
+        string queueArn = await Resources.QueueArnAsync(queue.Url, topology.Endpoint, ct).ConfigureAwait(false);
+        var topicArns = new List<string>();
+        foreach (string topic in topology.SubscribedTopics.Distinct(StringComparer.Ordinal))
+        {
+            // A subscriber may start before the publisher: the topic is created with the subscriber's ordering.
+            TopicRef reference = await EnsureTopicAsync(topic, topology.OrderedEndpoint, ct).ConfigureAwait(false);
+            topicArns.Add(reference.Arn);
+            if (reference.Ordered != queue.Ordered || await FindSubscriptionAsync(reference.Arn, queueArn, topic, ct).ConfigureAwait(false) is not null)
+            {
+                continue;   // an ordering mismatch cannot be subscribed (Validate reports it); an existing one is kept
+            }
+
+            var attributes = new Dictionary<string, string>(StringComparer.Ordinal) { [RawDelivery] = "true" };
+            if (AwsFilterPolicy.Translate(topology.Filters.GetValueOrDefault(topic)) is { } policy)
+            {
+                attributes[FilterPolicy] = policy;
+                attributes[FilterPolicyScope] = "MessageAttributes";
+            }
+
+            await AwsErrors.CallAsync(topic, () => _transport.Sns.SubscribeAsync(new SubscribeRequest
+            {
+                TopicArn = reference.Arn,
+                Protocol = "sqs",
+                Endpoint = queueArn,
+                Attributes = attributes,
+                ReturnSubscriptionArn = true,
+            }, ct)).ConfigureAwait(false);
+        }
+
+        await EnsureQueuePolicyAsync(topology.Endpoint, queue, queueArn, topicArns, ct).ConfigureAwait(false);
+    }
+
+    private async Task<QueueRef> CreateEndpointAsync(TransportTopology topology, CancellationToken ct)
+    {
+        bool ordered = topology.OrderedEndpoint;
+        string retention = AwsTopology.SecondsText(_transport.Options.MessageRetention);
+        string deadLetterName = AwsNaming.DeadLetterQueue(Prefix, topology.Endpoint, ordered);
+        string deadLetterUrl = await Resources.QueueUrlAsync(deadLetterName, topology.Endpoint, ct).ConfigureAwait(false)
+            ?? await CreateQueueAsync(deadLetterName, topology.Endpoint, ordered, new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                // The dead-letter queue keeps messages as long as SQS allows, for the ingestor and for inspection.
+                ["MessageRetentionPeriod"] = AwsTopology.SecondsText(AwsTopology.DeadLetterRetention),
+            }, ct).ConfigureAwait(false);
+        string deadLetterArn = await Resources.QueueArnAsync(deadLetterUrl, topology.Endpoint, ct).ConfigureAwait(false);
+
+        string name = AwsNaming.Queue(Prefix, topology.Endpoint, ordered);
+        string url = await CreateQueueAsync(name, topology.Endpoint, ordered, new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["MessageRetentionPeriod"] = retention,
+            ["RedrivePolicy"] = new JsonObject { ["deadLetterTargetArn"] = deadLetterArn, ["maxReceiveCount"] = topology.MaxDeliveries }.ToJsonString(),
+        }, ct).ConfigureAwait(false);
+
+        var queue = new QueueRef(url, name, ordered);
+        Resources.Remember(topology.Endpoint, queue);
+        return queue;
+    }
+
+    private Task<string> CreateQueueAsync(string name, string destination, bool ordered, Dictionary<string, string> attributes, CancellationToken ct)
+    {
+        if (ordered)
+        {
+            attributes["FifoQueue"] = "true";
+        }
+
+        if (_transport.Options.KmsKeyId is { } key)
+        {
+            attributes["KmsMasterKeyId"] = key;
+        }
+        else if (_transport.Options.RequireEncryption)
+        {
+            attributes["SqsManagedSseEnabled"] = "true";
+        }
+
+        return AwsErrors.CallAsync(destination, async () =>
+            (await _transport.Sqs.CreateQueueAsync(new CreateQueueRequest { QueueName = name, Attributes = attributes }, ct).ConfigureAwait(false)).QueueUrl);
+    }
+
+    private async Task<TopicRef> EnsureTopicAsync(string topic, bool ordered, CancellationToken ct)
+    {
+        if (await Resources.FindTopicAsync(topic, ct, fresh: true).ConfigureAwait(false) is { } existing)
+        {
+            return existing;
+        }
+
+        string name = AwsNaming.Topic(Prefix, topic, ordered);
+        var attributes = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (ordered)
+        {
+            attributes["FifoTopic"] = "true";
+        }
+
+        if (_transport.Options.KmsKeyId is not null || _transport.Options.RequireEncryption)
+        {
+            attributes["KmsMasterKeyId"] = _transport.Options.KmsKeyId ?? "alias/aws/sns";
+        }
+
+        string arn = await AwsErrors.CallAsync(topic, async () =>
+            (await _transport.Sns.CreateTopicAsync(new CreateTopicRequest { Name = name, Attributes = attributes }, ct).ConfigureAwait(false)).TopicArn).ConfigureAwait(false);
+        var reference = new TopicRef(arn, name, ordered);
+        Resources.Remember(topic, reference);
+        return reference;
+    }
+
+    // SNS may only send to the queue when the queue policy allows the topics (a no-op on LocalStack, required on AWS).
+    private async Task EnsureQueuePolicyAsync(string endpoint, QueueRef queue, string queueArn, IReadOnlyList<string> topicArns, CancellationToken ct)
+    {
+        string? current = await QueueAttributeAsync(queue, endpoint, "Policy", ct).ConfigureAwait(false);
+        if (current is not null && topicArns.All(arn => current.Contains(arn, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        var statement = new JsonObject
+        {
+            ["Sid"] = PolicySid,
+            ["Effect"] = "Allow",
+            ["Principal"] = new JsonObject { ["Service"] = "sns.amazonaws.com" },
+            ["Action"] = "sqs:SendMessage",
+            ["Resource"] = queueArn,
+            ["Condition"] = new JsonObject { ["ArnEquals"] = new JsonObject { ["aws:SourceArn"] = new JsonArray([.. topicArns.Order(StringComparer.Ordinal).Select(a => (JsonNode)JsonValue.Create(a))]) } },
+        };
+        string policy = MergePolicy(current, statement);
+
+        await AwsErrors.CallAsync(endpoint, () => _transport.Sqs.SetQueueAttributesAsync(new SetQueueAttributesRequest
+        {
+            QueueUrl = queue.Url,
+            Attributes = new Dictionary<string, string>(StringComparer.Ordinal) { ["Policy"] = policy },
+        }, ct)).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// doc 07 §5 (CR-24): existing resources are never changed, so a queue policy keeps every statement it has; only the
+    /// SourceFlow statement (by its Sid) is added or replaced.
+    /// </summary>
+    internal static string MergePolicy(string? current, JsonObject statement)
+    {
+        JsonObject policy = current is { Length: > 0 } && JsonNode.Parse(current) is JsonObject existing
+            ? existing
+            : new JsonObject { ["Version"] = "2012-10-17" };
+        // Collected as nodes and passed to the JsonArray(params JsonNode?[]) constructor: the generic JsonArray.Add<T>
+        // requires unreferenced code (IL2026), which the cloud AOT check (ARCH-06) reports.
+        var statements = new List<JsonNode?>();
+        IEnumerable<JsonNode?> present = policy["Statement"] switch
+        {
+            JsonArray array => array,
+            JsonObject single => new JsonNode?[] { single },   // not [single]: that would build a JsonArray, re-parenting the node
+            _ => [],
+        };
+        foreach (JsonNode? existingStatement in present)
+        {
+            if (existingStatement is not null && (string?)existingStatement["Sid"] != PolicySid)
+            {
+                statements.Add(existingStatement.DeepClone());
+            }
+        }
+
+        statements.Add(statement.DeepClone());   // the caller's node stays unparented
+        policy["Statement"] = new JsonArray([.. statements]);
+        policy["Version"] ??= "2012-10-17";
+        return policy.ToJsonString();
+    }
+
+    // ================================================================ validate
+
+    protected override async ValueTask<IReadOnlyList<TopologyProblem>> ValidateAsync(TransportTopology topology, CancellationToken ct)
+    {
+        var problems = new List<TopologyProblem>();
+        QueueRef? queue = await ValidateEndpointAsync(topology, problems, ct).ConfigureAwait(false);
+
+        foreach (string topic in topology.PublishedTopics.Distinct(StringComparer.Ordinal))
+        {
+            bool ordered = topology.OrderedTopics.Contains(topic, StringComparer.Ordinal);
+            TopicRef? found = await Resources.FindTopicAsync(topic, ct, fresh: true).ConfigureAwait(false);
+            if (found is null)
+            {
+                problems.Add(new TopologyProblem(TopologyProblemKind.MissingTopic, topic, $"the SNS topic '{AwsNaming.Topic(Prefix, topic, ordered)}' does not exist"));
+            }
+            else if (found.Ordered != ordered)
+            {
+                problems.Add(new TopologyProblem(TopologyProblemKind.OrderingMismatch, topic, $"expected ordered={ordered}, found the {Kind(found.Ordered)} topic '{found.Name}'"));
+            }
+
+            if (found is not null)
+            {
+                await CheckTopicEncryptionAsync(found, topic, problems, ct).ConfigureAwait(false);
+            }
+        }
+
+        string? queueArn = queue is null || topology.SubscribedTopics.Count == 0 ? null : await Resources.QueueArnAsync(queue.Url, topology.Endpoint, ct).ConfigureAwait(false);
+        string? queuePolicy = queue is null || topology.SubscribedTopics.Count == 0 ? null : await QueueAttributeAsync(queue, topology.Endpoint, "Policy", ct).ConfigureAwait(false);
+        foreach (string topic in topology.SubscribedTopics.Distinct(StringComparer.Ordinal))
+        {
+            string resource = $"{topic} → {topology.Endpoint}";
+            TopicRef? found = await Resources.FindTopicAsync(topic, ct, fresh: true).ConfigureAwait(false);
+            if (found is null)
+            {
+                problems.Add(new TopologyProblem(TopologyProblemKind.MissingTopic, topic, $"the subscribed SNS topic '{AwsNaming.Topic(Prefix, topic, topology.OrderedEndpoint)}' does not exist"));
+                continue;
+            }
+
+            if (queue is null || queueArn is null)
+            {
+                problems.Add(new TopologyProblem(TopologyProblemKind.MissingSubscription, resource, "the endpoint queue does not exist, so it cannot be subscribed"));
+                continue;
+            }
+
+            if (found.Ordered != queue.Ordered)
+            {
+                problems.Add(new TopologyProblem(TopologyProblemKind.OrderingMismatch, resource, $"the {Kind(found.Ordered)} topic '{found.Name}' cannot deliver to the {Kind(queue.Ordered)} queue '{queue.Name}'"));
+            }
+
+            if (!topology.PublishedTopics.Contains(topic, StringComparer.Ordinal))
+            {
+                await CheckTopicEncryptionAsync(found, topic, problems, ct).ConfigureAwait(false);
+            }
+
+            string? subscription = await FindSubscriptionAsync(found.Arn, queueArn, topic, ct).ConfigureAwait(false);
+            if (subscription is null)
+            {
+                problems.Add(new TopologyProblem(TopologyProblemKind.MissingSubscription, resource, $"the queue '{queue.Name}' is not subscribed to the topic '{found.Name}'"));
+                continue;
+            }
+
+            Dictionary<string, string> attributes = await AwsErrors.CallAsync(topic, async () =>
+                (await _transport.Sns.GetSubscriptionAttributesAsync(new GetSubscriptionAttributesRequest { SubscriptionArn = subscription }, ct).ConfigureAwait(false)).Attributes ?? []).ConfigureAwait(false);
+            if (!string.Equals(attributes.GetValueOrDefault(RawDelivery), "true", StringComparison.OrdinalIgnoreCase))
+            {
+                problems.Add(new TopologyProblem(TopologyProblemKind.Misconfigured, resource, "raw message delivery is off: SQS would receive the SNS JSON wrapper instead of the CloudEvent (GAP-02)"));
+            }
+
+            if (attributes.GetValueOrDefault(FilterPolicyScope) is { } scope && scope != "MessageAttributes")
+            {
+                problems.Add(new TopologyProblem(TopologyProblemKind.Misconfigured, resource, $"expected filter policy scope MessageAttributes, found {scope}"));
+            }
+
+            string? expected = AwsFilterPolicy.Translate(topology.Filters.GetValueOrDefault(topic));
+            string? actual = attributes.GetValueOrDefault(FilterPolicy);
+            if (!AwsFilterPolicy.Equivalent(expected, actual))
+            {
+                problems.Add(new TopologyProblem(TopologyProblemKind.FilterDrift, resource,
+                    $"expected filter policy {expected ?? "(none)"}, found {(string.IsNullOrWhiteSpace(actual) ? "(none)" : actual)} (filter '{topology.Filters.GetValueOrDefault(topic) ?? "(none)"}')"));
+            }
+
+            if (queuePolicy is null || !queuePolicy.Contains(found.Arn, StringComparison.Ordinal))
+            {
+                problems.Add(new TopologyProblem(TopologyProblemKind.Misconfigured, resource, $"the policy of queue '{queue.Name}' does not allow the topic '{found.Name}' to send"));
+            }
+        }
+
+        return problems;
+    }
+
+    private async Task<QueueRef?> ValidateEndpointAsync(TransportTopology topology, List<TopologyProblem> problems, CancellationToken ct)
+    {
+        QueueRef? queue = await Resources.FindQueueAsync(topology.Endpoint, ct, fresh: true).ConfigureAwait(false);
+        if (queue is null)
+        {
+            problems.Add(new TopologyProblem(TopologyProblemKind.MissingEndpoint, topology.Endpoint, $"the SQS queue '{AwsNaming.Queue(Prefix, topology.Endpoint, topology.OrderedEndpoint)}' does not exist"));
+            return null;
+        }
+
+        if (queue.Ordered != topology.OrderedEndpoint)
+        {
+            problems.Add(new TopologyProblem(TopologyProblemKind.OrderingMismatch, topology.Endpoint, $"expected ordered={topology.OrderedEndpoint}, found the {Kind(queue.Ordered)} queue '{queue.Name}'"));
+        }
+
+        string? redrive = await QueueAttributeAsync(queue, topology.Endpoint, "RedrivePolicy", ct).ConfigureAwait(false);
+        (string? target, int? maxReceiveCount) = redrive is null ? (null, null) : AwsResources.ParseRedrive(redrive);
+        if (target is null)
+        {
+            problems.Add(new TopologyProblem(TopologyProblemKind.MissingDeadLetter, topology.Endpoint, $"the queue '{queue.Name}' has no redrive policy: no dead-letter queue is attached"));
+        }
+        else if (await Resources.QueueUrlAsync(AwsNaming.NameOfArn(target), topology.Endpoint, ct).ConfigureAwait(false) is null)
+        {
+            problems.Add(new TopologyProblem(TopologyProblemKind.MissingDeadLetter, topology.Endpoint, $"the dead-letter queue '{AwsNaming.NameOfArn(target)}' does not exist"));
+        }
+        else if (maxReceiveCount != topology.MaxDeliveries)
+        {
+            problems.Add(new TopologyProblem(TopologyProblemKind.MissingDeadLetter, topology.Endpoint, $"expected max deliveries {topology.MaxDeliveries}, found maxReceiveCount {maxReceiveCount?.ToString(CultureInfo.InvariantCulture) ?? "(none)"}"));
+        }
+
+        await CheckQueueEncryptionAsync(queue, topology.Endpoint, problems, ct).ConfigureAwait(false);
+        if (target is not null && await Resources.QueueUrlAsync(AwsNaming.NameOfArn(target), topology.Endpoint, ct).ConfigureAwait(false) is { } deadLetterUrl)
+        {
+            await CheckQueueEncryptionAsync(new QueueRef(deadLetterUrl, AwsNaming.NameOfArn(target), queue.Ordered), topology.Endpoint, problems, ct).ConfigureAwait(false);
+        }
+
+        return queue;
+    }
+
+    // ADR-017, doc 07 §5 (CR-41): with RequireEncryption, every queue has SSE (SQS-managed or KMS, the configured key when set).
+    private async Task CheckQueueEncryptionAsync(QueueRef queue, string destination, List<TopologyProblem> problems, CancellationToken ct)
+    {
+        if (!_transport.Options.RequireEncryption)
+        {
+            return;
+        }
+
+        Dictionary<string, string> attributes = await AwsErrors.CallAsync(destination, async () =>
+            (await _transport.Sqs.GetQueueAttributesAsync(new GetQueueAttributesRequest { QueueUrl = queue.Url, AttributeNames = ["KmsMasterKeyId", "SqsManagedSseEnabled"] }, ct).ConfigureAwait(false)).Attributes ?? []).ConfigureAwait(false);
+        string? key = attributes.GetValueOrDefault("KmsMasterKeyId") is { Length: > 0 } k ? k : null;
+        bool managed = string.Equals(attributes.GetValueOrDefault("SqsManagedSseEnabled"), "true", StringComparison.OrdinalIgnoreCase);
+        if (_transport.Options.KmsKeyId is { } expected ? key != expected : key is null && !managed)
+        {
+            problems.Add(new TopologyProblem(TopologyProblemKind.Unencrypted, destination,
+                $"the queue '{queue.Name}' is encrypted with {(key ?? (managed ? "SQS-managed SSE" : "no key"))}; expected {_transport.Options.KmsKeyId ?? "SSE (SQS-managed or KMS)"}"));
+        }
+    }
+
+    // ADR-017, doc 07 §5 (CR-41): with RequireEncryption, every topic has a KMS key (the configured one when set).
+    private async Task CheckTopicEncryptionAsync(TopicRef topic, string resource, List<TopologyProblem> problems, CancellationToken ct)
+    {
+        if (!_transport.Options.RequireEncryption)
+        {
+            return;
+        }
+
+        Dictionary<string, string> attributes = await AwsErrors.CallAsync(resource, async () =>
+            (await _transport.Sns.GetTopicAttributesAsync(new GetTopicAttributesRequest { TopicArn = topic.Arn }, ct).ConfigureAwait(false)).Attributes ?? []).ConfigureAwait(false);
+        string? key = attributes.GetValueOrDefault("KmsMasterKeyId") is { Length: > 0 } k ? k : null;
+        if (_transport.Options.KmsKeyId is { } expected ? key != expected : key is null)
+        {
+            problems.Add(new TopologyProblem(TopologyProblemKind.Unencrypted, resource,
+                $"the topic '{topic.Name}' is encrypted with {key ?? "no key"}; expected {_transport.Options.KmsKeyId ?? "a KMS key"}"));
+        }
+    }
+
+    private Task<string?> QueueAttributeAsync(QueueRef queue, string destination, string name, CancellationToken ct)
+    {
+        return AwsErrors.CallAsync(destination, async () =>
+        {
+            GetQueueAttributesResponse response = await _transport.Sqs.GetQueueAttributesAsync(new GetQueueAttributesRequest { QueueUrl = queue.Url, AttributeNames = [name] }, ct).ConfigureAwait(false);
+            return response.Attributes?.GetValueOrDefault(name) is { Length: > 0 } value ? value : null;
+        });
+    }
+
+    private Task<string?> FindSubscriptionAsync(string topicArn, string queueArn, string topic, CancellationToken ct)
+    {
+        return AwsErrors.CallAsync(topic, async () =>
+        {
+            string? next = null;
+            do
+            {
+                ListSubscriptionsByTopicResponse page = await _transport.Sns.ListSubscriptionsByTopicAsync(new ListSubscriptionsByTopicRequest { TopicArn = topicArn, NextToken = next }, ct).ConfigureAwait(false);
+                foreach (Subscription subscription in page.Subscriptions ?? [])
+                {
+                    if (subscription.Endpoint == queueArn && subscription.Protocol == "sqs" && subscription.SubscriptionArn is { } arn && arn.StartsWith("arn:", StringComparison.Ordinal))
+                    {
+                        return arn;
+                    }
+                }
+
+                next = page.NextToken;
+            }
+            while (!string.IsNullOrEmpty(next));
+
+            return (string?)null;
+        });
+    }
+
+    private static string Kind(bool ordered)
+    {
+        return ordered ? "FIFO" : "standard";
+    }
+}

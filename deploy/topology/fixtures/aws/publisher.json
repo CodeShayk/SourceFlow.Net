@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "service": "publisher",
+  "transport": "aws_sqs",
+  "endpoint": {
+    "name": "publisher",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [
+    {
+      "topic": "shared",
+      "ordered": false,
+      "messages": []
+    }
+  ],
+  "subscribes": [],
+  "sends": [
+    {
+      "endpoint": "subscriber",
+      "commands": []
+    }
+  ],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "dev-publisher-dlq",
+      "logical": "publisher",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {
+        "allowTopics": [],
+        "deadLetterQueue": null,
+        "fifo": false,
+        "maxReceiveCount": null,
+        "messageRetentionSeconds": 1209600
+      }
+    },
+    {
+      "kind": "queue",
+      "name": "dev-publisher",
+      "logical": "publisher",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "allowTopics": [],
+        "deadLetterQueue": "dev-publisher-dlq",
+        "fifo": false,
+        "maxReceiveCount": 10,
+        "messageRetentionSeconds": 1209600
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-shared",
+      "logical": "shared",
+      "owned": true,
+      "role": "topic",
+      "properties": {
+        "fifo": false
+      }
+    },
+    {
+      "kind": "queue",
+      "name": "dev-subscriber",
+      "logical": "subscriber",
+      "owned": false,
+      "role": "remote-endpoint",
+      "properties": {
+        "candidates": [
+          "dev-subscriber",
+          "dev-subscriber.fifo"
+        ]
+      }
+    }
+  ]
+}

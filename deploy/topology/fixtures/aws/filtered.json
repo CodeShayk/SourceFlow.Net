@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "service": "filtered",
+  "transport": "aws_sqs",
+  "endpoint": {
+    "name": "filtered",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [],
+  "subscribes": [
+    {
+      "topic": "everything",
+      "filter": null
+    },
+    {
+      "topic": "prefixed",
+      "filter": "type LIKE 'tck.%' OR type LIKE 'payments.%'"
+    },
+    {
+      "topic": "tenant",
+      "filter": "type = 'tck.tenant.v1' AND sftenant = 'eu'"
+    },
+    {
+      "topic": "typed",
+      "filter": "type IN ('tck.also.v2', 'tck.wanted.v1')"
+    }
+  ],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "dev-filtered-dlq",
+      "logical": "filtered",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {
+        "allowTopics": [],
+        "deadLetterQueue": null,
+        "fifo": false,
+        "maxReceiveCount": null,
+        "messageRetentionSeconds": 1209600
+      }
+    },
+    {
+      "kind": "queue",
+      "name": "dev-filtered",
+      "logical": "filtered",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "allowTopics": [
+          "dev-everything",
+          "dev-prefixed",
+          "dev-tenant",
+          "dev-typed"
+        ],
+        "deadLetterQueue": "dev-filtered-dlq",
+        "fifo": false,
+        "maxReceiveCount": 10,
+        "messageRetentionSeconds": 1209600
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-typed",
+      "logical": "typed",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "fifo": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-prefixed",
+      "logical": "prefixed",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "fifo": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-tenant",
+      "logical": "tenant",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "fifo": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-everything",
+      "logical": "everything",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "fifo": false
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-typed/dev-filtered",
+      "logical": "typed → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "filterPolicy": "{\"ce_type\":[\"tck.also.v2\",\"tck.wanted.v1\"]}",
+        "filterPolicyScope": "MessageAttributes",
+        "protocol": "sqs",
+        "queue": "dev-filtered",
+        "rawMessageDelivery": true,
+        "topic": "dev-typed"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-prefixed/dev-filtered",
+      "logical": "prefixed → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "filterPolicy": "{\"ce_type\":[{\"prefix\":\"payments.\"},{\"prefix\":\"tck.\"}]}",
+        "filterPolicyScope": "MessageAttributes",
+        "protocol": "sqs",
+        "queue": "dev-filtered",
+        "rawMessageDelivery": true,
+        "topic": "dev-prefixed"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-tenant/dev-filtered",
+      "logical": "tenant → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "filterPolicy": null,
+        "filterPolicyScope": null,
+        "protocol": "sqs",
+        "queue": "dev-filtered",
+        "rawMessageDelivery": true,
+        "topic": "dev-tenant"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-everything/dev-filtered",
+      "logical": "everything → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "filterPolicy": null,
+        "filterPolicyScope": null,
+        "protocol": "sqs",
+        "queue": "dev-filtered",
+        "rawMessageDelivery": true,
+        "topic": "dev-everything"
+      }
+    }
+  ]
+}

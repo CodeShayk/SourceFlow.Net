@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "service": "full",
+  "transport": "sourceflow.inmemory",
+  "endpoint": {
+    "name": "full",
+    "ordered": false,
+    "maxDeliveries": 7,
+    "commands": []
+  },
+  "publishes": [
+    {
+      "topic": "full-out",
+      "ordered": false,
+      "messages": []
+    }
+  ],
+  "subscribes": [
+    {
+      "topic": "full-in",
+      "filter": "type LIKE 'tck.%'"
+    }
+  ],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "full",
+      "logical": "full",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "maxDeliveries": 7,
+        "ordered": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "full-out",
+      "logical": "full-out",
+      "owned": true,
+      "role": "topic",
+      "properties": {
+        "ordered": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "full-in",
+      "logical": "full-in",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "ordered": false
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "full-in/full",
+      "logical": "full-in → full",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "endpoint": "full",
+        "filter": "type LIKE 'tck.%'",
+        "topic": "full-in"
+      }
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="global.json" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="Directory.Packages.props" />
+    <File Path=".editorconfig" />
+    <File Path="GitVersion.yml" />
+    <File Path="CONTRIBUTING.md" />
+  </Folder>
+  <Folder Name="/src/Core/">
+    <Project Path="src/Core/SourceFlow.Net/SourceFlow.Net.csproj" />
+    <Project Path="src/Core/SourceFlow.Generators/SourceFlow.Generators.csproj" />
+  </Folder>
+  <Folder Name="/src/Storage/">
+    <Project Path="src/Storage/SourceFlow.Storage.PostgreSQL/SourceFlow.Storage.PostgreSQL.csproj" />
+    <Project Path="src/Storage/SourceFlow.Storage.SqlServer/SourceFlow.Storage.SqlServer.csproj" />
+    <Project Path="src/Storage/SourceFlow.Storage.EntityFrameworkCore/SourceFlow.Storage.EntityFrameworkCore.csproj" />
+  </Folder>
+  <Folder Name="/src/Cloud/">
+    <Project Path="src/Cloud/SourceFlow.Cloud.Aws/SourceFlow.Cloud.Aws.csproj" />
+    <Project Path="src/Cloud/SourceFlow.Cloud.Azure/SourceFlow.Cloud.Azure.csproj" />
+    <Project Path="src/Cloud/SourceFlow.Cloud.Gcp/SourceFlow.Cloud.Gcp.csproj" />
+  </Folder>
+  <Folder Name="/src/Hosting/">
+    <Project Path="src/Hosting/SourceFlow.AspNetCore/SourceFlow.AspNetCore.csproj" />
+  </Folder>
+  <Folder Name="/src/Tooling/">
+    <Project Path="src/Tooling/SourceFlow.Testing/SourceFlow.Testing.csproj" />
+    <Project Path="src/Tooling/SourceFlow.Tool/SourceFlow.Tool.csproj" />
+  </Folder>
+  <Folder Name="/src/Workflows/">
+    <Project Path="src/Workflows/SourceFlow.Studio/SourceFlow.Studio.csproj" />
+    <Project Path="src/Workflows/SourceFlow.Studio.Wasm/SourceFlow.Studio.Wasm.csproj" />
+  </Folder>
+  <Folder Name="/tests/Core/">
+    <Project Path="tests/Core/SourceFlow.Core.Tests/SourceFlow.Core.Tests.csproj" />
+    <Project Path="tests/Core/SourceFlow.Generators.Tests/SourceFlow.Generators.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Storage/">
+    <Project Path="tests/Storage/SourceFlow.Storage.Tests/SourceFlow.Storage.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Cloud/">
+    <Project Path="tests/Cloud/SourceFlow.Cloud.Tests/SourceFlow.Cloud.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Hosting/">
+    <Project Path="tests/Hosting/SourceFlow.Hosting.Tests/SourceFlow.Hosting.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Tooling/">
+    <Project Path="tests/Tooling/SourceFlow.Tooling.Tests/SourceFlow.Tooling.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Workflows/">
+    <Project Path="tests/Workflows/SourceFlow.Studio.Tests/SourceFlow.Studio.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/EndToEnd/">
+    <Project Path="tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj" />
+    <Project Path="tests/EndToEnd/OrderFulfilment.NextRelease/OrderFulfilment.NextRelease.csproj" />
+  </Folder>
+  <Folder Name="/tests/Architecture/">
+    <Project Path="tests/Architecture/SourceFlow.Architecture.Tests/SourceFlow.Architecture.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Fuzz/">
+    <Project Path="tests/Fuzz/SourceFlow.Fuzz.Tests/SourceFlow.Fuzz.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tests/Fixtures/Bank/">
+    <Project Path="tests/Fixtures/Bank/Bank.Contracts/Bank.Contracts.csproj" />
+    <Project Path="tests/Fixtures/Bank/Bank.Accounts/Bank.Accounts.csproj" />
+    <Project Path="tests/Fixtures/Bank/Bank.Transfers/Bank.Transfers.csproj" />
+    <Project Path="tests/Fixtures/Bank/Bank.Notifications/Bank.Notifications.csproj" />
+    <Project Path="tests/Fixtures/Bank/Bank.AotCheck/Bank.AotCheck.csproj" />
+  </Folder>
+  <Folder Name="/tests/Fixtures/">
+    <Project Path="tests/Fixtures/Cloud.AotCheck/Cloud.AotCheck.csproj" />
+  </Folder>
+  <Folder Name="/samples/TravelBooking/">
+    <Project Path="samples/TravelBooking/Bookings/Bookings.csproj" />
+    <Project Path="samples/TravelBooking/Hotels/Hotels.csproj" />
+    <Project Path="samples/TravelBooking/Bookings.Api/Bookings.Api.csproj" />
+    <Project Path="samples/TravelBooking/Hotels.Api/Hotels.Api.csproj" />
+    <Project Path="samples/TravelBooking/TravelBooking.Tests/TravelBooking.Tests.csproj" />
+  </Folder>
+  <Folder Name="/samples/OrderFulfilment/">
+    <Project Path="samples/OrderFulfilment/Orders/Orders.csproj" />
+    <Project Path="samples/OrderFulfilment/Inventory/Inventory.csproj" />
+    <Project Path="samples/OrderFulfilment/Payments/Payments.csproj" />
+    <Project Path="samples/OrderFulfilment/Shipping/Shipping.csproj" />
+    <Project Path="samples/OrderFulfilment/OrderFulfilment.Host/OrderFulfilment.Host.csproj" />
+    <Project Path="samples/OrderFulfilment/Orders.Tests/Orders.Tests.csproj" />
+  </Folder>
+  <Folder Name="/quality/benchmarks/">
+    <Project Path="quality/benchmarks/SourceFlow.Benchmarks/SourceFlow.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/quality/fuzz/">
+    <Project Path="quality/fuzz/SourceFlow.Fuzz/SourceFlow.Fuzz.csproj" />
+  </Folder>
+  <Folder Name="/eng/">
+    <Project Path="eng/CoverageGate/CoverageGate.csproj" />
+  </Folder>
+</Solution>

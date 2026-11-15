@@ -1,0 +1,128 @@
+{
+  "manifestVersion": 1,
+  "service": "inventory",
+  "endpoint": "inventory",
+  "sourceflowVersion": "3.0.0",
+  "messages": [
+    {
+      "type": "inventory.audited",
+      "version": 1,
+      "kind": "event",
+      "clrType": "InventoryAudited",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "inventory.release-stock",
+      "version": 1,
+      "kind": "command",
+      "clrType": "InventoryReleaseStock",
+      "aggregate": "stock",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "inventory.reserve-stock",
+      "version": 1,
+      "kind": "command",
+      "clrType": "InventoryReserveStock",
+      "aggregate": "stock",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "lines",
+          "type": "array"
+        }
+      ]
+    },
+    {
+      "type": "inventory.stock-released",
+      "version": 1,
+      "kind": "event",
+      "clrType": "InventoryStockReleased",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "inventory.stock-reserved",
+      "version": 1,
+      "kind": "event",
+      "clrType": "InventoryStockReserved",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    }
+  ],
+  "aggregates": [
+    {
+      "name": "stock",
+      "clrType": "Inventory.Stock",
+      "commands": [
+        {
+          "type": "inventory.release-stock",
+          "version": 1,
+          "emits": [
+            "inventory.stock-released.v1"
+          ],
+          "rejects": []
+        },
+        {
+          "type": "inventory.reserve-stock",
+          "version": 1,
+          "emits": [
+            "inventory.stock-reserved.v1"
+          ],
+          "rejects": [
+            "inventory.out_of_stock"
+          ]
+        }
+      ],
+      "events": [
+        "inventory.audited.v1",
+        "inventory.stock-released.v1",
+        "inventory.stock-reserved.v1"
+      ]
+    }
+  ],
+  "processManagers": [],
+  "projections": [],
+  "publishes": [
+    {
+      "domainEvent": "inventory.audited.v1",
+      "as": "inventory.audited.v1",
+      "topic": "inventory.events"
+    },
+    {
+      "domainEvent": "inventory.stock-released.v1",
+      "as": "inventory.stock-released.v1",
+      "topic": "inventory.events"
+    },
+    {
+      "domainEvent": "inventory.stock-reserved.v1",
+      "as": "inventory.stock-reserved.v1",
+      "topic": "inventory.events"
+    }
+  ],
+  "subscribes": [],
+  "commandRoutes": [],
+  "workflows": [],
+  "schemas": "catalog://inventory"
+}

@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "service": "ordered",
+  "transport": "servicebus",
+  "endpoint": {
+    "name": "ordered",
+    "ordered": true,
+    "maxDeliveries": 5,
+    "commands": []
+  },
+  "publishes": [
+    {
+      "topic": "ordered-out",
+      "ordered": true,
+      "messages": []
+    }
+  ],
+  "subscribes": [
+    {
+      "topic": "ordered-in",
+      "filter": "type = 'tck.ordered.v1'"
+    }
+  ],
+  "sends": [
+    {
+      "endpoint": "minimal",
+      "commands": []
+    }
+  ],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "dev-ordered",
+      "logical": "ordered",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "deadLetteringOnMessageExpiration": true,
+        "defaultMessageTimeToLive": "P14D",
+        "duplicateDetectionHistoryTimeWindow": null,
+        "lockDuration": "PT30S",
+        "maxDeliveryCount": 5,
+        "requiresDuplicateDetection": false,
+        "requiresSession": true
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-ordered-out",
+      "logical": "ordered-out",
+      "owned": true,
+      "role": "topic",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-ordered-in",
+      "logical": "ordered-in",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-ordered-in/dev-ordered",
+      "logical": "ordered-in → ordered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D",
+        "forwardTo": "dev-ordered",
+        "subscription": "dev-ordered",
+        "topic": "dev-ordered-in"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "dev-ordered-in/dev-ordered/$Default",
+      "logical": "ordered-in → ordered",
+      "owned": true,
+      "role": "rule",
+      "properties": {
+        "correlationProperties": {
+          "cloudEvents:type": "tck.ordered.v1"
+        },
+        "filterType": "CorrelationFilter",
+        "rule": "$Default",
+        "sqlExpression": null,
+        "subscription": "dev-ordered",
+        "topic": "dev-ordered-in"
+      }
+    },
+    {
+      "kind": "queue",
+      "name": "dev-minimal",
+      "logical": "minimal",
+      "owned": false,
+      "role": "remote-endpoint",
+      "properties": {}
+    }
+  ]
+}

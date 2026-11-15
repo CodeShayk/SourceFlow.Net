@@ -1,0 +1,66 @@
+id,source,description
+# Ids are added by the work package that implements them; ARCH-08 fails while any listed id has no covering test.
+ARCH-01,ADR-027,Core references only the BCL Microsoft.Extensions and Polly
+ARCH-02,ADR-027,Core never references an adapter
+ARCH-03,ADR-027,Adapters reference the core only
+ARCH-05,plan 06 9,No reflection activation in runtime packages
+ARCH-06,plan 09 IR-08,Every AOT-marked package is published with PublishAot by a CI AOT check
+ARCH-07,plan 06 9,Public adapter classes are sealed
+ARCH-08,plan 04 7,Traceability ids are covered
+ARCH-10,ADR-013,No hand-written backoff outside the resilience engine
+ADR-027,ADRs,Single core package with extensibility SPIs
+ADR-003,ADRs,Aggregates as pure deciders
+ADR-004,ADRs,Source generation instead of reflection
+ADR-005,ADRs,Logical message type names and registry
+ADR-006,ADRs,Transactional outbox and inbox (idempotency ids)
+ADR-011,ADRs,CloudEvents envelope and W3C trace context
+ADR-015,ADRs,Strongly typed caller-assigned ids
+ADR-016,ADRs,Projections
+ADR-018,ADRs,Business rejections are values
+ADR-020,ADRs,Process managers
+DM-R3,doc 03 2,Command target id rule
+DC-1,ADR-004,Module-declared JSON context
+DC-3,doc 03 6.1,Reaction API shape
+GAP-09,product 06,Idempotency key scoping
+GAP-10,product 06,Unknown types are never deserialized
+GAP-16,product 06,No assembly scanning
+NFR-PERF-07,product 05,Size limits before the outbox insert
+ADR-008,ADRs,Optimistic concurrency
+ADR-010,ADRs,Commit-ordered global position
+ES-R1,doc 05 5.3,Stream write first
+ES-R2,doc 05 3.1,One stream per session
+GAP-15,product 06,Not-found semantics
+ADR-002,ADRs,Event sourcing
+ADR-007,ADRs,Single command ownership
+ADR-012,ADRs,One middleware abstraction
+RT-R1,doc 04 3,Owned xor routed
+RT-R4,doc 04 3,One subscription per service
+RT-R5,doc 04 3,Logical names
+GAP-03,product 06,No inert options
+GAP-05,product 06,Concurrency on append
+GAP-11,product 06,One dead-letter view
+GAP-13,product 06,Per-service fan-out
+GAP-20,product 06,Default ids rejected
+ARCH-04,ADR-027,Domain code uses only contract namespaces
+ADR-014,ADRs,Transport SPI and conformance kit
+doc 05 8.1,doc 05,Snapshots with schema hash
+ADR-009,ADRs,Event store on ADO.NET with PostgreSQL first
+ADR-028,ADRs,PostgreSQL payload columns keep exact JSON bytes
+GAP-04,product 06,Versioned schema migrations without swallowed errors
+ADR-022,ADRs,Conjoined multi-tenancy with row-level security
+doc 05 8.2,doc 05,Aggregate state cache
+ADR-023,ADRs,SFQL query language with CESQL predicates
+ADR-026,ADRs,Per-service query API with SQL syntax and injection-proof compilation
+doc 14 6,doc 14,Query consistency levels and at_least tokens
+doc 14 7.4,doc 14,Keyset pagination with continuation tokens
+doc 14 9.5,doc 14,In-process IQueryService
+doc 14 12,doc 14,Cross-provider query equivalence and injection corpus
+doc 14 2.1,doc 14,Schema catalog generation
+doc 14 2.2,doc 14,Schema registration, compatibility and export
+Q-R1,doc 14,Writes never read through the query side (SF0015/SF0016)
+Q-B4,doc 14,Named domain queries
+GAP-02,product 06,One AWS endpoint and receiver per service with raw delivery
+ADR-017,ADRs,Provisioning modes and topology as data
+doc 07 6,doc 07,Transport options are honoured
+doc 07 3,doc 07,Topology model, ordering declarations, naming and the broker dead-letter ingestor
+doc 07 5,doc 07,Provisioning modes, topology export and IaC modules

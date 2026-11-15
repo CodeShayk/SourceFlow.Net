@@ -1,0 +1,19 @@
+---
+title: approve-order@1 (orders)
+---
+stateDiagram-v2
+    state "Compensating" as Compensating
+    state "Manual intervention" as ManualIntervention
+    state "approve" as approve
+    approve : send orders.approve-order.v1
+    approve : await orders.order-approved.v1
+    [*] --> approve : orders.order-placed.v1
+    approve --> Completed : ✓ orders.order-approved.v1
+    approve --> approve : ↻ 1× on orders.order-rejected-by-review.v1
+    approve --> Completed : ✕ orders.order-rejected-by-review.v1
+    approve --> approve : ↻ 20× exponential from PT1S on timeout
+    approve --> approve : ⏱ PT1H
+    Compensating --> Compensated : nothing to undo
+    Completed --> [*]
+    Compensated --> [*]
+    ManualIntervention --> [*] : ✋ operator resumes or aborts

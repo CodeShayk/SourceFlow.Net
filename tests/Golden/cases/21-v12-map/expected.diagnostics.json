@@ -1,0 +1,44 @@
+[
+  {
+    "id": "WF-V12",
+    "severity": "error",
+    "line": 31,
+    "column": 82,
+    "message": "'amount' of payments.charge.v1 is number; the mapped value is string."
+  },
+  {
+    "id": "WF-V12",
+    "severity": "error",
+    "line": 31,
+    "column": 90,
+    "message": "payments.charge.v1 has no field 'currency'."
+  },
+  {
+    "id": "WF-V12",
+    "severity": "error",
+    "line": 60,
+    "column": 68,
+    "message": "'event.data.orderId' reads an event, which is only the start event in the first step; capture the value into data and use $data."
+  },
+  {
+    "id": "WF-V12",
+    "severity": "error",
+    "line": 60,
+    "column": 95,
+    "message": "There is no data field 'items'; declare it in 'data' or capture it."
+  },
+  {
+    "id": "WF-V12",
+    "severity": "error",
+    "line": 75,
+    "column": 77,
+    "message": "'$failure.code' is only available in on.compensated."
+  },
+  {
+    "id": "WF-V12",
+    "severity": "error",
+    "line": 76,
+    "column": 66,
+    "message": "orders.cancel-order.v1 needs 'reason'; map it."
+  }
+]

@@ -1,0 +1,4 @@
+P01 approve: success ⇒ Completed
+P02 approve: timeout ⇒ ManualIntervention
+
+edges: 2, uncovered: none

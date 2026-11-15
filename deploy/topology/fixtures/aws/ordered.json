@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "service": "ordered",
+  "transport": "aws_sqs",
+  "endpoint": {
+    "name": "ordered",
+    "ordered": true,
+    "maxDeliveries": 5,
+    "commands": []
+  },
+  "publishes": [
+    {
+      "topic": "ordered-out",
+      "ordered": true,
+      "messages": []
+    }
+  ],
+  "subscribes": [
+    {
+      "topic": "ordered-in",
+      "filter": "type = 'tck.ordered.v1'"
+    }
+  ],
+  "sends": [
+    {
+      "endpoint": "minimal",
+      "commands": []
+    }
+  ],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "dev-ordered-dlq.fifo",
+      "logical": "ordered",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {
+        "allowTopics": [],
+        "deadLetterQueue": null,
+        "fifo": true,
+        "maxReceiveCount": null,
+        "messageRetentionSeconds": 1209600
+      }
+    },
+    {
+      "kind": "queue",
+      "name": "dev-ordered.fifo",
+      "logical": "ordered",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "allowTopics": [
+          "dev-ordered-in.fifo"
+        ],
+        "deadLetterQueue": "dev-ordered-dlq.fifo",
+        "fifo": true,
+        "maxReceiveCount": 5,
+        "messageRetentionSeconds": 1209600
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-ordered-out.fifo",
+      "logical": "ordered-out",
+      "owned": true,
+      "role": "topic",
+      "properties": {
+        "fifo": true
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-ordered-in.fifo",
+      "logical": "ordered-in",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "fifo": true
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-ordered-in.fifo/dev-ordered.fifo",
+      "logical": "ordered-in → ordered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "filterPolicy": "{\"ce_type\":[\"tck.ordered.v1\"]}",
+        "filterPolicyScope": "MessageAttributes",
+        "protocol": "sqs",
+        "queue": "dev-ordered.fifo",
+        "rawMessageDelivery": true,
+        "topic": "dev-ordered-in.fifo"
+      }
+    },
+    {
+      "kind": "queue",
+      "name": "dev-minimal",
+      "logical": "minimal",
+      "owned": false,
+      "role": "remote-endpoint",
+      "properties": {
+        "candidates": [
+          "dev-minimal",
+          "dev-minimal.fifo"
+        ]
+      }
+    }
+  ]
+}

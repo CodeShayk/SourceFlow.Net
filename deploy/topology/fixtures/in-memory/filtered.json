@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "service": "filtered",
+  "transport": "sourceflow.inmemory",
+  "endpoint": {
+    "name": "filtered",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [],
+  "subscribes": [
+    {
+      "topic": "everything",
+      "filter": null
+    },
+    {
+      "topic": "prefixed",
+      "filter": "type LIKE 'tck.%' OR type LIKE 'payments.%'"
+    },
+    {
+      "topic": "tenant",
+      "filter": "type = 'tck.tenant.v1' AND sftenant = 'eu'"
+    },
+    {
+      "topic": "typed",
+      "filter": "type IN ('tck.also.v2', 'tck.wanted.v1')"
+    }
+  ],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "filtered",
+      "logical": "filtered",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "maxDeliveries": 10,
+        "ordered": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "typed",
+      "logical": "typed",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "ordered": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "prefixed",
+      "logical": "prefixed",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "ordered": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "tenant",
+      "logical": "tenant",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "ordered": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "everything",
+      "logical": "everything",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "ordered": false
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "typed/filtered",
+      "logical": "typed → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "endpoint": "filtered",
+        "filter": "type IN ('tck.also.v2', 'tck.wanted.v1')",
+        "topic": "typed"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "prefixed/filtered",
+      "logical": "prefixed → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "endpoint": "filtered",
+        "filter": "type LIKE 'tck.%' OR type LIKE 'payments.%'",
+        "topic": "prefixed"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "tenant/filtered",
+      "logical": "tenant → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "endpoint": "filtered",
+        "filter": "type = 'tck.tenant.v1' AND sftenant = 'eu'",
+        "topic": "tenant"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "everything/filtered",
+      "logical": "everything → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "endpoint": "filtered",
+        "filter": null,
+        "topic": "everything"
+      }
+    }
+  ]
+}

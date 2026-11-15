@@ -1,0 +1,16 @@
+[
+  {
+    "id": "WF-V09",
+    "severity": "warning",
+    "line": 24,
+    "column": 17,
+    "message": "'compensate: none' needs a 'reason'."
+  },
+  {
+    "id": "WF-V09",
+    "severity": "warning",
+    "line": 26,
+    "column": 5,
+    "message": "Step 'charge-payment' changes state in payments before the pivot but has no compensation; add 'compensate', or 'compensate: { none: true, reason: … }'."
+  }
+]

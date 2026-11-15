@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "service": "ordered",
+  "transport": "gcp_pubsub",
+  "endpoint": {
+    "name": "ordered",
+    "ordered": true,
+    "maxDeliveries": 5,
+    "commands": []
+  },
+  "publishes": [
+    {
+      "topic": "ordered-out",
+      "ordered": true,
+      "messages": []
+    }
+  ],
+  "subscribes": [
+    {
+      "topic": "ordered-in",
+      "filter": "type = 'tck.ordered.v1'"
+    }
+  ],
+  "sends": [
+    {
+      "endpoint": "minimal",
+      "commands": []
+    }
+  ],
+  "resources": [
+    {
+      "kind": "topic",
+      "name": "dev-ordered+dlq",
+      "logical": "ordered",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-ordered+dlq",
+      "logical": "ordered",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": null,
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "",
+        "labels": {},
+        "maxDeliveryAttempts": null,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-ordered+dlq"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-ordered+in",
+      "logical": "ordered",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-ordered",
+      "logical": "ordered",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": "dev-ordered+dlq",
+        "enableMessageOrdering": true,
+        "expires": false,
+        "filter": "",
+        "labels": {
+          "sf-max-deliveries": "5"
+        },
+        "maxDeliveryAttempts": 5,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-ordered+in"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-ordered-out",
+      "logical": "ordered-out",
+      "owned": true,
+      "role": "topic",
+      "properties": {}
+    },
+    {
+      "kind": "topic",
+      "name": "dev-ordered-in",
+      "logical": "ordered-in",
+      "owned": false,
+      "role": "topic",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-ordered~ordered-in",
+      "logical": "ordered-in → ordered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": "dev-ordered+dlq",
+        "enableMessageOrdering": true,
+        "expires": false,
+        "filter": "attributes.ce-type = \"tck.ordered.v1\"",
+        "labels": {
+          "sf-max-deliveries": "5"
+        },
+        "maxDeliveryAttempts": 5,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-ordered-in"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-minimal+in",
+      "logical": "minimal",
+      "owned": false,
+      "role": "remote-endpoint",
+      "properties": {}
+    }
+  ]
+}

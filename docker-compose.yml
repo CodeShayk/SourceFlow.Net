@@ -1,0 +1,13 @@
+# SourceFlow.Net v3 demo: the TravelBooking sample (samples/TravelBooking): the Bookings and Hotels services on
+# PostgreSQL and LocalStack, the trip-booking workflow between them, SourceFlow Studio and the Aspire dashboard.
+#
+#   docker compose up -d --build    # build the images from this checkout
+#   docker compose up -d            # or pull the published images (ghcr.io)
+#   docker compose down -v          # stop the demo and delete its data
+#
+# Bookings http://localhost:8080 · Hotels http://localhost:8081 · Studio http://localhost:5080 · Aspire http://localhost:18888
+# The walkthrough is in samples/TravelBooking/README.md.
+name: sourceflow-demo
+
+include:
+  - samples/TravelBooking/docker-compose.yml

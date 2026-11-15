@@ -1,0 +1,29 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Doc 10 §7 and plan 08 §1: weekly grouped updates of Directory.Packages.props, the pinned emulator images and the workflow actions, into v3.0.0.",
+  "extends": ["config:recommended"],
+  "baseBranches": ["v3.0.0"],
+  "schedule": ["before 6am on monday"],
+  "minimumReleaseAge": "14 days",
+  "packageRules": [
+    {
+      "description": "NuGet packages (central package management), one weekly PR.",
+      "matchManagers": ["nuget"],
+      "groupName": "NuGet packages"
+    },
+    {
+      "description": "Pinned emulator and database images used by the tests and docker-compose.",
+      "matchDatasources": ["docker"],
+      "groupName": "container images"
+    },
+    {
+      "description": "GitHub Actions.",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"]
+  }
+}

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    The AOT check (ARCH-06), in CI:
+      dotnet publish tests/Fixtures/Bank/Bank.AotCheck -c Release -p:SourceFlowAotCheck=true -warnaserror
+    The core and the PostgreSQL and ASP.NET Core adapters must publish with no trim or AOT warning. PublishAot is set
+    here, not on the command line, because a global property also reaches the netstandard2.0 source generator
+    (NETSDK1207). The CLI and the cloud adapters' SDKs are not part of the check (plan 09 IR-08).
+  -->
+  <PropertyGroup>
+    <UseSourceFlowGenerator>false</UseSourceFlowGenerator>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Only for the check: PublishAot restores the ILCompiler package, which ordinary builds don't need. -->
+    <PublishAot Condition="'$(SourceFlowAotCheck)' == 'true'">true</PublishAot>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Hosting\SourceFlow.AspNetCore\SourceFlow.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Storage\SourceFlow.Storage.PostgreSQL\SourceFlow.Storage.PostgreSQL.csproj" />
+    <ProjectReference Include="..\Bank.Contracts\Bank.Contracts.csproj" />
+    <ProjectReference Include="..\Bank.Accounts\Bank.Accounts.csproj" />
+    <ProjectReference Include="..\Bank.Transfers\Bank.Transfers.csproj" />
+    <ProjectReference Include="..\Bank.Notifications\Bank.Notifications.csproj" />
+  </ItemGroup>
+</Project>

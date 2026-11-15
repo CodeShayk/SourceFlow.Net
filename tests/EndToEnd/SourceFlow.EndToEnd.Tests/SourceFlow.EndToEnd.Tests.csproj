@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- End-to-end scenarios over the Bank sample (E2E-xx) and the OrderFulfilment sample's workflow (WF-E2E-xx); chaos
+       scenarios (CH-xx, WF-E2E-12) carry Category=Chaos (nightly).
+       The cross-service scenarios (E2E-17..24) run on PostgreSQL with each transport; the emulator and PostgreSQL servers
+       are the ones the cloud and storage tests use (linked below), from environment variables in CI or Testcontainers. -->
+  <PropertyGroup>
+    <UseSourceFlowGenerator>true</UseSourceFlowGenerator>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The query API end to end (QRY-53..59) runs the ASP.NET Core endpoints on a test server. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Testcontainers" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Storage\SourceFlow.Storage.PostgreSQL\SourceFlow.Storage.PostgreSQL.csproj" />
+    <ProjectReference Include="..\..\..\src\Cloud\SourceFlow.Cloud.Aws\SourceFlow.Cloud.Aws.csproj" />
+    <ProjectReference Include="..\..\..\src\Cloud\SourceFlow.Cloud.Gcp\SourceFlow.Cloud.Gcp.csproj" />
+    <ProjectReference Include="..\..\..\src\Cloud\SourceFlow.Cloud.Azure\SourceFlow.Cloud.Azure.csproj" />
+    <Compile Include="..\..\Cloud\SourceFlow.Cloud.Tests\Aws\LocalStackServer.cs" Link="Servers\LocalStackServer.cs" />
+    <Compile Include="..\..\Cloud\SourceFlow.Cloud.Tests\Gcp\PubSubEmulatorServer.cs" Link="Servers\PubSubEmulatorServer.cs" />
+    <Compile Include="..\..\Cloud\SourceFlow.Cloud.Tests\Azure\ServiceBusEmulatorServer.cs" Link="Servers\ServiceBusEmulatorServer.cs" />
+    <Compile Include="..\..\Storage\SourceFlow.Storage.Tests\PostgreSql\PostgreSqlServer.cs" Link="Servers\PostgreSqlServer.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Testing\SourceFlow.Testing.csproj" />
+    <ProjectReference Include="..\..\..\src\Hosting\SourceFlow.AspNetCore\SourceFlow.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\..\tests\Fixtures\Bank\Bank.Contracts\Bank.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\tests\Fixtures\Bank\Bank.Accounts\Bank.Accounts.csproj" />
+    <ProjectReference Include="..\..\..\tests\Fixtures\Bank\Bank.Transfers\Bank.Transfers.csproj" />
+    <ProjectReference Include="..\..\..\tests\Fixtures\Bank\Bank.Notifications\Bank.Notifications.csproj" />
+    <!-- The OrderFulfilment sample's services, and the orders service's next release (WF-E2E-01..12). -->
+    <ProjectReference Include="..\..\..\samples\OrderFulfilment\Orders\Orders.csproj" />
+    <ProjectReference Include="..\..\..\samples\OrderFulfilment\Inventory\Inventory.csproj" />
+    <ProjectReference Include="..\..\..\samples\OrderFulfilment\Payments\Payments.csproj" />
+    <ProjectReference Include="..\..\..\samples\OrderFulfilment\Shipping\Shipping.csproj" />
+    <ProjectReference Include="..\OrderFulfilment.NextRelease\OrderFulfilment.NextRelease.csproj" />
+    <ProjectReference Include="..\..\..\samples\TravelBooking\Bookings\Bookings.csproj" />
+    <ProjectReference Include="..\..\..\samples\TravelBooking\Hotels\Hotels.csproj" />
+    <ProjectReference Include="..\..\..\src\Tooling\SourceFlow.Tool\SourceFlow.Tool.csproj" />
+  </ItemGroup>
+</Project>

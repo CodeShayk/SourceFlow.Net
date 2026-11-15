@@ -1,0 +1,101 @@
+{
+  "nodes": [
+    {
+      "id": "start",
+      "kind": "start",
+      "label": "orders.order-placed.v1",
+      "compensable": false
+    },
+    {
+      "id": "approve",
+      "kind": "step",
+      "label": "approve",
+      "sends": "orders.approve-order.v1",
+      "awaits": "orders.order-approved.v1",
+      "timeout": "PT1H",
+      "compensable": false
+    },
+    {
+      "id": "Completed",
+      "kind": "terminal",
+      "label": "Completed",
+      "compensable": false
+    },
+    {
+      "id": "Compensating",
+      "kind": "compensating",
+      "label": "Compensating",
+      "compensable": false
+    },
+    {
+      "id": "Compensated",
+      "kind": "terminal",
+      "label": "Compensated",
+      "compensable": false
+    },
+    {
+      "id": "ManualIntervention",
+      "kind": "manual",
+      "label": "✋ Manual intervention",
+      "compensable": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "start->approve:start:0",
+      "source": "start",
+      "target": "approve",
+      "kind": "start",
+      "label": "▶ orders.order-placed.v1",
+      "description": "orders.order-placed.v1 starts the workflow at approve"
+    },
+    {
+      "id": "approve->Completed:success:0",
+      "source": "approve",
+      "target": "Completed",
+      "kind": "success",
+      "label": "✓ orders.order-approved.v1",
+      "description": "Success: orders.order-approved.v1 moves from approve to Completed"
+    },
+    {
+      "id": "approve->approve:retry:0",
+      "source": "approve",
+      "target": "approve",
+      "kind": "retry",
+      "label": "↻ 1× on orders.order-rejected-by-review.v1",
+      "description": "Retry: approve is retried 1× on orders.order-rejected-by-review.v1"
+    },
+    {
+      "id": "approve->Completed:failure:0",
+      "source": "approve",
+      "target": "Completed",
+      "kind": "failure",
+      "label": "✕ orders.order-rejected-by-review.v1",
+      "description": "Failure: orders.order-rejected-by-review.v1 at approve leads to Completed"
+    },
+    {
+      "id": "approve->approve:retry:1",
+      "source": "approve",
+      "target": "approve",
+      "kind": "retry",
+      "label": "↻ 20× exponential from PT1S on timeout",
+      "description": "Retry: approve is retried 20× exponential from PT1S when it times out"
+    },
+    {
+      "id": "approve->approve:timeout:0",
+      "source": "approve",
+      "target": "approve",
+      "kind": "timeout",
+      "label": "⏱ PT1H",
+      "description": "Timeout: after PT1H approve leads to approve"
+    },
+    {
+      "id": "Compensating->Compensated:compensation:0",
+      "source": "Compensating",
+      "target": "Compensated",
+      "kind": "compensation",
+      "label": "⟲ nothing to undo",
+      "description": "Compensation: nothing to undo, the workflow is compensated"
+    }
+  ]
+}

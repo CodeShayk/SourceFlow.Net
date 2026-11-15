@@ -1,0 +1,144 @@
+# The OrderFulfilment sample: four services and the order-fulfilment workflow between them, with SourceFlow Studio.
+#
+#   docker compose -f samples/OrderFulfilment/docker-compose.yml up -d --build    # from the repository root
+#   docker compose -f samples/OrderFulfilment/docker-compose.yml down -v          # stops it and deletes its data
+#
+#   Orders service     http://localhost:8090   (takes orders; owns the order-fulfilment workflow)
+#   Inventory service  http://localhost:8091
+#   Payments service   http://localhost:8092
+#   Shipping service   http://localhost:8093
+#   SourceFlow Studio  http://localhost:5090   (read-only: domain map, statechart, simulation, paths)
+#   Aspire dashboard   http://localhost:18890  (one trace follows an order through all four services)
+#   PostgreSQL         localhost:55433         (sourceflow / sourceflow / commerce; a schema per service)
+#   LocalStack         localhost:4567          (SNS and SQS between the services)
+#
+# The ports differ from the TravelBooking demo's, so both can run at once.
+# SOURCEFLOW_TAG selects the published image tag (default v3-latest); --build builds the images from this checkout.
+name: sourceflow-order-fulfilment
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: sourceflow
+      POSTGRES_PASSWORD: sourceflow
+      POSTGRES_DB: commerce
+    ports:
+      - "55433:5432"
+    volumes:
+      - commerce-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sourceflow -d commerce"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # The broker between the services: Amazon SNS and SQS, emulated (the services also run on Azure Service Bus and Google
+  # Cloud Pub/Sub; see the sample's README).
+  localstack:
+    image: localstack/localstack:3.8
+    environment:
+      SERVICES: sqs,sns
+      EAGER_SERVICE_LOADING: "1"
+      SKIP_SSL_CERT_DOWNLOAD: "1"
+    ports:
+      - "4567:4566"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  inventory:
+    image: ghcr.io/codeshayk/sourceflow-order-fulfilment:${SOURCEFLOW_TAG:-v3-latest}
+    build: &build                     # one image for the four services; Service picks the one a container runs
+      context: ../..
+      dockerfile: samples/OrderFulfilment/Dockerfile
+    environment: &service
+      Service: "inventory"
+      ConnectionStrings__SourceFlow: "Host=postgres;Database=commerce;Username=sourceflow;Password=sourceflow;GSS Encryption Mode=Disable"
+      SourceFlow__AutoMigrate: "true"
+      SourceFlow__Provisioning: "CreateIfMissing"       # create the queues and topics in LocalStack at startup
+      Transport__Kind: "aws"
+      Transport__Region: "eu-west-1"
+      Transport__ServiceUrl: "http://localstack:4566"
+      AWS_ACCESS_KEY_ID: "test"                         # LocalStack's dummy credentials
+      AWS_SECRET_ACCESS_KEY: "test"
+      Inventory__OutOfStock__0: "discontinued-lamp"     # the warehouse can't reserve this SKU
+      # Sample only: anonymous read access to the query API. Never expose it publicly.
+      Demo__QueryApi: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "inventory"
+    ports:
+      - "8091:8080"
+    depends_on: &infrastructure
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    restart: unless-stopped
+
+  payments:
+    image: ghcr.io/codeshayk/sourceflow-order-fulfilment:${SOURCEFLOW_TAG:-v3-latest}
+    build: *build
+    environment:
+      <<: *service
+      Service: "payments"
+      OTEL_SERVICE_NAME: "payments"
+    ports:
+      - "8092:8080"
+    depends_on: *infrastructure
+    restart: unless-stopped
+
+  shipping:
+    image: ghcr.io/codeshayk/sourceflow-order-fulfilment:${SOURCEFLOW_TAG:-v3-latest}
+    build: *build
+    environment:
+      <<: *service
+      Service: "shipping"
+      OTEL_SERVICE_NAME: "shipping"
+    ports:
+      - "8093:8080"
+    depends_on: *infrastructure
+    restart: unless-stopped
+
+  orders:
+    image: ghcr.io/codeshayk/sourceflow-order-fulfilment:${SOURCEFLOW_TAG:-v3-latest}
+    build: *build
+    environment:
+      <<: *service
+      Service: "orders"
+      OTEL_SERVICE_NAME: "orders"
+    ports:
+      - "8090:8080"
+    depends_on:
+      <<: *infrastructure
+      inventory:
+        condition: service_started
+      payments:
+        condition: service_started
+      shipping:
+        condition: service_started
+    restart: unless-stopped
+
+  studio:
+    image: ghcr.io/codeshayk/sourceflow-order-studio:${SOURCEFLOW_TAG:-v3-latest}
+    build:
+      context: ../..
+      dockerfile: samples/OrderFulfilment/Studio.Dockerfile
+    ports:
+      - "5090:80"
+    restart: unless-stopped
+
+  # Sample only: the dashboard accepts anonymous browsers and OTLP clients. Never expose it publicly.
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:9.4
+    environment:
+      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+      - "18890:18888"
+    restart: unless-stopped
+
+volumes:
+  commerce-data:

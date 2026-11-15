@@ -1,0 +1,15 @@
+sourceflow.workflow: 1
+name: approve-order
+version: 1
+owner: orders
+start: { on: orders.order-placed.v1, correlate: data.customerId }
+data:
+  orderId: { from: start.data.orderId }
+steps:
+  - id: approve
+    send: { command: orders.approve-order.v1, map: { orderId: $data.orderId } }
+    await: { success: orders.order-approved.v1 }
+    timeout: { after: PT1H, then: manual }
+  - id: audit
+    await: { success: orders.audit-noted.v1 }
+    timeout: { after: PT1H, then: manual }

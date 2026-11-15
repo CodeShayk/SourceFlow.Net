@@ -1,0 +1,23 @@
+[
+  {
+    "id": "WF-V06",
+    "severity": "error",
+    "line": 16,
+    "column": 5,
+    "message": "Step 'reserve-stock' waits without a timeout; add 'timeout: { after: PT…, then: … }', or 'timeout: { none: true, reason: … }'."
+  },
+  {
+    "id": "WF-V06",
+    "severity": "error",
+    "line": 43,
+    "column": 7,
+    "message": "The compensation of 'charge-payment' waits without a timeout; add 'timeout: { after: PT… }'."
+  },
+  {
+    "id": "WF-V06",
+    "severity": "error",
+    "line": 54,
+    "column": 14,
+    "message": "'timeout: none' on step 'review-large-order' needs a 'reason'."
+  }
+]

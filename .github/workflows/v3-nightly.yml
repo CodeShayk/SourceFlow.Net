@@ -1,0 +1,219 @@
+# v3 nightly (implementation plan 08 §3): full matrices, real cloud, chaos, long property runs.
+name: v3-nightly
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # OIDC federation to the cloud sandboxes (no long-lived secrets)
+
+env:
+  DOTNET_NOLOGO: "true"
+  TEST_ARGS: "-c Release --no-build --ignore-exit-code 8 --report-trx"
+
+jobs:
+  database-matrix:
+    name: storage (${{ matrix.db }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { db: "postgres:15", provider: PostgreSQL, image: "postgres:15-alpine" }
+          - { db: "postgres:16", provider: PostgreSQL, image: "postgres:16-alpine" }
+          - { db: "postgres:17", provider: PostgreSQL, image: "postgres:17-alpine" }
+          - { db: "postgres:17-partitioned", provider: PostgreSQL, image: "postgres:17-alpine" }
+          - { db: "mssql:2022", provider: SqlServer, image: "", mssql: "mcr.microsoft.com/mssql/server:2022-latest" }
+          - { db: "mssql:2025", provider: SqlServer, image: "", mssql: "mcr.microsoft.com/mssql/server:2025-latest" }
+    runs-on: ubuntu-latest
+    env:
+      SOURCEFLOW_TEST_DATABASE: ${{ matrix.db }}
+      SOURCEFLOW_TEST_POSTGRES_IMAGE: ${{ matrix.image }}
+      SOURCEFLOW_TEST_SQLSERVER_IMAGE: ${{ matrix.mssql }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build SourceFlow.slnx -c Release
+      - run: dotnet test --project tests/Storage/SourceFlow.Storage.Tests/SourceFlow.Storage.Tests.csproj ${{ env.TEST_ARGS }} --filter-trait "Provider=${{ matrix.provider }}"
+
+  benchmarks:
+    # WP-2.10: component benchmarks and measurements (PERF-01..06, 08, 10). Results are uploaded for the trend store;
+    # the regression gate against quality/benchmarks/baselines (plan 08 §4) is a follow-up.
+    name: component benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet run -c Release --project quality/benchmarks/SourceFlow.Benchmarks -- baseline
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmarks
+          path: |
+            quality/benchmarks/baselines/*.json
+            BenchmarkDotNet.Artifacts/results/**
+
+  real-cloud:
+    name: real cloud (${{ matrix.cloud }})
+    if: vars.SOURCEFLOW_REAL_CLOUD == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { cloud: aws, trait: Aws }
+          - { cloud: azure, trait: Azure }
+          - { cloud: gcp, trait: Gcp }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - if: matrix.cloud == 'aws'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TEST_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_TEST_REGION }}
+      - if: matrix.cloud == 'azure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - if: matrix.cloud == 'gcp'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_TEST_SERVICE_ACCOUNT }}
+      - run: dotnet build SourceFlow.slnx -c Release
+      - name: Transport TCK, KMS and E2E on the real cloud
+        env:
+          SOURCEFLOW_REAL_CLOUD: ${{ matrix.cloud }}
+          AZURE_SERVICEBUS_NAMESPACE: ${{ vars.AZURE_SERVICEBUS_NAMESPACE }}
+          SOURCEFLOW_KMS_AWS_KEY: ${{ vars.SOURCEFLOW_KMS_AWS_KEY }}
+          SOURCEFLOW_KMS_AZURE_KEY: ${{ vars.SOURCEFLOW_KMS_AZURE_KEY }}
+          SOURCEFLOW_KMS_GCP_KEY: ${{ vars.SOURCEFLOW_KMS_GCP_KEY }}
+        run: |
+          dotnet test --project tests/Cloud/SourceFlow.Cloud.Tests/SourceFlow.Cloud.Tests.csproj ${{ env.TEST_ARGS }} --filter-trait "Cloud=${{ matrix.trait }}"
+          dotnet test --project tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj ${{ env.TEST_ARGS }} --filter-trait "Cloud=${{ matrix.trait }}"
+
+  chaos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build SourceFlow.slnx -c Release
+      - run: >-
+          dotnet test --project tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj
+          ${{ env.TEST_ARGS }} --filter-trait "Category=Chaos"
+
+  load-tier-m:
+    # WP-4.7: the tier-M load test (doc 09 §5, PERF-09) against the TravelBooking services built from this checkout (the
+    # Bookings service, its workflow to Hotels over LocalStack), with k6 on the same Docker network. The hosted runner shares 4 vCPUs between the service, PostgreSQL and k6, so it reports rather
+    # than gates; the milestone acceptance run is on a dedicated 4-vCPU service instance (quality/loadtest/README.md).
+    name: load test (tier M)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - run: docker compose up -d --build --wait postgres localstack hotels bookings
+      - name: k6 at 1,000 commands/s
+        run: >-
+          docker run --rm -i --network sourceflow-demo_default
+          -e BOOKINGS_URL=http://bookings:8080 -e HOTELS_URL=http://hotels:8080 -e RATE=1000 -e DURATION=5m
+          grafana/k6:2.3.0 run - < quality/loadtest/k6/travel-tier-m.js | tee loadtest-summary.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-tier-m
+          path: loadtest-summary.txt
+
+  relay-latency:
+    # PERF-07 (WP-4.7): outbox commit to broker acknowledgement, p95 <= 250 ms, on PostgreSQL with each emulator.
+    name: relay latency (emulators)
+    runs-on: ubuntu-latest
+    env:
+      MSSQL_SA_PASSWORD: ${{ secrets.EMULATOR_SA_PASSWORD || 'SourceFlow_Emulator_1' }}
+      AWS_ENDPOINT_URL: http://localhost:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: eu-west-1
+      PUBSUB_EMULATOR_HOST: localhost:8085
+      SERVICEBUS_EMULATOR_CONNECTION: "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+      SERVICEBUS_EMULATOR_ADMIN_CONNECTION: "Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: |
+          docker compose -f eng/emulators/localstack/docker-compose.yml up -d
+          docker compose -f eng/emulators/pubsub/docker-compose.yml up -d
+          docker compose -f eng/emulators/servicebus/docker-compose.yml up -d
+          for i in $(seq 1 90); do
+            curl -sf http://localhost:5300/health >/dev/null && exit 0
+            sleep 2
+          done
+          echo "Service Bus emulator not healthy"; exit 1
+      - run: dotnet build SourceFlow.slnx -c Release
+      - run: >-
+          dotnet test --project tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj
+          ${{ env.TEST_ARGS }} --filter-trait "Category=Performance" --output Detailed
+
+  dast:
+    # WP-4.7 (plan 08): OWASP ZAP API scan of the TravelBooking Bookings service's query API, driven by deploy/dast/query-api.openapi.json
+    # (a unit test keeps it equal to the mapped routes). Any medium or high finding fails the night. The injection corpus
+    # over HTTP (QRY-57..59) runs with the end-to-end tests.
+    name: dast (OWASP ZAP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - run: docker compose up -d --build --wait postgres localstack hotels bookings
+      - name: ZAP API scan
+        run: |
+          mkdir -p zap && cp deploy/dast/* zap/ && chmod 777 zap
+          docker run --rm --network sourceflow-demo_default -v "$PWD/zap:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable             zap-api-scan.py -t /zap/wrk/query-api.openapi.json -f openapi -O http://bookings:8080             -c zap-rules.tsv -J zap-report.json -r zap-report.html || true
+          high=$(jq '[.site[].alerts[] | select((.riskcode | tonumber) >= 2)] | length' zap/zap-report.json)
+          echo "medium or high findings: $high"
+          test "$high" -eq 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dast-report
+          path: zap/zap-report.*
+
+  long-properties:
+    runs-on: ubuntu-latest
+    env:
+      CsCheck_Iter: "50000"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v3.0.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build SourceFlow.slnx -c Release
+      - run: dotnet test --solution SourceFlow.slnx ${{ env.TEST_ARGS }} --filter-trait "Category=Property"

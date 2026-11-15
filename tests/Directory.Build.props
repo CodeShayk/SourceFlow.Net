@@ -1,0 +1,32 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+  <!-- v3 test projects (plan 04). v2 test projects under tests/SourceFlow.*.Tests are outside SourceFlow.slnx and retired by WP-x.R. -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- CA1707: underscores in test names; CA2007: no ConfigureAwait in tests; xUnit1051: optional tokens on API calls under test. -->
+    <!-- SF0013: tests publish domain events .AsIs() to exercise the outbox and transports, not as public contracts. -->
+    <NoWarn>$(NoWarn);CA1707;CA2007;xUnit1051;SF0013</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+    <Using Include="Xunit" />
+    <Using Include="Shouldly" />
+  </ItemGroup>
+
+  <!-- Public API approval (plan 04 §6): opt in per test project with IncludePublicApiApproval=true. -->
+  <ItemGroup Condition="'$(IncludePublicApiApproval)' == 'true'">
+    <PackageReference Include="PublicApiGenerator" />
+    <Compile Include="$(MSBuildThisFileDirectory)Shared\PublicApiApproval.cs" Link="Shared\PublicApiApproval.cs" />
+  </ItemGroup>
+</Project>

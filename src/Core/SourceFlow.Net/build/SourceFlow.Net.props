@@ -1,0 +1,14 @@
+<Project>
+  <!--
+    SourceFlow Studio workflows (doc 15 §5.5): every *.sfflow.yaml in the project is a workflow the generator compiles
+    into a process manager. The properties are what the generator reads (the owner check uses SourceFlowServiceName).
+  -->
+  <ItemGroup>
+    <AdditionalFiles Include="**/*.sfflow.yaml" Exclude="$(BaseOutputPath)**;$(BaseIntermediateOutputPath)**" />
+  </ItemGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="RootNamespace" />
+    <CompilerVisibleProperty Include="ProjectDir" />
+    <CompilerVisibleProperty Include="SourceFlowServiceName" />
+  </ItemGroup>
+</Project>

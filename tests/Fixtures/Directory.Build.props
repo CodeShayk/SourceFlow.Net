@@ -1,0 +1,14 @@
+<Project>
+  <!--
+    Test fixtures: the Bank domain the tests run against and the AOT check apps, compiled with the SourceFlow generator as
+    an application would consume SourceFlow.Net. They are libraries and hosts, not test projects, so they import the
+    repository's props directly instead of tests/Directory.Build.props. The user-facing examples are in samples/.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)..\..\Directory.Build.props" />
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <UseSourceFlowGenerator>true</UseSourceFlowGenerator>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,79 @@
+{
+  "manifestVersion": 1,
+  "service": "shipping",
+  "endpoint": "shipping",
+  "sourceflowVersion": "3.0.0",
+  "messages": [
+    {
+      "type": "shipping.create-shipment",
+      "version": 1,
+      "kind": "command",
+      "clrType": "Shipping.CreateShipment",
+      "aggregate": "shipment",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "lines",
+          "type": "array"
+        },
+        {
+          "name": "address",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "type": "shipping.shipment-created",
+      "version": 1,
+      "kind": "event",
+      "clrType": "Shipping.ShipmentCreated",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "trackingNumber",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "aggregates": [
+    {
+      "name": "shipment",
+      "clrType": "Shipping.Shipment",
+      "commands": [
+        {
+          "type": "shipping.create-shipment",
+          "version": 1,
+          "emits": [
+            "shipping.shipment-created.v1"
+          ],
+          "rejects": [
+            "shipping.address_invalid"
+          ]
+        }
+      ],
+      "events": [
+        "shipping.shipment-created.v1"
+      ]
+    }
+  ],
+  "processManagers": [],
+  "projections": [],
+  "publishes": [
+    {
+      "domainEvent": "shipping.shipment-created.v1",
+      "as": "shipping.shipment-created.v1",
+      "topic": "shipping.events"
+    }
+  ],
+  "subscribes": [],
+  "commandRoutes": [],
+  "workflows": [],
+  "schemas": "catalog://shipping"
+}

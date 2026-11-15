@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "service": "publisher",
+  "transport": "servicebus",
+  "endpoint": {
+    "name": "publisher",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [
+    {
+      "topic": "shared",
+      "ordered": false,
+      "messages": []
+    }
+  ],
+  "subscribes": [],
+  "sends": [
+    {
+      "endpoint": "subscriber",
+      "commands": []
+    }
+  ],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "dev-publisher",
+      "logical": "publisher",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "deadLetteringOnMessageExpiration": true,
+        "defaultMessageTimeToLive": "P14D",
+        "duplicateDetectionHistoryTimeWindow": null,
+        "lockDuration": "PT30S",
+        "maxDeliveryCount": 10,
+        "requiresDuplicateDetection": false,
+        "requiresSession": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-shared",
+      "logical": "shared",
+      "owned": true,
+      "role": "topic",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D"
+      }
+    },
+    {
+      "kind": "queue",
+      "name": "dev-subscriber",
+      "logical": "subscriber",
+      "owned": false,
+      "role": "remote-endpoint",
+      "properties": {}
+    }
+  ]
+}

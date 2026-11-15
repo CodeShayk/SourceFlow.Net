@@ -1,0 +1,9 @@
+[
+  {
+    "id": "WF-S01",
+    "severity": "error",
+    "line": 10,
+    "column": 4,
+    "message": "Invalid YAML: While parsing a block collection, did not find expected '-' indicator."
+  }
+]

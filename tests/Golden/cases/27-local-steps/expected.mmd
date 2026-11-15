@@ -1,0 +1,21 @@
+---
+title: review-order@3 (orders)
+---
+stateDiagram-v2
+    state "Compensating" as Compensating
+    state "Manual intervention" as ManualIntervention
+    state "reject-if-needed" as reject_if_needed
+    reject_if_needed : send orders.reject-order.v1
+    reject_if_needed : await orders.order-rejected-by-review.v1
+    state "cancel" as cancel
+    cancel : send orders.cancel-order.v1
+    cancel : await orders.order-cancelled.v1
+    [*] --> reject_if_needed : orders.order-placed.v1
+    reject_if_needed --> cancel : ✓ orders.order-rejected-by-review.v1
+    cancel --> Completed : ✓ orders.order-cancelled.v1
+    cancel --> Completed : ✕ orders.already_shipped
+    cancel --> ManualIntervention : ⏱ PT10M
+    Compensating --> Compensated : nothing to undo
+    Completed --> [*]
+    Compensated --> [*]
+    ManualIntervention --> [*] : ✋ operator resumes or aborts

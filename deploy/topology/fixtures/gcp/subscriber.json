@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "service": "subscriber",
+  "transport": "gcp_pubsub",
+  "endpoint": {
+    "name": "subscriber",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [],
+  "subscribes": [
+    {
+      "topic": "shared",
+      "filter": "type = 'tck.shared.v1'"
+    }
+  ],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "topic",
+      "name": "dev-subscriber+dlq",
+      "logical": "subscriber",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-subscriber+dlq",
+      "logical": "subscriber",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": null,
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "",
+        "labels": {},
+        "maxDeliveryAttempts": null,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-subscriber+dlq"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-subscriber+in",
+      "logical": "subscriber",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-subscriber",
+      "logical": "subscriber",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": "dev-subscriber+dlq",
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "",
+        "labels": {
+          "sf-max-deliveries": "10"
+        },
+        "maxDeliveryAttempts": 10,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-subscriber+in"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-shared",
+      "logical": "shared",
+      "owned": false,
+      "role": "topic",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-subscriber~shared",
+      "logical": "shared → subscriber",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": "dev-subscriber+dlq",
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "attributes.ce-type = \"tck.shared.v1\"",
+        "labels": {
+          "sf-max-deliveries": "10"
+        },
+        "maxDeliveryAttempts": 10,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-shared"
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Bank sample, Transfers module (WP-1.14): Transfer aggregate and the MoneyTransfer process manager. Hosted with Accounts. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <ProjectReference Include="..\Bank.Accounts\Bank.Accounts.csproj" />
+  </ItemGroup>
+</Project>

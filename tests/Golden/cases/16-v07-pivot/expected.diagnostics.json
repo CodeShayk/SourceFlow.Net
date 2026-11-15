@@ -1,0 +1,37 @@
+[
+  {
+    "id": "WF-V07",
+    "severity": "error",
+    "line": 64,
+    "column": 11,
+    "message": "Step 'create-shipment' is at or after the pivot, so a failure can't 'fail' (no compensation after the point of no return); use manual, complete or goto."
+  },
+  {
+    "id": "WF-V07",
+    "severity": "error",
+    "line": 68,
+    "column": 7,
+    "message": "Step 'create-shipment' is at or after the pivot, so it can't be compensated; recover forward instead."
+  },
+  {
+    "id": "WF-V05",
+    "severity": "error",
+    "line": 72,
+    "column": 5,
+    "message": "Step 'await-address-fix' is never reached."
+  },
+  {
+    "id": "WF-V07",
+    "severity": "error",
+    "line": 74,
+    "column": 34,
+    "message": "Step 'await-address-fix' is at or after the pivot, so its timeout can't 'fail' (no compensation after the point of no return); use manual or goto."
+  },
+  {
+    "id": "WF-V07",
+    "severity": "error",
+    "line": 75,
+    "column": 12,
+    "message": "A workflow has one pivot; 'create-shipment' is already the pivot."
+  }
+]

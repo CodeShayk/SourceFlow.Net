@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "service": "full",
+  "transport": "gcp_pubsub",
+  "endpoint": {
+    "name": "full",
+    "ordered": false,
+    "maxDeliveries": 7,
+    "commands": []
+  },
+  "publishes": [
+    {
+      "topic": "full-out",
+      "ordered": false,
+      "messages": []
+    }
+  ],
+  "subscribes": [
+    {
+      "topic": "full-in",
+      "filter": "type LIKE 'tck.%'"
+    }
+  ],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "topic",
+      "name": "dev-full+dlq",
+      "logical": "full",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-full+dlq",
+      "logical": "full",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": null,
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "",
+        "labels": {},
+        "maxDeliveryAttempts": null,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-full+dlq"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-full+in",
+      "logical": "full",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-full",
+      "logical": "full",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": "dev-full+dlq",
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "",
+        "labels": {
+          "sf-max-deliveries": "7"
+        },
+        "maxDeliveryAttempts": 7,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-full+in"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-full-out",
+      "logical": "full-out",
+      "owned": true,
+      "role": "topic",
+      "properties": {}
+    },
+    {
+      "kind": "topic",
+      "name": "dev-full-in",
+      "logical": "full-in",
+      "owned": false,
+      "role": "topic",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-full~full-in",
+      "logical": "full-in → full",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": "dev-full+dlq",
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "hasPrefix(attributes.ce-type, \"tck.\")",
+        "labels": {
+          "sf-max-deliveries": "7"
+        },
+        "maxDeliveryAttempts": 7,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-full-in"
+      }
+    }
+  ]
+}

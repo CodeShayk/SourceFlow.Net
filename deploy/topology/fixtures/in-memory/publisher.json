@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "service": "publisher",
+  "transport": "sourceflow.inmemory",
+  "endpoint": {
+    "name": "publisher",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [
+    {
+      "topic": "shared",
+      "ordered": false,
+      "messages": []
+    }
+  ],
+  "subscribes": [],
+  "sends": [
+    {
+      "endpoint": "subscriber",
+      "commands": []
+    }
+  ],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "publisher",
+      "logical": "publisher",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "maxDeliveries": 10,
+        "ordered": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "shared",
+      "logical": "shared",
+      "owned": true,
+      "role": "topic",
+      "properties": {
+        "ordered": false
+      }
+    }
+  ]
+}

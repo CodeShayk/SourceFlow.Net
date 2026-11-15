@@ -1,0 +1,16 @@
+# LocalStack for the SourceFlow.Cloud.Aws transport and KMS tests (pinned; see ../README.md).
+services:
+  localstack:
+    image: localstack/localstack:3.8
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: sqs,sns,kms
+      EAGER_SERVICE_LOADING: "1"
+      SKIP_SSL_CERT_DOWNLOAD: "1"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s

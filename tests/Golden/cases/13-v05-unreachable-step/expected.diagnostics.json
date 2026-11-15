@@ -1,0 +1,9 @@
+[
+  {
+    "id": "WF-V05",
+    "severity": "error",
+    "line": 14,
+    "column": 5,
+    "message": "Step 'orphan' is never reached."
+  }
+]

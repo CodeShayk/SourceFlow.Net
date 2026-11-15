@@ -1,0 +1,30 @@
+[
+  {
+    "id": "WF-V02",
+    "severity": "error",
+    "line": 14,
+    "column": 22,
+    "message": "legacy.adjust.v1 is owned by orders and shipping; a command has exactly one owner (ADR-007)."
+  },
+  {
+    "id": "WF-V02",
+    "severity": "error",
+    "line": 18,
+    "column": 22,
+    "message": "No service of the workspace owns billing.invoice.v1."
+  },
+  {
+    "id": "WF-V02",
+    "severity": "error",
+    "line": 22,
+    "column": 22,
+    "message": "orders doesn't route payments.void.v1 to its owner payments; add routing.Command<…>().To(\"payments\")."
+  },
+  {
+    "id": "WF-V03",
+    "severity": "error",
+    "line": 23,
+    "column": 23,
+    "message": "orders never receives payments.voided.v1 (step 'void'): it is not a domain event of orders and no service publishes it."
+  }
+]

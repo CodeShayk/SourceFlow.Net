@@ -1,0 +1,2 @@
+# Golden workflow fixtures are compared byte for byte (round trip, WP-S.10): keep LF everywhere.
+* text eol=lf

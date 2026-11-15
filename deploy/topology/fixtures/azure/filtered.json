@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 1,
+  "service": "filtered",
+  "transport": "servicebus",
+  "endpoint": {
+    "name": "filtered",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [],
+  "subscribes": [
+    {
+      "topic": "everything",
+      "filter": null
+    },
+    {
+      "topic": "prefixed",
+      "filter": "type LIKE 'tck.%' OR type LIKE 'payments.%'"
+    },
+    {
+      "topic": "tenant",
+      "filter": "type = 'tck.tenant.v1' AND sftenant = 'eu'"
+    },
+    {
+      "topic": "typed",
+      "filter": "type IN ('tck.also.v2', 'tck.wanted.v1')"
+    }
+  ],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "dev-filtered",
+      "logical": "filtered",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "deadLetteringOnMessageExpiration": true,
+        "defaultMessageTimeToLive": "P14D",
+        "duplicateDetectionHistoryTimeWindow": null,
+        "lockDuration": "PT30S",
+        "maxDeliveryCount": 10,
+        "requiresDuplicateDetection": false,
+        "requiresSession": false
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-typed",
+      "logical": "typed",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-prefixed",
+      "logical": "prefixed",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-tenant",
+      "logical": "tenant",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-everything",
+      "logical": "everything",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-typed/dev-filtered",
+      "logical": "typed → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D",
+        "forwardTo": "dev-filtered",
+        "subscription": "dev-filtered",
+        "topic": "dev-typed"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "dev-typed/dev-filtered/$Default",
+      "logical": "typed → filtered",
+      "owned": true,
+      "role": "rule",
+      "properties": {
+        "correlationProperties": {
+          "cloudEvents:type": "tck.also.v2"
+        },
+        "filterType": "CorrelationFilter",
+        "rule": "$Default",
+        "sqlExpression": null,
+        "subscription": "dev-filtered",
+        "topic": "dev-typed"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "dev-typed/dev-filtered/sf-type-1",
+      "logical": "typed → filtered",
+      "owned": true,
+      "role": "rule",
+      "properties": {
+        "correlationProperties": {
+          "cloudEvents:type": "tck.wanted.v1"
+        },
+        "filterType": "CorrelationFilter",
+        "rule": "sf-type-1",
+        "sqlExpression": null,
+        "subscription": "dev-filtered",
+        "topic": "dev-typed"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-prefixed/dev-filtered",
+      "logical": "prefixed → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D",
+        "forwardTo": "dev-filtered",
+        "subscription": "dev-filtered",
+        "topic": "dev-prefixed"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "dev-prefixed/dev-filtered/$Default",
+      "logical": "prefixed → filtered",
+      "owned": true,
+      "role": "rule",
+      "properties": {
+        "correlationProperties": null,
+        "filterType": "SqlFilter",
+        "rule": "$Default",
+        "sqlExpression": "[cloudEvents:type] LIKE 'payments.%'",
+        "subscription": "dev-filtered",
+        "topic": "dev-prefixed"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "dev-prefixed/dev-filtered/sf-prefix-1",
+      "logical": "prefixed → filtered",
+      "owned": true,
+      "role": "rule",
+      "properties": {
+        "correlationProperties": null,
+        "filterType": "SqlFilter",
+        "rule": "sf-prefix-1",
+        "sqlExpression": "[cloudEvents:type] LIKE 'tck.%'",
+        "subscription": "dev-filtered",
+        "topic": "dev-prefixed"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-tenant/dev-filtered",
+      "logical": "tenant → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D",
+        "forwardTo": "dev-filtered",
+        "subscription": "dev-filtered",
+        "topic": "dev-tenant"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "dev-tenant/dev-filtered/$Default",
+      "logical": "tenant → filtered",
+      "owned": true,
+      "role": "rule",
+      "properties": {
+        "correlationProperties": null,
+        "filterType": "SqlFilter",
+        "rule": "$Default",
+        "sqlExpression": "1=1",
+        "subscription": "dev-filtered",
+        "topic": "dev-tenant"
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-everything/dev-filtered",
+      "logical": "everything → filtered",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "defaultMessageTimeToLive": "P14D",
+        "forwardTo": "dev-filtered",
+        "subscription": "dev-filtered",
+        "topic": "dev-everything"
+      }
+    },
+    {
+      "kind": "rule",
+      "name": "dev-everything/dev-filtered/$Default",
+      "logical": "everything → filtered",
+      "owned": true,
+      "role": "rule",
+      "properties": {
+        "correlationProperties": null,
+        "filterType": "SqlFilter",
+        "rule": "$Default",
+        "sqlExpression": "1=1",
+        "subscription": "dev-filtered",
+        "topic": "dev-everything"
+      }
+    }
+  ]
+}

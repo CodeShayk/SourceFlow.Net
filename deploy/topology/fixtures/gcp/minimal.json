@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "service": "minimal",
+  "transport": "gcp_pubsub",
+  "endpoint": {
+    "name": "minimal",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [],
+  "subscribes": [],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "topic",
+      "name": "dev-minimal+dlq",
+      "logical": "minimal",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-minimal+dlq",
+      "logical": "minimal",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": null,
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "",
+        "labels": {},
+        "maxDeliveryAttempts": null,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-minimal+dlq"
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-minimal+in",
+      "logical": "minimal",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {}
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-minimal",
+      "logical": "minimal",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "ackDeadlineSeconds": 30,
+        "deadLetterTopic": "dev-minimal+dlq",
+        "enableMessageOrdering": false,
+        "expires": false,
+        "filter": "",
+        "labels": {
+          "sf-max-deliveries": "10"
+        },
+        "maxDeliveryAttempts": 10,
+        "messageRetentionDuration": "604800s",
+        "topic": "dev-minimal+in"
+      }
+    }
+  ]
+}

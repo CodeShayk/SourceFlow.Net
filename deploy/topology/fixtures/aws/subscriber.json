@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "service": "subscriber",
+  "transport": "aws_sqs",
+  "endpoint": {
+    "name": "subscriber",
+    "ordered": false,
+    "maxDeliveries": 10,
+    "commands": []
+  },
+  "publishes": [],
+  "subscribes": [
+    {
+      "topic": "shared",
+      "filter": "type = 'tck.shared.v1'"
+    }
+  ],
+  "sends": [],
+  "resources": [
+    {
+      "kind": "queue",
+      "name": "dev-subscriber-dlq",
+      "logical": "subscriber",
+      "owned": true,
+      "role": "dead-letter",
+      "properties": {
+        "allowTopics": [],
+        "deadLetterQueue": null,
+        "fifo": false,
+        "maxReceiveCount": null,
+        "messageRetentionSeconds": 1209600
+      }
+    },
+    {
+      "kind": "queue",
+      "name": "dev-subscriber",
+      "logical": "subscriber",
+      "owned": true,
+      "role": "endpoint",
+      "properties": {
+        "allowTopics": [
+          "dev-shared"
+        ],
+        "deadLetterQueue": "dev-subscriber-dlq",
+        "fifo": false,
+        "maxReceiveCount": 10,
+        "messageRetentionSeconds": 1209600
+      }
+    },
+    {
+      "kind": "topic",
+      "name": "dev-shared",
+      "logical": "shared",
+      "owned": false,
+      "role": "topic",
+      "properties": {
+        "fifo": false
+      }
+    },
+    {
+      "kind": "subscription",
+      "name": "dev-shared/dev-subscriber",
+      "logical": "shared → subscriber",
+      "owned": true,
+      "role": "subscription",
+      "properties": {
+        "filterPolicy": "{\"ce_type\":[\"tck.shared.v1\"]}",
+        "filterPolicyScope": "MessageAttributes",
+        "protocol": "sqs",
+        "queue": "dev-subscriber",
+        "rawMessageDelivery": true,
+        "topic": "dev-shared"
+      }
+    }
+  ]
+}

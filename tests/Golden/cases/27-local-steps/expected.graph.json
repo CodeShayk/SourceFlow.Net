@@ -1,0 +1,101 @@
+{
+  "nodes": [
+    {
+      "id": "start",
+      "kind": "start",
+      "label": "orders.order-placed.v1",
+      "compensable": false
+    },
+    {
+      "id": "reject-if-needed",
+      "kind": "step",
+      "label": "reject-if-needed",
+      "sends": "orders.reject-order.v1",
+      "awaits": "orders.order-rejected-by-review.v1",
+      "compensable": false
+    },
+    {
+      "id": "cancel",
+      "kind": "step",
+      "label": "cancel",
+      "sends": "orders.cancel-order.v1",
+      "awaits": "orders.order-cancelled.v1",
+      "timeout": "PT10M",
+      "compensable": false
+    },
+    {
+      "id": "Completed",
+      "kind": "terminal",
+      "label": "Completed",
+      "compensable": false
+    },
+    {
+      "id": "Compensating",
+      "kind": "compensating",
+      "label": "Compensating",
+      "compensable": false
+    },
+    {
+      "id": "Compensated",
+      "kind": "terminal",
+      "label": "Compensated",
+      "compensable": false
+    },
+    {
+      "id": "ManualIntervention",
+      "kind": "manual",
+      "label": "✋ Manual intervention",
+      "compensable": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "start->reject-if-needed:start:0",
+      "source": "start",
+      "target": "reject-if-needed",
+      "kind": "start",
+      "label": "▶ orders.order-placed.v1",
+      "description": "orders.order-placed.v1 starts the workflow at reject-if-needed"
+    },
+    {
+      "id": "reject-if-needed->cancel:success:0",
+      "source": "reject-if-needed",
+      "target": "cancel",
+      "kind": "success",
+      "label": "✓ orders.order-rejected-by-review.v1",
+      "description": "Success: orders.order-rejected-by-review.v1 moves from reject-if-needed to cancel"
+    },
+    {
+      "id": "cancel->Completed:success:0",
+      "source": "cancel",
+      "target": "Completed",
+      "kind": "success",
+      "label": "✓ orders.order-cancelled.v1",
+      "description": "Success: orders.order-cancelled.v1 moves from cancel to Completed"
+    },
+    {
+      "id": "cancel->Completed:failure:0",
+      "source": "cancel",
+      "target": "Completed",
+      "kind": "failure",
+      "label": "✕ orders.already_shipped",
+      "description": "Failure: orders.already_shipped at cancel leads to Completed"
+    },
+    {
+      "id": "cancel->ManualIntervention:timeout:0",
+      "source": "cancel",
+      "target": "ManualIntervention",
+      "kind": "timeout",
+      "label": "⏱ PT10M",
+      "description": "Timeout: after PT10M cancel leads to ManualIntervention"
+    },
+    {
+      "id": "Compensating->Compensated:compensation:0",
+      "source": "Compensating",
+      "target": "Compensated",
+      "kind": "compensation",
+      "label": "⟲ nothing to undo",
+      "description": "Compensation: nothing to undo, the workflow is compensated"
+    }
+  ]
+}

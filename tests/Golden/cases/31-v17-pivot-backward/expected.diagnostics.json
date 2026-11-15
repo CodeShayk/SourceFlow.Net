@@ -1,0 +1,9 @@
+[
+  {
+    "id": "WF-V17",
+    "severity": "error",
+    "line": 23,
+    "column": 17,
+    "message": "Step 'create-shipment' is at or after the pivot 'create-shipment', so 'goto: approve' can't go back before it (forward recovery only)."
+  }
+]

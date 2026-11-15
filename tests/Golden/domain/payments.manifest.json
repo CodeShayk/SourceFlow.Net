@@ -1,0 +1,170 @@
+{
+  "manifestVersion": 1,
+  "service": "payments",
+  "endpoint": "payments",
+  "sourceflowVersion": "3.0.0",
+  "messages": [
+    {
+      "type": "payments.charge",
+      "version": 1,
+      "kind": "command",
+      "clrType": "PaymentsCharge",
+      "aggregate": "payment",
+      "fields": [
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "payments.payment-captured",
+      "version": 1,
+      "kind": "event",
+      "clrType": "PaymentsPaymentCaptured",
+      "fields": [
+        {
+          "name": "paymentId",
+          "type": "uuid"
+        },
+        {
+          "name": "orderId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        },
+        {
+          "name": "cardHolder",
+          "type": "string",
+          "personalData": true
+        }
+      ]
+    },
+    {
+      "type": "payments.refund",
+      "version": 1,
+      "kind": "command",
+      "clrType": "PaymentsRefund",
+      "aggregate": "payment",
+      "fields": [
+        {
+          "name": "paymentId",
+          "type": "uuid"
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "type": "payments.refunded",
+      "version": 1,
+      "kind": "event",
+      "clrType": "PaymentsRefunded",
+      "fields": [
+        {
+          "name": "paymentId",
+          "type": "uuid"
+        },
+        {
+          "name": "orderId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "payments.void",
+      "version": 1,
+      "kind": "command",
+      "clrType": "PaymentsVoid",
+      "aggregate": "payment",
+      "fields": [
+        {
+          "name": "paymentId",
+          "type": "uuid"
+        }
+      ]
+    },
+    {
+      "type": "payments.voided",
+      "version": 1,
+      "kind": "event",
+      "clrType": "PaymentsVoided",
+      "fields": [
+        {
+          "name": "paymentId",
+          "type": "uuid"
+        }
+      ]
+    }
+  ],
+  "aggregates": [
+    {
+      "name": "payment",
+      "clrType": "Payments.Payment",
+      "commands": [
+        {
+          "type": "payments.charge",
+          "version": 1,
+          "emits": [
+            "payments.payment-captured.v1"
+          ],
+          "rejects": [
+            "payments.declined",
+            "payments.fraud_suspected"
+          ]
+        },
+        {
+          "type": "payments.refund",
+          "version": 1,
+          "emits": [
+            "payments.refunded.v1"
+          ],
+          "rejects": []
+        },
+        {
+          "type": "payments.void",
+          "version": 1,
+          "emits": [
+            "payments.voided.v1"
+          ],
+          "rejects": []
+        }
+      ],
+      "events": [
+        "payments.payment-captured.v1",
+        "payments.refunded.v1",
+        "payments.voided.v1"
+      ]
+    }
+  ],
+  "processManagers": [],
+  "projections": [],
+  "publishes": [
+    {
+      "domainEvent": "payments.payment-captured.v1",
+      "as": "payments.payment-captured.v1",
+      "topic": "payments.events"
+    },
+    {
+      "domainEvent": "payments.refunded.v1",
+      "as": "payments.refunded.v1",
+      "topic": "payments.events"
+    }
+  ],
+  "subscribes": [
+    {
+      "topic": "orders.events"
+    }
+  ],
+  "commandRoutes": [],
+  "workflows": [],
+  "schemas": "catalog://payments"
+}

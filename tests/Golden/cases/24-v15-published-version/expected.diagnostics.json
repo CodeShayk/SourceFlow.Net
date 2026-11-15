@@ -1,0 +1,9 @@
+[
+  {
+    "id": "WF-V15",
+    "severity": "error",
+    "line": 3,
+    "column": 10,
+    "message": "published-flow@1 changed since it was published; in-flight instances run the published structure, so give the change 'version: 2' (doc 15 §5.6)."
+  }
+]

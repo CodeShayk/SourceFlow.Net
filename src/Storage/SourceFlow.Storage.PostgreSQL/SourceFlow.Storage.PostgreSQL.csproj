@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>SourceFlow.Net v3: PostgreSQL implementation of the persistence SPI (event store, outbox, inbox, checkpoints, leases, documents) and the SFQL PostgreSQL compiler.</Description>
+    <PackageTags>sourceflow;event-sourcing;cqrs;postgresql;npgsql</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\SourceFlow.Net\SourceFlow.Net.csproj" />
+    <PackageReference Include="Npgsql" />
+    <InternalsVisibleTo Include="SourceFlow.Storage.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Schema\*.sql" LogicalName="SourceFlow.Storage.PostgreSQL.Schema.%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

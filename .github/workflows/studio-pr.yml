@@ -1,0 +1,64 @@
+# SourceFlow Studio checks (implementation plan 10 §4). WP-S.7: the core client (WASM-01..08); WP-S.8: the app shell
+# (STU-UT, STU-CT) and the Playwright scenarios against `dotnet sourceflow studio` (STU-E2E). Accessibility and
+# performance budgets join with the views (WP-S.9 onwards). WP-S.12: the static site build and the workflow-diff action.
+name: studio-pr
+
+on:
+  pull_request:
+    branches: [ "v3.0.0" ]
+    paths: [ "web/**", "src/Workflows/**", "src/Tooling/SourceFlow.Tool/**", "schemas/**", "tests/Golden/**", "samples/OrderFulfilment/**", "samples/TravelBooking/**", "docs/v3.0.0/reference/guides/workflow-dsl-reference.md", ".github/workflows/studio-pr.yml", ".github/workflows/workflow-diff.yml" ]
+  push:
+    branches: [ "v3.0.0" ]
+    paths: [ "web/**", "src/Workflows/**", "src/Tooling/SourceFlow.Tool/**", "schemas/**", "tests/Golden/**", "samples/OrderFulfilment/**", "samples/TravelBooking/**", "docs/v3.0.0/reference/guides/workflow-dsl-reference.md", ".github/workflows/studio-pr.yml", ".github/workflows/workflow-diff.yml" ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  core-client:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.18"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Type check
+        run: npm run typecheck
+      # The core builds without the wasm-tools workload (no AOT or native relinking); it is trimmed on publish.
+      - name: Build the WebAssembly core
+        run: npm run build:wasm
+      - name: WASM-01..08, STU-UT, STU-CT, the site build and the workflow-diff action (Vitest)
+        run: npm test
+      - name: Build the workflow-diff action
+        run: npm run build:action
+      - name: Build the app
+        run: npm run build
+      - name: Build the tool (the Studio local host)
+        working-directory: .
+        run: dotnet build src/Tooling/SourceFlow.Tool -c Debug
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: STU-E2E (Playwright)
+        run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: web/app/test-results

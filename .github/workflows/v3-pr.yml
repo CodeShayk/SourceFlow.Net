@@ -1,0 +1,323 @@
+# v3 required checks (implementation plan 08 §2). v2 workflows keep their master/release filters.
+name: v3-pr
+
+on:
+  pull_request:
+    branches: [ "v3.0.0" ]
+  push:
+    branches: [ "v3.0.0" ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v3-pr-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  # Microsoft.Testing.Platform returns 8 when a filtered run selects no tests in a project
+  # (categories that have no tests yet). Real failures still fail the job.
+  # tests/CodeCoverage.settings.xml leaves out sample modules (child processes) and generated sources.
+  TEST_ARGS: "-c Release --no-build --ignore-exit-code 8 --coverage --coverage-output-format cobertura --coverage-settings ${{ github.workspace }}/tests/CodeCoverage.settings.xml --report-trx"
+
+jobs:
+  dependency-review:
+    # Doc 10 §7: new or updated dependencies with known vulnerabilities fail the PR.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+
+  build:
+    name: build (${{ matrix.os == 'ubuntu-latest' && 'ubuntu' || 'windows' }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet restore SourceFlow.slnx
+      - run: dotnet build SourceFlow.slnx -c Release --no-restore -warnaserror
+      - name: AOT publish check (ARCH-06)
+        if: matrix.os == 'ubuntu-latest'
+        # PublishAot is set inside the project: as a global property it would reach the netstandard2.0 generator (NETSDK1207).
+        run: |
+          dotnet publish tests/Fixtures/Bank/Bank.AotCheck/Bank.AotCheck.csproj -c Release -p:SourceFlowAotCheck=true -warnaserror
+          dotnet publish tests/Fixtures/Cloud.AotCheck/Cloud.AotCheck.csproj -c Release -p:SourceFlowAotCheck=true -warnaserror
+
+  unit:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build SourceFlow.slnx -c Release
+      - name: Unit, architecture and in-memory conformance
+        run: >-
+          dotnet test --solution SourceFlow.slnx ${{ env.TEST_ARGS }}
+          --filter-not-trait "Requires=Docker" --filter-not-trait "Requires=LocalStack"
+          --filter-not-trait "Requires=PubSubEmulator" --filter-not-trait "Requires=ServiceBusEmulator"
+          --filter-not-trait "Requires=RealCloud" --filter-not-trait "Requires=Terraform"
+          --filter-not-trait "Category=Chaos" --filter-not-trait "Category=Performance"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-results
+          path: "**/TestResults/**"
+
+  storage:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build SourceFlow.slnx -c Release
+      - name: Storage conformance kit and query compilers (Testcontainers)
+        run: >-
+          dotnet test --project tests/Storage/SourceFlow.Storage.Tests/SourceFlow.Storage.Tests.csproj
+          ${{ env.TEST_ARGS }} --filter-not-trait "Category=Chaos"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: storage-results
+          path: "**/TestResults/**"
+
+  transports:
+    name: transports (${{ matrix.cloud }})
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cloud: aws
+            trait: Aws
+            compose: eng/emulators/localstack/docker-compose.yml
+          - cloud: gcp
+            trait: Gcp
+            compose: eng/emulators/pubsub/docker-compose.yml
+          - cloud: azure
+            trait: Azure
+            compose: eng/emulators/servicebus/docker-compose.yml
+    runs-on: ubuntu-latest
+    env:
+      MSSQL_SA_PASSWORD: ${{ secrets.EMULATOR_SA_PASSWORD || 'SourceFlow_Emulator_1' }}
+      AWS_ENDPOINT_URL: http://localhost:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: eu-west-1
+      PUBSUB_EMULATOR_HOST: localhost:8085
+      SERVICEBUS_EMULATOR_CONNECTION: "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+      SERVICEBUS_EMULATOR_ADMIN_CONNECTION: "Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Start emulator
+        run: docker compose -f ${{ matrix.compose }} up -d
+      - name: Emulator health gate
+        shell: bash
+        run: |
+          for i in $(seq 1 90); do
+            case "${{ matrix.cloud }}" in
+              aws)   curl -sf http://localhost:4566/_localstack/health | grep -q '"sqs": "available"' && exit 0 ;;
+              gcp)   curl -sf -X PUT http://localhost:8085/v1/projects/sourceflow-emulator/topics/health >/dev/null && exit 0 ;;
+              azure) curl -sf http://localhost:5300/health >/dev/null && exit 0 ;;
+            esac
+            sleep 2
+          done
+          echo "emulator not healthy"; exit 1
+      - run: dotnet build SourceFlow.slnx -c Release
+      - name: Transport unit tests + emulator TCK
+        run: >-
+          dotnet test --project tests/Cloud/SourceFlow.Cloud.Tests/SourceFlow.Cloud.Tests.csproj
+          ${{ env.TEST_ARGS }} --filter-trait "Cloud=${{ matrix.trait }}" --filter-not-trait "Requires=RealCloud" --filter-not-trait "Requires=Terraform"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: transports-${{ matrix.cloud }}-results
+          path: "**/TestResults/**"
+
+  iac:
+    # deploy/topology (WP-3.5): the Terraform modules applied to LocalStack and the Pub/Sub emulator and checked with
+    # ProvisioningMode.Validate, every module's `terraform test` suite, and the Bicep module built for every fixture.
+    # deploy/observability (WP-4.3): promtool checks the generated alert rules (the unit job checks they are up to date).
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      AWS_ENDPOINT_URL: http://localhost:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: eu-west-1
+      PUBSUB_EMULATOR_HOST: localhost:8085
+      TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugins
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+      - name: Bicep
+        run: az bicep install && az bicep version
+      - uses: actions/cache@v4
+        with:
+          path: .terraform-plugins
+          key: terraform-plugins-${{ hashFiles('deploy/topology/terraform/**/*.tf') }}
+      - name: Start emulators
+        run: |
+          mkdir -p .terraform-plugins
+          docker compose -f eng/emulators/localstack/docker-compose.yml up -d
+          docker compose -f eng/emulators/pubsub/docker-compose.yml up -d
+          for i in $(seq 1 90); do
+            curl -sf http://localhost:4566/_localstack/health | grep -q '"sqs": "available"' && curl -sf -X PUT http://localhost:8085/v1/projects/sourceflow-emulator/topics/health >/dev/null && exit 0
+            sleep 2
+          done
+          echo "emulators not healthy"; exit 1
+      - run: terraform fmt -check -recursive deploy/topology/terraform
+      - name: Prometheus alert rules (deploy/observability)
+        run: docker run --rm --entrypoint promtool -v "$PWD/deploy/observability:/rules:ro" prom/prometheus:v3.13.4 check rules /rules/sourceflow-alerts.yaml
+      - run: dotnet build SourceFlow.slnx -c Release
+      - name: IaC modules against the topology fixtures
+        run: >-
+          dotnet test --project tests/Cloud/SourceFlow.Cloud.Tests/SourceFlow.Cloud.Tests.csproj
+          ${{ env.TEST_ARGS }} --filter-trait "Requires=Terraform"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: iac-results
+          path: "**/TestResults/**"
+
+  e2e:
+    # E2E-17..24 run the Bank services on PostgreSQL (Testcontainers) over each emulator.
+    needs: [ unit, storage, transports ]
+    runs-on: ubuntu-latest
+    env:
+      MSSQL_SA_PASSWORD: ${{ secrets.EMULATOR_SA_PASSWORD || 'SourceFlow_Emulator_1' }}
+      AWS_ENDPOINT_URL: http://localhost:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: eu-west-1
+      PUBSUB_EMULATOR_HOST: localhost:8085
+      SERVICEBUS_EMULATOR_CONNECTION: "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+      SERVICEBUS_EMULATOR_ADMIN_CONNECTION: "Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: |
+          docker compose -f eng/emulators/localstack/docker-compose.yml up -d
+          docker compose -f eng/emulators/pubsub/docker-compose.yml up -d
+          docker compose -f eng/emulators/servicebus/docker-compose.yml up -d
+          for i in $(seq 1 90); do
+            curl -sf http://localhost:5300/health >/dev/null && exit 0
+            sleep 2
+          done
+          echo "Service Bus emulator not healthy"; exit 1
+      - run: dotnet build SourceFlow.slnx -c Release
+      - name: End-to-end scenarios
+        run: >-
+          dotnet test --project tests/EndToEnd/SourceFlow.EndToEnd.Tests/SourceFlow.EndToEnd.Tests.csproj
+          ${{ env.TEST_ARGS }} --filter-not-trait "Category=Chaos" --filter-not-trait "Category=Performance" --filter-not-trait "Requires=RealCloud"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-results
+          path: "**/TestResults/**"
+
+  coverage:
+    needs: [ unit, storage, transports, e2e ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/download-artifact@v4
+        with:
+          path: results
+      - run: dotnet tool install -g dotnet-reportgenerator-globaltool
+      - name: Merge coverage
+        run: reportgenerator -reports:"results/**/*.cobertura.xml" -targetdir:coverage -reporttypes:"Cobertura;MarkdownSummaryGithub"
+      - name: Coverage gate (plan 04 §5)
+        run: dotnet run --project eng/CoverageGate/CoverageGate.csproj -c Release -- coverage/Cobertura.xml eng/CoverageGate/thresholds.json
+      - run: cat coverage/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+
+  api-traceability:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet build SourceFlow.slnx -c Release
+      - name: Public API approval and traceability (ARCH-08)
+        run: >-
+          dotnet test --solution SourceFlow.slnx -c Release --no-build --ignore-exit-code 8
+          --filter-trait "Category=PublicApi" --filter-trait "Category=Architecture"
+      - name: TravelBooking manifest drift check (doc 15 §3.2, WP-S.2)
+        # Design-time export: each host is built but never started, so the unreachable connection string is never used.
+        shell: bash
+        run: |
+          set -e
+          for service in Bookings Hotels; do
+            dotnet src/Tooling/SourceFlow.Tool/bin/Release/net10.0/SourceFlow.Tool.dll manifest export \
+              --project "samples/TravelBooking/$service.Api" -c Release --no-build --check \
+              --output "samples/TravelBooking/$service/sourceflow.manifest.json" \
+              -- "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
+          done
+      - name: OrderFulfilment sample manifest drift check (WP-S.13)
+        # The sample's host runs one service per Service setting; each service's manifest is exported and compared.
+        shell: bash
+        run: |
+          set -e
+          for service in orders inventory payments shipping; do
+            dotnet src/Tooling/SourceFlow.Tool/bin/Release/net10.0/SourceFlow.Tool.dll manifest export \
+              --project samples/OrderFulfilment/OrderFulfilment.Host -c Release --no-build --check \
+              --output "samples/OrderFulfilment/${service^}/sourceflow.manifest.json" \
+              -- "--Service=$service" "--ConnectionStrings:SourceFlow=Host=localhost;Port=1"
+          done
+
+  pack:
+    needs: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet pack SourceFlow.slnx -c Release -o artifacts
+      - name: Verify package layout
+        shell: bash
+        run: |
+          set -e
+          pkg=$(ls artifacts/SourceFlow.Net.*.nupkg | head -1)
+          unzip -l "$pkg" | grep -q "analyzers/dotnet/cs/SourceFlow.Generators.dll"
+          for p in artifacts/*.nupkg; do
+            if unzip -l "$p" | grep " lib/" | grep -v " lib/net10.0/"; then echo "non-net10.0 lib in $p"; exit 1; fi
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: artifacts

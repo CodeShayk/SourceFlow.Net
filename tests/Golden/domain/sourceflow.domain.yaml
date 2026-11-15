@@ -1,0 +1,13 @@
+# The golden-suite domain (WF-GOLD): four services of a commerce domain. The manifests are hand-written in
+# the exported shape; the orders service owns the workflows under ../cases.
+domain: commerce
+description: Order to delivery
+services:
+  - name: orders
+    manifest: orders.manifest.json
+  - name: inventory
+    manifest: inventory.manifest.json
+  - name: payments
+    manifest: payments.manifest.json
+  - name: shipping
+    manifest: shipping.manifest.json

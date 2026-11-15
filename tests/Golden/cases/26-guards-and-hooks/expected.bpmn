@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="utf-8"?>
+<bpmn:definitions id="Definitions_order_fulfilment_1" targetNamespace="https://sourceflow.net/workflows/orders" exporter="SourceFlow Studio" exporterVersion="1" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:message id="Message_inventory_release_stock_v1" name="inventory.release-stock.v1" />
+  <bpmn:message id="Message_inventory_reserve_stock_v1" name="inventory.reserve-stock.v1" />
+  <bpmn:message id="Message_inventory_stock_reserved_v1" name="inventory.stock-reserved.v1" />
+  <bpmn:message id="Message_orders_address_corrected_v1" name="orders.address-corrected.v1" />
+  <bpmn:message id="Message_orders_order_approved_v1" name="orders.order-approved.v1" />
+  <bpmn:message id="Message_orders_order_placed_v1" name="orders.order-placed.v1" />
+  <bpmn:message id="Message_orders_order_rejected_by_review_v1" name="orders.order-rejected-by-review.v1" />
+  <bpmn:message id="Message_payments_charge_v1" name="payments.charge.v1" />
+  <bpmn:message id="Message_payments_payment_captured_v1" name="payments.payment-captured.v1" />
+  <bpmn:message id="Message_payments_refund_v1" name="payments.refund.v1" />
+  <bpmn:message id="Message_rejected_inventory_out_of_stock" name="rejected:inventory.out_of_stock" />
+  <bpmn:message id="Message_rejected_payments_declined" name="rejected:payments.declined" />
+  <bpmn:message id="Message_rejected_payments_fraud_suspected" name="rejected:payments.fraud_suspected" />
+  <bpmn:message id="Message_rejected_shipping_address_invalid" name="rejected:shipping.address_invalid" />
+  <bpmn:message id="Message_shipping_create_shipment_v1" name="shipping.create-shipment.v1" />
+  <bpmn:message id="Message_shipping_shipment_created_v1" name="shipping.shipment-created.v1" />
+  <bpmn:process id="Process_order_fulfilment_1" name="order-fulfilment@1" isExecutable="false">
+    <bpmn:documentation>Reserve stock, take payment, ship.</bpmn:documentation>
+    <bpmn:startEvent id="Start" name="orders.order-placed.v1">
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_orders_order_placed_v1" />
+    </bpmn:startEvent>
+    <bpmn:endEvent id="Completed" name="Completed">
+      <bpmn:incoming>Flow_18</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateThrowEvent id="Compensate" name="Compensate completed steps">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+      <bpmn:incoming>Flow_9</bpmn:incoming>
+      <bpmn:incoming>Flow_10</bpmn:incoming>
+      <bpmn:incoming>Flow_11</bpmn:incoming>
+      <bpmn:incoming>Flow_15</bpmn:incoming>
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+      <bpmn:compensateEventDefinition />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="Compensated" name="Compensated">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="ManualIntervention" name="Manual intervention">
+      <bpmn:documentation>An operator resumes, retries or aborts the instance.</bpmn:documentation>
+      <bpmn:incoming>Flow_16</bpmn:incoming>
+      <bpmn:incoming>Flow_20</bpmn:incoming>
+      <bpmn:incoming>Flow_22</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sendTask id="Send_reserve_stock" name="reserve-stock: inventory.reserve-stock.v1" messageRef="Message_inventory_reserve_stock_v1">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:boundaryEvent id="Undo_boundary_reserve_stock" name="undo reserve-stock" attachedToRef="Send_reserve_stock" cancelActivity="true">
+      <bpmn:compensateEventDefinition />
+    </bpmn:boundaryEvent>
+    <bpmn:sendTask id="Undo_reserve_stock" name="undo reserve-stock: inventory.release-stock.v1" isForCompensation="true" messageRef="Message_inventory_release_stock_v1">
+      <bpmn:documentation>await inventory.stock-released.v1; retry 5× (exponential, initial PT30S, cap PT10M); timeout PT15M, then manual intervention</bpmn:documentation>
+    </bpmn:sendTask>
+    <bpmn:receiveTask id="Await_reserve_stock" name="reserve-stock: await inventory.stock-reserved.v1" messageRef="Message_inventory_stock_reserved_v1">
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:boundaryEvent id="Failure_reserve_stock_1" name="rejected inventory.out_of_stock" attachedToRef="Await_reserve_stock" cancelActivity="true">
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_rejected_inventory_out_of_stock" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="Timeout_reserve_stock" name="timeout PT5M" attachedToRef="Await_reserve_stock" cancelActivity="true">
+      <bpmn:documentation>retry 2× (fixed, initial PT0S)</bpmn:documentation>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">PT5M</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sendTask id="Send_charge_payment" name="charge-payment: payments.charge.v1" messageRef="Message_payments_charge_v1">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_7</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:boundaryEvent id="Undo_boundary_charge_payment" name="undo charge-payment" attachedToRef="Send_charge_payment" cancelActivity="true">
+      <bpmn:compensateEventDefinition />
+    </bpmn:boundaryEvent>
+    <bpmn:sendTask id="Undo_charge_payment" name="undo charge-payment: payments.refund.v1" isForCompensation="true" messageRef="Message_payments_refund_v1">
+      <bpmn:documentation>await payments.refunded.v1; retry 5× (exponential, initial PT1M); timeout PT30M, then manual intervention</bpmn:documentation>
+    </bpmn:sendTask>
+    <bpmn:receiveTask id="Await_charge_payment" name="charge-payment: await payments.payment-captured.v1" messageRef="Message_payments_payment_captured_v1">
+      <bpmn:incoming>Flow_7</bpmn:incoming>
+      <bpmn:outgoing>Flow_8</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:boundaryEvent id="Failure_charge_payment_1" name="rejected payments.declined" attachedToRef="Await_charge_payment" cancelActivity="true">
+      <bpmn:documentation>retry 3× (fixed, initial PT10M)</bpmn:documentation>
+      <bpmn:outgoing>Flow_9</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_rejected_payments_declined" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="Failure_charge_payment_2" name="rejected payments.fraud_suspected" attachedToRef="Await_charge_payment" cancelActivity="true">
+      <bpmn:outgoing>Flow_10</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_rejected_payments_fraud_suspected" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="Timeout_charge_payment" name="timeout PT2M" attachedToRef="Await_charge_payment" cancelActivity="true">
+      <bpmn:documentation>retry 2× (fixed, initial PT0S)</bpmn:documentation>
+      <bpmn:outgoing>Flow_11</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">PT2M</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:exclusiveGateway id="Gateway_review_large_order" name="review-large-order?" default="Flow_skip_review_large_order">
+      <bpmn:incoming>Flow_8</bpmn:incoming>
+      <bpmn:outgoing>Flow_12</bpmn:outgoing>
+      <bpmn:outgoing>Flow_skip_review_large_order</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:receiveTask id="Await_review_large_order" name="review-large-order: await orders.order-approved.v1" messageRef="Message_orders_order_approved_v1">
+      <bpmn:incoming>Flow_12</bpmn:incoming>
+      <bpmn:outgoing>Flow_14</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:boundaryEvent id="Failure_review_large_order_1" name="orders.order-rejected-by-review.v1" attachedToRef="Await_review_large_order" cancelActivity="true">
+      <bpmn:outgoing>Flow_15</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_orders_order_rejected_by_review_v1" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="Timeout_review_large_order" name="timeout P1D" attachedToRef="Await_review_large_order" cancelActivity="true">
+      <bpmn:outgoing>Flow_16</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">P1D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sendTask id="Send_create_shipment" name="create-shipment: shipping.create-shipment.v1" messageRef="Message_shipping_create_shipment_v1">
+      <bpmn:documentation>Pivot: the point of no return.</bpmn:documentation>
+      <bpmn:incoming>Flow_skip_review_large_order</bpmn:incoming>
+      <bpmn:incoming>Flow_14</bpmn:incoming>
+      <bpmn:incoming>Flow_21</bpmn:incoming>
+      <bpmn:outgoing>Flow_17</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:receiveTask id="Await_create_shipment" name="create-shipment: await shipping.shipment-created.v1" messageRef="Message_shipping_shipment_created_v1">
+      <bpmn:incoming>Flow_17</bpmn:incoming>
+      <bpmn:outgoing>Flow_18</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:boundaryEvent id="Failure_create_shipment_1" name="rejected shipping.address_invalid" attachedToRef="Await_create_shipment" cancelActivity="true">
+      <bpmn:outgoing>Flow_19</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="Message_rejected_shipping_address_invalid" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="Timeout_create_shipment" name="timeout PT1H" attachedToRef="Await_create_shipment" cancelActivity="true">
+      <bpmn:documentation>retry 3× (exponential, initial PT5M)</bpmn:documentation>
+      <bpmn:outgoing>Flow_20</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">PT1H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:receiveTask id="Await_await_address_fix" name="await-address-fix: await orders.address-corrected.v1" messageRef="Message_orders_address_corrected_v1">
+      <bpmn:incoming>Flow_19</bpmn:incoming>
+      <bpmn:outgoing>Flow_21</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:boundaryEvent id="Timeout_await_address_fix" name="timeout P2D" attachedToRef="Await_await_address_fix" cancelActivity="true">
+      <bpmn:outgoing>Flow_22</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">P2D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="Flow_1" name="all undone" sourceRef="Compensate" targetRef="Compensated" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Start" targetRef="Send_reserve_stock" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Send_reserve_stock" targetRef="Await_reserve_stock" />
+    <bpmn:sequenceFlow id="Flow_4" name="✓ inventory.stock-reserved.v1" sourceRef="Await_reserve_stock" targetRef="Send_charge_payment" />
+    <bpmn:sequenceFlow id="Flow_5" name="✕ rejected inventory.out_of_stock" sourceRef="Failure_reserve_stock_1" targetRef="Compensate" />
+    <bpmn:sequenceFlow id="Flow_6" name="⏱ PT5M" sourceRef="Timeout_reserve_stock" targetRef="Compensate" />
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Send_charge_payment" targetRef="Await_charge_payment" />
+    <bpmn:sequenceFlow id="Flow_8" name="✓ payments.payment-captured.v1" sourceRef="Await_charge_payment" targetRef="Gateway_review_large_order" />
+    <bpmn:sequenceFlow id="Flow_9" name="✕ rejected payments.declined" sourceRef="Failure_charge_payment_1" targetRef="Compensate" />
+    <bpmn:sequenceFlow id="Flow_10" name="✕ rejected payments.fraud_suspected" sourceRef="Failure_charge_payment_2" targetRef="Compensate" />
+    <bpmn:sequenceFlow id="Flow_11" name="⏱ PT2M" sourceRef="Timeout_charge_payment" targetRef="Compensate" />
+    <bpmn:sequenceFlow id="Flow_12" name="when" sourceRef="Gateway_review_large_order" targetRef="Await_review_large_order">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" language="https://github.com/cloudevents/spec/blob/main/cesql/spec.md" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">($data.amount &gt; 5000 OR $data.priority) AND NOT EXISTS $data.reviewer</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_skip_review_large_order" name="skip" sourceRef="Gateway_review_large_order" targetRef="Send_create_shipment" />
+    <bpmn:sequenceFlow id="Flow_14" name="✓ orders.order-approved.v1" sourceRef="Await_review_large_order" targetRef="Send_create_shipment" />
+    <bpmn:sequenceFlow id="Flow_15" name="✕ orders.order-rejected-by-review.v1" sourceRef="Failure_review_large_order_1" targetRef="Compensate" />
+    <bpmn:sequenceFlow id="Flow_16" name="⏱ P1D" sourceRef="Timeout_review_large_order" targetRef="ManualIntervention" />
+    <bpmn:sequenceFlow id="Flow_17" sourceRef="Send_create_shipment" targetRef="Await_create_shipment" />
+    <bpmn:sequenceFlow id="Flow_18" name="✓ shipping.shipment-created.v1" sourceRef="Await_create_shipment" targetRef="Completed" />
+    <bpmn:sequenceFlow id="Flow_19" name="✕ rejected shipping.address_invalid" sourceRef="Failure_create_shipment_1" targetRef="Await_await_address_fix" />
+    <bpmn:sequenceFlow id="Flow_20" name="⏱ PT1H" sourceRef="Timeout_create_shipment" targetRef="ManualIntervention" />
+    <bpmn:sequenceFlow id="Flow_21" name="✓ orders.address-corrected.v1" sourceRef="Await_await_address_fix" targetRef="Send_create_shipment" />
+    <bpmn:sequenceFlow id="Flow_22" name="⏱ P2D" sourceRef="Timeout_await_address_fix" targetRef="ManualIntervention" />
+    <bpmn:association id="Association_reserve_stock" associationDirection="One" sourceRef="Undo_boundary_reserve_stock" targetRef="Undo_reserve_stock" />
+    <bpmn:association id="Association_charge_payment" associationDirection="One" sourceRef="Undo_boundary_charge_payment" targetRef="Undo_charge_payment" />
+  </bpmn:process>
+</bpmn:definitions>
